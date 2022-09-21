@@ -15,7 +15,7 @@ loader.env.RUST_BACKTRACE = "full"
 # ROOT FILE SYSTEM ON GRAMINE FROM HOST
 # TYPE can be chroot, encrypted, tmpfs(in-memory)
 #fs.root.type = "chroot"
-#fs.root.uri  = "file:/home/ubuntu/ternoa_gramine/rust_sgx/"
+#fs.root.uri  = "file:/home/ubuntu/ternoa_gramine/sgx_server/"
 #fs.start_dir = "/"
 
 # MOUNTING FROM "URI" ON HOST, TO "PATH" ON GRAMINE
@@ -24,8 +24,8 @@ fs.mounts = [
   { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
   { path = "/etc", uri = "file:/etc" },
-  { path = "/credentials/keys/" , uri = "file:/home/ubuntu/ternoa_gramine/rust_sgx/credentials/keys/",  type = "encrypted", "key_name" = "DevOnlyKey"},
-  { path = "/credentials/nft/" , uri = "file:/home/ubuntu/ternoa_gramine/rust_sgx/credentials/nft/",  type = "encrypted", "key_name" = "DevOnlyKey"},
+  { path = "/credentials/keys/" , uri = "file:/home/ubuntu/ternoa_gramine/sgx_server/credentials/keys/",  type = "encrypted", "key_name" = "DevOnlyKey"},
+  { path = "/credentials/nft/" , uri = "file:/home/ubuntu/ternoa_gramine/sgx_server/credentials/nft/",  type = "encrypted", "key_name" = "DevOnlyKey"},
 ]
 
 # Only for development and debug, it will be replaced with _mrencalve/_mrsigner for production
