@@ -27,7 +27,7 @@ const METHOD_ZSTD: Option<zip::CompressionMethod> = None;
 pub fn add_dir_zip(src_dir: &str, dst_file: &str) -> i32 {
 	for &method in [METHOD_STORED, METHOD_DEFLATED, METHOD_BZIP2, METHOD_ZSTD].iter() {
 		if method.is_none() {
-			continue
+			continue;
 		}
 		match doit(src_dir, dst_file, method.unwrap()) {
 			Ok(_) => println!("done: {} written to {}", src_dir, dst_file),
@@ -84,7 +84,7 @@ fn doit(
 	method: zip::CompressionMethod,
 ) -> zip::result::ZipResult<()> {
 	if !Path::new(src_dir).is_dir() {
-		return Err(ZipError::FileNotFound)
+		return Err(ZipError::FileNotFound);
 	}
 
 	let path = Path::new(dst_file);

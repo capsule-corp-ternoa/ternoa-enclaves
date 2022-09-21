@@ -116,38 +116,24 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 
 	match verified_secret {
 		Ok(secret) => {
-			//create_dir_all(NFT_DIR_PATH).unwrap();
+			std::fs::create_dir_all(NFT_DIR_PATH).unwrap();
 			let file_path = NFT_DIR_PATH.to_owned() + &secret.nft_id.to_string() + ".secret";
-			if std::path::Path::new(&file_path).is_file() {
-				println!("Error storing secrets to TEE : nft_id already exists");
-
-				return (
-					StatusCode::OK,
-					Json(SecretStoreResponse {
-						status: 400,
-						nft_id: secret.nft_id,
-						cluster_id: 1,
-						description: "Error storing secrets to TEE : nft_id already exists"
-							.to_string(),
-					}),
-				)
-			}
 
 			let mut f = match std::fs::File::create(file_path) {
 				Ok(file) => file,
 				Err(err) => {
-					println!("Error storing secrets to TEE : file creation error");
+					println!("Error storing secrets to TEE : nft_id already exists, nft_id = {}, Error = {}", secret.nft_id, err);
 
 					return (
 						StatusCode::OK,
 						Json(SecretStoreResponse {
-							status: 400,
+							status: 411,
 							nft_id: secret.nft_id,
 							cluster_id: 1,
-							description: "Error storing secrets to TEE : file creation error"
+							description: "Error storing secrets to TEE : nft_id already exists, file creation error"
 								.to_string(),
 						}),
-					)
+					);
 				},
 			};
 
@@ -166,7 +152,7 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 					cluster_id: 1,
 					description: "Secret is successfully stored to TEE".to_string(),
 				}),
-			)
+			);
 		},
 
 		Err(err) => match err {
@@ -176,13 +162,13 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 				return (
 					StatusCode::OK,
 					Json(SecretStoreResponse {
-						status: 400,
+						status: 412,
 						nft_id: received_secret.secret_data.nft_id,
 						cluster_id: 1,
 						description: "Error storing secrets to TEE : Invalid Request Signature"
 							.to_string(),
 					}),
-				)
+				);
 			},
 
 			SecretError::OwnerInvalid => {
@@ -191,25 +177,26 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 				return (
 					StatusCode::OK,
 					Json(SecretStoreResponse {
-						status: 401,
+						status: 413,
 						nft_id: received_secret.secret_data.nft_id,
 						cluster_id: 1,
 						description: "Error storing secrets to TEE : Invalid NFT Owner".to_string(),
 					}),
-				)
+				);
 			},
 
-			SecretError::DecodeError =>
+			SecretError::DecodeError => {
 				return (
 					StatusCode::OK,
 					Json(SecretStoreResponse {
-						status: 407,
+						status: 414,
 						nft_id: 0,
 						cluster_id: 1,
 						description: "Error storing secrets to TEE : nonparsable payload"
 							.to_string(),
 					}),
-				),
+				)
+			},
 		},
 	}
 }
@@ -219,11 +206,50 @@ pub async fn retrieve_secret_shares(
 	Json(requested_secret): Json<SecretPacket>,
 ) -> impl IntoResponse {
 	let verified_req = requested_secret.verify_receive_data().await;
-	
+
 	match verified_req {
 		Ok(data) => {
 			let file_path = NFT_DIR_PATH.to_owned() + &data.nft_id.to_string() + ".secret";
-			let mut file = std::fs::File::open(file_path).unwrap();
+			if !std::path::Path::new(&file_path).is_file() {
+				println!("Error retrieving secrets from TEE : file path does not exist, file_path : {}", file_path );
+				return (
+					StatusCode::UNPROCESSABLE_ENTITY,
+					Json(SecretRetrieveResponse {
+						status: 410,
+						nft_id: 0,
+						cluster_id: 1,
+						secret_data: SecretData {
+							nft_id: 0,
+							data: "Error retrieving secrets from TEE : nft_id does not exist"
+								.as_bytes()
+								.to_vec(),
+						},
+					}),
+				);
+			}
+
+			let mut file = match std::fs::File::open(file_path) {
+				Ok(file) => file,
+				Err(err) => {
+					println!("Error retrieving secrets from TEE : nft_id does not exist, nft_id : {}", data.nft_id );
+
+					return (
+						StatusCode::UNPROCESSABLE_ENTITY,
+						Json(SecretRetrieveResponse {
+							status: 420,
+							nft_id: 0,
+							cluster_id: 1,
+							secret_data: SecretData {
+								nft_id: 0,
+								data: "Error retrieving secrets from TEE : nft_id does not exist"
+									.as_bytes()
+									.to_vec(),
+							},
+						}),
+					);
+				},
+			};
+
 			let mut nft_secret_share = Vec::<u8>::new();
 
 			file.read_to_end(&mut nft_secret_share).unwrap();
@@ -241,15 +267,15 @@ pub async fn retrieve_secret_shares(
 					cluster_id: 1,
 					secret_data: SecretData { nft_id: data.nft_id, data: nft_secret_share },
 				}),
-			)
+			);
 		},
-	
+
 		Err(err) => match err {
-			SecretError::DecodeError =>
+			SecretError::DecodeError => {
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
-						status: 407,
+						status: 415,
 						nft_id: 0,
 						cluster_id: 1,
 						secret_data: SecretData {
@@ -257,12 +283,13 @@ pub async fn retrieve_secret_shares(
 							data: "Error payload is not parsable".as_bytes().to_vec(),
 						},
 					}),
-				),
-			SecretError::SignatureInvalid =>
+				)
+			},
+			SecretError::SignatureInvalid => {
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
-						status: 400,
+						status: 416,
 						nft_id: 0,
 						cluster_id: 1,
 						secret_data: SecretData {
@@ -270,12 +297,13 @@ pub async fn retrieve_secret_shares(
 							data: "Error Invalid Signature or NFT owner".as_bytes().to_vec(),
 						},
 					}),
-				),
-			SecretError::OwnerInvalid =>
+				)
+			},
+			SecretError::OwnerInvalid => {
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
-						status: 400,
+						status: 417,
 						nft_id: 0,
 						cluster_id: 1,
 						secret_data: SecretData {
@@ -283,7 +311,8 @@ pub async fn retrieve_secret_shares(
 							data: "Error Invalid Signature or NFT owner".as_bytes().to_vec(),
 						},
 					}),
-				),
+				)
+			},
 		},
 	}
 }
@@ -320,10 +349,7 @@ mod test {
 		)
 		.unwrap();
 
-		let sd = SecretData {
-			nft_id: 48384,
-			data: "This is a share of 5 shares!".into(),
-		};
+		let sd = SecretData { nft_id: 48384, data: "This is a share of 5 shares!".into() };
 
 		let ser_sd: Vec<u8> = serialize(&sd).unwrap();
 		println!("serialized secure data = {:-?}", ser_sd);

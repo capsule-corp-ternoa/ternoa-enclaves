@@ -78,7 +78,7 @@ pub async fn storage_query() -> impl IntoResponse {
 		println!("{}: {}", hex::encode(key), account.data.free);
 		counter += 1;
 		if counter > 10 {
-			break
+			break;
 		}
 	}
 }
