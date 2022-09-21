@@ -52,7 +52,7 @@ endif
 
 .PHONY: start-gramine-server
 start-gramine-server: all
-	nohup $(GRAMINE) sgx_server 3000 > OUTPUT.log 2>&1
+	nohup $(GRAMINE) sgx_server 3000 > OUTPUT.log 2>&1 &
 
 .PHONY: clean
 clean:
