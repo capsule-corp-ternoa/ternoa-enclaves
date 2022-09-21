@@ -11,12 +11,9 @@ use tower_http::{
 	services::ServeDir,
 };
 
-use crate::{
-	chain::{
-		chain::{get_constant, get_nft_data_handler, rpc_query, submit_tx},
-		nft::{retrieve_secret_shares, store_secret_shares},
-	},
-	keys::pgp_keys::{generate_key, get_public_key, get_public_key_url},
+use crate::chain::{
+	chain::{get_constant, get_nft_data_handler, rpc_query, submit_tx},
+	nft::{retrieve_secret_shares, store_secret_shares},
 };
 
 /* HTTP Server */
@@ -35,7 +32,7 @@ pub async fn http_server(port: &u16) {
         ;
 
 	let http_app = Router::new()
-		.fallback_service(
+		.fallback(
 			get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true))
 				.handle_error(|error: std::io::Error| async move {
 					(
@@ -47,15 +44,15 @@ pub async fn http_server(port: &u16) {
 		.route("/", get(health_handler))
 		.layer(cors)
 		// TEST APIS
-		.route("/api/generateKey", get(generate_key))
-		.route("/api/getPublicKey", get(get_public_key))
-		.route("/api/getPublicKeyUrl", get(get_public_key_url))
+		//.route("/api/generateKey", get(generate_key))
+		//.route("/api/getPublicKey", get(get_public_key))
+		//.route("/api/getPublicKeyUrl", get(get_public_key_url))
 		.route("/api/getNFTData/:nft_id", get(get_nft_data_handler))
 		.route("/api/rpcQuery/:blocknumber", get(rpc_query))
 		.route("/api/submitTx/:amount", get(submit_tx))
 		// SECRET SHARING API
 		.route("/api/nft/storeSecretShares", post(store_secret_shares))
-		.route("/api/nft/retrieveSecretShares", get(retrieve_secret_shares));
+		.route("/api/nft/retrieveSecretShares", post(retrieve_secret_shares));
 
 	server_common::serve(http_app, port).await;
 }

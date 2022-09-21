@@ -13,13 +13,13 @@ hyper = "0.14"
 hyper-tls = "0.5.0"
 reqwest = { version = "0.11", features = ["blocking", "json","multipart","default-tls"] }
 
-axum = {version = "0.6.0-rc.2", features = ["ws", "headers"]}
-axum-jrpc = "0.3.0-rc.1"
+axum = {version = "0.5.16", features = ["ws", "headers"]}
+axum-jrpc = "0.2.1"
 axum-server = { version = "0.4.2", features = ["tls-rustls"] }
 
 tokio = { version = "1.20.1", features = ["full"] }
 
-tower-http = { version = "0.3.0", features = ["cors","fs", "trace"] }
+tower-http = { version = "0.3.4", features = ["cors","fs", "trace"] }
 
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
