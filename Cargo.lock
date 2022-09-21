@@ -2718,49 +2718,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust_sgx"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "axum-jrpc",
- "axum-server",
- "bincode",
- "blake2",
- "curve25519-dalek-ml",
- "ed25519-dalek",
- "fastrand",
- "futures",
- "headers",
- "hex",
- "hex-literal",
- "hyper",
- "hyper-tls",
- "ipfs-api-backend-hyper",
- "lazy_static",
- "parity-scale-codec",
- "rand 0.8.5",
- "reqwest",
- "sequoia-openpgp",
- "serde",
- "serde_json",
- "sp-core 6.0.0 (git+https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30)",
- "sp-keyring",
- "sp-runtime 6.0.0 (git+https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30)",
- "subxt",
- "thiserror",
- "tokio",
- "tokio-test",
- "tower-http",
- "tracing",
- "tracing-subscriber 0.3.15",
- "vsss-rs",
- "walkdir",
- "zip",
-]
-
-[[package]]
 name = "rustc-demangle"
 version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3078,6 +3035,49 @@ dependencies = [
  "itoa 1.0.3",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "sgx_server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "axum-jrpc",
+ "axum-server",
+ "bincode",
+ "blake2",
+ "curve25519-dalek-ml",
+ "ed25519-dalek",
+ "fastrand",
+ "futures",
+ "headers",
+ "hex",
+ "hex-literal",
+ "hyper",
+ "hyper-tls",
+ "ipfs-api-backend-hyper",
+ "lazy_static",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "reqwest",
+ "sequoia-openpgp",
+ "serde",
+ "serde_json",
+ "sp-core 6.0.0 (git+https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30)",
+ "sp-keyring",
+ "sp-runtime 6.0.0 (git+https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30)",
+ "subxt",
+ "thiserror",
+ "tokio",
+ "tokio-test",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber 0.3.15",
+ "vsss-rs",
+ "walkdir",
+ "zip",
 ]
 
 [[package]]
