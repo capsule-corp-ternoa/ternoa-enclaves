@@ -1,5 +1,5 @@
 [package]
-name = "rust_sgx"
+name = "sgx_server"
 version = "0.1.0"
 edition = "2021"
 

@@ -1,4 +1,4 @@
-// tests : $ curl 'http://127.0.0.1:4000/rpc' -POST -d '{"jsonrpc": "2.0", "method": "add", "params": [7,17], "id": 1}' -H 'Content-Type: application/json'
+// tests : $ curl 'http://127.0.0.1:3000/rpc' -POST -d '{"jsonrpc": "2.0", "method": "add", "params": [7,17], "id": 1}' -H 'Content-Type: application/json'
 
 use crate::server_common;
 use axum::{extract::ContentLengthLimit, response::IntoResponse, routing::post, Router};
