@@ -5,7 +5,7 @@ mod servers;
 use crate::servers::{http_server, server_common};
 mod chain;
 mod keys;
-use crate::keys::{ipfs, zipdir};
+use crate::keys::ipfs;
 
 /* MAIN */
 
