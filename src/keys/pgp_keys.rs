@@ -24,10 +24,7 @@ use std::{
 	sync::Arc,
 };
 
-use crate::{
-	ipfs::{TernoaIpfsApi, IPFS_API_URL, IPFS_GATEWAY_URL},
-	zipdir::add_dir_zip,
-};
+use crate::ipfs::{TernoaIpfsApi, IPFS_API_URL, IPFS_GATEWAY_URL};
 
 const KEY_DIR_PATH: &str = "./credentials/keys/";
 
@@ -146,9 +143,6 @@ pub async fn generate_key() -> impl IntoResponse {
 		.write_all((IPFS_GATEWAY_URL.to_owned() + &cid).as_bytes())
 		.expect("write publicUrl.txt failed");
 
-	// Create ZIP file
-	let zipfile = KEY_DIR_PATH.to_owned() + "keys.zip";
-	add_dir_zip(KEY_DIR_PATH, zipfile.as_str());
 }
 
 #[derive(SerderSerialize)]
