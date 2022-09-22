@@ -59,30 +59,6 @@ pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl Into
 	}
 }
 
-pub async fn get_constant() -> impl IntoResponse {
-	let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
-	// Build a constant address to query:
-	let address = ternoa::constants().balances().existential_deposit();
-	// Look it up:
-	let existential_deposit = api.constants().at(&address).unwrap();
-	println!("Existential Deposit: {}", existential_deposit);
-}
-
-pub async fn storage_query() -> impl IntoResponse {
-	let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
-	let address = ternoa::storage().system().account_root();
-
-	let mut iter = api.storage().iter(address, 10, None).await.unwrap();
-	let mut counter = 0;
-	while let Some((key, account)) = iter.next().await.unwrap() {
-		println!("{}: {}", hex::encode(key), account.data.free);
-		counter += 1;
-		if counter > 10 {
-			break;
-		}
-	}
-}
-
 #[derive(SerderSerialize)]
 struct JsonTX {
 	status: u16,
@@ -180,6 +156,30 @@ impl fmt::Display for NFTData<AccountId32> {
 #[cfg(test)]
 mod test {
 	use super::*;
+
+	pub async fn get_constant() -> impl IntoResponse {
+		let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+		// Build a constant address to query:
+		let address = ternoa::constants().balances().existential_deposit();
+		// Look it up:
+		let existential_deposit = api.constants().at(&address).unwrap();
+		println!("Existential Deposit: {}", existential_deposit);
+	}
+
+	pub async fn storage_query() -> impl IntoResponse {
+		let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+		let address = ternoa::storage().system().account_root();
+
+		let mut iter = api.storage().iter(address, 10, None).await.unwrap();
+		let mut counter = 0;
+		while let Some((key, account)) = iter.next().await.unwrap() {
+			println!("{}: {}", hex::encode(key), account.data.free);
+			counter += 1;
+			if counter > 10 {
+				break;
+			}
+		}
+	}
 
 	#[tokio::test]
 	async fn static_test() {
