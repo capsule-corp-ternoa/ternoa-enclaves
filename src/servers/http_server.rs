@@ -12,7 +12,7 @@ use tower_http::{
 };
 
 use crate::chain::{
-	chain::{get_constant, get_nft_data_handler, rpc_query, submit_tx},
+	chain::{get_nft_data_handler, rpc_query, submit_tx},
 	nft::{retrieve_secret_shares, store_secret_shares},
 };
 

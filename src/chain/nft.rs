@@ -1,7 +1,6 @@
 use crate::chain::chain::get_nft_data;
 use async_trait::async_trait;
 use axum::{http::StatusCode, response::IntoResponse, Json};
-use serde_json::json;
 use std::io::{Read, Write};
 
 use subxt::ext::{
@@ -11,7 +10,7 @@ use subxt::ext::{
 //use crate::chain::chain::ternoa::runtime_types::sp_core::crypto::AccountId32;
 
 //use subxt::ext::sp_core::crypto::Ss58C&&odec;
-use bincode::{deserialize, serialize};
+
 use serde::{Deserialize, Serialize};
 
 const NFT_DIR_PATH: &str = "./credentials/nft/";
@@ -211,7 +210,10 @@ pub async fn retrieve_secret_shares(
 		Ok(data) => {
 			let file_path = NFT_DIR_PATH.to_owned() + &data.nft_id.to_string() + ".secret";
 			if !std::path::Path::new(&file_path).is_file() {
-				println!("Error retrieving secrets from TEE : file path does not exist, file_path : {}", file_path );
+				println!(
+					"Error retrieving secrets from TEE : file path does not exist, file_path : {}",
+					file_path
+				);
 				return (
 					StatusCode::UNPROCESSABLE_ENTITY,
 					Json(SecretRetrieveResponse {
@@ -228,27 +230,29 @@ pub async fn retrieve_secret_shares(
 				);
 			}
 
-			let mut file = match std::fs::File::open(file_path) {
-				Ok(file) => file,
-				Err(err) => {
-					println!("Error retrieving secrets from TEE : nft_id does not exist, nft_id : {}", data.nft_id );
+			let mut file =
+				match std::fs::File::open(file_path) {
+					Ok(file) => file,
+					Err(_) => {
+						println!("Error retrieving secrets from TEE : nft_id does not exist, nft_id : {}", data.nft_id );
 
-					return (
-						StatusCode::UNPROCESSABLE_ENTITY,
-						Json(SecretRetrieveResponse {
-							status: 420,
-							nft_id: 0,
-							cluster_id: 1,
-							secret_data: SecretData {
+						return (
+							StatusCode::UNPROCESSABLE_ENTITY,
+							Json(SecretRetrieveResponse {
+								status: 420,
 								nft_id: 0,
-								data: "Error retrieving secrets from TEE : nft_id does not exist"
-									.as_bytes()
-									.to_vec(),
-							},
-						}),
-					);
-				},
-			};
+								cluster_id: 1,
+								secret_data: SecretData {
+									nft_id: 0,
+									data:
+										"Error retrieving secrets from TEE : nft_id does not exist"
+											.as_bytes()
+											.to_vec(),
+								},
+							}),
+						);
+					},
+				};
 
 			let mut nft_secret_share = Vec::<u8>::new();
 
@@ -321,7 +325,8 @@ pub async fn retrieve_secret_shares(
 #[cfg(test)]
 mod test {
 	use super::*;
-	use hex_literal::hex;
+	use bincode::serialize;
+	//use hex_literal::hex;
 	use subxt::ext::sp_runtime::app_crypto::Ss58Codec;
 
 	#[tokio::test]
@@ -367,7 +372,7 @@ mod test {
 		println!("signature = {:-?}", kp.sign(&ser_sd));
 
 		match sp.verify_receive_data().await {
-			Ok(secret) => println!("Secret is Valid!"),
+			Ok(_) => println!("Secret is Valid!"),
 
 			Err(err) => match err {
 				SecretError::SignatureInvalid => println!("Signature Error!"),
