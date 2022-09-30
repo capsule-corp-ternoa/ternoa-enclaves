@@ -49,6 +49,7 @@ pub struct SecretRetrieveResponse {
 	nft_id: u32,
 	cluster_id: u32,
 	secret_data: SecretData,
+	description: String,
 }
 
 pub enum NFTOwner {
@@ -220,12 +221,9 @@ pub async fn retrieve_secret_shares(
 						status: 410,
 						nft_id: 0,
 						cluster_id: 1,
-						secret_data: SecretData {
-							nft_id: 0,
-							data: "Error retrieving secrets from TEE : nft_id does not exist"
-								.as_bytes()
-								.to_vec(),
-						},
+						description: "Error retrieving secrets from TEE : nft_id does not exist"
+							.to_string(),
+						secret_data: SecretData { nft_id: 0, data: Vec::new() },
 					}),
 				);
 			}
@@ -242,13 +240,10 @@ pub async fn retrieve_secret_shares(
 								status: 420,
 								nft_id: 0,
 								cluster_id: 1,
-								secret_data: SecretData {
-									nft_id: 0,
-									data:
-										"Error retrieving secrets from TEE : nft_id does not exist"
-											.as_bytes()
-											.to_vec(),
-								},
+								description:
+									"Error retrieving secrets from TEE : nft_id does not exist"
+										.to_string(),
+								secret_data: SecretData { nft_id: 0, data: Vec::new() },
 							}),
 						);
 					},
@@ -269,6 +264,7 @@ pub async fn retrieve_secret_shares(
 					status: 200,
 					nft_id: data.nft_id,
 					cluster_id: 1,
+					description: "Success".to_string(),
 					secret_data: SecretData { nft_id: data.nft_id, data: nft_secret_share },
 				}),
 			);
@@ -282,10 +278,8 @@ pub async fn retrieve_secret_shares(
 						status: 415,
 						nft_id: 0,
 						cluster_id: 1,
-						secret_data: SecretData {
-							nft_id: 0,
-							data: "Error payload is not parsable".as_bytes().to_vec(),
-						},
+						description: "Error payload is not parsable".to_string(),
+						secret_data: SecretData { nft_id: 0, data: Vec::new() },
 					}),
 				)
 			},
@@ -296,10 +290,8 @@ pub async fn retrieve_secret_shares(
 						status: 416,
 						nft_id: 0,
 						cluster_id: 1,
-						secret_data: SecretData {
-							nft_id: 0,
-							data: "Error Invalid Signature or NFT owner".as_bytes().to_vec(),
-						},
+						description: "Error Invalid Signature or NFT owner".to_string(),
+						secret_data: SecretData { nft_id: 0, data: Vec::new() },
 					}),
 				)
 			},
@@ -310,10 +302,8 @@ pub async fn retrieve_secret_shares(
 						status: 417,
 						nft_id: 0,
 						cluster_id: 1,
-						secret_data: SecretData {
-							nft_id: 0,
-							data: "Error Invalid Signature or NFT owner".as_bytes().to_vec(),
-						},
+						description: "Error Invalid NFT owner".to_string(),
+						secret_data: SecretData { nft_id: 0, data: Vec::new() },
 					}),
 				)
 			},
