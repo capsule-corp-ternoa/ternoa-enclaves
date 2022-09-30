@@ -1,0 +1,107 @@
+[loader]
+entrypoint = "file:/usr/local/lib/x86_64-linux-gnu/gramine/libsysdb.so"
+log_level = "error"
+insecure__use_cmdline_argv = true
+pal_internal_mem_size = "64M"
+
+[libos]
+entrypoint = "target/release/sgx_server"
+
+[fs]
+[[fs.mounts]]
+path = "/lib"
+uri = "file:/usr/local/lib/x86_64-linux-gnu/gramine/runtime/glibc"
+
+[[fs.mounts]]
+path = "/lib/x86_64-pc-linux-gnu"
+uri = "file:/lib/x86_64-pc-linux-gnu"
+
+[[fs.mounts]]
+path = "/etc"
+uri = "file:/etc"
+
+[[fs.mounts]]
+path = "/credentials/keys/"
+uri = "file:/home/ubuntu/ternoa_gramine/sgx_server/credentials/keys/"
+type = "encrypted"
+key_name = "DevOnlyKey"
+
+[[fs.mounts]]
+path = "/credentials/nft/"
+uri = "file:/home/ubuntu/ternoa_gramine/sgx_server/credentials/nft/"
+type = "encrypted"
+key_name = "DevOnlyKey"
+
+[sgx]
+debug = true
+nonpie_binary = true
+thread_num = 24
+enclave_size = "256M"
+isvprodid = 0
+isvsvn = 0
+remote_attestation = false
+require_avx = false
+require_avx512 = false
+require_mpx = false
+require_pkru = false
+require_amx = false
+support_exinfo = false
+enable_stats = false
+[[sgx.trusted_files]]
+uri = "file:/usr/local/lib/x86_64-linux-gnu/gramine/libsysdb.so"
+
+[[sgx.trusted_files]]
+uri = "file:target/release/sgx_server"
+
+[[sgx.trusted_files]]
+uri = "file:/usr/local/lib/x86_64-linux-gnu/gramine/runtime/glibc/"
+
+[[sgx.trusted_files]]
+uri = "file:/lib/x86_64-pc-linux-gnu/"
+
+[[sgx.trusted_files]]
+uri = "file:/etc/nsswitch.conf"
+
+[[sgx.trusted_files]]
+uri = "file:/etc/host.conf"
+
+[[sgx.trusted_files]]
+uri = "file:/etc/resolv.conf"
+
+[[sgx.trusted_files]]
+uri = "file:/etc/hosts"
+
+[[sgx.trusted_files]]
+uri = "file:/etc/group"
+
+[[sgx.trusted_files]]
+uri = "file:/etc/passwd"
+
+[[sgx.trusted_files]]
+uri = "file:/etc/gai.conf"
+
+[[sgx.trusted_files]]
+uri = "file:/etc/ssl/certs/ca-certificates.crt"
+
+[[sgx.trusted_files]]
+uri = "file:/etc/sgx_default_qcnl.conf"
+
+[[sgx.trusted_files]]
+uri = "file:credentials/artifacts/"
+
+[[sgx.trusted_files]]
+uri = "file:credentials/certificates/ssl_certs/141-94-162-96/"
+
+[[sgx.trusted_files]]
+uri = "file:credentials/assets/"
+
+[sys]
+insecure__allow_eventfd = true
+
+[loader.env]
+LD_LIBRARY_PATH = "/lib:/lib/x86_64-pc-linux-gnu"
+MALLOC_ARENA_MAX = "1"
+RUST_BACKTRACE = "full"
+
+[fs.insecure__keys]
+DevOnlyKey = "0123456789ABCDEF0123456789ABCDEF"
