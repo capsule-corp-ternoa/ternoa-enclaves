@@ -1,9 +1,13 @@
 use axum::{extract::Path as PathExtract, response::IntoResponse};
+use futures::future::join_all;
 use serde::Serialize as SerderSerialize;
 
 use sp_core::H256;
 use sp_keyring::AccountKeyring;
 use std::fmt;
+use subxt::metadata::DecodeStaticType;
+use subxt::storage::address::Yes;
+use subxt::storage::StaticStorageAddress;
 
 use subxt::{ext::sp_core::Pair, tx::PairSigner, OnlineClient, PolkadotConfig};
 
@@ -103,6 +107,45 @@ pub async fn get_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 	result
 }
 
+// Concurrent NFT Data
+
+/* TODO : use TAIT (Type Alias Implementation Trait) when rust start supporting it https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html#whats-in-1640-stable
+
+type NFTDataType = Result<Option<<<AddressType as subxt::storage::StorageAddress>::Target as subxt::metadata::DecodeWithMetadata>::Target>, subxt::Error>;
+
+type StorageAddressRequestFuture = Pin<Box<dyn Future<Output = NFTDataType>>>;
+
+impl IntoFuture for AddressType {
+	type IntoFuture = StorageAddressRequestFuture;
+	type Output = <StorageAddressRequestFuture as Future>::Output;
+	fn into_future(self) -> Self::IntoFuture {
+		Box::pin(self.send())
+	}
+}
+*/
+
+pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
+	type AddressType = StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
+
+	let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+
+	let nft_address: Vec<AddressType> =
+		nft_ids.iter().map(|id| ternoa::storage().nft().nfts(id)).collect();
+
+	let mut fetches = Vec::new();
+	for i in 0..nft_ids.len() {
+		// Critical line with complex type
+		let nft_data_future = api.storage().fetch(&nft_address[i], None);
+		fetches.push(nft_data_future);
+	}
+
+	let join_result: Vec<Result<Option<NFTData<AccountId32>>, subxt::Error>> =
+		join_all(fetches).await;
+
+	let result = join_result.into_iter().map(|jr| jr.unwrap()).collect();
+	result
+}
+
 #[derive(SerderSerialize)]
 struct JsonNFTData {
 	status: u16,
@@ -156,6 +199,8 @@ impl fmt::Display for NFTData<AccountId32> {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use std::time::Instant;
+	use rand::{Rng, thread_rng};
 
 	pub async fn get_constant() -> impl IntoResponse {
 		let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
@@ -190,8 +235,29 @@ mod test {
 	}
 
 	#[tokio::test]
-	async fn nft_test() {
-		let nft_data = get_nft_data(29582).await;
-		println!("{:#?}", nft_data);
+	async fn concurrent_nft_test() {
+		let mut rng = thread_rng();
+		let nft_ids: Vec<u32> = (1..220).map(|_| rng.gen_range(100..11000)).collect();
+
+		// Concurrent (Avg. 0.3 ms/request)
+		let start = Instant::now();
+		let nft_data_vec = get_nft_data_batch(nft_ids.clone()).await;
+		let elapsed_time = start.elapsed().as_micros();
+		println!("\nConcurrent time is {} microseconds", elapsed_time);
+		//println!("Concurrent NFT Data : {:#?}", nft_data_vec[9].as_ref().unwrap().owner);
+	}
+
+	async fn multiple_nft_test() {
+		let nft_ids = (200u32..250).collect::<Vec<u32>>();
+
+		// Single (Avg. 48 ms/request)
+		let mut nft_data = vec![get_nft_data(10).await];
+		let start = Instant::now();
+		for id in nft_ids.clone() {
+			nft_data.push(get_nft_data(id).await);
+		}
+		let elapsed_time = start.elapsed().as_micros();
+		println!("\nSingle time is {} microseconds", elapsed_time);
+		println!("Single NFT Data : {:#?}", nft_data[9].as_ref().unwrap().owner);
 	}
 }
