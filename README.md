@@ -2,13 +2,38 @@
 
 ## Prerequisites
 
+### ● Install build-tools
+
+ubuntu :  
+```bash
+sudo apt install clang llvm pkg-config nettle-dev libssl-dev openssl
+```
+
+### ● Install Rust
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
 ### ● Install Gramine
 https://gramine.readthedocs.io/en/stable/quickstart.html
 
-### ● Certificates
+check sgx availability : 
+```bash
+is-gramine-available
+```
+
+### ● Install Intel-SGX SDK
+
+use wget to download proper file : 
+https://download.01.org/intel-sgx/latest/linux-latest/distro/
+
+[Doc](https://download.01.org/intel-sgx/latest/linux-latest/docs/Intel_SGX_SW_Installation_Guide_for_Linux.pdf)
+[Repository](https://github.com/intel/linux-sgx)
+
+### ● Generate Certificates
 Self-signed certificates are not supported, you must provide valid certtificates specific for your machine (URI or IP) and put them of ```credentials/certificates/ssl_certificates``` folder. 
 
-### ● Metadata
+### ● Fetch Metadata
 When metadata of the chain is updated, use ```subxt``` command-line to get new metadata from chain rpc endpoint:
 
 ```bash
