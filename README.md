@@ -23,12 +23,22 @@ is-gramine-available
 ```
 
 ### ● Install Intel-SGX SDK
+depending on kernel version you may need to install [intel-sgx-driver](https://github.com/intel/linux-sgx-driver).
 
-use wget to download proper file : 
+SDK installation [Doc](https://download.01.org/intel-sgx/latest/linux-latest/docs/Intel_SGX_SW_Installation_Guide_for_Linux.pdf)
+SDK code [Repository](https://github.com/intel/linux-sgx)
+
+installation summary : 
+use wget to download proper binary file : 
 https://download.01.org/intel-sgx/latest/linux-latest/distro/
 
-[Doc](https://download.01.org/intel-sgx/latest/linux-latest/docs/Intel_SGX_SW_Installation_Guide_for_Linux.pdf)
-[Repository](https://github.com/intel/linux-sgx)
+For Application  : 
+```bash
+echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main' | sudo tee /etc/apt/sources.list.d/intel-sgx.list
+wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | sudo apt-key add
+sudo apt-get update
+sudo apt install libsgx-epid libsgx-quote-ex libsgx-dcap-ql libsgx-dcap-default-qpl libsgx-enclave-common-dev libsgx-dcap-ql-dev libsgx-dcap-default-qpl-dev
+```
 
 ### ● Generate Certificates
 Self-signed certificates are not supported, you must provide valid certtificates specific for your machine (URI or IP) and put them of ```credentials/certificates/ssl_certificates``` folder. 
