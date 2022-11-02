@@ -70,7 +70,7 @@ sys.insecure__allow_eventfd = true
 # - any threads and threadpools you might be starting
 # - helper threads internal to Gramine — see:
 #   https://gramine.readthedocs.io/en/latest/manifest-syntax.html#number-of-threads
-sgx.thread_num = 24
+sgx.max_threads = 24
 
 
 #sgx.file_check_policy = "allow_all_but_log" #"strict"
