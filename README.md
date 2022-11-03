@@ -19,7 +19,7 @@ https://gramine.readthedocs.io/en/stable/quickstart.html
 
 check sgx availability : 
 ```bash
-is-gramine-available
+is-sgx-available
 ```
 
 ### ● Install Intel-SGX SDK
