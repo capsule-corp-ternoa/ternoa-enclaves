@@ -1,0 +1,151 @@
+{
+	"info": {
+		"_postman_id": "df83fa0c-5309-4935-a271-c4e96a2aac41",
+		"name": "SGX",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "24058914"
+	},
+	"item": [
+		{
+			"name": "https://ns5019429.ip-15-235-119.net:3000/api/rpcQuery/1112",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://ns5019429.ip-15-235-119.net:3000/api/rpcQuery/1112",
+					"protocol": "https",
+					"host": [
+						"ns5019429",
+						"ip-15-235-119",
+						"net"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"rpcQuery",
+						"1112"
+					]
+				},
+				"description": "Block Query"
+			},
+			"response": []
+		},
+		{
+			"name": "https://ns5019429.ip-15-235-119.net:3000/api/getNFTData/4321",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://ns5019429.ip-15-235-119.net:3000/api/getNFTData/4321",
+					"protocol": "https",
+					"host": [
+						"ns5019429",
+						"ip-15-235-119",
+						"net"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"getNFTData",
+						"4321"
+					]
+				},
+				"description": "NFT Data"
+			},
+			"response": []
+		},
+		{
+			"name": "https://ns5019429.ip-15-235-119.net:3000/api/submitTx/14983760328739",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://ns5019429.ip-15-235-119.net:3000/api/submitTx/14983760328739",
+					"protocol": "https",
+					"host": [
+						"ns5019429",
+						"ip-15-235-119",
+						"net"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"submitTx",
+						"14983760328739"
+					]
+				},
+				"description": "Submit Transaction (Balance)"
+			},
+			"response": []
+		},
+		{
+			"name": "https://ns5019429.ip-15-235-119.net:3000/api/nft/storeSecretShares",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"account_address\":\"5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET\",\n    \"secret_data\":{\n        \"nft_id\": 48384, \n        \"data\": [84, 104, 105, 115, 32, 105, 115, 32, 97, 32, 115, 104, 97, 114, 101, 32, 111, 102, 32, 53, 32, 115, 104, 97, 114, 101, 115, 33]\n    }, \n        \"signature\": \"b470dd2191c15df731e7fd38b416bc4024f8203702b5218fb8b30cd5fc8e1d0493651435e19339dddcef8e4c247d7a92f831405d8acb435405a11170b7360380\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://ns5019429.ip-15-235-119.net:3000/api/nft/storeSecretShares",
+					"protocol": "https",
+					"host": [
+						"ns5019429",
+						"ip-15-235-119",
+						"net"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"nft",
+						"storeSecretShares"
+					]
+				},
+				"description": "Store Secret"
+			},
+			"response": []
+		},
+		{
+			"name": "https://ns5019429.ip-15-235-119.net:3000/api/nft/retrieveSecretShares",
+			"protocolProfileBehavior": {
+				"disabledSystemHeaders": {}
+			},
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"account_address\":\"5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET\",\n    \"secret_data\":{\n        \"nft_id\": 48384, \n        \"data\": [0, 1, 2, 3, 4, 5, 6, 7]\n        }, \n    \"signature\": \"889530b69f4aa0280c85db8175ff86e1a4f49bf71396bc829775e9866598bf65147f2e1aef5e870f13c2a47af40ff58f6483ec730595b7b11c6bf4401e851a82\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://ns5019429.ip-15-235-119.net:3000/api/nft/retrieveSecretShares",
+					"protocol": "https",
+					"host": [
+						"ns5019429",
+						"ip-15-235-119",
+						"net"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"nft",
+						"retrieveSecretShares"
+					]
+				},
+				"description": "Retrieve Secret Share"
+			},
+			"response": []
+		}
+	]
+}
