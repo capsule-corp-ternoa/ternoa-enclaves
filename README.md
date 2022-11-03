@@ -69,4 +69,6 @@ make start-gramine-server
 default port is 3000 .
 
 ## Client
-Sample ```curl``` commands are provided on [client.sh](./client.sh) file. 
+An importable Postman [json file](./client/postman.json) is available at client folder. CA Certificate file for the machine should be introduced to Postman.
+Sample ```curl``` commands are provided on [client.sh](./client/client.sh) file.
+
