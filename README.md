@@ -6,7 +6,7 @@
 
 ubuntu :  
 ```bash
-sudo apt install clang llvm pkg-config nettle-dev libssl-dev openssl
+sudo apt install clang llvm pkg-config nettle-dev libssl-dev openssl dkms
 ```
 
 ### ● Install Rust
@@ -29,7 +29,7 @@ SDK installation [Doc](https://download.01.org/intel-sgx/latest/linux-latest/doc
 SDK code [Repository](https://github.com/intel/linux-sgx)
 
 installation summary : 
-use wget to download proper binary file : 
+use wget to download proper binary files (driver and sdk) : 
 https://download.01.org/intel-sgx/latest/linux-latest/distro/
 
 For Application  : 
@@ -37,7 +37,7 @@ For Application  :
 echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main' | sudo tee /etc/apt/sources.list.d/intel-sgx.list
 wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | sudo apt-key add
 sudo apt-get update
-sudo apt install libsgx-epid libsgx-quote-ex libsgx-dcap-ql libsgx-dcap-default-qpl libsgx-enclave-common-dev libsgx-dcap-ql-dev libsgx-dcap-default-qpl-dev
+sudo apt install libsgx-dcap-ql libsgx-dcap-default-qpl libsgx-enclave-common-dev libsgx-dcap-ql-dev libsgx-dcap-default-qpl-dev
 ```
 
 ### ● Generate Certificates
