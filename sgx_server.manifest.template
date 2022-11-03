@@ -15,7 +15,7 @@ loader.env.RUST_BACKTRACE = "full"
 # ROOT FILE SYSTEM ON GRAMINE FROM HOST
 # TYPE can be chroot, encrypted, tmpfs(in-memory)
 #fs.root.type = "chroot"
-#fs.root.uri  = "file:/home/ubuntu/ternoa_gramine/sgx_server/"
+#fs.root.uri  = "file:/home/ubuntu/sgx_server/"
 #fs.start_dir = "/"
 
 # MOUNTING FROM "URI" ON HOST, TO "PATH" ON GRAMINE
@@ -24,8 +24,8 @@ fs.mounts = [
   { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
   { path = "/etc", uri = "file:/etc" },
-  { path = "/credentials/keys/" , uri = "file:/home/ubuntu/ternoa_gramine/sgx_server/credentials/keys/",  type = "encrypted", "key_name" = "DevOnlyKey"},
-  { path = "/credentials/nft/" , uri = "file:/home/ubuntu/ternoa_gramine/sgx_server/credentials/nft/",  type = "encrypted", "key_name" = "DevOnlyKey"},
+  { path = "/credentials/keys/" , uri = "file:/home/ubuntu/sgx_server/credentials/keys/",  type = "encrypted", "key_name" = "DevOnlyKey"},
+  { path = "/credentials/nft/" , uri = "file:/home/ubuntu/sgx_server/credentials/nft/",  type = "encrypted", "key_name" = "DevOnlyKey"},
 ]
 
 # Only for development and debug, it will be replaced with _mrencalve/_mrsigner for production
@@ -52,7 +52,7 @@ sgx.trusted_files = [
   "file:/etc/ssl/certs/ca-certificates.crt",
   "file:/etc/sgx_default_qcnl.conf",
   "file:credentials/artifacts/",
-  "file:credentials/certificates/ssl_certs/141-94-162-96/",
+  "file:credentials/certificates/ssl_certs/",
   "file:credentials/assets/",
 ]
 
@@ -71,6 +71,6 @@ sys.insecure__allow_eventfd = true
 # - helper threads internal to Gramine — see:
 #   https://gramine.readthedocs.io/en/latest/manifest-syntax.html#number-of-threads
 sgx.max_threads = 24
-
+sgx.thread_num = 24
 
 #sgx.file_check_policy = "allow_all_but_log" #"strict"
