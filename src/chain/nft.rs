@@ -78,6 +78,8 @@ impl SecretData {
 impl SecretPacket {
 	fn parse_secret(&self) -> SecretData {
 		let secret_data = self.secret_data.clone();
+		let secret_data =
+			secret_data.strip_prefix("<Bytes>").unwrap().strip_suffix("</Bytes>").unwrap();
 		let nftid_data: Vec<&str> = secret_data.split("_").collect();
 		SecretData {
 			nft_id: nftid_data[0].parse::<u32>().unwrap(),
@@ -142,11 +144,30 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 		Ok(secret) => {
 			std::fs::create_dir_all(NFT_DIR_PATH).unwrap();
 			let file_path = NFT_DIR_PATH.to_owned() + &secret.nft_id.to_string() + ".secret";
+			let exist = std::path::Path::new(file_path.as_str()).exists();
+
+			if exist {
+				println!(
+					"Error storing secrets to TEE : nft_id already exists, nft_id = {}",
+					secret.nft_id
+				);
+
+				return (
+							StatusCode::OK,
+							Json(SecretStoreResponse {
+								status: 411,
+								nft_id: secret.nft_id,
+								cluster_id: 1,
+								description: "Error storing secrets to TEE : nft_id already exists, file creation error"
+									.to_string(),
+							}),
+						);
+			}
 
 			let mut f = match std::fs::File::create(file_path) {
 				Ok(file) => file,
 				Err(err) => {
-					println!("Error storing secrets to TEE : nft_id already exists, nft_id = {}, Error = {}", secret.nft_id, err);
+					println!("Error storing secrets to TEE : error in creating file on disk, nft_id = {}, Error = {}", secret.nft_id, err);
 
 					return (
 						StatusCode::OK,
@@ -154,7 +175,7 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 							status: 411,
 							nft_id: secret.nft_id,
 							cluster_id: 1,
-							description: "Error storing secrets to TEE : nft_id already exists, file creation error"
+							description: "Error storing secrets to TEE : error in creating file on disk, file creation error"
 								.to_string(),
 						}),
 					);
@@ -367,18 +388,20 @@ mod test {
 		let message1 = secret_packet.secret_data.as_bytes();
 		let message2 = b"<Bytes>247_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU</Bytes>";
 
-		let sig1_bytes = <[u8; 64]>::from_hex(secret_packet.signature.clone().strip_prefix("0x").unwrap()).unwrap();
+		let sig1_bytes =
+			<[u8; 64]>::from_hex(secret_packet.signature.clone().strip_prefix("0x").unwrap())
+				.unwrap();
 		let signature1 = sr25519::Signature::from_raw(sig1_bytes);
 		let sig2_bytes = <[u8; 64]>::from_hex("0x1ae93ac6f0ee8b0edec9d221371f46ce93e68fdfa9e5d68428fd1c93dc46560c1b4caba9edae2a6a299b5c7e3dfa53bb2f852848b48eae18d359c014fa188487".strip_prefix("0x").unwrap()).unwrap();
-		let signature2 = sr25519::Signature::from_raw(sig2_bytes);//key_pair2.sign(message2);
-		
+		let signature2 = sr25519::Signature::from_raw(sig2_bytes); //key_pair2.sign(message2);
+
 		let vr1 = sr25519::Pair::verify(
 			&signature1,
 			message1,
 			&sr25519::Public::from_slice(&secret_packet.account_address.as_slice()).unwrap(), //public1
 		);
 		let vr2 = sr25519::Pair::verify(&signature2, message2, &public2);
-		
+
 		println!("res1 : {}\nres2 : {}", vr1, vr2);
 
 		match secret_packet.verify_receive_data().await {

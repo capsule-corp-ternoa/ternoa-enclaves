@@ -73,8 +73,10 @@ struct JsonTX {
 	amount: u128,
 	sender: String,
 	receiver: String,
-	tx_hash: H256,
+	tx_hash: String,
 }
+
+
 
 pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoResponse {
 	let api = get_chain_api(TERNOA_RPC.into()).await;
@@ -88,7 +90,21 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 	let tx = ternoa::tx().balances().transfer(dest, amount);
 
 	// submit the transaction with default params:
-	let hash = api.tx().sign_and_submit_default(&tx, &signer).await.unwrap();
+	let hash = match api.tx().sign_and_submit_default(&tx, &signer).await {
+		Ok(h) => h,
+		Err(e) => {
+			println!("Balance transfer extrinsic Error: {}", e);
+			
+			return axum::Json(
+					JsonTX {
+						status: 430,
+						amount,
+						sender: String::from(TEST_ACCOUNT),
+						receiver: String::from("Alice"),
+						tx_hash: e.to_string()
+					})
+		},
+	};
 
 	println!("Balance transfer extrinsic submitted: {}", hash);
 
@@ -97,7 +113,7 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 		amount,
 		sender: String::from(TEST_ACCOUNT),
 		receiver: String::from("Alice"),
-		tx_hash: hash,
+		tx_hash: hash.to_string(),
 	})
 }
 
@@ -170,7 +186,7 @@ pub async fn get_nft_data_handler(PathExtract(nft_id): PathExtract<u32>) -> impl
 				nft_id,
 				owner: nft_data.owner.clone().to_string(),
 				creator: nft_data.creator.clone().to_string(),
-				offchain_data: String::from_utf8(nft_data.offchain_data.0).unwrap(),
+				offchain_data: "0x".to_string() + &hex::encode(nft_data.offchain_data.0),
 			})
 		},
 		None => axum::Json(JsonNFTData {
@@ -190,7 +206,8 @@ impl fmt::Display for NFTData<AccountId32> {
             "owner: {:#?},\n creator: {:#?}\n offchain_data: {:#?},\n royalty: {},\n collection_id: {},\n state: {:#?},\n",
             self.owner,
             self.creator,
-            std::str::from_utf8(&self.offchain_data.0).unwrap(),
+            //std::str::from_utf8(&self.offchain_data.0).unwrap(),
+	    self.offchain_data.0,
             self.royalty.0,
             self.collection_id.unwrap_or(0u32),
             self.state
