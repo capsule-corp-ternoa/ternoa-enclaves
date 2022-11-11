@@ -15,21 +15,25 @@ use subxt::ext::sp_runtime::AccountId32;
 //use crate::chain::chain::ternoa::runtime_types::sp_core::crypto::AccountId32;
 use crate::chain::chain::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
 
-const TERNOA_ALPHANET_RPC: &'static str = "wss://alphanet.ternoa.com:443";
+const TEST_ACCOUNT: &'static str = "//DAVE";
 
-#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale")]
+//const TERNOA_RPC: &'static str = "wss://alphanet.ternoa.com:443";
+const TERNOA_RPC: &'static str = "wss://dev-1.ternoa.network:443";
+
+//#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale")]
+#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev1.scale")]
 pub mod ternoa {}
 
 type DefaultApi = OnlineClient<PolkadotConfig>;
 
 pub async fn get_chain_api(url: String) -> DefaultApi {
 	if url.is_empty() {
-		TERNOA_ALPHANET_RPC.to_string()
+		TERNOA_RPC.to_string()
 	} else {
 		url
 	};
 	// Create a client to use:
-	let api = DefaultApi::from_url(TERNOA_ALPHANET_RPC).await.unwrap();
+	let api = DefaultApi::from_url(TERNOA_RPC).await.unwrap();
 
 	api
 }
@@ -42,7 +46,7 @@ struct JsonRPC {
 }
 
 pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl IntoResponse {
-	let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+	let api = get_chain_api(TERNOA_RPC.into()).await;
 	// RPC : Get Block-Hash
 	let block_hash = api.rpc().block_hash(Some(block_number.into())).await.unwrap();
 
@@ -73,10 +77,10 @@ struct JsonTX {
 }
 
 pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoResponse {
-	let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+	let api = get_chain_api(TERNOA_RPC.into()).await;
 
 	// Submit Extrinsic
-	let key = subxt::ext::sp_core::sr25519::Pair::from_string("//TernoaTestAccount", None).unwrap();
+	let key = subxt::ext::sp_core::sr25519::Pair::from_string(TEST_ACCOUNT, None).unwrap();
 	let signer = PairSigner::new(key);
 	let dest = AccountKeyring::Alice.to_account_id().into();
 
@@ -91,7 +95,7 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 	axum::Json(JsonTX {
 		status: 200,
 		amount,
-		sender: String::from("//TernoaTestAccount"),
+		sender: String::from(TEST_ACCOUNT),
 		receiver: String::from("Alice"),
 		tx_hash: hash,
 	})
@@ -100,7 +104,7 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 // -------------- NFTData --------------
 
 pub async fn get_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
-	let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+	let api = get_chain_api(TERNOA_RPC.into()).await;
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
 	let result = api.storage().fetch(&storage_address, None).await.unwrap();
 
@@ -127,7 +131,7 @@ impl IntoFuture for AddressType {
 pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
 	type AddressType = StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
 
-	let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+	let api = get_chain_api(TERNOA_RPC.into()).await;
 
 	let nft_address: Vec<AddressType> =
 		nft_ids.iter().map(|id| ternoa::storage().nft().nfts(id)).collect();
@@ -199,11 +203,11 @@ impl fmt::Display for NFTData<AccountId32> {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use rand::{thread_rng, Rng};
 	use std::time::Instant;
-	use rand::{Rng, thread_rng};
 
 	pub async fn get_constant() -> impl IntoResponse {
-		let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+		let api = get_chain_api(TERNOA_RPC.into()).await;
 		// Build a constant address to query:
 		let address = ternoa::constants().balances().existential_deposit();
 		// Look it up:
@@ -212,7 +216,7 @@ mod test {
 	}
 
 	pub async fn storage_query() -> impl IntoResponse {
-		let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+		let api = get_chain_api(TERNOA_RPC.into()).await;
 		let address = ternoa::storage().system().account_root();
 
 		let mut iter = api.storage().iter(address, 10, None).await.unwrap();
@@ -247,6 +251,7 @@ mod test {
 		//println!("Concurrent NFT Data : {:#?}", nft_data_vec[9].as_ref().unwrap().owner);
 	}
 
+	#[tokio::test]
 	async fn multiple_nft_test() {
 		let nft_ids = (200u32..250).collect::<Vec<u32>>();
 
