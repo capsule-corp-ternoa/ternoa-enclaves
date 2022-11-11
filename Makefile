@@ -52,11 +52,11 @@ endif
 
 .PHONY: start-gramine-server
 start-gramine-server: all
-	nohup $(GRAMINE) sgx_server 3000 > OUTPUT.log 2>&1 &
+	nohup $(GRAMINE) sgx_server 3000 > enclave.log 2>&1 &
 
 .PHONY: clean
 clean:
-	$(RM) -rf *.token *.sig *.manifest.sgx *.manifest result-* OUTPUT.log
+	$(RM) -rf *.token *.sig *.manifest.sgx *.manifest result-* *.log
 
 .PHONY: distclean
 distclean: clean
