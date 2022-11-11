@@ -60,13 +60,21 @@ subxt codegen --url wss://alphanet.ternoa.com:443 > ternoa_alphanet.code
 If you are on a SGX machine :
 
 ```shell
-make SGX=1 start-gramine-server
+./start-server.sh
 ```
 otherwise you need to run in simulation mode : 
 ```shell
 make start-gramine-server
 ```
 default port is 3000 .
+
+To stop the Enclave properly :
+```shell
+./stop-server.sh
+```
+## Quote and Report
+If enclave starts successfully, the quote data, IAS reports and log information will be available on [quote](./quote/) folder.
+All of these data will be removes by stop-server.sh command.
 
 ## Client
 An importable Postman [json file](./client/postman.json) is available at client folder. CA Certificate file for the machine should be introduced to Postman.
