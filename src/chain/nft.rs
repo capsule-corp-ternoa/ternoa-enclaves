@@ -159,6 +159,11 @@ impl VerifyNFT for SecretPacket {
 		Ok(sr25519::Signature::from_raw(sig_bytes))
 	}
 
+	fn parse_signature(&self) -> sr25519::Signature {
+		let sig_bytes = <[u8; 64]>::from_hex(self.signature.strip_prefix("0x").unwrap()).unwrap();
+		sr25519::Signature::from_raw(sig_bytes)
+	}
+
 	fn verify_signature(&self) -> bool {
 		let account_pubkey = match self.get_public_key() {
 			Ok(pk) => pk,
