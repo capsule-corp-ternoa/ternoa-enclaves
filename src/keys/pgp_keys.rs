@@ -142,7 +142,6 @@ pub async fn generate_key() -> impl IntoResponse {
 	public_urlfile
 		.write_all((IPFS_GATEWAY_URL.to_owned() + &cid).as_bytes())
 		.expect("write publicUrl.txt failed");
-
 }
 
 #[derive(SerderSerialize)]
