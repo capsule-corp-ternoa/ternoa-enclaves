@@ -77,9 +77,12 @@ impl SecretData {
 
 impl SecretPacket {
 	fn parse_secret(&self) -> SecretData {
-		let secret_data = self.secret_data.clone();
-		let secret_data =
-			secret_data.strip_prefix("<Bytes>").unwrap().strip_suffix("</Bytes>").unwrap();
+		let mut secret_data = self.secret_data.clone();
+		if secret_data.starts_with("<Bytes>") && secret_data.ends_with("</Bytes>") {
+		   secret_data =
+			secret_data.strip_prefix("<Bytes>").unwrap().strip_suffix("</Bytes>").unwrap().to_string();
+		}
+
 		let nftid_data: Vec<&str> = secret_data.split("_").collect();
 		SecretData {
 			nft_id: nftid_data[0].parse::<u32>().unwrap(),
