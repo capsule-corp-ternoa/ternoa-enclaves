@@ -58,7 +58,7 @@ sgx.trusted_files = [
   "file:/etc/ssl/certs/ca-certificates.crt",
   #"file:/etc/sgx_default_qcnl.conf",
   "file:credentials/artifacts/",
-  "file:credentials/certificates/ssl_certs/",
+  "file:credentials/certificates/",
   "file:credentials/assets/",
 ]
 
