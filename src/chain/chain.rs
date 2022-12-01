@@ -76,8 +76,6 @@ struct JsonTX {
 	tx_hash: String,
 }
 
-
-
 pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoResponse {
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 
@@ -94,15 +92,14 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 		Ok(h) => h,
 		Err(e) => {
 			println!("Balance transfer extrinsic Error: {}", e);
-			
-			return axum::Json(
-					JsonTX {
-						status: 430,
-						amount,
-						sender: String::from(TEST_ACCOUNT),
-						receiver: String::from("Alice"),
-						tx_hash: e.to_string()
-					})
+
+			return axum::Json(JsonTX {
+				status: 430,
+				amount,
+				sender: String::from(TEST_ACCOUNT),
+				receiver: String::from("Alice"),
+				tx_hash: e.to_string(),
+			});
 		},
 	};
 
