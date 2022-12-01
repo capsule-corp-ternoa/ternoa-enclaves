@@ -77,13 +77,29 @@ impl SecretData {
 
 impl SecretPacket {
 	fn parse_secret(&self) -> SecretData {
-		let secret_data = self.secret_data.clone();
-		let secret_data =
-			secret_data.strip_prefix("<Bytes>").unwrap().strip_suffix("</Bytes>").unwrap();
-		let nftid_data: Vec<&str> = secret_data.split("_").collect();
+		let mut secret_data = self.secret_data.clone();
+		if secret_data.starts_with("<Bytes>") && secret_data.ends_with("</Bytes>") {
+			secret_data = secret_data
+				.strip_prefix("<Bytes>")
+				.unwrap()
+				.strip_suffix("</Bytes>")
+				.unwrap()
+				.to_string();
+		}
+
+		let nftid_data: Vec<&str> = if secret_data.contains("_") {
+			secret_data.split("_").collect()
+		} else {
+			vec![&secret_data]
+		};
+
 		SecretData {
 			nft_id: nftid_data[0].parse::<u32>().unwrap(),
-			data: nftid_data[1].as_bytes().to_vec(),
+			data: if !nftid_data[1].is_empty() {
+				nftid_data[1].as_bytes().to_vec()
+			} else {
+				Vec::new()
+			},
 		}
 	}
 }
@@ -155,7 +171,7 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 				return (
 							StatusCode::OK,
 							Json(SecretStoreResponse {
-								status: 411,
+								status: 410,
 								nft_id: secret.nft_id,
 								cluster_id: 1,
 								description: "Error storing secrets to TEE : nft_id already exists, file creation error"
@@ -263,7 +279,7 @@ pub async fn retrieve_secret_shares(
 				return (
 					StatusCode::UNPROCESSABLE_ENTITY,
 					Json(SecretRetrieveResponse {
-						status: 410,
+						status: 411,
 						nft_id: 0,
 						cluster_id: 1,
 						description: "Error retrieving secrets from TEE : nft_id does not exist"
@@ -398,7 +414,7 @@ mod test {
 		let vr1 = sr25519::Pair::verify(
 			&signature1,
 			message1,
-			&sr25519::Public::from_slice(&secret_packet.account_address.as_slice()).unwrap(), //public1
+			&sr25519::Public::from_slice(&secret_packet.account_address.as_slice()).unwrap(), /* public1 */
 		);
 		let vr2 = sr25519::Pair::verify(&signature2, message2, &public2);
 
