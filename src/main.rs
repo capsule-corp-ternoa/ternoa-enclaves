@@ -35,13 +35,12 @@ async fn main() {
 }
 
 fn generate_quote() -> Vec<u8> {
-   if !std::path::Path::new("/dev/attestation/user_report_data").exists(){
-      println!("This is NOT inside an Enclave!");
-      return Vec::new()
-   }
-   
-   
-   	let mut f1 = File::open("/dev/attestation/user_report_data").unwrap();
+	if !std::path::Path::new("/dev/attestation/user_report_data").exists() {
+		println!("This is NOT inside an Enclave!");
+		return Vec::new();
+	}
+
+	let mut f1 = File::open("/dev/attestation/user_report_data").unwrap();
 	println!("This is inside Enclave!");
 
 	let mut f2 = File::open("/dev/attestation/attestation_type").unwrap();
@@ -62,5 +61,5 @@ fn generate_quote() -> Vec<u8> {
 	let mut f4 = File::create("/quote/enclave.quote").unwrap();
 	f4.write_all(&contents);
 
-	return contents
+	return contents;
 }

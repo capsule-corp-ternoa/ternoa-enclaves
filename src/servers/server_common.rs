@@ -10,8 +10,8 @@ pub async fn serve(app: Router, port: &u16) {
 	tracing::info!("listening on {}", socket_addr);
 
 	let config = RustlsConfig::from_pem_file(
-		"credentials/certificates/ssl_certs/certificate.crt",
-		"credentials/certificates/ssl_certs/private.key",
+		"credentials/certificates/server_cert.pem",
+		"credentials/certificates/server_key.pem",
 	)
 	.await
 	.unwrap();
