@@ -5,9 +5,10 @@ use serde::Serialize as SerderSerialize;
 use sp_core::H256;
 use sp_keyring::AccountKeyring;
 use std::fmt;
-use subxt::metadata::DecodeStaticType;
-use subxt::storage::address::Yes;
-use subxt::storage::StaticStorageAddress;
+use subxt::{
+	metadata::DecodeStaticType,
+	storage::{address::Yes, StaticStorageAddress},
+};
 
 use subxt::{ext::sp_core::Pair, tx::PairSigner, OnlineClient, PolkadotConfig};
 
@@ -99,7 +100,7 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 				sender: String::from(TEST_ACCOUNT),
 				receiver: String::from("Alice"),
 				tx_hash: e.to_string(),
-			});
+			})
 		},
 	};
 
@@ -239,7 +240,7 @@ mod test {
 			println!("{}: {}", hex::encode(key), account.data.free);
 			counter += 1;
 			if counter > 10 {
-				break;
+				break
 			}
 		}
 	}
