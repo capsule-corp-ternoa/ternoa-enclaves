@@ -1,6 +1,11 @@
 use crate::chain::chain::get_nft_data;
 use async_trait::async_trait;
-use axum::{http::StatusCode, response::IntoResponse, Json};
+use axum::{
+	body::Body,
+	http::{Request, StatusCode},
+	response::IntoResponse,
+	Json,
+};
 use hex::{FromHex, ToHex};
 use std::io::{Read, Write};
 
@@ -92,7 +97,6 @@ impl SecretPacket {
 		} else {
 			vec![&secret_data]
 		};
-
 
 		SecretData {
 			nft_id: nftid_data[0].parse::<u32>().unwrap(),
@@ -214,7 +218,7 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 					cluster_id: 1,
 					description: "Secret is successfully stored to TEE".to_string(),
 				}),
-			);
+			)
 		},
 
 		Err(err) => match err {
@@ -230,7 +234,7 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 						description: "Error storing secrets to TEE : Invalid Request Signature"
 							.to_string(),
 					}),
-				);
+				)
 			},
 
 			SecretError::OwnerInvalid => {
@@ -244,10 +248,12 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 						cluster_id: 1,
 						description: "Error storing secrets to TEE : Invalid NFT Owner".to_string(),
 					}),
-				);
+				)
 			},
 
 			SecretError::DecodeError => {
+				println!("Error storing secrets to TEE : can not parse the payload");
+
 				return (
 					StatusCode::OK,
 					Json(SecretStoreResponse {
@@ -287,7 +293,7 @@ pub async fn retrieve_secret_shares(
 							.to_string(),
 						secret_data: "0000_0000".to_owned(),
 					}),
-				);
+				)
 			}
 
 			let mut file =
@@ -307,7 +313,7 @@ pub async fn retrieve_secret_shares(
 										.to_string(),
 								secret_data: SecretData { nft_id: 0, data: Vec::new() }.serialize(),
 							}),
-						);
+						)
 					},
 				};
 
@@ -330,11 +336,13 @@ pub async fn retrieve_secret_shares(
 					secret_data: SecretData { nft_id: data.nft_id, data: nft_secret_share }
 						.serialize(),
 				}),
-			);
+			)
 		},
 
 		Err(err) => match err {
 			SecretError::DecodeError => {
+				println!("Error retrieving secrets from TEE : can not parse the payload");
+
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
@@ -346,7 +354,10 @@ pub async fn retrieve_secret_shares(
 					}),
 				)
 			},
+
 			SecretError::SignatureInvalid => {
+				println!("Error retrieving secrets from TEE : Invalid Signature");
+
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
@@ -358,7 +369,9 @@ pub async fn retrieve_secret_shares(
 					}),
 				)
 			},
+
 			SecretError::OwnerInvalid => {
+				println!("Error retrieving secrets from TEE : Invalid Owner");
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
