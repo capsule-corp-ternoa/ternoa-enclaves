@@ -8,7 +8,7 @@ use axum::{
 
 use hex::{FromHex, ToHex};
 use std::{
-	collections::HashMap,
+	collections::BTreeMap,
 	io::{Read, Write},
 };
 use subxt::ext::sp_runtime::app_crypto::Ss58Codec;
@@ -21,7 +21,10 @@ use subxt::ext::{
 use serde::{Deserialize, Serialize};
 
 const NFT_DIR_PATH: &str = "./credentials/nft/";
-const BACKUP_WHITELIST: [&str; 2] = ["ABCDEF123450", "5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6"];
+const BACKUP_WHITELIST: [&str; 2] = [
+	"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
+	"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
+];
 
 #[derive(Debug)]
 pub enum BackupError {
@@ -33,8 +36,8 @@ pub enum BackupError {
 // -------- Backup -------
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BackupRequestData {
-	signerAddress: String,
 	nfts: Vec<u32>,
+	signerAddress: String,
 }
 
 #[derive(Deserialize, Clone)]
@@ -46,18 +49,18 @@ pub struct BackupRequest {
 #[derive(Serialize)]
 pub struct BackupResponse {
 	status: String,
-	data: HashMap<String, String>,
+	data: BTreeMap<String, String>,
 }
 
 // -------- Store -------
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct StoreRequestData {
+	nfts: BTreeMap<String, String>,
 	signerAddress: String,
-	nfts: HashMap<String, String>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 pub struct StoreRequest {
 	data: StoreRequestData,
 	signature: String,
@@ -73,18 +76,27 @@ fn verify_accountId(accountId: &str) -> bool {
 }
 
 fn get_public_key(accountId: &str) -> sr25519::Public {
-	sr25519::Public::from_ss58check(accountId).expect("Valid address")
+	let pk = sr25519::Public::from_ss58check(accountId).expect("Invalid AccountID");
+	log::debug!("Public Key = {}", pk);
+	pk
 }
 
 fn get_signature(signature: String) -> sr25519::Signature {
-	let sig_bytes = <[u8; 64]>::from_hex(signature.strip_prefix("0x").unwrap()).unwrap();
-	sr25519::Signature::from_raw(sig_bytes)
+	let stripped = match signature.strip_prefix("0x") {
+		Some(sig) => sig,
+		None => signature.as_str(),
+	};
+
+	let sig_bytes = <[u8; 64]>::from_hex(stripped).unwrap();
+	let sig = sr25519::Signature::from_raw(sig_bytes);
+	log::debug!("sig = {:#?}", sig);
+	sig
 }
 
 fn verify_signature(accountId: &str, signature: String, message: &[u8]) -> bool {
 	let account_pubkey = get_public_key(accountId);
-	//let encoded: Vec<u8> = bincode::serialize(&self.secret_data).unwrap();
-	sr25519::Pair::verify(&get_signature(signature), message.clone(), &account_pubkey)
+	let check = sr25519::Pair::verify(&get_signature(signature), message.clone(), &account_pubkey);
+	check
 }
 
 impl BackupRequest {
@@ -111,13 +123,14 @@ impl StoreRequest {
 			return Err(BackupError::UnAuthorizedSigner)
 		}
 
-		if verify_signature(
-			&self.data.signerAddress,
-			self.signature.clone(),
-			&serde_json::to_string(&self.data).unwrap().as_bytes(),
-		) {
+		let message_str = serde_json::to_string(&self.data).unwrap();
+		let message_bytes = message_str.as_bytes();
+
+		if verify_signature(&self.data.signerAddress, self.signature.clone(), &message_bytes) {
+			println!("OK -> message = {:#?}\n", message_str);
 			Ok(true)
 		} else {
+			println!("ERR -> message = {:#?}\n", message_str);
 			Err(BackupError::InvalidSignature)
 		}
 	}
@@ -138,7 +151,7 @@ pub async fn backup_fetch_secrets(backup_request: String) -> impl IntoResponse {
 				StatusCode::OK,
 				Json(BackupResponse {
 					status: "Error can not deserialize the request : ".to_string() + &e.to_string(),
-					data: HashMap::new(),
+					data: BTreeMap::new(),
 				}),
 			)
 		},
@@ -148,7 +161,7 @@ pub async fn backup_fetch_secrets(backup_request: String) -> impl IntoResponse {
 
 	match verified_req {
 		Ok(_) => {
-			let mut backup_response_data: HashMap<String, String> = HashMap::new();
+			let mut backup_response_data: BTreeMap<String, String> = BTreeMap::new();
 
 			for nft_id in parsed_request.data.nfts {
 				let file_path = NFT_DIR_PATH.to_owned() + &nft_id.to_string() + ".secret";
@@ -165,7 +178,7 @@ pub async fn backup_fetch_secrets(backup_request: String) -> impl IntoResponse {
 								"NFT_ID number {} does not exist on this enclave",
 								nft_id
 							),
-							data: HashMap::new(),
+							data: BTreeMap::new(),
 						}),
 					)
 				}
@@ -182,7 +195,7 @@ pub async fn backup_fetch_secrets(backup_request: String) -> impl IntoResponse {
 							StatusCode::UNPROCESSABLE_ENTITY,
 							Json(BackupResponse {
 								status: format!("Error retrieving secrets from TEE : nft_id does not exist, nft_id : {}", nft_id ), 
-								data: HashMap::new(),
+								data: BTreeMap::new(),
 							}),
 						);
 					},
@@ -215,7 +228,7 @@ pub async fn backup_fetch_secrets(backup_request: String) -> impl IntoResponse {
 				StatusCode::OK,
 				Json(BackupResponse {
 					status: format!("Error Backup Request : {:?}", err),
-					data: HashMap::new(),
+					data: BTreeMap::new(),
 				}),
 			),
 	}
@@ -259,7 +272,7 @@ pub async fn backup_push_secrets(store_request: String) -> impl IntoResponse {
 
 					log::warn!("{}", message);
 
-					return (StatusCode::OK, Json(StoreResponse { status: message }));
+					return (StatusCode::OK, Json(StoreResponse { status: message }))
 				}
 
 				let mut f = match std::fs::File::create(file_path) {
@@ -269,7 +282,7 @@ pub async fn backup_push_secrets(store_request: String) -> impl IntoResponse {
 
 						log::warn!("{}", message);
 
-						return (StatusCode::OK, Json(StoreResponse { status: message }));
+						return (StatusCode::OK, Json(StoreResponse { status: message }))
 					},
 				};
 
@@ -308,78 +321,68 @@ pub async fn backup_push_secrets(store_request: String) -> impl IntoResponse {
 #[cfg(test)]
 mod test {
 	use super::*;
-	//use bincode::serialize;
-	//use hex_literal::hex;
-	use sp_keyring::AccountKeyring;
-	use subxt::ext::sp_runtime::app_crypto::Ss58Codec;
 
 	#[tokio::test]
 	async fn verification_test() {
-		
-		let store_data = StoreRequestData {
-			nfts: HashMap::from([
-				(247.to_string(),"SecretShareNum1ForNFTID247".to_string()),
-				(258.to_string(),"SecretShareNum1ForNFTID258".to_string()),
-				(274.to_string(),"SecretShareNum1ForNFTID274".to_string()),
-			]),
+		let store_body = r#"
+        {
+			"data": {
+				"nfts": {
+					"247": "SecretShareNum1ForNFTID247",
+					"258": "SecretShareNum1ForNFTID258",
+					"274": "SecretShareNum1ForNFTID274"
+				},
+				"signerAddress": "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy"
+			},
+			"signature":  "6e45e4bf575d8490f94c3d4b7153032735e377354bb7937a8fc538474c2357076f7722005c601c000b109fb4c6a5b41caedf43775267026041dd6d736290db84"
+        }"#;
 
-			signerAddress: "5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6".to_string()
-		};
-
-		let store_packet = StoreRequest {
-			data: store_data.clone(),
-			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
-		};
-
-		let backup_data = BackupRequestData {
-			nfts: [247,278].to_vec(),
-			signerAddress: "5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6".to_string(),
-		};
-
-		let backup_packet = BackupRequest {
-			data: backup_data.clone(),
-			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
-		};
-
-		let key_pair1 = sr25519::Pair::from_string_with_seed(
-			"broccoli tornado verb crane mandate wise gap shop mad quarter jar snake",
-			None,
-		)
-		.unwrap()
-		.0;
-
-		let key_pair2 = AccountKeyring::Dave.pair();
-
-		let public1 = key_pair1.clone().public();
-		let public2 = key_pair2.clone().public();
-
-		let message1 = serde_json::to_vec(&store_data.clone()).unwrap();
-		let message2 = serde_json::to_vec(&backup_data.clone()).unwrap();
-
-		let sig1_bytes =
-			<[u8; 64]>::from_hex(store_packet.signature.clone().strip_prefix("0x").unwrap())
-				.unwrap();
-		let signature1 = sr25519::Signature::from_raw(sig1_bytes);
-		let sig2_bytes = <[u8; 64]>::from_hex(backup_packet.signature.strip_prefix("0x").unwrap()).unwrap();
-		let signature2 = sr25519::Signature::from_raw(sig2_bytes); //key_pair2.sign(message2);
-
-		let vr1 = sr25519::Pair::verify(
-			&signature1,
-			message1,
-			&sr25519::Public::from_ss58check(&store_data.signerAddress).unwrap(), /* public1 */
-		);
-		let vr2 = sr25519::Pair::verify(&signature2, message2, &public2);
-
-		println!("res1 : {}\nres2 : {}", vr1, vr2);
+		let store_packet: StoreRequest =
+			serde_json::from_str(&store_body.clone()).expect("error in store request json-body");
 
 		match store_packet.verify_request() {
-			Ok(_) => println!("Secret is Valid!"),
-
+			Ok(_) => println!("Store Request : Secret is Valid!"),
 			Err(err) => match err {
-				BackupError::InvalidSignature => println!("Signature Error!"),
-				BackupError::UnAuthorizedSigner => println!("Invalid Owner!"),
-				BackupError::DecodeError => println!("Decode Error"),
+				BackupError::InvalidSignature => println!("Store Request : Signature Error!"),
+				BackupError::UnAuthorizedSigner => println!("Store Request : Unauthorized Admin!"),
+				BackupError::DecodeError => println!("Store Request : Decode Error"),
 			},
 		}
+
+		let backup_body = r#"
+        {
+			"data": {
+				"nfts": [247,258,274],            
+				"signerAddress": "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy"
+			},
+			"signature": "ae2490d6b3bef0811aaab582c7f87026948af3d1b94e839bf37986b78171846229a04ed28de862bea4ebc088117e7a388bae67fc7f738b88a7e09166fb660d88"
+        }"#;
+
+		let backup_packet: BackupRequest =
+			serde_json::from_str(&backup_body.clone()).expect("error in backup request json-body");
+
+		match backup_packet.verify_request() {
+			Ok(_) => println!("Backup Request : Secret is Valid!"),
+
+			Err(err) => match err {
+				BackupError::InvalidSignature => println!("Backup Request : Signature Error!"),
+				BackupError::UnAuthorizedSigner => println!("Backup Request : Unauthorized Admin!"),
+				BackupError::DecodeError => println!("Backup Request : Decode Error"),
+			},
+		}
+
+		/*
+		let key_pair = sp_keyring::AccountKeyring::Dave.pair();
+
+		let rc_store_packet_data = serde_json::to_string(&store_packet.data).unwrap();
+		let store_sign = key_pair.sign(rc_store_packet_data.as_bytes());
+		println!("rc_store_packet_data : {:#?}\n", rc_store_packet_data);
+		println!("store_sign : {:#?}\n", store_sign);
+
+		let rc_backup_packet_data = serde_json::to_string(&backup_packet.data).unwrap();
+		let backup_sign = key_pair.sign(rc_backup_packet_data.as_bytes());
+		println!("rc_backup_packet_data : {:#?}\n", rc_backup_packet_data);
+		println!("backup_sign: {:#?}\n", backup_sign);
+		*/
 	}
 }
