@@ -1,8 +1,11 @@
 use axum::{
 	http::{Method, StatusCode},
 	routing::{get, get_service, post},
-	Router,
+	Json, Router,
 };
+
+use serde_json::{json, Value};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::server_common;
 use std::path::PathBuf;
@@ -41,7 +44,7 @@ pub async fn http_server(port: &u16) {
 					)
 				}),
 		)
-		.route("/", get(health_handler))
+		.route("/health", get(get_health_status))
 		.layer(cors)
 		// TEST APIS
 		//.route("/api/generateKey", get(generate_key))
@@ -57,7 +60,12 @@ pub async fn http_server(port: &u16) {
 	server_common::serve(http_app, port).await;
 }
 
-// TEXT
-async fn health_handler() -> &'static str {
-	"Server is running!\n"
+async fn get_health_status() -> Json<Value> {
+	let time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
+
+	Json(json!({
+		"status": 200,
+		"date": time.as_secs(),
+		"description": "SGX server healthy!".to_string()
+	}))
 }
