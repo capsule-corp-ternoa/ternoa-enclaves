@@ -24,7 +24,7 @@ use std::{
 	sync::Arc,
 };
 
-use crate::ipfs::{TernoaIpfsApi, IPFS_API_URL, IPFS_GATEWAY_URL};
+use crate::keys::ipfs::{TernoaIpfsApi, IPFS_API_URL, IPFS_GATEWAY_URL};
 
 const KEY_DIR_PATH: &str = "./credentials/keys/";
 
@@ -32,7 +32,7 @@ fn random_string<S: AsRef<str>>(length: usize, charset: S) -> String {
 	let charset_str = charset.as_ref();
 
 	if charset_str.is_empty() {
-		return "Provided charset is empty! It should contain at least one character".to_string();
+		return "Provided charset is empty! It should contain at least one character".to_string()
 	}
 
 	let chars: Vec<char> = charset_str.chars().collect();
