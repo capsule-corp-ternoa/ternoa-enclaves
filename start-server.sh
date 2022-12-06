@@ -1,6 +1,6 @@
 
 cargo build --release
-make SGX=1 start-gramine-server >> make.log 2>&1 & 
+make SGX=1 start-gramine-server >> make.log 2>&1 &
 
 echo -n "Initializing encalve ..."
 while ! (test -f "enclave.log") || ! (grep -q "Port 3000" "enclave.log"); do

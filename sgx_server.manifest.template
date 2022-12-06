@@ -27,11 +27,11 @@ fs.mounts = [
   
   { path = "/quote/", uri = "file:/home/ubuntu/sgx_server/quote/", type = "chroot" },
   { path = "/credentials/keys/" , uri = "file:/home/ubuntu/sgx_server/credentials/keys/",  type = "encrypted", "key_name" = "DevOnlyKey"},
-  { path = "/credentials/nft/" , uri = "file:/home/ubuntu/sgx_server/credentials/nft/",  type = "encrypted", "key_name" = "DevOnlyKey"},
+  { path = "/credentials/nft/" , uri = "file:/home/ubuntu/sgx_server/credentials/nft/",  type = "encrypted", "key_name" = "_sgx_mrsigner"},
 ]
 
-# Only for development and debug, it will be replaced with _mrencalve/_mrsigner for production
-fs.insecure__keys."DevOnlyKey" = "0123456789ABCDEF0123456789ABCDEF"
+# Only for development and debug, it will be replaced with _sgx_mrencalve/_sgx_mrsigner for production
+# fs.insecure__keys."DevOnlyKey" = "0123456789ABCDEF0123456789ABCDEF"
 
 sgx.debug = true
 sgx.nonpie_binary = true
@@ -56,9 +56,9 @@ sgx.trusted_files = [
   "file:/etc/passwd",
   "file:/etc/gai.conf",
   "file:/etc/ssl/certs/ca-certificates.crt",
-  "file:/etc/sgx_default_qcnl.conf",
+  #"file:/etc/sgx_default_qcnl.conf",
   "file:credentials/artifacts/",
-  "file:credentials/certificates/ssl_certs/",
+  "file:credentials/certificates/",
   "file:credentials/assets/",
 ]
 
