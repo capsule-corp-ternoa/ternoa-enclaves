@@ -7,7 +7,8 @@ use axum::{
 use serde_json::{json, Value};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::server_common;
+use crate::servers::server_common;
+
 use std::path::PathBuf;
 use tower_http::{
 	cors::{Any, CorsLayer},
@@ -18,6 +19,8 @@ use crate::chain::{
 	chain::{get_nft_data_handler, rpc_query, submit_tx},
 	nft::{retrieve_secret_shares, store_secret_shares},
 };
+
+use crate::backup::admin::{backup_fetch_secrets, backup_push_secrets};
 
 /* HTTP Server */
 pub async fn http_server(port: &u16) {
@@ -35,7 +38,7 @@ pub async fn http_server(port: &u16) {
         ;
 
 	let http_app = Router::new()
-		.fallback(
+		.fallback_service(
 			get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true))
 				.handle_error(|error: std::io::Error| async move {
 					(
@@ -53,6 +56,9 @@ pub async fn http_server(port: &u16) {
 		.route("/api/getNFTData/:nft_id", get(get_nft_data_handler))
 		.route("/api/rpcQuery/:blocknumber", get(rpc_query))
 		.route("/api/submitTx/:amount", get(submit_tx))
+		// CENTRALIZED BACKUP API
+		.route("/api/backup/fetchEnclaveSecrets", post(backup_fetch_secrets))
+		.route("/api/backup/pushEnclaveSecrets", post(backup_push_secrets))
 		// SECRET SHARING API
 		.route("/api/nft/storeSecretShares", post(store_secret_shares))
 		.route("/api/nft/retrieveSecretShares", post(retrieve_secret_shares));
