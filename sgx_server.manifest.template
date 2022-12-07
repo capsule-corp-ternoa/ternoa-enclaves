@@ -60,6 +60,7 @@ sgx.trusted_files = [
   "file:credentials/artifacts/",
   "file:credentials/certificates/",
   "file:credentials/assets/",
+  "file:/etc/letsencrypt/",
 ]
 
 

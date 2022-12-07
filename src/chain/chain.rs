@@ -2,13 +2,13 @@ use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
 use serde::Serialize as SerderSerialize;
 
-use sp_core::H256;
 use sp_keyring::AccountKeyring;
 use std::fmt;
 use subxt::{
 	metadata::DecodeStaticType,
 	storage::{address::Yes, StaticStorageAddress},
 };
+use tracing::info;
 
 use subxt::{ext::sp_core::Pair, tx::PairSigner, OnlineClient, PolkadotConfig};
 
@@ -52,14 +52,14 @@ pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl Into
 	let block_hash = api.rpc().block_hash(Some(block_number.into())).await.unwrap();
 
 	if let Some(hash) = block_hash {
-		println!("Block hash for block number {block_number}: {hash}");
+		info!("Block hash for block number {block_number}: {hash}");
 		axum::Json(JsonRPC {
 			status: 200,
 			input: "block_number=".to_owned() + &block_number.to_string(),
 			output: "block_hash=".to_owned() + &block_hash.unwrap().to_string(),
 		})
 	} else {
-		println!("Block number {block_number} not found.");
+		info!("Block number {block_number} not found.");
 		axum::Json(JsonRPC {
 			status: 205,
 			input: "block_number=".to_owned() + &block_number.to_string(),
@@ -92,7 +92,7 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 	let hash = match api.tx().sign_and_submit_default(&tx, &signer).await {
 		Ok(h) => h,
 		Err(e) => {
-			println!("Balance transfer extrinsic Error: {}", e);
+			info!("Balance transfer extrinsic Error: {}", e);
 
 			return axum::Json(JsonTX {
 				status: 430,
@@ -100,11 +100,11 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 				sender: String::from(TEST_ACCOUNT),
 				receiver: String::from("Alice"),
 				tx_hash: e.to_string(),
-			})
+			});
 		},
 	};
 
-	println!("Balance transfer extrinsic submitted: {}", hash);
+	info!("Balance transfer extrinsic submitted: {}", hash);
 
 	axum::Json(JsonTX {
 		status: 200,
@@ -142,7 +142,7 @@ impl IntoFuture for AddressType {
 }
 */
 
-pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
+pub async fn _get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
 	type AddressType = StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
 
 	let api = get_chain_api(TERNOA_RPC.into()).await;
@@ -177,7 +177,7 @@ pub async fn get_nft_data_handler(PathExtract(nft_id): PathExtract<u32>) -> impl
 	let data = get_nft_data(nft_id).await;
 	match data {
 		Some(nft_data) => {
-			println!("NFT DATA of Num.{} : \n {}", nft_id, nft_data);
+			info!("NFT DATA of Num.{} : \n {}", nft_id, nft_data);
 
 			axum::Json(JsonNFTData {
 				status: 200,
@@ -227,7 +227,7 @@ mod test {
 		let address = ternoa::constants().balances().existential_deposit();
 		// Look it up:
 		let existential_deposit = api.constants().at(&address).unwrap();
-		println!("Existential Deposit: {}", existential_deposit);
+		info!("Existential Deposit: {}", existential_deposit);
 	}
 
 	pub async fn storage_query() -> impl IntoResponse {
@@ -237,10 +237,10 @@ mod test {
 		let mut iter = api.storage().iter(address, 10, None).await.unwrap();
 		let mut counter = 0;
 		while let Some((key, account)) = iter.next().await.unwrap() {
-			println!("{}: {}", hex::encode(key), account.data.free);
+			info!("{}: {}", hex::encode(key), account.data.free);
 			counter += 1;
 			if counter > 10 {
-				break
+				break;
 			}
 		}
 	}
@@ -260,10 +260,10 @@ mod test {
 
 		// Concurrent (Avg. 0.3 ms/request)
 		let start = Instant::now();
-		let nft_data_vec = get_nft_data_batch(nft_ids.clone()).await;
+		let nft_data_vec = _get_nft_data_batch(nft_ids.clone()).await;
 		let elapsed_time = start.elapsed().as_micros();
-		println!("\nConcurrent time is {} microseconds", elapsed_time);
-		//println!("Concurrent NFT Data : {:#?}", nft_data_vec[9].as_ref().unwrap().owner);
+		info!("\nConcurrent time is {} microseconds", elapsed_time);
+		info!("Concurrent NFT Data : {:#?}", nft_data_vec[9].as_ref().unwrap().owner);
 	}
 
 	#[tokio::test]
@@ -277,7 +277,7 @@ mod test {
 			nft_data.push(get_nft_data(id).await);
 		}
 		let elapsed_time = start.elapsed().as_micros();
-		println!("\nSingle time is {} microseconds", elapsed_time);
-		println!("Single NFT Data : {:#?}", nft_data[9].as_ref().unwrap().owner);
+		info!("\nSingle time is {} microseconds", elapsed_time);
+		info!("Single NFT Data : {:#?}", nft_data[9].as_ref().unwrap().owner);
 	}
 }
