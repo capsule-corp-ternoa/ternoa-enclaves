@@ -1,13 +1,11 @@
 use crate::chain::chain::get_nft_data;
+use crate::servers::http_server::StateConfig;
+
 use async_trait::async_trait;
-use axum::{
-	body::Body,
-	http::{Request, StatusCode},
-	response::IntoResponse,
-	Json,
-};
-use hex::{FromHex, ToHex};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use hex::FromHex;
 use std::io::{Read, Write};
+use tracing::info;
 
 use subxt::ext::{
 	sp_core::{sr25519, ByteArray, Pair},
@@ -19,13 +17,11 @@ use subxt::ext::{
 
 use serde::{Deserialize, Serialize};
 
-const NFT_DIR_PATH: &str = "./credentials/nft/";
-
 #[derive(Debug)]
 pub enum SecretError {
 	DecodeError,
-	SignatureInvalid,
-	OwnerInvalid,
+	InvalidSignature,
+	InvalidOwner,
 }
 
 #[derive(Deserialize, Clone)]
@@ -148,27 +144,30 @@ impl VerifyNFT for SecretPacket {
 			if self.check_nft_ownership().await {
 				Ok(self.parse_secret())
 			} else {
-				Err(SecretError::OwnerInvalid)
+				Err(SecretError::InvalidOwner)
 			}
 		} else {
-			Err(SecretError::SignatureInvalid)
+			Err(SecretError::InvalidSignature)
 		}
 	}
 }
 
 /* STORE SECRET */
 
-pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> impl IntoResponse {
+pub async fn store_secret_shares(
+	State(state): State<StateConfig>,
+	Json(received_secret): Json<SecretPacket>,
+) -> impl IntoResponse {
 	let verified_secret = received_secret.verify_receive_data().await;
 
 	match verified_secret {
 		Ok(secret) => {
-			std::fs::create_dir_all(NFT_DIR_PATH).unwrap();
-			let file_path = NFT_DIR_PATH.to_owned() + &secret.nft_id.to_string() + ".secret";
+			std::fs::create_dir_all(state.secret_path.clone()).unwrap();
+			let file_path = state.secret_path + &secret.nft_id.to_string() + ".secret";
 			let exist = std::path::Path::new(file_path.as_str()).exists();
 
 			if exist {
-				println!(
+				info!(
 					"Error storing secrets to TEE : nft_id already exists, nft_id = {}",
 					secret.nft_id
 				);
@@ -188,7 +187,7 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 			let mut f = match std::fs::File::create(file_path) {
 				Ok(file) => file,
 				Err(err) => {
-					println!("Error storing secrets to TEE : error in creating file on disk, nft_id = {}, Error = {}", secret.nft_id, err);
+					info!("Error storing secrets to TEE : error in creating file on disk, nft_id = {}, Error = {}", secret.nft_id, err);
 
 					return (
 						StatusCode::OK,
@@ -205,10 +204,12 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 
 			f.write_all(&secret.data).unwrap();
 
-			println!(
+			info!(
 				"Secret is successfully stored to TEE, nft_id = {} by Owner = {}",
 				secret.nft_id, received_secret.account_address
 			);
+
+			// TODO! Send extrinsic to Secret-NFT Pallet as Storage-Oracle
 
 			return (
 				StatusCode::OK,
@@ -218,12 +219,12 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 					cluster_id: 1,
 					description: "Secret is successfully stored to TEE".to_string(),
 				}),
-			)
+			);
 		},
 
 		Err(err) => match err {
-			SecretError::SignatureInvalid => {
-				println!("Error storing secrets to TEE : Invalid Request Signature");
+			SecretError::InvalidSignature => {
+				info!("Error storing secrets to TEE : Invalid Request Signature");
 
 				return (
 					StatusCode::OK,
@@ -234,11 +235,11 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 						description: "Error storing secrets to TEE : Invalid Request Signature"
 							.to_string(),
 					}),
-				)
+				);
 			},
 
-			SecretError::OwnerInvalid => {
-				println!("Error storing secrets to TEE : Invalid NFT Owner");
+			SecretError::InvalidOwner => {
+				info!("Error storing secrets to TEE : Invalid NFT Owner");
 
 				return (
 					StatusCode::OK,
@@ -248,11 +249,11 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 						cluster_id: 1,
 						description: "Error storing secrets to TEE : Invalid NFT Owner".to_string(),
 					}),
-				)
+				);
 			},
 
 			SecretError::DecodeError => {
-				println!("Error storing secrets to TEE : can not parse the payload");
+				info!("Error storing secrets to TEE : can not parse the payload");
 
 				return (
 					StatusCode::OK,
@@ -263,7 +264,7 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 						description: "Error storing secrets to TEE : nonparsable payload"
 							.to_string(),
 					}),
-				)
+				);
 			},
 		},
 	}
@@ -271,15 +272,16 @@ pub async fn store_secret_shares(Json(received_secret): Json<SecretPacket>) -> i
 
 /* RETRIEVE SECRET */
 pub async fn retrieve_secret_shares(
+	State(state): State<StateConfig>,
 	Json(requested_secret): Json<SecretPacket>,
 ) -> impl IntoResponse {
 	let verified_req = requested_secret.verify_receive_data().await;
 
 	match verified_req {
 		Ok(data) => {
-			let file_path = NFT_DIR_PATH.to_owned() + &data.nft_id.to_string() + ".secret";
+			let file_path = state.secret_path + &data.nft_id.to_string() + ".secret";
 			if !std::path::Path::new(&file_path).is_file() {
-				println!(
+				info!(
 					"Error retrieving secrets from TEE : file path does not exist, file_path : {}",
 					file_path
 				);
@@ -293,14 +295,14 @@ pub async fn retrieve_secret_shares(
 							.to_string(),
 						secret_data: "0000_0000".to_owned(),
 					}),
-				)
+				);
 			}
 
 			let mut file =
 				match std::fs::File::open(file_path) {
 					Ok(file) => file,
 					Err(_) => {
-						println!("Error retrieving secrets from TEE : nft_id does not exist, nft_id : {}", data.nft_id );
+						info!("Error retrieving secrets from TEE : nft_id does not exist, nft_id : {}", data.nft_id );
 
 						return (
 							StatusCode::UNPROCESSABLE_ENTITY,
@@ -313,7 +315,7 @@ pub async fn retrieve_secret_shares(
 										.to_string(),
 								secret_data: SecretData { nft_id: 0, data: Vec::new() }.serialize(),
 							}),
-						)
+						);
 					},
 				};
 
@@ -321,7 +323,7 @@ pub async fn retrieve_secret_shares(
 
 			file.read_to_end(&mut nft_secret_share).unwrap();
 
-			println!(
+			info!(
 				"Secret shares of {} retrieved by {}",
 				data.nft_id, requested_secret.account_address
 			);
@@ -336,12 +338,12 @@ pub async fn retrieve_secret_shares(
 					secret_data: SecretData { nft_id: data.nft_id, data: nft_secret_share }
 						.serialize(),
 				}),
-			)
+			);
 		},
 
 		Err(err) => match err {
 			SecretError::DecodeError => {
-				println!("Error retrieving secrets from TEE : can not parse the payload");
+				info!("Error retrieving secrets from TEE : can not parse the payload");
 
 				return (
 					StatusCode::OK,
@@ -352,11 +354,11 @@ pub async fn retrieve_secret_shares(
 						description: "Error payload is not parsable".to_string(),
 						secret_data: SecretData { nft_id: 0, data: Vec::new() }.serialize(),
 					}),
-				)
+				);
 			},
 
-			SecretError::SignatureInvalid => {
-				println!("Error retrieving secrets from TEE : Invalid Signature");
+			SecretError::InvalidSignature => {
+				info!("Error retrieving secrets from TEE : Invalid Signature");
 
 				return (
 					StatusCode::OK,
@@ -367,11 +369,11 @@ pub async fn retrieve_secret_shares(
 						description: "Error Invalid Signature or NFT owner".to_string(),
 						secret_data: SecretData { nft_id: 0, data: Vec::new() }.serialize(),
 					}),
-				)
+				);
 			},
 
-			SecretError::OwnerInvalid => {
-				println!("Error retrieving secrets from TEE : Invalid Owner");
+			SecretError::InvalidOwner => {
+				info!("Error retrieving secrets from TEE : Invalid Owner");
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
@@ -381,7 +383,7 @@ pub async fn retrieve_secret_shares(
 						description: "Error Invalid NFT owner".to_string(),
 						secret_data: SecretData { nft_id: 0, data: Vec::new() }.serialize(),
 					}),
-				)
+				);
 			},
 		},
 	}
@@ -391,8 +393,6 @@ pub async fn retrieve_secret_shares(
 #[cfg(test)]
 mod test {
 	use super::*;
-	//use bincode::serialize;
-	//use hex_literal::hex;
 	use sp_keyring::AccountKeyring;
 	use subxt::ext::sp_runtime::app_crypto::Ss58Codec;
 
@@ -412,7 +412,7 @@ mod test {
 		.0;
 		let key_pair2 = AccountKeyring::Dave.pair();
 
-		let public1 = key_pair1.clone().public();
+		let _public1 = key_pair1.clone().public();
 		let public2 = key_pair2.clone().public();
 
 		let message1 = secret_packet.secret_data.as_bytes();
@@ -432,17 +432,17 @@ mod test {
 		);
 		let vr2 = sr25519::Pair::verify(&signature2, message2, &public2);
 
-		println!("res1 : {}\nres2 : {}", vr1, vr2);
+		info!("res1 : {}\nres2 : {}", vr1, vr2);
 
 		match secret_packet.verify_receive_data().await {
-			Ok(_) => println!("Secret is Valid!"),
+			Ok(_) => info!("Secret is Valid!"),
 
 			Err(err) => match err {
-				SecretError::SignatureInvalid => println!("Signature Error!"),
+				SecretError::InvalidSignature => info!("Signature Error!"),
 
-				SecretError::OwnerInvalid => println!("Invalid Owner!"),
+				SecretError::InvalidOwner => info!("Invalid Owner!"),
 
-				SecretError::DecodeError => println!("Decode Error"),
+				SecretError::DecodeError => info!("Decode Error"),
 			},
 		}
 	}
