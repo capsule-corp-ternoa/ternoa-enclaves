@@ -1,6 +1,9 @@
 ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
 SELF_EXE = target/release/sgx_server
+SGX ?= 1
+DEBUG ?= 0
+
 
 .PHONY: all
 all: $(SELF_EXE) sgx_server.manifest
@@ -50,9 +53,18 @@ else
 GRAMINE = gramine-sgx
 endif
 
+SGX_SEAL_PATH=$NFT_SERCRETS_PATH SGX_OWNER_KEY=$TERNOA_ACCOUNT_KEY SGX_IDENTITY=$ENCLAVE_IDENTITY 
+
 .PHONY: start-gramine-server
 start-gramine-server: all
-	nohup $(GRAMINE) sgx_server 3000 > enclave.log 2>&1 &
+	$(GRAMINE) sgx_server \
+		--port $(SGX_PORT) \
+		--certfile $(SGX_TLS_CERT) \
+		--keyfile $(SGX_TLS_KEY) \
+		--secretpath $(SGX_SEAL_PATH) \
+		--identity $(SGX_IDENTITY) \
+		--account $(SGX_OWNER_KEY) \
+		> enclave.log 2>&1 &
 
 .PHONY: clean
 clean:

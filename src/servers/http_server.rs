@@ -5,7 +5,7 @@ use axum::{
 };
 
 use serde_json::{json, Value};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 
 use crate::servers::server_common;
 
@@ -22,20 +22,29 @@ use crate::chain::{
 
 use crate::backup::admin::{backup_fetch_secrets, backup_push_secrets};
 
+#[derive(Clone)]
+pub struct StateConfig {
+	pub ternoa_key: Vec<u8>,
+	pub secret_path: String,
+}
+
 /* HTTP Server */
-pub async fn http_server(port: &u16) {
+pub async fn http_server(
+	port: &u16,
+	account: Vec<u8>,
+	certfile: &str,
+	keyfile: &str,
+	secret_path: &str,
+) {
+	let state_config = StateConfig { ternoa_key: account, secret_path: secret_path.to_owned() };
+
 	let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
+
 	let cors = CorsLayer::new()
-        // allow `GET` and `POST` when accessing the resource
-        .allow_methods([Method::GET, Method::POST])
-        // allow requests from any origin
-        .allow_origin(Any)
-        /* .allow_origin(
-            ("http://127.0.0.1:".to_owned() + &port.to_string())
-                .parse::<HeaderValue>()
-                .unwrap(),
-        )*/
-        ;
+		// allow `GET` and `POST` when accessing the resource
+		.allow_methods([Method::GET, Method::POST])
+		// allow requests from any origin
+		.allow_origin(Any);
 
 	let http_app = Router::new()
 		.fallback_service(
@@ -61,11 +70,13 @@ pub async fn http_server(port: &u16) {
 		.route("/api/backup/pushEnclaveSecrets", post(backup_push_secrets))
 		// SECRET SHARING API
 		.route("/api/nft/storeSecretShares", post(store_secret_shares))
-		.route("/api/nft/retrieveSecretShares", post(retrieve_secret_shares));
+		.route("/api/nft/retrieveSecretShares", post(retrieve_secret_shares))
+		.with_state(state_config);
 
-	server_common::serve(http_app, port).await;
+	server_common::serve(http_app, port, certfile, keyfile).await;
 }
 
+/*  -------------Handlers------------- */
 async fn get_health_status() -> Json<Value> {
 	let time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
 
