@@ -71,7 +71,7 @@ pub async fn dynamic_get_nft_data(nft_id: u32){
         ChainResult::SC(result) => result.unwrap(),
         ChainResult::TX(result) => panic!("Storage can not return a Transaction"),
     };
-    println!("NFT Data = {}", res);
+    info!("NFT Data = {}", res);
 }
 
 
@@ -103,14 +103,14 @@ pub async fn dynamic_get_nft_data(nft_id: u32){
             .sign_and_submit_default(&tx, &signer)
             .await
             .unwrap();
-        println!("Balance transfer extrinsic submitted: {}", hash);
+        info!("Balance transfer extrinsic submitted: {}", hash);
     }
 
     async fn dynamic_constant() {
         let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
         let constant_address = subxt::dynamic::constant("nft", "ExistentialDeposit");
         let existential_deposit = api.constants().at(&constant_address).unwrap();
-        println!("Existential Deposit: {}", existential_deposit);
+        info!("Existential Deposit: {}", existential_deposit);
     }
 
     async fn dynamic_storage() {
@@ -134,7 +134,7 @@ pub async fn dynamic_get_nft_data(nft_id: u32){
             .fetch_or_default(&storage_address, None)
             .await
             .unwrap();
-        println!("Bob's account details: {account}");
+        info!("Bob's account details: {account}");
 
         // sample storage iteration : fetch all accounts
 
@@ -142,7 +142,7 @@ pub async fn dynamic_get_nft_data(nft_id: u32){
         let mut iter = api.storage().iter(storage_address, 10, None).await.unwrap();
         let mut counter = 0;
         while let Some((key, account)) = iter.next().await.unwrap() {
-            println!("{}: {}", hex::encode(key), account);
+            info!("{}: {}", hex::encode(key), account);
             counter += 1;
             if counter > 10 {
                 break;
