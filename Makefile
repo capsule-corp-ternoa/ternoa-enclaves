@@ -30,6 +30,7 @@ sgx_server.manifest: sgx_server.manifest.template
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
 		-Darch_libdir=$(ARCH_LIBDIR) \
 		-Dself_exe=$(SELF_EXE) \
+		-Dseal_path=$(SGX_SEAL_PATH) \
 		$< $@
 
 # Make on Ubuntu <= 20.04 doesn't support "Rules with Grouped Targets" (`&:`),
@@ -51,9 +52,7 @@ ifeq ($(SGX),)
 GRAMINE = gramine-direct
 else
 GRAMINE = gramine-sgx
-endif
-
-SGX_SEAL_PATH=$NFT_SERCRETS_PATH SGX_OWNER_KEY=$TERNOA_ACCOUNT_KEY SGX_IDENTITY=$ENCLAVE_IDENTITY 
+endif 
 
 .PHONY: start-gramine-server
 start-gramine-server: all
