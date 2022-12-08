@@ -1,0 +1,195 @@
+cargo build --release
+   Compiling proc-macro2 v1.0.47
+   Compiling subtle v2.4.1
+   Compiling memchr v2.5.0
+   Compiling rand v0.8.5
+   Compiling digest v0.10.6
+   Compiling aho-corasick v0.7.20
+   Compiling crypto-mac v0.8.0
+   Compiling hmac v0.8.1
+   Compiling fixed-hash v0.7.0
+   Compiling quote v1.0.21
+   Compiling syn v1.0.105
+   Compiling regex v1.7.0
+   Compiling crypto-mac v0.11.1
+   Compiling twox-hash v1.6.3
+   Compiling signature v1.6.4
+   Compiling ed25519 v1.5.2
+   Compiling pbkdf2 v0.8.0
+   Compiling hmac v0.11.0
+   Compiling hmac-drbg v0.3.0
+   Compiling Inflector v0.11.4
+   Compiling pbkdf2 v0.4.0
+   Compiling libsecp256k1-core v0.3.0
+   Compiling sp-core-hashing v4.0.0
+   Compiling sha3 v0.10.6
+   Compiling sha2 v0.10.6
+   Compiling blake2 v0.10.5
+   Compiling sp-core-hashing v4.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling synstructure v0.12.6
+   Compiling tiny-keccak v2.0.2
+   Compiling mime_guess v2.0.4
+   Compiling proc-macro-error-attr v1.0.4
+   Compiling darling_core v0.14.2
+   Compiling proc-macro-error v1.0.4
+   Compiling sha-1 v0.10.1
+   Compiling der v0.6.0
+   Compiling sha1 v0.10.5
+   Compiling headers v0.3.8
+   Compiling serde_derive v1.0.148
+   Compiling thiserror-impl v1.0.37
+   Compiling impl-trait-for-tuples v0.2.2
+   Compiling futures-macro v0.3.25
+   Compiling thiserror v1.0.37
+   Compiling zeroize_derive v1.3.3
+   Compiling tracing-attributes v0.1.23
+   Compiling derive_more v0.99.17
+   Compiling serde v1.0.148
+   Compiling tracing v0.1.37
+   Compiling futures-util v0.3.25
+   Compiling ref-cast-impl v1.0.13
+   Compiling toml v0.5.9
+   Compiling serde_json v1.0.89
+   Compiling proc-macro-crate v1.2.1
+   Compiling parity-scale-codec-derive v3.1.3
+   Compiling scale-info-derive v2.3.0
+   Compiling impl-serde v0.3.2
+   Compiling zeroize v1.5.7
+   Compiling ss58-registry v1.35.0
+   Compiling parity-util-mem-derive v0.1.0
+   Compiling parity-scale-codec v3.2.1
+   Compiling ref-cast v1.0.13
+   Compiling dyn-clonable-impl v0.9.0
+   Compiling tracing-serde v0.1.3
+   Compiling tracing-subscriber v0.2.25
+   Compiling scale-info v2.3.0
+   Compiling impl-codec v0.6.0
+   Compiling futures-executor v0.3.25
+   Compiling sp-debug-derive v4.0.0
+   Compiling primitive-types v0.11.1
+   Compiling futures v0.3.25
+   Compiling merlin v2.0.1
+   Compiling curve25519-dalek v2.1.3
+   Compiling schnorrkel v0.9.1
+   Compiling parity-util-mem v0.11.0
+   Compiling curve25519-dalek v3.2.0
+   Compiling async-trait v0.1.59
+   Compiling tokio-macros v1.8.2
+   Compiling ed25519-dalek v1.0.1
+   Compiling tokio v1.22.0
+   Compiling substrate-bip39 v0.4.4
+   Compiling dyn-clonable v0.9.0
+   Compiling tiny-bip39 v0.8.2
+   Compiling secrecy v0.8.0
+   Compiling libsecp256k1 v0.7.1
+   Compiling sp-runtime-interface-proc-macro v5.0.0
+   Compiling memory-db v0.29.0
+   Compiling sp-storage v6.0.0
+   Compiling sp-externalities v0.12.0
+   Compiling sp-tracing v5.0.0
+   Compiling sp-wasm-interface v6.0.0
+   Compiling pin-project-internal v1.0.12
+   Compiling sp-debug-derive v4.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling pin-project v1.0.12
+   Compiling sp-runtime-interface v6.0.0
+   Compiling tokio-util v0.7.4
+   Compiling sp-core v6.0.0
+   Compiling sp-storage v6.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling sp-externalities v0.12.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling sp-tracing v5.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling sp-wasm-interface v6.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling sp-runtime-interface-proc-macro v5.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling sp-runtime-interface v6.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling sp-core v6.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling sp-trie v6.0.0
+   Compiling sp-state-machine v0.12.0
+   Compiling sp-keystore v0.12.0
+   Compiling h2 v0.3.15
+   Compiling beef v0.5.2
+   Compiling hyper v0.14.23
+   Compiling jsonrpsee-types v0.15.1
+   Compiling sp-io v6.0.0
+   Compiling sp-trie v6.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling frame-metadata v15.0.0
+   Compiling tracing-futures v0.2.5
+   Compiling tower v0.4.13
+   Compiling tokio-rustls v0.23.4
+   Compiling darling_macro v0.14.2
+   Compiling sp-application-crypto v6.0.0
+   Compiling tower-http v0.3.4
+   Compiling darling v0.14.2
+   Compiling jsonrpsee-core v0.15.1
+   Compiling subxt-metadata v0.23.0
+   Compiling sp-state-machine v0.12.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling sp-keystore v0.12.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling soketto v0.7.1
+   Compiling sp-arithmetic v5.0.0
+   Compiling serde_urlencoded v0.7.1
+   Compiling sp-runtime v6.0.0
+   Compiling jsonrpsee-client-transport v0.15.1
+   Compiling sp-io v6.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling subxt-codegen v0.23.0
+   Compiling axum-core v0.2.9
+   Compiling scale-decode v0.3.0
+   Compiling tungstenite v0.17.3
+   Compiling async-stream-impl v0.3.3
+   Compiling strum_macros v0.23.1
+   Compiling async-stream v0.3.3
+   Compiling tokio-tungstenite v0.17.2
+   Compiling axum v0.5.17
+   Compiling scale-value v0.5.0
+   Compiling strum v0.23.0
+   Compiling subxt-macro v0.23.0
+   Compiling sp-application-crypto v6.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling jsonrpsee v0.15.1
+   Compiling sp-arithmetic v5.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling tokio-stream v0.1.11
+   Compiling axum-core v0.3.0
+   Compiling serde_path_to_error v0.1.8
+   Compiling clap_derive v4.0.21
+   Compiling derivative v2.2.0
+   Compiling axum-macros v0.3.0
+   Compiling spki v0.6.0
+   Compiling clap v4.0.29
+   Compiling axum-server v0.4.4
+   Compiling axum v0.6.1
+   Compiling tracing-subscriber v0.3.16
+   Compiling subxt v0.23.0
+   Compiling pkcs5 v0.5.0
+   Compiling sp-runtime v6.0.0 (https://github.com/capsule-corp-ternoa/substrate?tag=ternoa-substrate-2022-07-30#7d8e5a1e)
+   Compiling tokio-test v0.4.2
+   Compiling axum-jrpc v0.2.1
+   Compiling sp-keyring v6.0.0
+   Compiling curve25519-dalek-ml v4.0.0
+   Compiling sgx_server v0.1.0 (/home/zorvan/Work/ternoa-code/sgx_server)
+warning: variant `DecodeError` is never constructed
+  --> src/backup/admin.rs:25:2
+   |
+24 | pub enum BackupError {
+   |          ----------- variant in this enum
+25 |     DecodeError,
+   |     ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+   = note: `BackupError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: variant `DecodeError` is never constructed
+  --> src/chain/nft.rs:22:2
+   |
+21 | pub enum SecretError {
+   |          ----------- variant in this enum
+22 |     DecodeError,
+   |     ^^^^^^^^^^^
+   |
+   = note: `SecretError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: `sgx_server` (bin "sgx_server") generated 2 warnings
+    Finished release [optimized] target(s) in 4m 25s
+gramine-manifest \
+	-Dlog_level=error \
+	-Darch_libdir=/lib/x86_64-pc-linux-gnu \
+	-Dself_exe=target/release/sgx_server \
+	-Dseal_path=/opt/sgx_server_nft/ \
+	sgx_server.manifest.template sgx_server.manifest
+make: gramine-manifest: No such file or directory
+make: *** [Makefile:29: sgx_server.manifest] Error 127
