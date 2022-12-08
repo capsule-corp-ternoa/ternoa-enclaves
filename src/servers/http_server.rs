@@ -25,7 +25,7 @@ use crate::backup::admin::{backup_fetch_secrets, backup_push_secrets};
 #[derive(Clone)]
 pub struct StateConfig {
 	pub ternoa_key: Vec<u8>,
-	pub secret_path: String,
+	pub seal_path: String,
 }
 
 /* HTTP Server */
@@ -34,9 +34,9 @@ pub async fn http_server(
 	account: Vec<u8>,
 	certfile: &str,
 	keyfile: &str,
-	secret_path: &str,
+	seal_path: &str,
 ) {
-	let state_config = StateConfig { ternoa_key: account, secret_path: secret_path.to_owned() };
+	let state_config = StateConfig { ternoa_key: account, seal_path: seal_path.to_owned() };
 
 	let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
 
