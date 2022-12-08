@@ -162,7 +162,7 @@ pub async fn backup_fetch_secrets(
 			let mut backup_response_data: BTreeMap<String, String> = BTreeMap::new();
 
 			for nft_id in parsed_request.data.nfts {
-				let file_path = state.secret_path.to_owned() + &nft_id.to_string() + ".secret";
+				let file_path = state.seal_path.to_owned() + &nft_id.to_string() + ".secret";
 
 				if !std::path::Path::new(&file_path).is_file() {
 					info!(
@@ -263,8 +263,8 @@ pub async fn backup_push_secrets(
 	match verified_req {
 		Ok(_) => {
 			for (nft_id, secret) in parsed_request.data.nfts {
-				std::fs::create_dir_all(state.secret_path.clone()).unwrap();
-				let file_path = state.secret_path.to_owned() + &nft_id.to_string() + ".secret";
+				std::fs::create_dir_all(state.seal_path.clone()).unwrap();
+				let file_path = state.seal_path.to_owned() + &nft_id.to_string() + ".secret";
 
 				if std::path::Path::new(file_path.as_str()).exists() {
 					let message = format!(
