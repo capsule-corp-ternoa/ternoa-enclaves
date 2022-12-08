@@ -26,8 +26,8 @@ fs.mounts = [
   { path = "/etc", uri = "file:/etc" },
   
   { path = "/quote/", uri = "file:/home/ubuntu/sgx_server/quote/", type = "chroot" },
-  { path = "/credentials/keys/" , uri = "file:/home/ubuntu/sgx_server/credentials/keys/",  type = "encrypted", "key_name" = "DevOnlyKey"},
-  { path = "/credentials/nft/" , uri = "file:/home/ubuntu/sgx_server/credentials/nft/",  type = "encrypted", "key_name" = "_sgx_mrsigner"},
+  { path = "/credentials/keys/" , uri = "file:/opt/sgx_server_keys/",  type = "encrypted", "key_name" = "DevOnlyKey"},
+  { path = "/credentials/nft/" , uri = "file:{{ seal_path }}/",  type = "encrypted", "key_name" = "_sgx_mrsigner"},
 ]
 
 # Only for development and debug, it will be replaced with _sgx_mrencalve/_sgx_mrsigner for production
@@ -58,7 +58,7 @@ sgx.trusted_files = [
   "file:/etc/ssl/certs/ca-certificates.crt",
   #"file:/etc/sgx_default_qcnl.conf",
   "file:credentials/artifacts/",
-  "file:credentials/certificates/",
+  #"file:credentials/certificates/",
   "file:credentials/assets/",
   "file:/etc/letsencrypt/",
 ]

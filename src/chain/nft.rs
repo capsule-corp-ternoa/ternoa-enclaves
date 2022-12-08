@@ -162,8 +162,8 @@ pub async fn store_secret_shares(
 
 	match verified_secret {
 		Ok(secret) => {
-			std::fs::create_dir_all(state.secret_path.clone()).unwrap();
-			let file_path = state.secret_path + &secret.nft_id.to_string() + ".secret";
+			std::fs::create_dir_all(state.seal_path.clone()).unwrap();
+			let file_path = state.seal_path + &secret.nft_id.to_string() + ".secret";
 			let exist = std::path::Path::new(file_path.as_str()).exists();
 
 			if exist {
@@ -279,7 +279,7 @@ pub async fn retrieve_secret_shares(
 
 	match verified_req {
 		Ok(data) => {
-			let file_path = state.secret_path + &data.nft_id.to_string() + ".secret";
+			let file_path = state.seal_path + &data.nft_id.to_string() + ".secret";
 			if !std::path::Path::new(&file_path).is_file() {
 				info!(
 					"Error retrieving secrets from TEE : file path does not exist, file_path : {}",
