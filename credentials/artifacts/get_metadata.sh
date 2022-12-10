@@ -1,0 +1,1 @@
+subxt metadata --url wss://alphanet.ternoa.com:443 > ternoa_alphanet.scale

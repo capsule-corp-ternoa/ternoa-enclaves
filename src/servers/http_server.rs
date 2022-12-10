@@ -24,19 +24,26 @@ use crate::backup::admin::{backup_fetch_secrets, backup_push_secrets};
 
 #[derive(Clone)]
 pub struct StateConfig {
-	pub ternoa_key: Vec<u8>,
+	pub ternoa_key: schnorrkel::keys::Keypair,
 	pub seal_path: String,
 }
 
 /* HTTP Server */
 pub async fn http_server(
 	port: &u16,
-	account: Vec<u8>,
+	account: &str,
 	certfile: &str,
 	keyfile: &str,
 	seal_path: &str,
 ) {
-	let state_config = StateConfig { ternoa_key: account, seal_path: seal_path.to_owned() };
+	let account_bytes = hex::decode(account).expect("Error reading account data");
+	let account_secret = match schnorrkel::keys::SecretKey::from_bytes(&account_bytes[..]) {
+		Ok(key) => key,
+		Err(e) => panic!("Error reading account key : {}", e),
+	};
+	let account_pair = schnorrkel::keys::Keypair::from(account_secret);
+
+	let state_config = StateConfig { ternoa_key: account_pair, seal_path: seal_path.to_owned() };
 
 	let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
 

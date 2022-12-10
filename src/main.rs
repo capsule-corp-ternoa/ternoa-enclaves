@@ -7,7 +7,6 @@ mod backup;
 mod chain;
 mod servers;
 use crate::servers::http_server;
-use std::fs;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -17,7 +16,7 @@ struct Args {
 	port: u16,
 
 	/// Path to the file, containing private key for Ternoa account of enclave owner
-	#[arg(short, long, default_value_t = String::from("/opt/sgx_server/ternoa_account.key"))]
+	#[arg(short, long, default_value_t = String::from("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6"))]
 	account: String,
 
 	/// Path to the file, containing certificate for TLS connection
@@ -45,17 +44,12 @@ async fn main() {
 	tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
 	let args = Args::parse();
-
-	let account_key = match fs::read(args.account) {
-		Ok(key) => key,
-		Err(e) => panic!("Error reading Account file : {}", e),
-	};
-
+	
 	let _quote = attestation::ra::generate_quote();
 
 	http_server::http_server(
 		&args.port,
-		account_key,
+		&args.account,
 		&args.certfile,
 		&args.keyfile,
 		&args.sealpath,
