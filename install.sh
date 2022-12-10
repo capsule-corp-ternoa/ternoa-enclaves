@@ -126,6 +126,12 @@ sudo apt install gramine -y
 is-sgx-available
 gramine-sgx-gen-private-key
 
+# ----- Python Substrate Interface
+pip install --upgrade pip
+pip install "scalecodec>=1.1.2"
+pip install substrate-interface
+pip install base58 getpass
+
 # ----- Ternoa
 git clone https://github.com/capsule-corp-ternoa/sgx_server.git
 cd sgx_server

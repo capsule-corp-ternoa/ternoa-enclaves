@@ -15,7 +15,7 @@ loader.env.RUST_BACKTRACE = "full"
 # ROOT FILE SYSTEM ON GRAMINE FROM HOST
 # TYPE can be chroot, encrypted, tmpfs(in-memory)
 #fs.root.type = "chroot"
-#fs.root.uri  = "file:/home/ubuntu/sgx_server/"
+#fs.root.uri  = "file:/opt/sgx_server/"
 #fs.start_dir = "/"
 
 # MOUNTING FROM "URI" ON HOST, TO "PATH" ON GRAMINE
@@ -24,9 +24,7 @@ fs.mounts = [
   { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
   { path = "/etc", uri = "file:/etc" },
-  
-  { path = "/quote/", uri = "file:/home/ubuntu/sgx_server/quote/", type = "chroot" },
-  { path = "/credentials/keys/" , uri = "file:/opt/sgx_server_keys/",  type = "encrypted", "key_name" = "DevOnlyKey"},
+  { path = "/quote/", uri = "file:/opt/sgx_server/quote/", type = "chroot" },
   { path = "/credentials/nft/" , uri = "file:{{ seal_path }}/",  type = "encrypted", "key_name" = "_sgx_mrsigner"},
 ]
 
@@ -40,7 +38,7 @@ loader.insecure__use_cmdline_argv = true
 loader.pal_internal_mem_size = "64M"
 
 sgx.allowed_files = [
-  "file:/home/ubuntu/sgx_server/quote/", 
+  "file:/opt/sgx_server/quote/", 
 ]
 
 sgx.trusted_files = [
