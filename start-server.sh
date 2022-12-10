@@ -11,7 +11,7 @@ PORT=${PORT:-8100}
 HTTPS_PUBLIC_KEY=${HTTPS_PUBLIC_KEY:-/opt/sgx_server/cert.pem}
 HTTPS_PRIVATE_KEY=${HTTPS_PRIVATE_KEY:-/opt/sgx_server/key.pem}
 NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-/opt/sgx_server_nft/}
-TERNOA_ACCOUNT_KEY=${TERNOA_ACCOUNT_KEY:-/opt/sgx_server/ternoa_account.key}
+TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-/opt/sgx_server/ternoa_account.json}
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
 
 die() {
@@ -55,7 +55,7 @@ while :; do
         ;;
         -a|--account)
 			if [ "$2" ]; then
-				TERNOA_ACCOUNT_KEY=$2
+				TERNOA_ACCOUNT_PATH=$2
 				shift
 			else
 				die 'ERROR: "--account" requires a non-empty option argument.'
@@ -74,6 +74,11 @@ while :; do
     shift
 done
 
+TERNOA_ACCOUNT_KEY=`python import_account.py $TERNOA_ACCOUNT_PATH`
+if [ -z "$result" ]; then
+    echo "Can not decode account file"
+	exit
+fi
 
 echo "port: $PORT"
 echo "public key: $HTTPS_PUBLIC_KEY"
@@ -84,7 +89,12 @@ echo "encalve name: $ENCLAVE_IDENTITY"
 
 
 # Compiling the source code
-/home/ubuntu/.cargo/bin/cargo build --release
+if [ -z "$(which cargo)" ]
+then
+	/home/ubuntu/.cargo/bin/cargo build --release
+else
+	cargo build --release
+fi
 
 # Create Enclave using Makefile
 make 	SGX=1 \
