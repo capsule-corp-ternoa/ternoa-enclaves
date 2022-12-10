@@ -23,7 +23,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 serde_json = "1.0"
 serde = { version = "1.0.138", features = ["derive"] }
 hex = "0.4.3"
-hex-literal = "0.3.4"
+
 
 log = "0.4.17"
 chrono = "0.4.23"
@@ -38,13 +38,10 @@ tokio-test = "0.4.2"
 # Ternoa/Polkadot
 subxt = "0.23.0"
 sp-keyring = "6.0.0"
-sp-core = { git = "https://github.com/capsule-corp-ternoa/substrate", tag = "ternoa-substrate-2022-07-30" }
-sp-runtime = { git = "https://github.com/capsule-corp-ternoa/substrate", tag = "ternoa-substrate-2022-07-30" }
-codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "full", "bit-vec"] }
+sp-core = { git = "https://github.com/capsule-corp-ternoa/substrate", tag = "ternoa-substrate-2022-10-01", features = ["full_crypto"] }
+parity-scale-codec = { version = "3.1.5", features = ["derive", "full", "bit-vec"] }
 
 # Crypto / Keys
-pkcs5 = "0.5.0"
-
-# Threshold Crypto
+schnorrkel = "0.10.2"
 curve25519-dalek = { version = "4.0.0", package = "curve25519-dalek-ml" }
 ed25519-dalek = "1.0"
