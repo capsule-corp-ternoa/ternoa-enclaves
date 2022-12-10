@@ -1,4 +1,4 @@
-const socket = new WebSocket('ws://localhost:3000/ws');
+const socket = new WebSocket('ws://localhost:8100/ws');
 
 socket.addEventListener('open', function (event) {
     socket.send('Hello Server!');
