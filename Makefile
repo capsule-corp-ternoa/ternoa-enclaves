@@ -60,7 +60,7 @@ start-gramine-server: all
 		--port $(SGX_PORT) \
 		--certfile $(SGX_TLS_CERT) \
 		--keyfile $(SGX_TLS_KEY) \
-		--secretpath $(SGX_SEAL_PATH) \
+		--sealpath $(SGX_SEAL_PATH) \
 		--identity $(SGX_IDENTITY) \
 		--account $(SGX_OWNER_KEY) \
 		> enclave.log 2>&1 &
