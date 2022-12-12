@@ -75,7 +75,7 @@ while :; do
 done
 
 TERNOA_ACCOUNT_KEY=`python import_account.py $TERNOA_ACCOUNT_PATH`
-if [ -z "$result" ]; then
+if [ -z "$TERNOA_ACCOUNT_KEY" ]; then
     echo "Can not decode account file"
 	exit
 fi
@@ -84,7 +84,7 @@ echo "port: $PORT"
 echo "public key: $HTTPS_PUBLIC_KEY"
 echo "private key: $HTTPS_PRIVATE_KEY"
 echo "nft secrets: $NFT_SERCRETS_PATH"
-echo "account key: $TERNOA_ACCOUNT_KEY"
+echo "account key: $TERNOA_ACCOUNT_PATH"
 echo "encalve name: $ENCLAVE_IDENTITY"
 
 
@@ -107,7 +107,7 @@ make 	SGX=1 \
 		start-gramine-server >> make.log 2>&1 &
 
 echo -n "Initializing encalve ..."
-while ! (test -f "enclave.log") || ! (grep -q "Port $(PORT)" "enclave.log"); do
+while ! (test -f "enclave.log") || ! (grep -q "Port $PORT" "enclave.log"); do
 	echo -n "."
 	sleep 1
 done

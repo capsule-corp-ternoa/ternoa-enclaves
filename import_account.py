@@ -1,4 +1,4 @@
-from substrateinterface import Keypair
+from substrateinterface import Keypair,utils
 import getpass
 import json
 import sys
