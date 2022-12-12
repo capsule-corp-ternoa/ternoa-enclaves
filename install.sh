@@ -8,7 +8,7 @@
 
 # ----- Ubuntu
 sudo apt update
-sudo apt-get install build-essential python2 ocaml ocamlbuild automake autoconf libtool wget python-is-python3 libssl-dev git cmake perl -y
+sudo apt-get install build-essential python2 ocaml ocamlbuild automake autoconf libtool wget python-is-python3 libssl-dev git cmake perl dkms linux-headers-$(uname -r) -y
 sudo apt-get install libssl-dev libcurl4-openssl-dev protobuf-compiler libprotobuf-dev debhelper cmake reprepro unzip pkgconf libboost-dev libboost-system-dev libboost-thread-dev protobuf-c-compiler libprotobuf-c-dev lsb-release libsystemd0 -y
 
 # ----- Node.JS for PCCS
@@ -86,29 +86,29 @@ sudo dpkg -i ~/psw/libsgx-ae-le_2.18.100.3-jammy1_amd64.deb
 sudo dpkg -i ~/psw/libsgx-aesm-launch-plugin_2.18.100.3-jammy1_amd64.deb    
 
 # --- DCAP 
-#sudo dpkg -i ~/psw/libsgx-ae-id-enclave_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-ae-qe3_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-ae-qve_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-qe3-logic_1.14.100.3-jammy1_amd64.deb   
-#sudo dpkg -i ~/psw/libsgx-ae-tdqe_1.14.100.3-jammy1_amd64.deb    
-#sudo dpkg -i ~/psw/libtdx-attest_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libtdx-attest-dev_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-ra-network_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-ra-uefi-dev_1.14.100.3-jammy1_amd64.deb      
-#sudo dpkg -i ~/psw/libsgx-ra-uefi_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-aesm-quote-ex-plugin_2.18.100.3-jammy1_amd64.deb  
-#sudo dpkg -i ~/psw/libsgx-tdx-logic-dev_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-tdx-logic_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/sgx-pck-id-retrieval-tool_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/sgx-ra-service_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/tdx-qgs_1.14.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ae-id-enclave_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ae-qe3_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ae-qve_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-qe3-logic_1.15.100.3-jammy1_amd64.deb   
+#sudo dpkg -i ~/psw/libsgx-ae-tdqe_1.15.100.3-jammy1_amd64.deb    
+#sudo dpkg -i ~/psw/libtdx-attest_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libtdx-attest-dev_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ra-network_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ra-uefi_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ra-uefi-dev_1.15.100.3-jammy1_amd64.deb      
 #sudo dpkg -i ~/psw/libsgx-aesm-ecdsa-plugin_2.18.100.3-jammy1_amd64.deb     
-#sudo dpkg -i ~/psw/libsgx-dcap-ql_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-dcap-quote-verify-dev_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-dcap-quote-verify_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-dcap-default-qpl-dev_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-dcap-default-qpl_1.14.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/sgx-dcap-pccs_1.14.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-aesm-quote-ex-plugin_2.18.100.3-jammy1_amd64.deb  
+#sudo dpkg -i ~/psw/libsgx-tdx-logic_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-tdx-logic-dev_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/sgx-pck-id-retrieval-tool_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/sgx-ra-service_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/tdx-qgs_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-dcap-ql_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-dcap-quote-verify-dev_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-dcap-quote-verify_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-dcap-default-qpl_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-dcap-default-qpl-dev_1.15.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/sgx-dcap-pccs_1.15.100.3-jammy1_amd64.deb
 
 # NOTE: for DCAP we should install libsgx-dcap-ql instead
 # NOTE: for DCAP we should install libsgx-quote-ex instead
@@ -130,10 +130,17 @@ gramine-sgx-gen-private-key
 pip install --upgrade pip
 pip install "scalecodec>=1.1.2"
 pip install substrate-interface
-pip install base58 getpass
+pip install base58
 
 # ----- Ternoa
 git clone https://github.com/capsule-corp-ternoa/sgx_server.git
 cd sgx_server
-./start-server.sh
-cat enclave.log
+./start-server.sh \
+--cert /etc/letsencrypt/live/mainnet-c1n2.ternoa.network/cert.pem \
+--key /etc/letsencrypt/live/mainnet-c1n2.ternoa.network/privkey.pem \
+--account ./ternoa_account.json \
+--secrets /opt/sgx_server_nft/ \
+--identity C1N2E1 \
+--port 8100 \
+
+
