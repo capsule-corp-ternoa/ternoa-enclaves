@@ -10,26 +10,31 @@ async-trait = "0.1.57"
 
 # Server
 axum = {version = "0.6.1", features = ["ws", "headers", "macros"]}
-axum-jrpc = "0.2.1"
-axum-server = { version = "0.4.2", features = ["tls-rustls"] }
+axum-jrpc = "0.3.2"
+axum-server = { version = "0.4.4", features = ["tls-rustls"] }
 
-tokio = { version = "1.20.1", features = ["full"] }
+
+tokio = { version = "1.23.0", features = ["full"] }
 
 tower-http = { version = "0.3.4", features = ["cors","fs", "trace"] }
+
+urlencoding = "2.1.2"
 
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 serde_json = "1.0"
 serde = { version = "1.0.138", features = ["derive"] }
+
 hex = "0.4.3"
-
-
+base64 = "0.20.0"
 log = "0.4.17"
 chrono = "0.4.23"
 
 rand = "0.8.5"
 clap = { version = "4.0.29", features = ["derive"] }
+sysinfo = "0.27.0"
+anyhow = "1.0.66"
 
 # IPFS
 futures = "0.3.21"
@@ -38,10 +43,11 @@ tokio-test = "0.4.2"
 # Ternoa/Polkadot
 subxt = "0.23.0"
 sp-keyring = "6.0.0"
-sp-core = { git = "https://github.com/capsule-corp-ternoa/substrate", tag = "ternoa-substrate-2022-10-01", features = ["full_crypto"] }
+sp-core = { version = "8.0.0", features = ["full_crypto","std"] }
 parity-scale-codec = { version = "3.1.5", features = ["derive", "full", "bit-vec"] }
 
 # Crypto / Keys
 schnorrkel = "0.10.2"
 curve25519-dalek = { version = "4.0.0", package = "curve25519-dalek-ml" }
 ed25519-dalek = "1.0"
+sha256 = "1.1.1"
