@@ -1,6 +1,8 @@
+# UBUNTU
 ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
-SELF_EXE = target/release/sgx_server
+
+SELF_EXE = ../bin/sgx_server
 SGX ?= 1
 DEBUG ?= 0
 
@@ -21,9 +23,9 @@ endif
 # to Make, as compiling in debug mode results in an order of magnitude's difference in
 # performance that makes testing by running a benchmark with ab painful. The primary goal
 # of the DEBUG setting is to control Gramine's loglevel.
--include $(SELF_EXE).d # See also: .cargo/config.toml
+#-include $(SELF_EXE).d # See also: .cargo/config.toml
 $(SELF_EXE): Cargo.toml
-	cargo build --release
+#	cargo build --release
 
 sgx_server.manifest: sgx_server.manifest.template
 	gramine-manifest \
