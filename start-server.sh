@@ -1,18 +1,18 @@
 
-ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
-
-if [ ! -f $ENV_FILE ]
-then
-  export $(cat $ENV_FILE | xargs)
-fi
-
-
 PORT=${PORT:-8100}
 HTTPS_PUBLIC_KEY=${HTTPS_PUBLIC_KEY:-/opt/sgx_server/cert.pem}
 HTTPS_PRIVATE_KEY=${HTTPS_PRIVATE_KEY:-/opt/sgx_server/key.pem}
 NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-/opt/sgx_server_nft/}
 TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-/opt/sgx_server/ternoa_account.json}
+TERNOA_ACCOUNT_KEY=
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
+
+ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
+
+if [  -f $ENV_FILE ]
+then
+  export $(cat $ENV_FILE | xargs)
+fi
 
 die() {
 	printf '%s\n' "$1" >&2
@@ -56,6 +56,11 @@ while :; do
         -a|--account)
 			if [ "$2" ]; then
 				TERNOA_ACCOUNT_PATH=$2
+				TERNOA_ACCOUNT_KEY=`python import_account.py $TERNOA_ACCOUNT_PATH`
+				if [ -z "$TERNOA_ACCOUNT_KEY" ]; then
+					echo "Can not decode account file"
+					exit
+				fi
 				shift
 			else
 				die 'ERROR: "--account" requires a non-empty option argument.'
@@ -69,16 +74,14 @@ while :; do
 				die 'ERROR: "--identity" requires a non-empty option argument.'
 			fi
 		;;
+		-h|--help)
+				echo "usage: ./start-server.h --port <port-number> --cert <TLS Cert Path> --key <TLS Private Key Path> --secrets <Seal Path> --account <Ternoa Account Json File> --identity <Arbitraty Enclave Name>"
+				exit 0
+		;;
         *) break
     esac
     shift
 done
-
-TERNOA_ACCOUNT_KEY=`python import_account.py $TERNOA_ACCOUNT_PATH`
-if [ -z "$TERNOA_ACCOUNT_KEY" ]; then
-    echo "Can not decode account file"
-	exit
-fi
 
 echo "port: $PORT"
 echo "public key: $HTTPS_PUBLIC_KEY"
@@ -115,6 +118,6 @@ done
 echo -e "\n"
 echo "Getting Report from IAS ..."
 
-./generate-ias-report.sh
+#./generate-ias-report.sh
 
-echo "IAS Report is ready."
+#echo "IAS Report is ready."
