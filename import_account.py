@@ -20,4 +20,4 @@ password = getpass.getpass('Please enter password for your exported Ternoa Accou
 
 private_key, public_key = utils.encrypted_json.decode_pair_from_encrypted_json(data, password)
 
-print(private_key.hex())
+print(private_key.hex()+"_"+public_key.hex())
