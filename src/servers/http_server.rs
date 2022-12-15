@@ -2,9 +2,11 @@ use axum::{
 	http::{Method, StatusCode},
 	routing::{get, get_service, post},
 	Json, Router,
+	extract::State,
 };
 
 use serde_json::{json, Value};
+use sp_core::{Pair, crypto::Ss58Codec};
 use std::time::SystemTime;
 
 use crate::servers::server_common;
@@ -21,10 +23,13 @@ use crate::chain::{
 };
 
 use crate::backup::admin::{backup_fetch_secrets, backup_push_secrets};
+use crate::attestation;
+
 
 #[derive(Clone)]
 pub struct StateConfig {
-	pub ternoa_key: schnorrkel::keys::Keypair,
+	pub owner_key: schnorrkel::Keypair,
+	pub enclave_key: sp_core::sr25519::Pair,
 	pub seal_path: String,
 }
 
@@ -36,14 +41,14 @@ pub async fn http_server(
 	keyfile: &str,
 	seal_path: &str,
 ) {
-	let account_bytes = hex::decode(account).expect("Error reading account data");
-	let account_secret = match schnorrkel::keys::SecretKey::from_bytes(&account_bytes[..]) {
-		Ok(key) => key,
-		Err(e) => panic!("Error reading account key : {}", e),
-	};
-	let account_pair = schnorrkel::keys::Keypair::from(account_secret);
-
-	let state_config = StateConfig { ternoa_key: account_pair, seal_path: seal_path.to_owned() };
+	let account_keys: Vec<&str> = account.split("_").collect();
+	let private_bytes = hex::decode(account_keys[0]).expect("Error reading account data");
+	let public_bytes = hex::decode(account_keys[1]).expect("Error reading account data");
+	let account_pair = schnorrkel::Keypair {secret: schnorrkel::SecretKey::from_bytes(&private_bytes).unwrap(), public: schnorrkel::PublicKey::from_bytes(&public_bytes).unwrap() };
+	
+	let (enclave_pair, _) = sp_core::sr25519::Pair::generate();
+	
+	let state_config = StateConfig { owner_key: account_pair, enclave_key: enclave_pair, seal_path: seal_path.to_owned() };
 
 	let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
 
@@ -84,12 +89,54 @@ pub async fn http_server(
 }
 
 /*  -------------Handlers------------- */
-async fn get_health_status() -> Json<Value> {
+async fn get_health_status(State(state): State<StateConfig>,) -> Json<Value> {
 	let time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
 
 	Json(json!({
 		"status": 200,
 		"date": time.as_secs(),
-		"description": "SGX server healthy!".to_string()
+		"description": "SGX server healthy!".to_string(),
+		"encalve_address": state.enclave_key.public().to_ss58check(),
+		"operator_address": sp_core::sr25519::Public::from_raw(state.owner_key.public.to_bytes()).to_ss58check(),
+		"binary_hash" : self_check(),
+		"quote": attestation::ra::generate_quote(),
 	}))
+}
+
+fn self_check() -> Result<String, String> {
+	// Check running address
+
+	use sysinfo::get_current_pid;
+
+	let mut binary_path = match get_current_pid() {
+		Ok(pid) => {
+			let path_string = "/proc/".to_owned() + &pid.to_string() + "/exe";
+			let binpath = std::path::Path::new(&path_string).read_link().unwrap();
+			binpath
+		},
+		Err(e) => {
+			tracing::error!("failed to get current pid: {}", e);
+			std::path::PathBuf::new()
+		},
+	};
+
+	// Verify Ternoa hash/signature
+	let bytes = std::fs::read(binary_path.clone()).unwrap();
+	let hash = sha256::digest(bytes.as_slice());
+
+	binary_path.pop(); // binary name
+	binary_path.pop(); // release
+	binary_path.pop(); // target
+	binary_path.push("SHA256");
+	let binary_hash = std::fs::read_to_string(binary_path.clone())
+		.expect(&format!("path not found : {}", binary_path.clone().to_str().unwrap()));
+
+	if binary_hash != hash {
+		tracing::error!("Binary hash doesn't match!");
+		return Err(hash);
+	} else {
+		tracing::info!("Binary hash match : {}", hash);
+		return Ok(hash);
+	}
+	
 }

@@ -44,8 +44,6 @@ async fn main() {
 	tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
 	let args = Args::parse();
-	
-	let _quote = attestation::ra::generate_quote();
 
 	http_server::http_server(
 		&args.port,
