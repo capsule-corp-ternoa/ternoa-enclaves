@@ -28,11 +28,11 @@ struct Args {
 	keyfile: String,
 
 	/// Path to the location for storing sealed NFT secret shares
-	#[arg(short, long, default_value_t = String::from("/opt/sgx_server_nft/"))]
+	#[arg(short, long, default_value_t = String::from("/nft/"))]
 	sealpath: String,
 
 	/// Enclave unique name
-	#[arg(short, long, default_value_t = String::from("C1N1E1"))]
+	#[arg(short, long, default_value_t = String::from("DEV-C1N1E1"))]
 	identity: String,
 }
 
@@ -47,6 +47,7 @@ async fn main() {
 
 	http_server::http_server(
 		&args.port,
+		&args.identity,
 		&args.account,
 		&args.certfile,
 		&args.keyfile,
