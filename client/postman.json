@@ -7,19 +7,40 @@
 	},
 	"item": [
 		{
+			"name": "Health",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://dev-c1n1.ternoa.network:8101/health",
+					"protocol": "https",
+					"host": [
+						"dev-c1n1",
+						"ternoa",
+						"network"
+					],
+					"port": "8101",
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "RPC-BlockQuery",
 			"request": {
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://ns3222168.ip-162-19-84.eu:3000/api/rpcQuery/1506",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/rpcQuery/1506",
 					"protocol": "https",
 					"host": [
-						"ns3222168",
-						"ip-162-19-84",
-						"eu"
+						"dev-c1n1",
+						"ternoa",
+						"network"
 					],
-					"port": "3000",
+					"port": "8101",
 					"path": [
 						"api",
 						"rpcQuery",
@@ -36,14 +57,14 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://ns3223985.ip-162-19-170.eu:3000/api/getNFTData/258",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/getNFTData/258",
 					"protocol": "https",
 					"host": [
-						"ns3223985",
-						"ip-162-19-170",
-						"eu"
+						"dev-c1n1",
+						"ternoa",
+						"network"
 					],
-					"port": "3000",
+					"port": "8101",
 					"path": [
 						"api",
 						"getNFTData",
@@ -60,14 +81,14 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://ns5019429.ip-15-235-119.net:3000/api/submitTx/14983760328739",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/submitTx/14983760328739",
 					"protocol": "https",
 					"host": [
-						"ns5019429",
-						"ip-15-235-119",
-						"net"
+						"dev-c1n1",
+						"ternoa",
+						"network"
 					],
-					"port": "3000",
+					"port": "8101",
 					"path": [
 						"api",
 						"submitTx",
@@ -93,15 +114,14 @@
 					}
 				},
 				"url": {
-					"raw": "https://162.19.170.54:3000/api/nft/storeSecretShares",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/nft/storeSecretShares",
 					"protocol": "https",
 					"host": [
-						"162",
-						"19",
-						"170",
-						"54"
+						"dev-c1n1",
+						"ternoa",
+						"network"
 					],
-					"port": "3000",
+					"port": "8101",
 					"path": [
 						"api",
 						"nft",
@@ -130,15 +150,14 @@
 					}
 				},
 				"url": {
-					"raw": "https://162.19.170.54:3000/api/nft/retrieveSecretShares",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/nft/retrieveSecretShares",
 					"protocol": "https",
 					"host": [
-						"162",
-						"19",
-						"170",
-						"54"
+						"dev-c1n1",
+						"ternoa",
+						"network"
 					],
-					"port": "3000",
+					"port": "8101",
 					"path": [
 						"api",
 						"nft",
@@ -164,14 +183,14 @@
 					}
 				},
 				"url": {
-					"raw": "https://ns5019429.ip-15-235-119.net:3000/api/backup/pushEnclaveSecrets",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/pushEnclaveSecrets",
 					"protocol": "https",
 					"host": [
-						"ns5019429",
-						"ip-15-235-119",
-						"net"
+						"dev-c1n1",
+						"ternoa",
+						"network"
 					],
-					"port": "3000",
+					"port": "8101",
 					"path": [
 						"api",
 						"backup",
@@ -196,14 +215,14 @@
 					}
 				},
 				"url": {
-					"raw": "https://ns5019429.ip-15-235-119.net:3000/api/backup/fetchEnclaveSecrets",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/fetchEnclaveSecrets",
 					"protocol": "https",
 					"host": [
-						"ns5019429",
-						"ip-15-235-119",
-						"net"
+						"dev-c1n1",
+						"ternoa",
+						"network"
 					],
-					"port": "3000",
+					"port": "8101",
 					"path": [
 						"api",
 						"backup",
