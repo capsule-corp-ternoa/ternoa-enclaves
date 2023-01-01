@@ -22,7 +22,6 @@ const BACKUP_WHITELIST: [&str; 2] = [
 
 #[derive(Debug)]
 pub enum BackupError {
-	DecodeError,
 	UnAuthorizedSigner,
 	InvalidSignature,
 }
@@ -347,7 +346,6 @@ mod test {
 			Err(err) => match err {
 				BackupError::InvalidSignature => info!("Store Request : Signature Error!"),
 				BackupError::UnAuthorizedSigner => info!("Store Request : Unauthorized Admin!"),
-				BackupError::DecodeError => info!("Store Request : Decode Error"),
 			},
 		}
 
@@ -369,7 +367,6 @@ mod test {
 			Err(err) => match err {
 				BackupError::InvalidSignature => info!("Backup Request : Signature Error!"),
 				BackupError::UnAuthorizedSigner => info!("Backup Request : Unauthorized Admin!"),
-				BackupError::DecodeError => info!("Backup Request : Decode Error"),
 			},
 		}
 
