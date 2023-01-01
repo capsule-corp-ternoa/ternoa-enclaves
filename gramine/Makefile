@@ -1,11 +1,11 @@
 # UBUNTU
 ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
+# NOTE: MUST BE "RELATIVE PATH" TO TEE BINARY
+SELF_EXE = bin/sgx_server
 
-SELF_EXE = $(SGX_BASE_PATH)/bin/sgx_server
 SGX ?= 1
 DEBUG ?= 0
-
 
 .PHONY: all
 all: sgx_server.manifest
@@ -56,7 +56,7 @@ start-gramine-server: all
 		--port $(SGX_PORT) \
 		--certfile $(SGX_TLS_CERT) \
 		--keyfile $(SGX_TLS_KEY) \
-		--sealpath $(SGX_SEAL_PATH) \
+		--sealpath "/nft/" \
 		--identity $(SGX_IDENTITY) \
 		--account $(SGX_OWNER_KEY) \
 		> enclave.log 2>&1 &
