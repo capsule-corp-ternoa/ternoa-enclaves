@@ -14,11 +14,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::servers::http_server::StateConfig;
 
-//const NFT_DIR_PATH: &str = "./credentials/nft/";
 const BACKUP_WHITELIST: [&str; 2] = [
 	"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
 	"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
 ];
+
+/* ******************************
+		 DATA STRUCTURES
+****************************** */
 
 #[derive(Debug)]
 pub enum BackupError {
@@ -129,7 +132,9 @@ impl StoreRequest {
 	}
 }
 
-/* RETRIEVE SECRET FROM ENCALVE */
+/* ******************************
+ RETRIEVE SECRET FROM ENCALVE
+****************************** */
 
 #[debug_handler]
 pub async fn backup_fetch_secrets(
@@ -232,7 +237,9 @@ pub async fn backup_fetch_secrets(
 	}
 }
 
-/* STORE SECRET TO ENCLAVE*/
+/* *************************
+ STORE SECRET TO ENCLAVE
+************************* */
 
 //pub async fn backup_push_secrets(Json(received_secret): Json<SecretPacket>) -> impl IntoResponse
 #[debug_handler]
@@ -318,7 +325,10 @@ pub async fn backup_push_secrets(
 	}
 }
 
-/* TEST */
+/* **********************
+		 TEST
+********************** */
+
 #[cfg(test)]
 mod test {
 	use super::*;
