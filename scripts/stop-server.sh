@@ -24,7 +24,6 @@ die () {
     exit
 }
 
-
 while :; do
     case $1 in
         -i|--identity)
