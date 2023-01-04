@@ -19,6 +19,10 @@ use crate::chain::chain::nft_secret_share_oracle;
 	 DATA STRUCTURES
 ********************** */
 
+/* **********************
+	 DATA STRUCTURES
+********************** */
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -159,9 +163,18 @@ impl VerifyNFT for SecretPacket {
 		Ok(sr25519::Signature::from_raw(sig_bytes))
 	}
 
-	fn parse_signature(&self) -> sr25519::Signature {
-		let sig_bytes = <[u8; 64]>::from_hex(self.signature.strip_prefix("0x").unwrap()).unwrap();
-		sr25519::Signature::from_raw(sig_bytes)
+	fn parse_signature(&self) -> Result<sr25519::Signature, SignatureError> {
+		let strip_sig = match self.signature.strip_prefix("0x") {
+			Some(ssig) => ssig,
+			_ => return Err(SignatureError::PREFIXERROR),
+		};
+
+		let sig_bytes = match <[u8; 64]>::from_hex(strip_sig) {
+			Ok(bsig) => bsig,
+			Err(_) => return Err(SignatureError::LENGHTERROR),
+		};
+		
+		Ok(sr25519::Signature::from_raw(sig_bytes))
 	}
 
 	fn verify_signature(&self) -> bool {
