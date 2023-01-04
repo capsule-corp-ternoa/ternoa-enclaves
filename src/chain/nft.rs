@@ -15,6 +15,10 @@ use subxt::ext::{
 //use crate::chain::chain::ternoa::runtime_types::sp_core::crypto::AccountId32;
 //use subxt::ext::sp_core::crypto::Ss58C&&odec;
 
+/* **********************
+	 DATA STRUCTURES
+********************** */
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -60,6 +64,7 @@ pub struct SecretRetrieveResponse {
 	description: String,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum NFTOwner {
 	Owner(AccountId32),
 	NotFound,
@@ -119,28 +124,51 @@ impl SecretPacket {
 
 #[async_trait]
 pub trait VerifyNFT {
-	fn get_public_key(&self) -> sr25519::Public;
-	fn parse_signature(&self) -> sr25519::Signature;
+	fn get_public_key(&self) -> Result<sr25519::Public, ()>;
+	fn parse_signature(&self) -> Result<sr25519::Signature, SignatureError>;
 	fn verify_signature(&self) -> bool;
 	async fn check_nft_ownership(&self) -> bool;
 	async fn verify_receive_data(&self) -> Result<SecretData, SecretError>;
 }
 
+#[derive(Debug,PartialEq)]
+pub enum SignatureError {
+	PREFIXERROR,
+	LENGHTERROR,
+}
+
 #[async_trait]
 impl VerifyNFT for SecretPacket {
-	fn get_public_key(&self) -> sr25519::Public {
-		sr25519::Public::from_slice(self.account_address.clone().as_slice()).expect("Valid address")
+	fn get_public_key(&self) -> Result<sr25519::Public, ()> {
+		sr25519::Public::from_slice(self.account_address.clone().as_slice())
 	}
 
-	fn parse_signature(&self) -> sr25519::Signature {
-		let sig_bytes = <[u8; 64]>::from_hex(self.signature.strip_prefix("0x").unwrap()).unwrap();
-		sr25519::Signature::from_raw(sig_bytes)
+	fn parse_signature(&self) -> Result<sr25519::Signature, SignatureError> {
+		let strip_sig = match self.signature.strip_prefix("0x") {
+			Some(ssig) => ssig,
+			_ => return Err(SignatureError::PREFIXERROR),
+		};
+
+		let sig_bytes = match <[u8; 64]>::from_hex(strip_sig) {
+			Ok(bsig) => bsig,
+			Err(_) => return Err(SignatureError::LENGHTERROR),
+		};
+		
+		Ok(sr25519::Signature::from_raw(sig_bytes))
 	}
 
 	fn verify_signature(&self) -> bool {
-		let account_pubkey = self.get_public_key();
-		//let encoded: Vec<u8> = bincode::serialize(&self.secret_data).unwrap();
-		sr25519::Pair::verify(&self.parse_signature(), self.secret_data.clone(), &account_pubkey)
+		let account_pubkey = match self.get_public_key() {
+			Ok(pk) => pk,
+			Err(_) => return false, 
+		};
+
+		let signature = match self.parse_signature() {
+			Ok(sig) => sig,
+			Err(_) => return false,
+		};
+
+		sr25519::Pair::verify(&signature, self.secret_data.clone(), &account_pubkey)
 	}
 
 	async fn check_nft_ownership(&self) -> bool {
@@ -164,7 +192,10 @@ impl VerifyNFT for SecretPacket {
 	}
 }
 
-/* STORE SECRET */
+/* **********************
+	 STORE SECRET
+********************** */
+
 pub async fn store_secret_shares(
 	State(state): State<StateConfig>,
 	Json(received_secret): Json<SecretPacket>,
@@ -174,7 +205,10 @@ pub async fn store_secret_shares(
 	match verified_secret {
 		Ok(secret) => {
 			match std::fs::create_dir_all(state.seal_path.clone()) {
-				Ok(_) => info!("Seal path exists or created successfully, path: {}", state.seal_path.clone()),
+				Ok(_) => info!(
+					"Seal path exists or created successfully, path: {}",
+					state.seal_path.clone()
+				),
 				Err(err) => {
 					error!("Error storing secrets to TEE : error in creating seal path, nft_id : {}, path : {},Error : {}", secret.nft_id, state.seal_path, err);
 
@@ -300,7 +334,10 @@ pub async fn store_secret_shares(
 	}
 }
 
-/* RETRIEVE SECRET */
+/* **********************
+	 RETRIEVE SECRET
+********************** */
+
 pub async fn retrieve_secret_shares(
 	State(state): State<StateConfig>,
 	Json(requested_secret): Json<SecretPacket>,
@@ -426,7 +463,10 @@ pub async fn retrieve_secret_shares(
 	}
 }
 
-/* TEST */
+/* **********************
+		 TEST
+********************** */
+
 #[cfg(test)]
 mod test {
 	use super::*;
@@ -434,7 +474,121 @@ mod test {
 	use subxt::ext::sp_runtime::app_crypto::Ss58Codec;
 
 	#[tokio::test]
-	async fn verification_test() {
+	async fn get_nft_owner_test() {
+		let address =
+			AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6")
+				.unwrap();
+		let nft_id = 10;
+		let owner = match get_nft_owner(nft_id).await {
+			NFTOwner::Owner(addr) => addr,
+			NFTOwner::NotFound => panic!("Test erros, nft_id is not available, check your chain."),
+		};
+		let other = match get_nft_owner(nft_id + 100).await {
+			NFTOwner::Owner(addr) => addr,
+			NFTOwner::NotFound => panic!("Test erros, nft_id is not available, check your chain."),
+		};
+		let unknown = get_nft_owner(10_000).await;
+
+		assert_eq!(owner, address); // Same NFT match Owner
+		assert_ne!(other, address); // Different NFTs, (probably) diffetent owners
+		assert_ne!(owner, AccountKeyring::Alice.to_account_id()); // Unauthorized random owner
+		assert_eq!(unknown, NFTOwner::NotFound); // Unavailable NFT
+	}
+
+	#[tokio::test]
+	async fn parse_secret_from_sdk_test() {
+		let secret_packet_sdk: SecretPacket = SecretPacket {
+			account_address: AccountId32::new([0u8;32]),
+			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
+			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
+		};
+
+		// Signed in SDK
+		let secret_data = secret_packet_sdk.parse_secret();
+
+		assert_eq!(secret_data.nft_id, 10);
+		assert_eq!(secret_data.data, b"CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU");
+	}
+
+	#[tokio::test]
+	async fn parse_secret_from_polkadotjs_test() {
+		let secret_packet_polkadotjs:SecretPacket = SecretPacket {
+			account_address: AccountId32::new([0u8;32]),
+			secret_data: "<Bytes>247_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU</Bytes>".to_string(), 
+			signature: "xxx".to_string(),
+		};
+		// Signed in Polkadot.JS
+		let secret_data = secret_packet_polkadotjs.parse_secret();
+
+		assert_eq!(secret_data.nft_id, 247);
+		assert_eq!(secret_data.data, b"CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU");
+	}
+
+	#[tokio::test]
+	async fn get_public_key_test() {
+		let secret_packet_sdk: SecretPacket = SecretPacket {
+			account_address: AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
+			secret_data: "xxx".to_string(), 
+			signature: "xxx".to_string(),
+		};
+
+		let pk = secret_packet_sdk.get_public_key().unwrap();
+
+		assert_eq!(pk.as_slice(), <[u8; 32]>::from_hex("1a40e806c28a32dbac60f2b088c77a9ac3d3702011ac0e13579402ddcc214308").unwrap());
+	}
+	
+	#[tokio::test]
+	async fn parse_signature_test() {
+		let correct_sig = sr25519::Signature::from_raw(<[u8;64]>::from_hex("42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b").unwrap());
+		
+		let mut secret_packet_sdk: SecretPacket = SecretPacket {
+			account_address: AccountId32::new([0u8;32]),
+			secret_data: "xxx".to_string(), 
+			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
+		};
+
+		let sig = secret_packet_sdk.parse_signature().unwrap();
+		assert_eq!(sig, correct_sig);
+
+		// 0x prefix
+		secret_packet_sdk.signature = "42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
+		let sig = secret_packet_sdk.parse_signature().unwrap_err();
+		assert_eq!(sig, SignatureError::PREFIXERROR);
+
+		// Length
+		secret_packet_sdk.signature = "0x2bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
+		let sig = secret_packet_sdk.parse_signature().unwrap_err();
+		assert_eq!(sig, SignatureError::LENGHTERROR);
+	}
+
+	#[tokio::test]
+	async fn verify_signature_test() {
+		let mut secret_packet = SecretPacket {
+			account_address: AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
+			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
+			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
+		};
+
+		assert_eq!(secret_packet.verify_signature(), true);
+
+		// changed secret
+		secret_packet.secret_data = "10_DAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string();
+		assert_eq!(secret_packet.verify_signature(), false);
+
+		// changed owner
+		secret_packet.account_address = AccountKeyring::Alice.to_account_id();
+		secret_packet.secret_data = "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string();
+		assert_eq!(secret_packet.verify_signature(), false);
+
+		// changed signature
+		secret_packet.account_address = AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap();
+		secret_packet.signature = "0x32bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
+		assert_eq!(secret_packet.verify_signature(), false);
+
+	}
+
+	#[tokio::test]
+	async fn full_verify_received_data_test() {
 		let secret_packet = SecretPacket {
 			account_address: AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
 			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
@@ -447,6 +601,7 @@ mod test {
 		)
 		.unwrap()
 		.0;
+
 		let key_pair2 = AccountKeyring::Dave.pair();
 
 		let _public1 = key_pair1.clone().public();

@@ -19,7 +19,8 @@ use crate::chain::chain::ternoa::runtime_types::ternoa_pallets_primitives::nfts:
 const TEST_ACCOUNT: &'static str = "//DAVE";
 
 //const TERNOA_RPC: &'static str = "wss://alphanet.ternoa.com:443";
-const TERNOA_RPC: &'static str = "wss://dev-1.ternoa.network:443";
+//const TERNOA_RPC: &'static str = "wss://dev-1.ternoa.network:443";
+const TERNOA_RPC: &'static str = "wss://dev-0.ternoa.network:443";
 
 //#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale")]
 #[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev1.scale")]
@@ -213,7 +214,10 @@ impl fmt::Display for NFTData<AccountId32> {
 	}
 }
 
-/* ---------------- Tests ---------------- */
+
+/* **********************
+		 TEST
+********************** */
 
 #[cfg(test)]
 mod test {
