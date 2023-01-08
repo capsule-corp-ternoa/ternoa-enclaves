@@ -41,10 +41,11 @@ futures = "0.3.21"
 tokio-test = "0.4.2"
 
 # Ternoa/Polkadot
-subxt = "0.23.0"
-sp-keyring = "6.0.0"
-sp-core = { version = "8.0.0", features = ["full_crypto","std"] }
-parity-scale-codec = { version = "3.1.5", features = ["derive", "full", "bit-vec"] }
+subxt = "0.25.0"
+sp-keyring = "11.0.0"
+sp-core = { version = "10.0.0", features = ["full_crypto"] }
+sp-runtime = "11.0.0"
+parity-scale-codec = { version = "3.2.1", features = ["derive", "full", "bit-vec"] }
 
 # Crypto / Keys
 schnorrkel = "0.10.2"
