@@ -4,6 +4,8 @@ use serde::Serialize as SerderSerialize;
 
 use std::fmt;
 use subxt::{
+	ext::sp_core::Pair,
+	ext::sp_runtime::AccountId32,
 	metadata::DecodeStaticType,
 	storage::{address::Yes, StaticStorageAddress},
 	tx::PairSigner,
