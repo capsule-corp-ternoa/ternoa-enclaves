@@ -1,9 +1,10 @@
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )/
 SCRIPTSPATH="$BASEDIR/scripts/"
-CERTPATH="$BASEDIR/credentials/certificates/"
-SEALPATH="$BASEDIR/credentials/nft/"
-ACCOUNTSPATH="$BASEDIR/credentials/accounts/"
 GRAMINEPATH="$BASEDIR/gramine/"
+SEALPATH="$GRAMINEPATH/nft/"
+CERTPATH="$BASEDIR/credentials/certificates/"
+ACCOUNTSPATH="$BASEDIR/credentials/accounts/"
+
 
 # DEFAULT VALUES
 PORT=${PORT:-8101}

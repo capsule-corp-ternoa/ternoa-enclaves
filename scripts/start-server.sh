@@ -2,10 +2,10 @@
 # ASSETS STRUCTURE
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )
 SCRIPTS_PATH=$BASEDIR/scripts/
-CERT_PATH=$BASEDIR/credentials/certificates/
-SEAL_PATH=$BASEDIR/credentials/nft/
-ACCOUNTS_PATH=$BASEDIR/credentials/accounts/
 GRAMINE_PATH=$BASEDIR/gramine/
+SEAL_PATH=$GRAMINE_PATH/nft/
+CERT_PATH=$BASEDIR/credentials/certificates/
+ACCOUNTS_PATH=$BASEDIR/credentials/accounts/
 QUOTE_PATH=$BASEDIR/credentials/quote/
 
 # DEFAULT VALUES
