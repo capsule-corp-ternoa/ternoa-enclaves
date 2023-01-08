@@ -2,17 +2,17 @@ use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
 use serde::Serialize as SerderSerialize;
 
-use sp_keyring::AccountKeyring;
-use std::fmt;
+use std::{fmt, str::FromStr};
 use subxt::{
+	ext::sp_core::Pair,
+	ext::sp_runtime::AccountId32,
 	metadata::DecodeStaticType,
 	storage::{address::Yes, StaticStorageAddress},
+	tx::PairSigner,
+	OnlineClient, PolkadotConfig,
 };
 use tracing::info;
 
-use subxt::{ext::sp_core::Pair, tx::PairSigner, OnlineClient, PolkadotConfig};
-
-use subxt::ext::sp_runtime::AccountId32;
 //use crate::chain::chain::ternoa::runtime_types::sp_core::crypto::AccountId32;
 use crate::chain::chain::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
 
@@ -23,7 +23,7 @@ const TEST_ACCOUNT: &'static str = "//DAVE";
 const TERNOA_RPC: &'static str = "wss://dev-0.ternoa.network:443";
 
 //#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale")]
-#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev1.scale")]
+#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev0.scale")]
 pub mod ternoa {}
 
 type DefaultApi = OnlineClient<PolkadotConfig>;
@@ -84,7 +84,9 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 	// Submit Extrinsic
 	let key = subxt::ext::sp_core::sr25519::Pair::from_string(TEST_ACCOUNT, None).unwrap();
 	let signer = PairSigner::new(key);
-	let dest = AccountKeyring::Alice.to_account_id().into();
+	let dest = subxt::ext::sp_runtime::MultiAddress::from(
+		subxt::ext::sp_runtime::AccountId32::from_str("//BOB").unwrap(),
+	);
 
 	// Create a transaction to submit:
 	let tx = ternoa::tx().balances().transfer(dest, amount);
@@ -117,7 +119,6 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 }
 
 // -------------- NFTData --------------
-
 pub async fn get_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
@@ -214,6 +215,21 @@ impl fmt::Display for NFTData<AccountId32> {
 	}
 }
 
+pub async fn nft_secret_share_oracle(
+	keypair: subxt::ext::sp_core::sr25519::Pair,
+	nft_id: u32,
+) -> Result<subxt::ext::sp_core::H256, subxt::Error> {
+	let api = get_chain_api(TERNOA_RPC.into()).await;
+
+	// Submit Extrinsic
+	let signer = PairSigner::new(keypair);
+
+	// Create a transaction to submit:
+	let tx = ternoa::tx().nft().add_secret_shard(nft_id);
+
+	// submit the transaction with default params:
+	api.tx().sign_and_submit_default(&tx, &signer).await
+}
 
 /* **********************
 		 TEST

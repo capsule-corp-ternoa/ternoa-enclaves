@@ -12,7 +12,8 @@ use subxt::ext::{
 	sp_runtime::AccountId32,
 };
 
-//use crate::chain::chain::ternoa::runtime_types::sp_core::crypto::AccountId32;
+use crate::chain::chain::nft_secret_share_oracle;
+
 //use subxt::ext::sp_core::crypto::Ss58C&&odec;
 
 /* **********************
@@ -36,6 +37,7 @@ pub enum ReturnStatus {
 	NFTIDEXISTS,
 	NFTIDNOTEXIST,
 	DATABASEFAILURE,
+	ORACLEFAILURE,
 	NFTSECRETNOTACCESSIBLE,
 	NFTSECRETNOTREADABLE,
 }
@@ -131,7 +133,7 @@ pub trait VerifyNFT {
 	async fn verify_receive_data(&self) -> Result<SecretData, SecretError>;
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum SignatureError {
 	PREFIXERROR,
 	LENGHTERROR,
@@ -153,14 +155,14 @@ impl VerifyNFT for SecretPacket {
 			Ok(bsig) => bsig,
 			Err(_) => return Err(SignatureError::LENGHTERROR),
 		};
-		
+
 		Ok(sr25519::Signature::from_raw(sig_bytes))
 	}
 
 	fn verify_signature(&self) -> bool {
 		let account_pubkey = match self.get_public_key() {
 			Ok(pk) => pk,
-			Err(_) => return false, 
+			Err(_) => return false,
 		};
 
 		let signature = match self.parse_signature() {
@@ -204,27 +206,22 @@ pub async fn store_secret_shares(
 
 	match verified_secret {
 		Ok(secret) => {
-			match std::fs::create_dir_all(state.seal_path.clone()) {
-				Ok(_) => info!(
-					"Seal path exists or created successfully, path: {}",
-					state.seal_path.clone()
-				),
-				Err(err) => {
-					error!("Error storing secrets to TEE : error in creating seal path, nft_id : {}, path : {},Error : {}", secret.nft_id, state.seal_path, err);
+			if std::path::Path::new(&state.clone().seal_path).exists() {
+				info!("Seal path checked, path: {}", state.seal_path.clone());
+			} else {
+				error!("Error storing secrets to TEE : seal path doe not exist, nft_id : {}, path : {}", secret.nft_id, state.seal_path);
 
-					return (
-						StatusCode::OK,
-						Json(SecretStoreResponse {
-							status: ReturnStatus::DATABASEFAILURE,
-							nft_id: secret.nft_id,
-							enclave_id: state.identity,
-							description:
-								"Error storing secrets to TEE, use another enclave please."
-									.to_string(),
-						}),
-					);
-				},
-			}
+				return (
+					StatusCode::OK,
+					Json(SecretStoreResponse {
+						status: ReturnStatus::DATABASEFAILURE,
+						nft_id: secret.nft_id,
+						enclave_id: state.identity,
+						description: "Error storing secrets to TEE, use another enclave please."
+							.to_string(),
+					}),
+				);
+			};
 
 			let file_path = state.seal_path + &secret.nft_id.to_string() + ".secret";
 			let exist = std::path::Path::new(file_path.as_str()).exists();
@@ -288,17 +285,44 @@ pub async fn store_secret_shares(
 				},
 			};
 
-			// TODO! Send extrinsic to Secret-NFT Pallet as Storage-Oracle
+			// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
+			match nft_secret_share_oracle(state.enclave_key.clone(), secret.nft_id).await {
+				Ok(txh) => {
+					info!(
+						"Proof of storage has been sent to secret-nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
+						secret.nft_id, received_secret.account_address, txh
+					);
 
-			return (
-				StatusCode::OK,
-				Json(SecretStoreResponse {
-					status: ReturnStatus::STORESUCCESS,
-					nft_id: secret.nft_id,
-					enclave_id: state.identity,
-					description: "Secret is successfully stored to TEE".to_string(),
-				}),
-			);
+					return (
+						StatusCode::OK,
+						Json(SecretStoreResponse {
+							status: ReturnStatus::STORESUCCESS,
+							nft_id: secret.nft_id,
+							enclave_id: state.identity,
+							description: "Secret is successfully stored to TEE".to_string(),
+						}),
+					);
+				},
+
+				Err(err) => {
+					error!(
+						"Error sending proof of storage to chain, nft_id : {}, Error : {}",
+						secret.nft_id, err
+					);
+					
+					std::fs::remove_file(file_path.clone()).expect("Can not remove secret file");
+
+					return (
+						StatusCode::OK,
+						Json(SecretStoreResponse {
+							status: ReturnStatus::ORACLEFAILURE,
+							nft_id: secret.nft_id,
+							enclave_id: state.identity,
+							description: "Error sending proof of storage to chain.".to_string(),
+						}),
+					);
+				},
+			}
 		},
 
 		Err(err) => match err {
@@ -491,7 +515,7 @@ mod test {
 
 		assert_eq!(owner, address); // Same NFT match Owner
 		assert_ne!(other, address); // Different NFTs, (probably) diffetent owners
-		assert_ne!(owner, AccountKeyring::Alice.to_account_id()); // Unauthorized random owner
+		assert_ne!(owner, AccountKeyring::Alice.to_raw_public().into()); // Unauthorized random owner
 		assert_eq!(unknown, NFTOwner::NotFound); // Unavailable NFT
 	}
 
@@ -527,20 +551,29 @@ mod test {
 	#[tokio::test]
 	async fn get_public_key_test() {
 		let secret_packet_sdk: SecretPacket = SecretPacket {
-			account_address: AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
-			secret_data: "xxx".to_string(), 
+			account_address: AccountId32::from_ss58check(
+				"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
+			)
+			.unwrap(),
+			secret_data: "xxx".to_string(),
 			signature: "xxx".to_string(),
 		};
 
 		let pk = secret_packet_sdk.get_public_key().unwrap();
 
-		assert_eq!(pk.as_slice(), <[u8; 32]>::from_hex("1a40e806c28a32dbac60f2b088c77a9ac3d3702011ac0e13579402ddcc214308").unwrap());
+		assert_eq!(
+			pk.as_slice(),
+			<[u8; 32]>::from_hex(
+				"1a40e806c28a32dbac60f2b088c77a9ac3d3702011ac0e13579402ddcc214308"
+			)
+			.unwrap()
+		);
 	}
-	
+
 	#[tokio::test]
 	async fn parse_signature_test() {
 		let correct_sig = sr25519::Signature::from_raw(<[u8;64]>::from_hex("42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b").unwrap());
-		
+
 		let mut secret_packet_sdk: SecretPacket = SecretPacket {
 			account_address: AccountId32::new([0u8;32]),
 			secret_data: "xxx".to_string(), 
@@ -576,15 +609,16 @@ mod test {
 		assert_eq!(secret_packet.verify_signature(), false);
 
 		// changed owner
-		secret_packet.account_address = AccountKeyring::Alice.to_account_id();
+		secret_packet.account_address = AccountKeyring::Alice.to_raw_public().into();
 		secret_packet.secret_data = "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string();
 		assert_eq!(secret_packet.verify_signature(), false);
 
 		// changed signature
-		secret_packet.account_address = AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap();
+		secret_packet.account_address =
+			AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6")
+				.unwrap();
 		secret_packet.signature = "0x32bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
 		assert_eq!(secret_packet.verify_signature(), false);
-
 	}
 
 	#[tokio::test]
@@ -602,10 +636,11 @@ mod test {
 		.unwrap()
 		.0;
 
-		let key_pair2 = AccountKeyring::Dave.pair();
+		let _key_pair2 = AccountKeyring::Dave.pair();
 
 		let _public1 = key_pair1.clone().public();
-		let public2 = key_pair2.clone().public();
+		let public2 =
+			subxt::ext::sp_core::sr25519::Public::from_raw(AccountKeyring::Dave.to_raw_public());
 
 		let message1 = secret_packet.secret_data.as_bytes();
 		let message2 = b"<Bytes>247_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU</Bytes>";

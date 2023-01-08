@@ -6,7 +6,7 @@ use axum::{
 };
 
 use serde_json::{json, Value};
-use sp_core::{crypto::Ss58Codec, Pair};
+use sp_core::crypto::Ss58Codec;
 use std::time::SystemTime;
 
 use crate::servers::server_common;
@@ -28,7 +28,7 @@ use crate::backup::admin::{backup_fetch_secrets, backup_push_secrets};
 #[derive(Clone)]
 pub struct StateConfig {
 	pub owner_key: schnorrkel::Keypair,
-	pub enclave_key: sp_core::sr25519::Pair,
+	pub enclave_key: subxt::ext::sp_core::sr25519::Pair,
 	pub seal_path: String,
 	pub identity: String,
 }
@@ -45,16 +45,20 @@ pub async fn http_server(
 	let account_keys: Vec<&str> = account.split("_").collect();
 	let private_bytes = hex::decode(account_keys[0]).expect("Error reading account data");
 	let public_bytes = hex::decode(account_keys[1]).expect("Error reading account data");
-	let account_pair = schnorrkel::Keypair {
+
+	let account_pair = schnorrkel::keys::Keypair {
 		secret: schnorrkel::SecretKey::from_bytes(&private_bytes).unwrap(),
 		public: schnorrkel::PublicKey::from_bytes(&public_bytes).unwrap(),
 	};
 
-	let (enclave_pair, _) = sp_core::sr25519::Pair::generate();
+	let mut entropy = [0u8; 32];
+	rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
+
+	let enclave_pair = subxt::ext::sp_core::sr25519::Pair::from_entropy(&entropy, None);
 
 	let state_config = StateConfig {
 		owner_key: account_pair,
-		enclave_key: enclave_pair,
+		enclave_key: enclave_pair.0,
 		seal_path: seal_path.to_owned(),
 		identity: identity.to_string(),
 	};
@@ -103,12 +107,14 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 	let operator =
 		sp_core::sr25519::Public::from_raw(state.owner_key.public.to_bytes()).to_ss58check();
 	let checksum = self_check();
+	let pubkey: [u8; 32] = state.enclave_key.as_ref().to_bytes()[64..].try_into().unwrap();
+	let enclave_address = subxt::ext::sp_core::sr25519::Public::from_raw(pubkey);
 
 	Json(json!({
 		"status": 200,
 		"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
 		"description": "SGX server is running!".to_string(),
-		"encalve_address": state.enclave_key.public().to_ss58check(),
+		"encalve_address": enclave_address,
 		"operator_address": operator,
 		"binary_hash" : checksum,
 		"quote": quote_vec,
