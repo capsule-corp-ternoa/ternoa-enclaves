@@ -4,6 +4,7 @@ use crate::servers::http_server::StateConfig;
 use async_trait::async_trait;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use hex::FromHex;
+use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use tracing::{error, info, warn};
 
@@ -223,7 +224,7 @@ pub async fn store_secret_shares(
 				);
 			};
 
-			let file_path = state.seal_path + &secret.nft_id.to_string() + ".secret";
+			let file_path = state.seal_path.clone() + &secret.nft_id.to_string() + ".secret";
 			let exist = std::path::Path::new(file_path.as_str()).exists();
 
 			if exist {
@@ -292,6 +293,10 @@ pub async fn store_secret_shares(
 						"Proof of storage has been sent to secret-nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
 						secret.nft_id, received_secret.account_address, txh
 					);
+					
+					// Log file for tracing the secrets VIEW history in Marketplace.
+					let file_path = state.seal_path + &secret.nft_id.to_string() + ".log";
+					std::fs::File::create(file_path.clone()).unwrap();
 
 					return (
 						StatusCode::OK,
@@ -370,7 +375,7 @@ pub async fn retrieve_secret_shares(
 
 	match verified_req {
 		Ok(data) => {
-			let file_path = state.seal_path + &data.nft_id.to_string() + ".secret";
+			let file_path = state.seal_path.clone() + &data.nft_id.to_string() + ".secret";
 			if !std::path::Path::new(&file_path).is_file() {
 				warn!(
 					"Error retrieving secrets from TEE : file path does not exist, file_path : {}",
@@ -434,6 +439,13 @@ pub async fn retrieve_secret_shares(
 					);
 				},
 			};
+
+			// Put a VIEWING history log 
+			let file_path = state.seal_path + &data.nft_id.to_string() + ".log";
+			let mut log_file= OpenOptions::new().append(true).open(file_path).expect("Unable to open log file");  
+			let time: chrono::DateTime<chrono::offset::Utc> = std::time::SystemTime::now().into();
+			let log_data= requested_secret.account_address.to_string() + " Viewed the secret on " + time.format("%Y-%m-%d %H:%M:%S").to_string().as_str(); 
+    		log_file.write_all(log_data.as_bytes()).expect("write to log failed");
 
 			return (
 				StatusCode::OK,
