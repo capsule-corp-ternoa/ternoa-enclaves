@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use sp_core::crypto::Ss58Codec;
 use std::time::SystemTime;
 
-use crate::servers::server_common;
+use crate::{chain::nft::get_nft_views_handler, servers::server_common};
 
 use std::path::PathBuf;
 use tower_http::{
@@ -24,11 +24,12 @@ use crate::chain::{
 
 use crate::attestation;
 use crate::backup::admin::{backup_fetch_secrets, backup_push_secrets};
+use crate::pgp::cosign;
 
 #[derive(Clone)]
 pub struct StateConfig {
 	pub owner_key: schnorrkel::Keypair,
-	pub enclave_key: subxt::ext::sp_core::sr25519::Pair,
+	pub enclave_key: sp_core::sr25519::Pair,
 	pub seal_path: String,
 	pub identity: String,
 }
@@ -53,8 +54,7 @@ pub async fn http_server(
 
 	let mut entropy = [0u8; 32];
 	rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
-
-	let enclave_pair = subxt::ext::sp_core::sr25519::Pair::from_entropy(&entropy, None);
+	let enclave_pair = sp_core::sr25519::Pair::from_entropy(&entropy, None);
 
 	let state_config = StateConfig {
 		owner_key: account_pair,
@@ -85,6 +85,7 @@ pub async fn http_server(
 		.layer(cors)
 		// TEST APIS
 		.route("/api/getNFTData/:nft_id", get(get_nft_data_handler))
+		.route("/api/getNFTViews/:nft_id", get(get_nft_views_handler))
 		.route("/api/rpcQuery/:blocknumber", get(rpc_query))
 		.route("/api/submitTx/:amount", get(submit_tx))
 		// CENTRALIZED BACKUP API
@@ -99,16 +100,30 @@ pub async fn http_server(
 }
 
 /*  -------------Handlers------------- */
+
+// TODO: check the request for signed data and prevent flooding requests.
 async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 
+	// TODO: cache the quote for 24 hours, not to generate it in every call.
 	let quote_vec = attestation::ra::generate_quote();
 
 	let operator =
 		sp_core::sr25519::Public::from_raw(state.owner_key.public.to_bytes()).to_ss58check();
-	let checksum = self_check();
+
+	let checksum = self_checksum();
+
+	let signature = match cosign::verify() {
+		Ok(b) => match b {
+			true => "Successful",
+			false => "Failed",
+		},
+		Err(_) => "Failed",
+	};
+
 	let pubkey: [u8; 32] = state.enclave_key.as_ref().to_bytes()[64..].try_into().unwrap();
-	let enclave_address = subxt::ext::sp_core::sr25519::Public::from_raw(pubkey);
+
+	let enclave_address = sp_core::sr25519::Public::from_raw(pubkey);
 
 	Json(json!({
 		"status": 200,
@@ -117,15 +132,17 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 		"encalve_address": enclave_address,
 		"operator_address": operator,
 		"binary_hash" : checksum,
+		"binary_signature": signature.to_string(),
 		"quote": quote_vec,
 	}))
 }
 
-fn self_check() -> Result<String, String> {
+fn self_checksum() -> Result<String, String> {
 	// Check running address
 
 	use sysinfo::get_current_pid;
 
+	// BUT in gramine, the binary is simply at root directory!
 	let mut binary_path = match get_current_pid() {
 		Ok(pid) => {
 			let path_string = "/proc/".to_owned() + &pid.to_string() + "/exe";
@@ -138,7 +155,7 @@ fn self_check() -> Result<String, String> {
 		},
 	};
 
-	// Verify Ternoa hash/signature
+	// Verify Ternoa checksum/signature
 	let bytes = std::fs::read(binary_path.clone()).unwrap();
 	let hash = sha256::digest(bytes.as_slice());
 

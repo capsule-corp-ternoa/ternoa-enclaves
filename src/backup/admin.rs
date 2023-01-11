@@ -5,10 +5,12 @@ use std::{
 	collections::BTreeMap,
 	io::{Read, Write},
 };
-use subxt::ext::sp_runtime::app_crypto::Ss58Codec;
+
 use tracing::info;
 
-use subxt::ext::sp_core::{sr25519, Pair};
+use sp_runtime::app_crypto::Ss58Codec;
+
+use sp_core::{sr25519, Pair};
 
 use serde::{Deserialize, Serialize};
 

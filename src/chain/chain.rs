@@ -2,21 +2,18 @@ use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
 use serde::Serialize as SerderSerialize;
 
-use std::{fmt, str::FromStr};
+use std::fmt;
 use subxt::{
-	ext::sp_core::Pair,
-	ext::sp_runtime::AccountId32,
 	metadata::DecodeStaticType,
 	storage::{address::Yes, StaticStorageAddress},
 	tx::PairSigner,
+	utils::AccountId32,
 	OnlineClient, PolkadotConfig,
 };
 use tracing::info;
 
 //use crate::chain::chain::ternoa::runtime_types::sp_core::crypto::AccountId32;
 use crate::chain::chain::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
-
-const TEST_ACCOUNT: &'static str = "//DAVE";
 
 //const TERNOA_RPC: &'static str = "wss://alphanet.ternoa.com:443";
 //const TERNOA_RPC: &'static str = "wss://dev-1.ternoa.network:443";
@@ -27,6 +24,17 @@ const TERNOA_RPC: &'static str = "wss://dev-0.ternoa.network:443";
 pub mod ternoa {}
 
 type DefaultApi = OnlineClient<PolkadotConfig>;
+
+use serde::Serialize;
+
+#[derive(Serialize)]
+pub enum ReturnStatus {
+	RETRIEVESUCCESS,
+	NFTNOTFOUND,
+	BLOCKNOTFOUND,
+}
+
+// -------------- CHAIN API --------------
 
 pub async fn get_chain_api(url: String) -> DefaultApi {
 	if url.is_empty() {
@@ -40,9 +48,11 @@ pub async fn get_chain_api(url: String) -> DefaultApi {
 	api
 }
 
+// -------------- RPC QUERY --------------
+
 #[derive(SerderSerialize)]
 struct JsonRPC {
-	status: u16,
+	status: ReturnStatus,
 	input: String,
 	output: String,
 }
@@ -55,19 +65,21 @@ pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl Into
 	if let Some(hash) = block_hash {
 		info!("Block hash for block number {block_number}: {hash}");
 		axum::Json(JsonRPC {
-			status: 200,
+			status: ReturnStatus::RETRIEVESUCCESS,
 			input: "block_number=".to_owned() + &block_number.to_string(),
 			output: "block_hash=".to_owned() + &block_hash.unwrap().to_string(),
 		})
 	} else {
 		info!("Block number {block_number} not found.");
 		axum::Json(JsonRPC {
-			status: 205,
+			status: ReturnStatus::BLOCKNOTFOUND,
 			input: "block_number=".to_owned() + &block_number.to_string(),
 			output: "Block number not found.".to_string(),
 		})
 	}
 }
+
+// -------------- TRANSACTION --------------
 
 #[derive(SerderSerialize)]
 struct JsonTX {
@@ -81,12 +93,8 @@ struct JsonTX {
 pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoResponse {
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 
-	// Submit Extrinsic
-	let key = subxt::ext::sp_core::sr25519::Pair::from_string(TEST_ACCOUNT, None).unwrap();
-	let signer = PairSigner::new(key);
-	let dest = subxt::ext::sp_runtime::MultiAddress::from(
-		subxt::ext::sp_runtime::AccountId32::from_str("//BOB").unwrap(),
-	);
+	let signer = PairSigner::new(sp_keyring::AccountKeyring::Alice.pair());
+	let dest = sp_keyring::AccountKeyring::Bob.to_account_id().into();
 
 	// Create a transaction to submit:
 	let tx = ternoa::tx().balances().transfer(dest, amount);
@@ -100,8 +108,8 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 			return axum::Json(JsonTX {
 				status: 430,
 				amount,
-				sender: String::from(TEST_ACCOUNT),
-				receiver: String::from("Alice"),
+				sender: String::from("ALICE"),
+				receiver: String::from("BOB"),
 				tx_hash: e.to_string(),
 			});
 		},
@@ -112,8 +120,8 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 	axum::Json(JsonTX {
 		status: 200,
 		amount,
-		sender: String::from(TEST_ACCOUNT),
-		receiver: String::from("Alice"),
+		sender: String::from("ALICE"),
+		receiver: String::from("BOB"),
 		tx_hash: hash.to_string(),
 	})
 }
@@ -166,9 +174,11 @@ pub async fn _get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<Accoun
 	result
 }
 
+// -------------- GET NFT DATA --------------
+
 #[derive(SerderSerialize)]
 struct JsonNFTData {
-	status: u16,
+	status: ReturnStatus,
 	nft_id: u32,
 	owner: String,
 	creator: String,
@@ -182,15 +192,16 @@ pub async fn get_nft_data_handler(PathExtract(nft_id): PathExtract<u32>) -> impl
 			info!("NFT DATA of Num.{} : \n {}", nft_id, nft_data);
 
 			axum::Json(JsonNFTData {
-				status: 200,
+				status: ReturnStatus::RETRIEVESUCCESS,
 				nft_id,
 				owner: nft_data.owner.clone().to_string(),
 				creator: nft_data.creator.clone().to_string(),
 				offchain_data: "0x".to_string() + &hex::encode(nft_data.offchain_data.0),
 			})
 		},
+
 		None => axum::Json(JsonNFTData {
-			status: 303,
+			status: ReturnStatus::NFTNOTFOUND,
 			nft_id,
 			owner: String::from("Not Found"),
 			creator: String::from("Not Found"),
@@ -215,10 +226,15 @@ impl fmt::Display for NFTData<AccountId32> {
 	}
 }
 
+// -------------- SECRET NFT SYNC (ORACLE) --------------
+
+// TODO: Proof of storage (through heart-beats)
+// TODO: Proof of decryption (i.e This secret share belongs to the key for decrypting the corresponding nft media file on IPFS)
+
 pub async fn nft_secret_share_oracle(
-	keypair: subxt::ext::sp_core::sr25519::Pair,
+	keypair: sp_core::sr25519::Pair,
 	nft_id: u32,
-) -> Result<subxt::ext::sp_core::H256, subxt::Error> {
+) -> Result<sp_core::H256, subxt::Error> {
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 
 	// Submit Extrinsic
@@ -270,7 +286,7 @@ mod test {
 		rpc_query(axum::extract::Path(1436090)).await;
 		get_constant().await;
 		storage_query().await;
-		submit_tx(axum::extract::Path(1_4560_7890_0120_3450)).await;
+		submit_tx(axum::extract::Path(12_345)).await;
 	}
 
 	#[tokio::test]
