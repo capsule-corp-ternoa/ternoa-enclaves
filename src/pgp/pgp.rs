@@ -285,7 +285,7 @@ mod tests {
 	fn test_generate_keys() {
 		_generate_key();
 	}
-
+	/* TODO : define test files.
 	#[test]
 	fn test_get_keys() {
 		let f = std::fs::File::open("public.key").expect("can not open test file");
@@ -293,13 +293,13 @@ mod tests {
 	}
 
 	#[test]
-	fn test_import_priate_key() {
+	fn test_import_private_key() {
 		let f = std::fs::File::open("private.key").expect("can not open test file");
 		let cert = _cert_from_privatekey(f);
 
 		println!("Cert = {}", String::from_utf8(cert.armored().to_vec().unwrap()).unwrap())
 	}
-
+	*/
 	#[test]
 	fn test_enc_dec() {
 		const MESSAGE: &str = "дружба";
