@@ -5,6 +5,7 @@ use tracing_subscriber::FmtSubscriber;
 mod attestation;
 mod backup;
 mod chain;
+mod pgp;
 mod servers;
 use crate::servers::http_server;
 
