@@ -29,7 +29,7 @@ use crate::pgp::cosign;
 #[derive(Clone)]
 pub struct StateConfig {
 	pub owner_key: schnorrkel::Keypair,
-	pub enclave_key: subxt::ext::sp_core::sr25519::Pair,
+	pub enclave_key: sp_core::sr25519::Pair,
 	pub seal_path: String,
 	pub identity: String,
 }
