@@ -5,7 +5,9 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
-
+  workflow_dispatch:
+    
+  
 env:
   CARGO_TERM_COLOR: always
         
@@ -34,7 +36,10 @@ jobs:
   
     - name: Sign the binary
       if: ${{ github.event_name != 'pull_request' }}
-      run: cosign sign-blob --key ${{secrets.COSIGN_KEY}} target/release/sgx_server --output-file target/release/sgx_server.sig
+      env:
+       PRIVATE_KEY: ${{secrets.COSIGN_KEY}}
+       PASSWORD: ${{secrets.COSIGN_PASSWORD}}
+      run: COSIGN_PASSWORD="$PASSWORD" cosign sign-blob --key env://PRIVATE_KEY target/release/sgx_server --output-file target/release/sgx_server.sig
 
     - name: Upload binary to release
       if: github.event_name != 'pull_request'
