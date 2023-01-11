@@ -50,8 +50,10 @@ while :; do
     shift
 done
 
-#find . -name *~ | xargs rm
+find . -name *~ | xargs rm
 rm $BASEDIR/credentials/quote/*
+rm $GRAMINEPATH/bin/*
+rm $SEALPATH/*
 
 cd $GRAMINEPATH
 make clean

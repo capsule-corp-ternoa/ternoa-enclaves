@@ -5,17 +5,15 @@ use async_trait::async_trait;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use hex::FromHex;
 use std::fs::OpenOptions;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 use tracing::{error, info, warn};
 
-use subxt::ext::{
-	sp_core::{sr25519, ByteArray, Pair},
-	sp_runtime::AccountId32,
-};
+use sp_core::{sr25519, ByteArray, Pair};
+use subxt::utils::AccountId32;
+
+use axum::extract::Path as PathExtract;
 
 use crate::chain::chain::nft_secret_share_oracle;
-
-//use subxt::ext::sp_core::crypto::Ss58C&&odec;
 
 /* **********************
 	 DATA STRUCTURES
@@ -44,8 +42,9 @@ pub enum ReturnStatus {
 }
 
 #[derive(Deserialize, Clone)]
+
 pub struct SecretPacket {
-	account_address: AccountId32,
+	account_address: sr25519::Public,
 	secret_data: String,
 	signature: String,
 }
@@ -177,7 +176,7 @@ impl VerifyNFT for SecretPacket {
 	async fn check_nft_ownership(&self) -> bool {
 		let nft_owner = get_nft_owner(self.parse_secret().nft_id).await;
 		match nft_owner {
-			NFTOwner::Owner(owner) => owner == self.account_address,
+			NFTOwner::Owner(owner) => owner == self.account_address.into(),
 			NFTOwner::NotFound => false,
 		}
 	}
@@ -193,6 +192,88 @@ impl VerifyNFT for SecretPacket {
 			Err(SecretError::InvalidSignature)
 		}
 	}
+}
+
+/* **********************
+	 SECRET VIEW API
+********************** */
+#[derive(Serialize)]
+pub struct NFTViewResponse {
+	enclave_id: String,
+	nft_id: u32,
+	log: String,
+}
+
+// TODO: check the request for signed data and prevent flooding requests.
+pub async fn get_nft_views_handler(
+	State(state): State<StateConfig>,
+	PathExtract(nft_id): PathExtract<u32>,
+) -> impl IntoResponse {
+	let file_path = state.seal_path + &nft_id.to_string() + ".log";
+
+	if std::path::Path::new(&file_path.clone()).exists() {
+		info!("Log path checked, path: {}", file_path);
+	} else {
+		error!(
+			"Error retrieving secret log : log path doe not exist, nft_id : {}, path : {}",
+			nft_id, file_path
+		);
+
+		return (
+			StatusCode::OK,
+			Json(NFTViewResponse {
+				enclave_id: state.identity,
+				nft_id,
+				log: "nft_id does not exist on this enclave".to_string(),
+			}),
+		);
+	};
+
+	let mut log_file = match OpenOptions::new().read(true).open(file_path.clone()) {
+		Ok(f) => f,
+		Err(_) => {
+			error!(
+				"Error retrieving secret log : can not open the log file, nft_id : {}, path : {}",
+				nft_id, file_path
+			);
+
+			return (
+				StatusCode::OK,
+				Json(NFTViewResponse {
+					enclave_id: state.identity,
+					nft_id,
+					log: "can not retrieve the log of nft views".to_string(),
+				}),
+			);
+		},
+	};
+
+	let mut log_data = String::new();
+	match log_file.read_to_string(&mut log_data) {
+		Ok(_) => {
+			info!("successfully retrieved log file for nft_id : {}", nft_id);
+			return (
+				StatusCode::OK,
+				Json(NFTViewResponse { enclave_id: state.identity, nft_id, log: log_data }),
+			);
+		},
+
+		Err(_) => {
+			error!(
+				"Error retrieving secret log : can not read the log file, nft_id : {}, path : {}",
+				nft_id, file_path
+			);
+
+			return (
+				StatusCode::OK,
+				Json(NFTViewResponse {
+					enclave_id: state.identity,
+					nft_id,
+					log: "can not retrieve the log of nft views".to_string(),
+				}),
+			);
+		},
+	};
 }
 
 /* **********************
@@ -293,7 +374,7 @@ pub async fn store_secret_shares(
 						"Proof of storage has been sent to secret-nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
 						secret.nft_id, received_secret.account_address, txh
 					);
-					
+
 					// Log file for tracing the secrets VIEW history in Marketplace.
 					let file_path = state.seal_path + &secret.nft_id.to_string() + ".log";
 					std::fs::File::create(file_path.clone()).unwrap();
@@ -314,7 +395,7 @@ pub async fn store_secret_shares(
 						"Error sending proof of storage to chain, nft_id : {}, Error : {}",
 						secret.nft_id, err
 					);
-					
+
 					std::fs::remove_file(file_path.clone()).expect("Can not remove secret file");
 
 					return (
@@ -440,12 +521,22 @@ pub async fn retrieve_secret_shares(
 				},
 			};
 
-			// Put a VIEWING history log 
+			// Put a VIEWING history log
 			let file_path = state.seal_path + &data.nft_id.to_string() + ".log";
-			let mut log_file= OpenOptions::new().append(true).open(file_path).expect("Unable to open log file");  
+			let mut log_file = OpenOptions::new()
+				.append(true)
+				.open(file_path)
+				.expect("Unable to open log file");
+
+			log_file.seek(std::io::SeekFrom::End(0)).unwrap();
+
 			let time: chrono::DateTime<chrono::offset::Utc> = std::time::SystemTime::now().into();
-			let log_data= requested_secret.account_address.to_string() + " Viewed the secret on " + time.format("%Y-%m-%d %H:%M:%S").to_string().as_str(); 
-    		log_file.write_all(log_data.as_bytes()).expect("write to log failed");
+			let log_data = requested_secret.account_address.to_string()
+				+ " Viewed the secret on "
+				+ time.format("%Y-%m-%d %H:%M:%S").to_string().as_str()
+				+ "\n";
+
+			log_file.write(log_data.as_bytes()).expect("write to log failed");
 
 			return (
 				StatusCode::OK,
@@ -507,13 +598,14 @@ pub async fn retrieve_secret_shares(
 mod test {
 	use super::*;
 	use sp_keyring::AccountKeyring;
-	use subxt::ext::sp_runtime::app_crypto::Ss58Codec;
+	use sp_runtime::app_crypto::Ss58Codec;
 
 	#[tokio::test]
 	async fn get_nft_owner_test() {
-		let address =
-			AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6")
-				.unwrap();
+		let address = AccountId32::from(
+			sr25519::Public::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6")
+				.unwrap(),
+		);
 		let nft_id = 10;
 		let owner = match get_nft_owner(nft_id).await {
 			NFTOwner::Owner(addr) => addr,
@@ -534,7 +626,7 @@ mod test {
 	#[tokio::test]
 	async fn parse_secret_from_sdk_test() {
 		let secret_packet_sdk: SecretPacket = SecretPacket {
-			account_address: AccountId32::new([0u8;32]),
+			account_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
 			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
 			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
 		};
@@ -549,7 +641,7 @@ mod test {
 	#[tokio::test]
 	async fn parse_secret_from_polkadotjs_test() {
 		let secret_packet_polkadotjs:SecretPacket = SecretPacket {
-			account_address: AccountId32::new([0u8;32]),
+			account_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
 			secret_data: "<Bytes>247_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU</Bytes>".to_string(), 
 			signature: "xxx".to_string(),
 		};
@@ -563,7 +655,7 @@ mod test {
 	#[tokio::test]
 	async fn get_public_key_test() {
 		let secret_packet_sdk: SecretPacket = SecretPacket {
-			account_address: AccountId32::from_ss58check(
+			account_address: sr25519::Public::from_ss58check(
 				"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
 			)
 			.unwrap(),
@@ -587,7 +679,7 @@ mod test {
 		let correct_sig = sr25519::Signature::from_raw(<[u8;64]>::from_hex("42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b").unwrap());
 
 		let mut secret_packet_sdk: SecretPacket = SecretPacket {
-			account_address: AccountId32::new([0u8;32]),
+			account_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
 			secret_data: "xxx".to_string(), 
 			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
 		};
@@ -609,7 +701,7 @@ mod test {
 	#[tokio::test]
 	async fn verify_signature_test() {
 		let mut secret_packet = SecretPacket {
-			account_address: AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
+			account_address: sr25519::Public::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
 			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
 			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
 		};
@@ -621,13 +713,14 @@ mod test {
 		assert_eq!(secret_packet.verify_signature(), false);
 
 		// changed owner
-		secret_packet.account_address = AccountKeyring::Alice.to_raw_public().into();
+		secret_packet.account_address =
+			sr25519::Public::from_slice(&AccountKeyring::Alice.to_raw_public()).unwrap();
 		secret_packet.secret_data = "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string();
 		assert_eq!(secret_packet.verify_signature(), false);
 
 		// changed signature
 		secret_packet.account_address =
-			AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6")
+			sr25519::Public::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6")
 				.unwrap();
 		secret_packet.signature = "0x32bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
 		assert_eq!(secret_packet.verify_signature(), false);
@@ -636,7 +729,7 @@ mod test {
 	#[tokio::test]
 	async fn full_verify_received_data_test() {
 		let secret_packet = SecretPacket {
-			account_address: AccountId32::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
+			account_address: sr25519::Public::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
 			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
 			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
 		};
@@ -651,8 +744,7 @@ mod test {
 		let _key_pair2 = AccountKeyring::Dave.pair();
 
 		let _public1 = key_pair1.clone().public();
-		let public2 =
-			subxt::ext::sp_core::sr25519::Public::from_raw(AccountKeyring::Dave.to_raw_public());
+		let public2 = sr25519::Public::from_raw(AccountKeyring::Dave.to_raw_public());
 
 		let message1 = secret_packet.secret_data.as_bytes();
 		let message2 = b"<Bytes>247_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU</Bytes>";
