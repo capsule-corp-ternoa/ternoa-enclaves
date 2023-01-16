@@ -25,8 +25,7 @@ fs.mounts = [
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
   { path = "/etc", uri = "file:/etc" },
   { path = "/quote/", uri = "file:{{ quote_path }}", type = "chroot" },
-  #{ path = "/nft/" , uri = "file:{{ seal_path }}",  type = "encrypted", "key_name" = "_sgx_mrencalve"},
-  { path = "/nft/" , uri = "file:{{ seal_path }}",  type = "chroot"},
+  { path = "/nft/" , uri = "file:{{ seal_path }}",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
 ]
 
 # Only for development and debug, it will be replaced with _sgx_mrencalve/_sgx_mrsigner for production
@@ -40,7 +39,6 @@ loader.pal_internal_mem_size = "64M"
 
 sgx.allowed_files = [
   "file:{{ quote_path }}/",
-  "file:{{ seal_path }}/",
 ]
 
 sgx.trusted_files = [
@@ -56,11 +54,12 @@ sgx.trusted_files = [
   "file:/etc/passwd",
   "file:/etc/gai.conf",
   "file:/etc/ssl/certs/ca-certificates.crt",
-# "file:/etc/sgx_default_qcnl.conf",
-  "file:../credentials/artifacts/",
-  "file:bin/checksum",
-  "file:{{ certificates_path }}/",
+
   "file:/etc/letsencrypt/",
+  "file:../credentials/artifacts/",
+
+  "file:bin/checksum",
+  "file:bin/sgx_server.sig",
 ]
 
 
@@ -77,6 +76,7 @@ sys.insecure__allow_eventfd = true
 # - any threads and threadpools you might be starting
 # - helper threads internal to Gramine — see:
 #   https://gramine.readthedocs.io/en/latest/manifest-syntax.html#number-of-threads
+
 sgx.max_threads = 24
 sgx.thread_num = 24
 
@@ -86,5 +86,5 @@ sgx.remote_attestation = "epid"
 sgx.ra_client_spid = "15AD86B4CFA46B327A8BFB79AA0D67B7"
 sgx.ra_client_linkable = true
 
-sgx.isvprodid = 10
-sgx.isvsvn    = 101
+sgx.isvprodid = 11
+sgx.isvsvn    = 102
