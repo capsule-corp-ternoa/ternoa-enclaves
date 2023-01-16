@@ -132,6 +132,18 @@ pip install "scalecodec>=1.1.2"
 pip install substrate-interface
 pip install base58
 
+# ----- cosign
+sudo apt install golang-go -y
+go install github.com/sigstore/cosign/cmd/cosign@latest
+
+echo '# set go path
+if [ -d "$HOME/go/bin" ] ; then
+    PATH="$PATH:$HOME/go/bin"
+fi
+' >> ~/.profile
+
+source ~/.profile
+
 # ----- Ternoa
 git clone https://github.com/capsule-corp-ternoa/sgx_server.git
 cd sgx_server
