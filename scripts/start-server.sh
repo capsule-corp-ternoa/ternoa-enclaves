@@ -1,12 +1,12 @@
 
 # ASSETS STRUCTURE
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )
-SCRIPTS_PATH=$BASEDIR/scripts/
-GRAMINE_PATH=$BASEDIR/gramine/
-SEAL_PATH=$GRAMINE_PATH/nft/
-CERT_PATH=$BASEDIR/credentials/certificates/
+SCRIPTS_PATH=$BASEDIR/scripts
+GRAMINE_PATH=$BASEDIR/gramine
+SEAL_PATH=$GRAMINE_PATH/nft
+CERT_PATH=$BASEDIR/credentials/certificates
 ACCOUNTS_PATH=$BASEDIR/credentials/accounts/
-QUOTE_PATH=$BASEDIR/credentials/quote/
+QUOTE_PATH=$BASEDIR/credentials/quote
 
 # DEFAULT VALUES
 PORT=${PORT:-8101}
@@ -106,8 +106,9 @@ while :; do
 
 	    cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
 	    cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
-		mv /tmp/checksum $GRAMINE_PATH/bin/checksum
-		cosign sign-blob --key $BASEDIR/credentials/keys/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
+	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
+	    
+	    cosign sign-blob --key $BASEDIR/credentials/keys/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
 	;;
 	-h|--help)
 	    echo "usage: start-server.h --port <port-number> --cert <TLS Cert Path> --key <TLS Private Key Path> --secrets <Seal Path> --account <Ternoa Account Json File> --identity <Arbitraty Enclave Name> [-b|--build]"
