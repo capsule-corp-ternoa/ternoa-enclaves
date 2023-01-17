@@ -12,7 +12,7 @@ const BINARYFILE: &str = "./bin/sgx_server";
 const BINARYSIG: &str = "./bin/sgx_server.sig";
 
 // Compile-time : Source Code
-const _PASSWORD: &str = "Xxxxxxxxxx";
+const _PASSWORD: &str = "Test123456";
 const ECDSA_P256_ASN1_PUBLIC_PEM: &[u8] = include_bytes!("../../credentials/keys/cosign.pub");
 const _ECDSA_P256_ASN1_ENCRYPTED_PRIVATE_PEM: &[u8] =
 	include_bytes!("../../credentials/keys/cosign.key");
@@ -83,7 +83,8 @@ pub fn verify() -> Result<bool, anyhow::Error> {
 	}
 
 	//Verifying the signature of the binary file
-	match verification_key.verify_signature(Signature::Raw(&signature_data), &signed_data) {
+	match verification_key.verify_signature(Signature::Base64Encoded(&signature_data), &signed_data)
+	{
 		Ok(_) => {
 			tracing::info!("Binary file Verification Succeeded.");
 			Ok(true)
@@ -93,5 +94,41 @@ pub fn verify() -> Result<bool, anyhow::Error> {
 			tracing::error!("Binary file signature verification failed, {}", e);
 			Ok(false)
 		},
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use base64::{engine::general_purpose, Engine as _};
+
+	#[test]
+	fn sign_test() {
+		const DATA: &str = "DATA TO BE SIGNED BY COSIGN";
+
+		/* PASSWORD MUST BE RIGHT*/
+		let signing_key = _import_skey();
+
+		let signature = signing_key.sign(DATA.as_bytes()).unwrap();
+
+		let encoded_sig = general_purpose::STANDARD.encode(&signature);
+
+		assert_eq!(encoded_sig, "MEYCIQCXvIjmJLmMNuMfWcFLDuseXhBgK+j68ZNJWRkmrIrZ0gIhAK7yFn9pUHOa5W1tQuU34snv4kmCMN0uTQAXwvnAz7Ld");
+	}
+
+	#[test]
+	fn verify_test() {
+		const DATA: &str = "DATA TO BE SIGNED BY COSIGN";
+		const SIGNATURE: &str = "MEYCIQC3yrs3cZCcHVf7nNXoNgfCXCz39EHmXjkivDpUg+zc9gIhAMqeHB7Cbh7/srWAk33PzIcXKYRDHBTwwSlb26KtnTbB";
+
+		let signature = Signature::Base64Encoded(SIGNATURE.as_bytes());
+		let verification_key = import_vkey();
+
+		let result = match verification_key.verify_signature(signature, DATA.as_bytes()) {
+			Ok(_) => true,
+			_ => false,
+		};
+
+		assert!(result);
 	}
 }
