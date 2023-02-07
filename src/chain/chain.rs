@@ -131,20 +131,10 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 	})
 }
 
-// -------------- GET NFT DATA --------------
-pub async fn get_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
+// -------------- GET NFT/CAPSULE DATA --------------
+pub async fn get_onchain_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
-	let result = api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
-
-	result
-}
-
-// -------------- GET CAPSULE DATA --------------
-
-pub async fn get_capsule_data(capsule_id: u32) -> Option<NFTData<AccountId32>> {
-	let api = get_chain_api(TERNOA_RPC.into()).await;
-	let storage_address = ternoa::storage().nft().nfts(capsule_id);
 	let result = api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
 
 	result
@@ -201,7 +191,7 @@ struct JsonNFTData {
 }
 
 pub async fn get_nft_data_handler(PathExtract(nft_id): PathExtract<u32>) -> impl IntoResponse {
-	let data = get_nft_data(nft_id).await;
+	let data = get_onchain_data(nft_id).await;
 	match data {
 		Some(nft_data) => {
 			info!("NFT DATA of Num.{} : \n {}", nft_id, nft_data);
@@ -345,10 +335,10 @@ mod test {
 		let nft_ids = (200u32..250).collect::<Vec<u32>>();
 
 		// Single (Avg. 48 ms/request)
-		let mut nft_data = vec![get_nft_data(10).await];
+		let mut nft_data = vec![get_onchain_data(10).await];
 		let start = Instant::now();
 		for id in nft_ids.clone() {
-			nft_data.push(get_nft_data(id).await);
+			nft_data.push(get_onchain_data(id).await);
 		}
 		let elapsed_time = start.elapsed().as_micros();
 		info!("\nSingle time is {} microseconds", elapsed_time);

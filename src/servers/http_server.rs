@@ -19,11 +19,14 @@ use tower_http::{
 
 use crate::chain::{
 	capsule::{
-		capsule_change_secret_shares, capsule_get_views_handler, capsule_is_available,
-		capsule_remove_secret_shares, capsule_retrieve_secret_shares, capsule_store_secret_shares,
+		capsule_get_views_handler, capsule_remove_secret_shares, capsule_retrieve_secret_shares,
+		capsule_set_secret_shares, is_capsule_available,
 	},
 	chain::{get_nft_data_handler, rpc_query, submit_tx},
-	nft::{nft_get_views_handler, nft_retrieve_secret_shares, nft_store_secret_shares},
+	nft::{
+		is_nft_available, nft_get_views_handler, nft_remove_secret_shares,
+		nft_retrieve_secret_shares, nft_store_secret_shares,
+	},
 };
 
 use crate::attestation;
@@ -94,12 +97,13 @@ pub async fn http_server(
 		.route("/api/backup/fetchEnclaveSecrets", post(backup_fetch_secrets))
 		.route("/api/backup/pushEnclaveSecrets", post(backup_push_secrets))
 		// NFT SECRET SHARING API
+		.route("/api/nft/isSecretAvailable/:nft_id", get(is_nft_available))
 		.route("/api/nft/storeSecretShares", post(nft_store_secret_shares))
 		.route("/api/nft/retrieveSecretShares", post(nft_retrieve_secret_shares))
+		.route("/api/nft/removeSecretShares", post(nft_remove_secret_shares))
 		// CAPSULE SECRET SHARING API
-		.route("/api/capsule/isSecretAvailable/:nft_id", get(capsule_is_available))
-		.route("/api/capsule/storeSecretShares", post(capsule_store_secret_shares))
-		.route("/api/capsule/changeSecretShares", post(capsule_change_secret_shares))
+		.route("/api/capsule/isSecretAvailable/:nft_id", get(is_capsule_available))
+		.route("/api/capsule/setSecretShares", post(capsule_set_secret_shares))
 		.route("/api/capsule/retrieveSecretShares", post(capsule_retrieve_secret_shares))
 		.route("/api/capsule/removeSecretShares", post(capsule_remove_secret_shares))
 		// TEST APIS
