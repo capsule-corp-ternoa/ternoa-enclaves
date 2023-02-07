@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use sp_core::crypto::Ss58Codec;
 use std::time::SystemTime;
 
-use crate::{chain::nft::get_nft_views_handler, servers::server_common};
+use crate::servers::server_common;
 
 use std::path::PathBuf;
 use tower_http::{
@@ -18,8 +18,12 @@ use tower_http::{
 };
 
 use crate::chain::{
+	capsule::{
+		capsule_change_secret_shares, capsule_get_views_handler, capsule_is_available,
+		capsule_remove_secret_shares, capsule_retrieve_secret_shares, capsule_store_secret_shares,
+	},
 	chain::{get_nft_data_handler, rpc_query, submit_tx},
-	nft::{retrieve_secret_shares, store_secret_shares},
+	nft::{nft_get_views_handler, nft_retrieve_secret_shares, nft_store_secret_shares},
 };
 
 use crate::attestation;
@@ -81,19 +85,27 @@ pub async fn http_server(
 					)
 				}),
 		)
-		.route("/health", get(get_health_status))
 		.layer(cors)
-		// TEST APIS
-		.route("/api/getNFTData/:nft_id", get(get_nft_data_handler))
-		.route("/api/getNFTViews/:nft_id", get(get_nft_views_handler))
-		.route("/api/rpcQuery/:blocknumber", get(rpc_query))
-		.route("/api/submitTx/:amount", get(submit_tx))
+		// STATE API
+		.route("/health", get(get_health_status))
+		.route("/api/getNFTViews/:nft_id", get(nft_get_views_handler))
+		.route("/api/getCapsuleViews/:capsule_id", get(capsule_get_views_handler))
 		// CENTRALIZED BACKUP API
 		.route("/api/backup/fetchEnclaveSecrets", post(backup_fetch_secrets))
 		.route("/api/backup/pushEnclaveSecrets", post(backup_push_secrets))
-		// SECRET SHARING API
-		.route("/api/nft/storeSecretShares", post(store_secret_shares))
-		.route("/api/nft/retrieveSecretShares", post(retrieve_secret_shares))
+		// NFT SECRET SHARING API
+		.route("/api/nft/storeSecretShares", post(nft_store_secret_shares))
+		.route("/api/nft/retrieveSecretShares", post(nft_retrieve_secret_shares))
+		// CAPSULE SECRET SHARING API
+		.route("/api/capsule/isSecretAvailable/:nft_id", get(capsule_is_available))
+		.route("/api/capsule/storeSecretShares", post(capsule_store_secret_shares))
+		.route("/api/capsule/changeSecretShares", post(capsule_change_secret_shares))
+		.route("/api/capsule/retrieveSecretShares", post(capsule_retrieve_secret_shares))
+		.route("/api/capsule/removeSecretShares", post(capsule_remove_secret_shares))
+		// TEST APIS
+		.route("/api/getNFTData/:nft_id", get(get_nft_data_handler))
+		.route("/api/rpcQuery/:blocknumber", get(rpc_query))
+		.route("/api/submitTx/:amount", get(submit_tx))
 		.with_state(state_config);
 
 	server_common::serve(http_app, port, certfile, keyfile).await;
