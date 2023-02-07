@@ -1,16 +1,13 @@
 use axum::{debug_handler, extract::State, http::StatusCode, response::IntoResponse, Json};
 
 use hex::FromHex;
+use sp_core::{sr25519, Pair};
 use std::{
 	collections::BTreeMap,
 	io::{Read, Write},
 };
 
 use tracing::info;
-
-use sp_runtime::app_crypto::Ss58Codec;
-
-use sp_core::{sr25519, Pair};
 
 use serde::{Deserialize, Serialize};
 
@@ -74,7 +71,8 @@ fn verify_account_id(account_id: &str) -> bool {
 }
 
 fn get_public_key(account_id: &str) -> sr25519::Public {
-	let pk = sr25519::Public::from_ss58check(account_id).expect("Invalid AccountID");
+	let pk = <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(account_id)
+		.expect("Invalid AccountID");
 	log::debug!("Public Key = {}", pk);
 	pk
 }
