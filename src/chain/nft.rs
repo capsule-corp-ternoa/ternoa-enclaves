@@ -205,11 +205,11 @@ pub struct NFTViewResponse {
 }
 
 // TODO: check the request for signed data and prevent flooding requests.
-pub async fn get_nft_views_handler(
+pub async fn nft_get_views_handler(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> impl IntoResponse {
-	let file_path = state.seal_path + &nft_id.to_string() + ".log";
+	let file_path = state.seal_path + "nft_" + &nft_id.to_string() + ".log";
 
 	if std::path::Path::new(&file_path.clone()).exists() {
 		info!("Log path checked, path: {}", file_path);
@@ -280,7 +280,7 @@ pub async fn get_nft_views_handler(
 	 STORE SECRET
 ********************** */
 
-pub async fn store_secret_shares(
+pub async fn nft_store_secret_shares(
 	State(state): State<StateConfig>,
 	Json(received_secret): Json<SecretPacket>,
 ) -> impl IntoResponse {
@@ -305,7 +305,8 @@ pub async fn store_secret_shares(
 				);
 			};
 
-			let file_path = state.seal_path.clone() + &secret.nft_id.to_string() + ".secret";
+			let file_path =
+				state.seal_path.clone() + "nft_" + &secret.nft_id.to_string() + ".secret";
 			let exist = std::path::Path::new(file_path.as_str()).exists();
 
 			if exist {
@@ -376,7 +377,7 @@ pub async fn store_secret_shares(
 					);
 
 					// Log file for tracing the secrets VIEW history in Marketplace.
-					let file_path = state.seal_path + &secret.nft_id.to_string() + ".log";
+					let file_path = state.seal_path + "nft_" + &secret.nft_id.to_string() + ".log";
 					std::fs::File::create(file_path.clone()).unwrap();
 
 					return (
@@ -448,7 +449,7 @@ pub async fn store_secret_shares(
 	 RETRIEVE SECRET
 ********************** */
 
-pub async fn retrieve_secret_shares(
+pub async fn nft_retrieve_secret_shares(
 	State(state): State<StateConfig>,
 	Json(requested_secret): Json<SecretPacket>,
 ) -> impl IntoResponse {
@@ -456,7 +457,7 @@ pub async fn retrieve_secret_shares(
 
 	match verified_req {
 		Ok(data) => {
-			let file_path = state.seal_path.clone() + &data.nft_id.to_string() + ".secret";
+			let file_path = state.seal_path.clone() + "nft_" + &data.nft_id.to_string() + ".secret";
 			if !std::path::Path::new(&file_path).is_file() {
 				warn!(
 					"Error retrieving secrets from TEE : file path does not exist, file_path : {}",
@@ -522,7 +523,7 @@ pub async fn retrieve_secret_shares(
 			};
 
 			// Put a VIEWING history log
-			let file_path = state.seal_path + &data.nft_id.to_string() + ".log";
+			let file_path = state.seal_path + "nft_" + &data.nft_id.to_string() + ".log";
 			let mut log_file = OpenOptions::new()
 				.append(true)
 				.open(file_path)
@@ -598,7 +599,7 @@ pub async fn retrieve_secret_shares(
 mod test {
 	use super::*;
 	use sp_keyring::AccountKeyring;
-	use sp_runtime::app_crypto::Ss58Codec;
+
 	/* TODO: This test can not pass in workflow action, without verified account and nft_id
 	#[tokio::test]
 	async fn get_nft_owner_test() {
@@ -655,7 +656,7 @@ mod test {
 	#[tokio::test]
 	async fn get_public_key_test() {
 		let secret_packet_sdk: SecretPacket = SecretPacket {
-			account_address: sr25519::Public::from_ss58check(
+			account_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
 				"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
 			)
 			.unwrap(),
@@ -701,7 +702,7 @@ mod test {
 	#[tokio::test]
 	async fn verify_signature_test() {
 		let mut secret_packet = SecretPacket {
-			account_address: sr25519::Public::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
+			account_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
 			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
 			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
 		};
@@ -720,8 +721,10 @@ mod test {
 
 		// changed signature
 		secret_packet.account_address =
-			sr25519::Public::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6")
-				.unwrap();
+			<sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
+				"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
+			)
+			.unwrap();
 		secret_packet.signature = "0x32bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
 		assert_eq!(secret_packet.verify_signature(), false);
 	}
@@ -729,7 +732,7 @@ mod test {
 	#[tokio::test]
 	async fn full_verify_received_data_test() {
 		let secret_packet = SecretPacket {
-			account_address: sr25519::Public::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
+			account_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
 			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
 			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
 		};

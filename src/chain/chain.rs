@@ -1,6 +1,6 @@
 use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
-use serde::Serialize as SerderSerialize;
+use serde::{Deserialize, Serialize};
 
 use std::fmt;
 use subxt::{
@@ -12,8 +12,7 @@ use subxt::{
 };
 use tracing::info;
 
-//use crate::chain::chain::ternoa::runtime_types::sp_core::crypto::AccountId32;
-use crate::chain::chain::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
+use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
 
 //const TERNOA_RPC: &'static str = "wss://alphanet.ternoa.com:443";
 //const TERNOA_RPC: &'static str = "wss://dev-1.ternoa.network:443";
@@ -24,8 +23,6 @@ const TERNOA_RPC: &'static str = "wss://dev-0.ternoa.network:443";
 pub mod ternoa {}
 
 type DefaultApi = OnlineClient<PolkadotConfig>;
-
-use serde::Serialize;
 
 #[derive(Serialize)]
 pub enum ReturnStatus {
@@ -50,11 +47,19 @@ pub async fn get_chain_api(url: String) -> DefaultApi {
 
 // -------------- RPC QUERY --------------
 
-#[derive(SerderSerialize)]
+#[derive(Serialize)]
 struct JsonRPC {
 	status: ReturnStatus,
 	input: String,
 	output: String,
+}
+
+pub async fn get_current_block_number() -> u32 {
+	let api = get_chain_api(TERNOA_RPC.into()).await;
+
+	let hash = api.rpc().finalized_head().await.unwrap();
+	let last_block = api.rpc().block(Some(hash)).await.unwrap().unwrap();
+	last_block.block.header.number
 }
 
 pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl IntoResponse {
@@ -81,7 +86,7 @@ pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl Into
 
 // -------------- TRANSACTION --------------
 
-#[derive(SerderSerialize)]
+#[derive(Serialize)]
 struct JsonTX {
 	status: u16,
 	amount: u128,
@@ -126,11 +131,21 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 	})
 }
 
-// -------------- NFTData --------------
+// -------------- GET NFT DATA --------------
 pub async fn get_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
-	let result = api.storage().fetch(&storage_address, None).await.unwrap();
+	let result = api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
+
+	result
+}
+
+// -------------- GET CAPSULE DATA --------------
+
+pub async fn get_capsule_data(capsule_id: u32) -> Option<NFTData<AccountId32>> {
+	let api = get_chain_api(TERNOA_RPC.into()).await;
+	let storage_address = ternoa::storage().nft().nfts(capsule_id);
+	let result = api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
 
 	result
 }
@@ -163,7 +178,7 @@ pub async fn _get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<Accoun
 	let mut fetches = Vec::new();
 	for i in 0..nft_ids.len() {
 		// Critical line with complex type
-		let nft_data_future = api.storage().fetch(&nft_address[i], None);
+		let nft_data_future = api.storage().at(None).await.unwrap().fetch(&nft_address[i]);
 		fetches.push(nft_data_future);
 	}
 
@@ -176,7 +191,7 @@ pub async fn _get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<Accoun
 
 // -------------- GET NFT DATA --------------
 
-#[derive(SerderSerialize)]
+#[derive(Serialize)]
 struct JsonNFTData {
 	status: ReturnStatus,
 	nft_id: u32,
@@ -218,7 +233,7 @@ impl fmt::Display for NFTData<AccountId32> {
             self.owner,
             self.creator,
             //std::str::from_utf8(&self.offchain_data.0).unwrap(),
-	    self.offchain_data.0,
+	    	self.offchain_data.0,
             self.royalty.0,
             self.collection_id.unwrap_or(0u32),
             self.state
@@ -228,6 +243,7 @@ impl fmt::Display for NFTData<AccountId32> {
 
 // -------------- SECRET NFT SYNC (ORACLE) --------------
 
+// TODO: Define macro for nft/capsule
 // TODO: Proof of storage (through heart-beats)
 // TODO: Proof of decryption (i.e This secret share belongs to the key for decrypting the corresponding nft media file on IPFS)
 
@@ -242,6 +258,28 @@ pub async fn nft_secret_share_oracle(
 
 	// Create a transaction to submit:
 	let tx = ternoa::tx().nft().add_secret_shard(nft_id);
+
+	// submit the transaction with default params:
+	api.tx().sign_and_submit_default(&tx, &signer).await
+}
+
+// -------------- CAPSULE SYNC (ORACLE) --------------
+
+// TODO: Define macro for nft/capsule
+// TODO: Proof of storage (through heart-beats)
+// TODO: Proof of decryption (i.e This secret share belongs to the key for decrypting the corresponding nft media file on IPFS)
+
+pub async fn capsule_secret_share_oracle(
+	keypair: sp_core::sr25519::Pair,
+	capsule_id: u32,
+) -> Result<sp_core::H256, subxt::Error> {
+	let api = get_chain_api(TERNOA_RPC.into()).await;
+
+	// Submit Extrinsic
+	let signer = PairSigner::new(keypair);
+
+	// Create a transaction to submit:
+	let tx = ternoa::tx().nft().add_capsule_shard(capsule_id);
 
 	// submit the transaction with default params:
 	api.tx().sign_and_submit_default(&tx, &signer).await
@@ -270,7 +308,7 @@ mod test {
 		let api = get_chain_api(TERNOA_RPC.into()).await;
 		let address = ternoa::storage().system().account_root();
 
-		let mut iter = api.storage().iter(address, 10, None).await.unwrap();
+		let mut iter = api.storage().at(None).await.unwrap().iter(address, 10).await.unwrap();
 		let mut counter = 0;
 		while let Some((key, account)) = iter.next().await.unwrap() {
 			info!("{}: {}", hex::encode(key), account.data.free);
