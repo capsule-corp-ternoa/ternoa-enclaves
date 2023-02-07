@@ -1,9 +1,9 @@
-use crate::chain::chain::get_nft_data;
 use crate::servers::http_server::StateConfig;
 
 use async_trait::async_trait;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use hex::FromHex;
+
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, Write};
 use tracing::{error, info, warn};
@@ -25,63 +25,38 @@ use crate::chain::chain::nft_secret_share_oracle;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
-pub enum SecretError {
-	InvalidSignature,
-	InvalidOwner,
-}
-
+/* **********************
+   SECRET AVAILABLE API
+********************** */
 #[derive(Serialize)]
-pub enum ReturnStatus {
-	STORESUCCESS,
-	RETRIEVESUCCESS,
-	INVALIDSIGNATURE,
-	INVALIDOWNER,
-	NFTIDEXISTS,
-	NFTIDNOTEXIST,
-	DATABASEFAILURE,
-	ORACLEFAILURE,
-	NFTSECRETNOTACCESSIBLE,
-	NFTSECRETNOTREADABLE,
-}
-
-#[derive(Deserialize, Clone)]
-
-pub struct SecretPacket {
-	account_address: sr25519::Public,
-	secret_data: String,
-	signature: String,
-}
-
-#[derive(Serialize)]
-pub struct SecretStoreResponse {
-	status: ReturnStatus,
-	nft_id: u32,
+pub struct NFTExistsResponse {
 	enclave_id: String,
-	description: String,
-}
-
-#[derive(Serialize)]
-pub struct SecretRetrieveResponse {
-	status: ReturnStatus,
 	nft_id: u32,
-	enclave_id: String,
-	secret_data: String,
-	description: String,
+	exists: bool,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum NFTOwner {
-	Owner(AccountId32),
-	NotFound,
-}
+pub async fn is_nft_available(
+	State(state): State<StateConfig>,
+	PathExtract(nft_id): PathExtract<u32>,
+) -> impl IntoResponse {
+	let file_path = state.seal_path + "nft_" + &nft_id.to_string() + ".secret";
 
-pub async fn get_nft_owner(nft_id: u32) -> NFTOwner {
-	let data = get_nft_data(nft_id).await;
+	if std::path::Path::new(&file_path.clone()).exists() {
+		info!("Availability check : path checked, path: {}", file_path);
+		return (
+			StatusCode::OK,
+			Json(NFTExistsResponse { enclave_id: state.identity, nft_id, exists: true }),
+		);
+	} else {
+		info!(
+			"Availability check : secret does not exist, nft_id : {}, path : {}",
+			nft_id, file_path
+		);
 
-	let owner = match data {
-		Some(nft_data) => NFTOwner::Owner(nft_data.owner),
-		None => NFTOwner::NotFound,
+		return (
+			StatusCode::OK,
+			Json(NFTExistsResponse { enclave_id: state.identity, nft_id, exists: false }),
+		);
 	};
 
 	owner
@@ -297,12 +272,19 @@ pub async fn nft_get_views_handler(
 /* **********************
 	 STORE SECRET
 ********************** */
+#[derive(Serialize)]
+pub struct SecretStoreResponse {
+	status: ReturnStatus,
+	nft_id: u32,
+	enclave_id: String,
+	description: String,
+}
 
 pub async fn nft_store_secret_shares(
 	State(state): State<StateConfig>,
 	Json(received_secret): Json<SecretPacket>,
 ) -> impl IntoResponse {
-	let verified_secret = received_secret.verify_receive_data().await;
+	let verified_secret = received_secret.verify_request().await;
 
 	match verified_secret {
 		Ok(secret) => {
@@ -367,7 +349,7 @@ pub async fn nft_store_secret_shares(
 			match f.write_all(&secret.data) {
 				Ok(_) => info!(
 					"Secret is successfully stored to TEE, nft_id = {}  Owner = {}",
-					secret.nft_id, received_secret.account_address
+					secret.nft_id, received_secret.owner_address
 				),
 				Err(err) => {
 					error!("Error storing secrets to TEE : error in writing data to file, nft_id : {}, path: {}, Error : {}", secret.nft_id, file_path, err);
@@ -391,7 +373,7 @@ pub async fn nft_store_secret_shares(
 				Ok(txh) => {
 					info!(
 						"Proof of storage has been sent to secret-nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
-						secret.nft_id, received_secret.account_address, txh
+						secret.nft_id, received_secret.owner_address, txh
 					);
 
 					// Log file for tracing the secrets VIEW history in Marketplace.
@@ -431,13 +413,13 @@ pub async fn nft_store_secret_shares(
 		},
 
 		Err(err) => match err {
-			SecretError::InvalidSignature => {
+			VerificationError::INVALIDSIGNERSIG(e) => {
 				warn!("Error storing secrets to TEE : Invalid Request Signature");
 
 				return (
 					StatusCode::OK,
 					Json(SecretStoreResponse {
-						status: ReturnStatus::INVALIDSIGNATURE,
+						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
 						nft_id: received_secret.parse_secret().nft_id,
 						enclave_id: state.identity,
 						description: "Error storing secrets to TEE : Invalid Request Signature"
@@ -446,7 +428,7 @@ pub async fn nft_store_secret_shares(
 				);
 			},
 
-			SecretError::InvalidOwner => {
+			VerificationError::INVALIDOWNER => {
 				warn!("Error storing secrets to TEE : Invalid NFT Owner");
 
 				return (
@@ -459,6 +441,12 @@ pub async fn nft_store_secret_shares(
 					}),
 				);
 			},
+			VerificationError::INVALIDOWNERSIG(_) => todo!(),
+			VerificationError::SIGNERVERIFICATIONFAILED => todo!(),
+			VerificationError::OWNERVERIFICATIONFAILED => todo!(),
+			VerificationError::INVALIDSIGNER => todo!(),
+			VerificationError::EXPIREDSIGNER => todo!(),
+			VerificationError::EXPIREDSECRET => todo!(),
 		},
 	}
 }
@@ -466,12 +454,20 @@ pub async fn nft_store_secret_shares(
 /* **********************
 	 RETRIEVE SECRET
 ********************** */
+#[derive(Serialize)]
+pub struct SecretRetrieveResponse {
+	status: ReturnStatus,
+	nft_id: u32,
+	enclave_id: String,
+	secret_data: String,
+	description: String,
+}
 
 pub async fn nft_retrieve_secret_shares(
 	State(state): State<StateConfig>,
 	Json(requested_secret): Json<SecretPacket>,
 ) -> impl IntoResponse {
-	let verified_req = requested_secret.verify_receive_data().await;
+	let verified_req = requested_secret.verify_request().await;
 
 	match verified_req {
 		Ok(data) => {
@@ -519,7 +515,7 @@ pub async fn nft_retrieve_secret_shares(
 			match file.read_to_end(&mut nft_secret_share) {
 				Ok(_) => info!(
 					"Secret shares of {} retrieved by {}",
-					data.nft_id, requested_secret.account_address
+					data.nft_id, requested_secret.owner_address
 				),
 
 				Err(err) => {
@@ -550,7 +546,7 @@ pub async fn nft_retrieve_secret_shares(
 			log_file.seek(std::io::SeekFrom::End(0)).unwrap();
 
 			let time: chrono::DateTime<chrono::offset::Utc> = std::time::SystemTime::now().into();
-			let log_data = requested_secret.account_address.to_string()
+			let log_data = requested_secret.owner_address.to_string()
 				+ " Viewed the secret on "
 				+ time.format("%Y-%m-%d %H:%M:%S").to_string().as_str()
 				+ "\n";
@@ -564,35 +560,50 @@ pub async fn nft_retrieve_secret_shares(
 					nft_id: data.nft_id,
 					enclave_id: state.identity,
 					description: "Success retrieving nft_id secret share.".to_string(),
-					secret_data: SecretData { nft_id: data.nft_id, data: nft_secret_share }
-						.serialize(),
+					secret_data: SecretData {
+						nft_id: data.nft_id,
+						data: nft_secret_share,
+						auth_token: AuthenticationToken {
+							block_number: get_current_block_number().await,
+							block_validation: 100,
+						},
+					}
+					.serialize(),
 				}),
 			);
 		},
 
 		Err(err) => match err {
-			SecretError::InvalidSignature => {
+			VerificationError::INVALIDSIGNERSIG(e) => {
 				info!(
 					"Error retrieving secrets from TEE : Invalid Signature, owner : {}",
-					requested_secret.account_address
+					requested_secret.owner_address
 				);
 
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
-						status: ReturnStatus::INVALIDSIGNATURE,
+						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
 						nft_id: 0,
 						enclave_id: state.identity,
 						description: "Error Invalid Signature or NFT owner".to_string(),
-						secret_data: SecretData { nft_id: 0, data: Vec::new() }.serialize(),
+						secret_data: SecretData {
+							nft_id: 0,
+							data: Vec::new(),
+							auth_token: AuthenticationToken {
+								block_number: get_current_block_number().await,
+								block_validation: 100,
+							},
+						}
+						.serialize(),
 					}),
 				);
 			},
 
-			SecretError::InvalidOwner => {
+			VerificationError::INVALIDOWNER => {
 				info!(
 					"Error retrieving secrets from TEE : Invalid Owner, owner : {}",
-					requested_secret.account_address
+					requested_secret.owner_address
 				);
 				return (
 					StatusCode::OK,
@@ -601,199 +612,133 @@ pub async fn nft_retrieve_secret_shares(
 						nft_id: 0,
 						enclave_id: state.identity,
 						description: "Error Invalid NFT owner".to_string(),
-						secret_data: SecretData { nft_id: 0, data: Vec::new() }.serialize(),
+						secret_data: SecretData {
+							nft_id: 0,
+							data: Vec::new(),
+							auth_token: AuthenticationToken {
+								block_number: get_current_block_number().await,
+								block_validation: 100,
+							},
+						}
+						.serialize(),
 					}),
 				);
 			},
+			VerificationError::INVALIDOWNERSIG(_) => todo!(),
+			VerificationError::SIGNERVERIFICATIONFAILED => todo!(),
+			VerificationError::OWNERVERIFICATIONFAILED => todo!(),
+			VerificationError::INVALIDSIGNER => todo!(),
+			VerificationError::EXPIREDSIGNER => todo!(),
+			VerificationError::EXPIREDSECRET => todo!(),
 		},
 	}
 }
 
 /* **********************
-		 TEST
+	 REMOVE SECRET
 ********************** */
+#[derive(Serialize)]
+pub struct SecretRemoveResponse {
+	status: ReturnStatus,
+	nft_id: u32,
+	enclave_id: String,
+	description: String,
+}
 
-#[cfg(test)]
-mod test {
-	use super::*;
-	use sp_keyring::AccountKeyring;
+pub async fn nft_remove_secret_shares(
+	State(state): State<StateConfig>,
+	Json(remove_secret): Json<SecretPacket>,
+) -> impl IntoResponse {
+	let verified_req = remove_secret.verify_request().await;
+	match verified_req {
+		Ok(secret) => {
+			// Check if NFT/CAPSULE is burnt
+			let status = get_onchain_status(secret.nft_id).await;
+			if status.is_burnt {
+				if std::path::Path::new(&state.clone().seal_path).exists() {
+					info!("Seal path checked, path: {}", state.seal_path.clone());
+				} else {
+					error!("Error removing secrets to TEE : seal path does not exist, nft_id : {}, path : {}", secret.nft_id, state.seal_path);
 
-	/* TODO: This test can not pass in workflow action, without verified account and nft_id
-	#[tokio::test]
-	async fn get_nft_owner_test() {
-		let address = AccountId32::from(
-			sr25519::Public::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6")
-				.unwrap(),
-		);
-		let nft_id = 10;
-		let owner = match get_nft_owner(nft_id).await {
-			NFTOwner::Owner(addr) => addr,
-			NFTOwner::NotFound => panic!("Test erros, nft_id is not available, check your chain."),
-		};
-		let other = match get_nft_owner(nft_id + 100).await {
-			NFTOwner::Owner(addr) => addr,
-			NFTOwner::NotFound => panic!("Test erros, nft_id is not available, check your chain."),
-		};
-		let unknown = get_nft_owner(10_000).await;
+					return (
+						StatusCode::OK,
+						Json(SecretRemoveResponse {
+							status: ReturnStatus::DATABASEFAILURE,
+							nft_id: secret.nft_id,
+							enclave_id: state.identity,
+							description:
+								"Error storing secrets to TEE, use another enclave please."
+									.to_string(),
+						}),
+					);
+				};
 
-		assert_eq!(owner, address); // Same NFT match Owner
-		assert_ne!(other, address); // Different NFTs, (probably) diffetent owners
-		assert_ne!(owner, AccountKeyring::Alice.to_raw_public().into()); // Unauthorized random owner
-		assert_eq!(unknown, NFTOwner::NotFound); // Unavailable NFT
-	}
-	*/
-	#[tokio::test]
-	async fn parse_secret_from_sdk_test() {
-		let secret_packet_sdk: SecretPacket = SecretPacket {
-			account_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
-			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
-			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
-		};
+				let file_path =
+					state.seal_path.clone() + "nft_" + &secret.nft_id.to_string() + ".secret";
+				let exist = std::path::Path::new(file_path.as_str()).exists();
 
-		// Signed in SDK
-		let secret_data = secret_packet_sdk.parse_secret();
+				if !exist {
+					warn!(
+						"Error storing secrets to TEE : nft_id does not exist, nft_id = {}",
+						secret.nft_id
+					);
 
-		assert_eq!(secret_data.nft_id, 10);
-		assert_eq!(secret_data.data, b"CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU");
-	}
+					return (
+						StatusCode::OK,
+						Json(SecretRemoveResponse {
+							status: ReturnStatus::DATABASEFAILURE,
+							nft_id: secret.nft_id,
+							enclave_id: state.identity,
+							description: "Error removing secrets from TEE : nft_id does not exist"
+								.to_string(),
+						}),
+					);
+				}
 
-	#[tokio::test]
-	async fn parse_secret_from_polkadotjs_test() {
-		let secret_packet_polkadotjs:SecretPacket = SecretPacket {
-			account_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
-			secret_data: "<Bytes>247_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU</Bytes>".to_string(), 
-			signature: "xxx".to_string(),
-		};
-		// Signed in Polkadot.JS
-		let secret_data = secret_packet_polkadotjs.parse_secret();
+				let mut f = match std::fs::remove_file(file_path.clone()) {
+					Ok(file) => {
+						return (
+							StatusCode::OK,
+							Json(SecretRemoveResponse {
+								status: ReturnStatus::SECRETREMOVED,
+								nft_id: secret.nft_id,
+								enclave_id: state.identity,
+								description: "Secret ia successfully removed from enclave."
+									.to_string(),
+							}),
+						)
+					},
 
-		assert_eq!(secret_data.nft_id, 247);
-		assert_eq!(secret_data.data, b"CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU");
-	}
+					Err(err) => {
+						error!("Error removing secrets from TEE : error in removing file on disk, nft_id : {}, path : {}, Error : {}", secret.nft_id, file_path, err);
 
-	#[tokio::test]
-	async fn get_public_key_test() {
-		let secret_packet_sdk: SecretPacket = SecretPacket {
-			account_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
-				"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
-			)
-			.unwrap(),
-			secret_data: "xxx".to_string(),
-			signature: "xxx".to_string(),
-		};
+						return (
+							StatusCode::OK,
+							Json(SecretRemoveResponse {
+								status: ReturnStatus::DATABASEFAILURE,
+								nft_id: secret.nft_id,
+								enclave_id: state.identity,
+								description:
+									"Error removing secrets from TEE, try again or contact cluster admin please."
+										.to_string(),
+							}),
+						);
+					},
+				};
+			} else {
+				return (
+					StatusCode::OK,
+					Json(SecretRemoveResponse {
+						status: ReturnStatus::NFTNOTBURNT,
+						nft_id: secret.nft_id,
+						enclave_id: state.identity,
+						description: "Error removing secrets from TEE, NFT is not in burnt state."
+							.to_string(),
+					}),
+				);
+			}
+		},
 
-		let pk = secret_packet_sdk.get_public_key().unwrap();
-
-		assert_eq!(
-			pk.as_slice(),
-			<[u8; 32]>::from_hex(
-				"1a40e806c28a32dbac60f2b088c77a9ac3d3702011ac0e13579402ddcc214308"
-			)
-			.unwrap()
-		);
-	}
-
-	#[tokio::test]
-	async fn parse_signature_test() {
-		let correct_sig = sr25519::Signature::from_raw(<[u8;64]>::from_hex("42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b").unwrap());
-
-		let mut secret_packet_sdk: SecretPacket = SecretPacket {
-			account_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
-			secret_data: "xxx".to_string(), 
-			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
-		};
-
-		let sig = secret_packet_sdk.parse_signature().unwrap();
-		assert_eq!(sig, correct_sig);
-
-		// 0x prefix
-		secret_packet_sdk.signature = "42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
-		let sig = secret_packet_sdk.parse_signature().unwrap_err();
-		assert_eq!(sig, SignatureError::PREFIXERROR);
-
-		// Length
-		secret_packet_sdk.signature = "0x2bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
-		let sig = secret_packet_sdk.parse_signature().unwrap_err();
-		assert_eq!(sig, SignatureError::LENGHTERROR);
-	}
-
-	#[tokio::test]
-	async fn verify_signature_test() {
-		let mut secret_packet = SecretPacket {
-			account_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
-			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
-			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
-		};
-
-		assert_eq!(secret_packet.verify_signature(), true);
-
-		// changed secret
-		secret_packet.secret_data = "10_DAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string();
-		assert_eq!(secret_packet.verify_signature(), false);
-
-		// changed owner
-		secret_packet.account_address =
-			sr25519::Public::from_slice(&AccountKeyring::Alice.to_raw_public()).unwrap();
-		secret_packet.secret_data = "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string();
-		assert_eq!(secret_packet.verify_signature(), false);
-
-		// changed signature
-		secret_packet.account_address =
-			<sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
-				"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
-			)
-			.unwrap();
-		secret_packet.signature = "0x32bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
-		assert_eq!(secret_packet.verify_signature(), false);
-	}
-
-	#[tokio::test]
-	async fn full_verify_received_data_test() {
-		let secret_packet = SecretPacket {
-			account_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
-			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
-			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
-		};
-
-		let key_pair1 = sr25519::Pair::from_string_with_seed(
-			"broccoli tornado verb crane mandate wise gap shop mad quarter jar snake",
-			None,
-		)
-		.unwrap()
-		.0;
-
-		let _key_pair2 = AccountKeyring::Dave.pair();
-
-		let _public1 = key_pair1.clone().public();
-		let public2 = sr25519::Public::from_raw(AccountKeyring::Dave.to_raw_public());
-
-		let message1 = secret_packet.secret_data.as_bytes();
-		let message2 = b"<Bytes>247_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU</Bytes>";
-
-		let sig1_bytes =
-			<[u8; 64]>::from_hex(secret_packet.signature.clone().strip_prefix("0x").unwrap())
-				.unwrap();
-		let signature1 = sr25519::Signature::from_raw(sig1_bytes);
-		let sig2_bytes = <[u8; 64]>::from_hex("0x1ae93ac6f0ee8b0edec9d221371f46ce93e68fdfa9e5d68428fd1c93dc46560c1b4caba9edae2a6a299b5c7e3dfa53bb2f852848b48eae18d359c014fa188487".strip_prefix("0x").unwrap()).unwrap();
-		let signature2 = sr25519::Signature::from_raw(sig2_bytes); //key_pair2.sign(message2);
-
-		let vr1 = sr25519::Pair::verify(
-			&signature1,
-			message1,
-			&sr25519::Public::from_slice(&secret_packet.account_address.as_slice()).unwrap(), /* public1 */
-		);
-		let vr2 = sr25519::Pair::verify(&signature2, message2, &public2);
-
-		info!("res1 : {}\nres2 : {}", vr1, vr2);
-
-		match secret_packet.verify_receive_data().await {
-			Ok(_) => info!("Secret is Valid!"),
-
-			Err(err) => match err {
-				SecretError::InvalidSignature => info!("Signature Error!"),
-
-				SecretError::InvalidOwner => info!("Invalid Owner!"),
-			},
-		}
+		Err(_) => todo!(),
 	}
 }
