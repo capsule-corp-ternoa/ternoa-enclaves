@@ -91,17 +91,17 @@ pub async fn http_server(
 		.layer(cors)
 		// STATE API
 		.route("/health", get(get_health_status))
-		.route("/api/getNFTViews/:nft_id", get(nft_get_views_handler))
-		.route("/api/getCapsuleViews/:capsule_id", get(capsule_get_views_handler))
 		// CENTRALIZED BACKUP API
 		.route("/api/backup/fetchEnclaveSecrets", post(backup_fetch_secrets))
 		.route("/api/backup/pushEnclaveSecrets", post(backup_push_secrets))
 		// NFT SECRET SHARING API
+		.route("/api/nft/getViewsLog/:nft_id", get(nft_get_views_handler))
 		.route("/api/nft/isSecretAvailable/:nft_id", get(is_nft_available))
 		.route("/api/nft/storeSecretShares", post(nft_store_secret_shares))
 		.route("/api/nft/retrieveSecretShares", post(nft_retrieve_secret_shares))
 		.route("/api/nft/removeSecretShares", post(nft_remove_secret_shares))
 		// CAPSULE SECRET SHARING API
+		.route("/api/capsule/getViewsLog/:capsule_id", get(capsule_get_views_handler))
 		.route("/api/capsule/isSecretAvailable/:nft_id", get(is_capsule_available))
 		.route("/api/capsule/setSecretShares", post(capsule_set_secret_shares))
 		.route("/api/capsule/retrieveSecretShares", post(capsule_retrieve_secret_shares))
