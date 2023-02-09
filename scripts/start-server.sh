@@ -7,6 +7,7 @@ SEAL_PATH=$GRAMINE_PATH/nft
 CERT_PATH=$BASEDIR/credentials/certificates
 ACCOUNTS_PATH=$BASEDIR/credentials/accounts/
 QUOTE_PATH=$BASEDIR/credentials/quote
+CREDENTIALS_PATH=$BASEDIR/credentials/
 
 # DEFAULT VALUES
 PORT=${PORT:-8101}
@@ -14,8 +15,8 @@ MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
 HTTPS_PUBLIC_KEY=${HTTPS_PUBLIC_KEY:-$CERT_PATH/server_cert.pem}
 HTTPS_PRIVATE_KEY=${HTTPS_PRIVATE_KEY:-$CERT_PATH/server_key.pem}
 NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
-TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} # PASSWORD = Test123456
-TERNOA_ACCOUNT_KEY=
+#TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} # PASSWORD = Test123456
+#TERNOA_ACCOUNT_KEY=
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
 
 # VALID CERTIFICATES
@@ -109,6 +110,8 @@ while :; do
 	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
 	    
 	    cosign sign-blob --key $BASEDIR/credentials/keys/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
+		tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
+		mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
 	;;
 	-h|--help)
 	    echo "usage: start-server.h --port <port-number> --cert <TLS Cert Path> --key <TLS Private Key Path> --secrets <Seal Path> --account <Ternoa Account Json File> --identity <Arbitraty Enclave Name> [-b|--build]"
@@ -131,11 +134,11 @@ BIWhite='\033[1;97m'      # White
 
 # Import Keypair from account
 echo -e "\n\n${BIWhite}Importing the account${NC}"
-TERNOA_ACCOUNT_KEY="$(python $SCRIPTS_PATH/import_account.py $TERNOA_ACCOUNT_PATH)"
-if [ -z "$TERNOA_ACCOUNT_KEY" ]; then
-    echo -e "${IRed}Can not decode account file${NC}"
-    exit
-fi
+#TERNOA_ACCOUNT_KEY="$(python $SCRIPTS_PATH/import_account.py $TERNOA_ACCOUNT_PATH)"
+#if [ -z "$TERNOA_ACCOUNT_KEY" ]; then
+#    echo -e "${IRed}Can not decode account file${NC}"
+#    exit
+#fi
 
 echo -e "\nport:\t\t ${IGreen}$PORT${NC}"
 echo -e "domain name:\t ${IGreen}$DOMAIN${NC}"
@@ -143,11 +146,11 @@ echo -e "public key:\t ${IGreen}$HTTPS_PUBLIC_KEY${NC}"
 echo -e "private key:\t ${IGreen}$HTTPS_PRIVATE_KEY${NC}"
 echo -e "nft secrets:\t ${IGreen}$NFT_SERCRETS_PATH${NC}"
 echo -e "account key:\t ${IGreen}$TERNOA_ACCOUNT_PATH${NC}"
-echo -e "encalve name:\t ${IGreen}$ENCLAVE_IDENTITY${NC}"
+echo -e "enclave name:\t ${IGreen}$ENCLAVE_IDENTITY${NC}"
 
 # Create Enclave using Makefile
 cd $GRAMINE_PATH
-echo -n -e "\n${BIWhite}Creating Encalve "
+echo -n -e "\n${BIWhite}Creating Enclave ${NC}"
 make 	SGX=1 \
 	SGX_PORT=$PORT \
 	SGX_BASE_PATH=$BASEDIR \
@@ -155,8 +158,8 @@ make 	SGX=1 \
 	SGX_TLS_KEY=$HTTPS_PRIVATE_KEY \
 	SGX_SEAL_PATH=$NFT_SERCRETS_PATH \
 	SGX_QUOTE_PATH=$QUOTE_PATH \
+	SGX_CREDENTIALS_PATH=$CREDENTIALS_PATH \
 	SGX_CERT_PATH=$CERT_PATH \
-	SGX_OWNER_KEY=$TERNOA_ACCOUNT_KEY \
 	SGX_IDENTITY=$ENCLAVE_IDENTITY \
 	start-gramine-server >> $GRAMINE_PATH/make.log 2>&1 &
 
@@ -175,7 +178,7 @@ done
 echo -e "\n${NC}View ${IBlue}gramine/make.log${NC} for enclave details."
 
 COUNTER=0
-echo -n -e "\n${BIWhite}Initializing Encalve "
+echo -n -e "\n${BIWhite}Initializing Enclave "
 while ! (test -f "$GRAMINE_PATH/enclave.log") || ! (grep -q "Port $PORT" "$GRAMINE_PATH/enclave.log"); do
     echo -n "."
     sleep 1

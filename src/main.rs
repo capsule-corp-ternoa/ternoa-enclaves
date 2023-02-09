@@ -16,10 +16,6 @@ struct Args {
 	#[arg(short, long)]
 	port: u16,
 
-	/// Path to the file, containing private key for Ternoa account of enclave owner
-	#[arg(short, long, default_value_t = String::from("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6"))]
-	account: String,
-
 	/// Path to the file, containing certificate for TLS connection
 	#[arg(short, long, default_value_t = String::from("/credentials/certificates/server_cert.pem"))]
 	certfile: String,
@@ -49,7 +45,6 @@ async fn main() {
 	http_server::http_server(
 		&args.port,
 		&args.identity,
-		&args.account,
 		&args.certfile,
 		&args.keyfile,
 		&args.sealpath,
