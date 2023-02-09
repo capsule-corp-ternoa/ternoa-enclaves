@@ -21,11 +21,11 @@ struct Args {
 	account: String,
 
 	/// Path to the file, containing certificate for TLS connection
-	#[arg(short, long, default_value_t = String::from("/opt/sgx_server/cert.pem"))]
+	#[arg(short, long, default_value_t = String::from("/credentials/certificates/server_cert.pem"))]
 	certfile: String,
 
 	/// Path to the file, containing private-key for TLS connection
-	#[arg(short, long, default_value_t = String::from("/opt/sgx_server/key.pem"))]
+	#[arg(short, long, default_value_t = String::from("/credentials/certificates/server_key.pem"))]
 	keyfile: String,
 
 	/// Path to the location for storing sealed NFT secret shares
