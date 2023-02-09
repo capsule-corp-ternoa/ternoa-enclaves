@@ -10,3 +10,4 @@ gramine-sgx-ias-request report \
 			--cert-path $QUOTEPATH/ias.cert \
 			-v > $QUOTEPATH/report.log 2>&1 &
 
+cat $QUOTEPATH/ias.report | jq . > $QUOTEPATH/ias-report.json
