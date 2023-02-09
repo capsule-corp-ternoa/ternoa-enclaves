@@ -1,6 +1,6 @@
 use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use std::fmt;
 use subxt::{

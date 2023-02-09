@@ -19,11 +19,11 @@ TERNOA_ACCOUNT_KEY=
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
 
 # VALID CERTIFICATES
-VALIDCERT_PATH=/etc/letsencrypt/live/
+VALIDCERT_PATH=/etc/letsencrypt/live
 if [ -d "$VALIDCERT_PATH" ]; then
-    CERTBASE=/etc/letsencrypt/live/
+    CERTBASE=/etc/letsencrypt/live
     DOMAIN=$(ls $CERTBASE | grep ternoa)
-    CERT_PATH=$CERTBASE/$DOMAIN/
+    CERT_PATH=$CERTBASE/$DOMAIN
     HTTPS_PUBLIC_KEY=$CERT_PATH/cert.pem
     HTTPS_PRIVATE_KEY=$CERT_PATH/privkey.pem
 else
