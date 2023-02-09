@@ -54,10 +54,9 @@ sgx.trusted_files = [
   "file:/etc/passwd",
   "file:/etc/gai.conf",
   "file:/etc/ssl/certs/ca-certificates.crt",
-
   "file:/etc/letsencrypt/",
   "file:../credentials/artifacts/",
-
+  "file:../credentials/certificates/",
   "file:bin/checksum",
   "file:bin/sgx_server.sig",
 ]
