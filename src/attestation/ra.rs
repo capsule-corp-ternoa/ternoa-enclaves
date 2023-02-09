@@ -5,7 +5,7 @@ use std::{
 
 use tracing::info;
 
-pub fn generate_quote() -> Vec<u8> {
+pub fn _generate_quote() -> Vec<u8> {
 	if !std::path::Path::new("/dev/attestation/user_report_data").exists() {
 		info!("This is NOT inside an Enclave!");
 		return "This is NOT inside an Enclave!".as_bytes().to_vec();
