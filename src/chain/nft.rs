@@ -391,6 +391,21 @@ pub async fn nft_store_secret_shares(
 					}),
 				);
 			},
+    		
+			VerificationError::IDISNOTASECRET => {
+				warn!("Error storing secrets to TEE : nft_id is not a secret.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretStoreResponse {
+						status: ReturnStatus::IDISNOTASECRET,
+						nft_id: received_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description: "Error storing secrets to TEE : nft_id is not a secret."
+							.to_string(),
+					}),
+				);
+			},
 		},
 	}
 }
@@ -652,6 +667,23 @@ pub async fn nft_retrieve_secret_shares(
 					}),
 				);
 			},
+    		
+			VerificationError::IDISNOTASECRET => {
+				warn!("Error retrieving secrets from TEE : nft_id is not a secret.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretRetrieveResponse {
+						status: ReturnStatus::IDISNOTASECRET,
+						nft_id: requested_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description:
+							"Error retrieving secrets from TEE : nft_id is not a secret."
+								.to_string(),
+						secret_data: "_".to_string(),
+					}),
+				);
+			},
 		},
 	}
 }
@@ -671,7 +703,7 @@ pub async fn nft_remove_secret_shares(
 	State(state): State<StateConfig>,
 	Json(remove_secret): Json<SecretPacket>,
 ) -> impl IntoResponse {
-	let verified_req = remove_secret.verify_request().await;
+	let verified_req = remove_secret.verify_remove_request().await;
 	match verified_req {
 		Ok(secret) => {
 			// Check if NFT/CAPSULE is burnt
