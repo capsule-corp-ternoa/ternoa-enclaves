@@ -53,17 +53,17 @@ subxt codegen --url wss://alphanet.ternoa.com:443 > ternoa_alphanet.code
 If you are on a SGX machine :
 
 ```shell
-./start-server.sh
+scripts/start-server.sh -b -p 8101 -i DEV0-C1N1EI
 ```
 otherwise you need to run in simulation mode : 
 ```shell
 make start-gramine-server
 ```
-default port is 3000 .
+default port is 8100 .
 
 To stop the Enclave properly :
 ```shell
-./stop-server.sh
+scripts/stop-server.sh -p 8101
 ```
 ## Quote and Report
 If enclave starts successfully, the quote data, IAS reports and log information will be available on [quote](./quote/) folder.
