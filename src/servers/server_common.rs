@@ -12,7 +12,9 @@ pub async fn serve(app: Router, port: &u16, certfile: &str, keyfile: &str) {
 
 	let config = match RustlsConfig::from_pem_file(certfile, keyfile).await {
 		Ok(conf) => conf,
-		Err(e) => panic!("Error in server config : {}", e),
+		Err(e) => {
+			panic!("Error in server config : {}, path1 = {}, path2 = {}", e, certfile, keyfile)
+		},
 	};
 
 	info!("Server is listening {} on Port {}'\n", socket_addr.ip(), socket_addr.port());
