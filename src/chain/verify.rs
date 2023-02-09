@@ -1,16 +1,8 @@
-use crate::servers::http_server::StateConfig;
-
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use hex::FromHex;
-use std::fs::OpenOptions;
-use std::io::{Read, Seek, Write};
 use std::str::FromStr;
-use tracing::{error, info, warn};
 
 use sp_core::{sr25519, ByteArray, Pair};
 use subxt::utils::AccountId32;
-
-use axum::extract::Path as PathExtract;
 
 use serde::{Deserialize, Serialize};
 
@@ -27,18 +19,16 @@ pub enum SecretError {
 	InvalidSigner,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, PartialEq)]
 pub enum ReturnStatus {
 	STORESUCCESS,
 	RETRIEVESUCCESS,
-	SECRETCHANGED,
-	SECRETREMOVED,
+	REMOVESUCCESS,
 
 	INVALIDSIGNERSIGNATURE,
 	INVALIDOWNERSIGNATURE,
 
 	INVALIDOWNER,
-	INVALIDSIGNER,
 
 	EXPIREDSIGNER,
 	EXPIREDREQUEST,
@@ -46,7 +36,6 @@ pub enum ReturnStatus {
 	NFTIDEXISTS,
 	NFTIDNOTEXIST,
 
-	CAPSULEIDEXISTS,
 	CAPSULEIDNOTEXIST,
 
 	DATABASEFAILURE,
@@ -59,7 +48,6 @@ pub enum ReturnStatus {
 	CAPSULESECRETNOTREADABLE,
 
 	NFTNOTBURNT,
-	NFTNOTSYNCING,
 
 	CAPSULENOTBURNT,
 	CAPSULENOTSYNCING,
@@ -83,21 +71,21 @@ pub enum VerificationError {
 	OWNERVERIFICATIONFAILED,
 
 	INVALIDOWNER,
-	INVALIDSIGNER,
+	INVALIDSIGNERACCOUNT,
 
 	EXPIREDSIGNER,
 	EXPIREDSECRET,
 }
 
 // Validity time of Secret Data
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AuthenticationToken {
 	pub block_number: u32,
 	pub block_validation: u32,
 }
 
 // Secret Data structure
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SecretData {
 	pub nft_id: u32,
 	pub data: Vec<u8>,
@@ -125,18 +113,18 @@ pub struct SecretPacket {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum CapsuleOwner {
+pub enum SecretOwner {
 	Owner(AccountId32),
 	NotFound,
 }
 
 // Fetch onchain owenrship of nft/capsule id
-pub async fn get_onchain_owner(nft_id: u32) -> CapsuleOwner {
+pub async fn get_onchain_owner(nft_id: u32) -> SecretOwner {
 	let data = get_onchain_data(nft_id).await;
 
 	let owner = match data {
-		Some(capsule_data) => CapsuleOwner::Owner(capsule_data.owner),
-		None => CapsuleOwner::NotFound,
+		Some(capsule_data) => SecretOwner::Owner(capsule_data.owner),
+		None => SecretOwner::NotFound,
 	};
 
 	owner
@@ -240,7 +228,8 @@ SECRET-PACKET IMPLEMENTATION
 ----------------------------------*/
 
 impl SecretPacket {
-	pub fn parse_signer(&self) -> Signer {
+	// Signer string to public key
+	pub fn get_signer(&self) -> Result<Signer, ()> {
 		let mut signer = self.signer_address.clone();
 		if signer.starts_with("<Bytes>") && signer.ends_with("</Bytes>") {
 			signer = signer
@@ -251,13 +240,16 @@ impl SecretPacket {
 				.to_string();
 		}
 
-		let parsed_signer: Vec<&str> =
-			if signer.contains("_") { signer.split("_").collect() } else { vec![&signer] };
+		let parsed_data: Vec<&str> = if signer.contains("_") {
+			signer.split("_").collect()
+		} else {
+			return Err(());
+		};
 
-		Signer {
-			account: sr25519::Public::from_str(parsed_signer[0]).unwrap(),
-			block_validation: parsed_signer[1].parse::<u32>().unwrap(),
-		}
+		Ok(Signer {
+			account: sr25519::Public::from_str(parsed_data[0]).unwrap(),
+			block_validation: parsed_data[1].parse::<u32>().unwrap(),
+		})
 	}
 
 	// TODO: use json canonicalization of JOSE/JWT decoder
@@ -299,19 +291,6 @@ impl SecretPacket {
 		sr25519::Public::from_slice(self.owner_address.clone().as_slice())
 	}
 
-	// Signer string to public key
-	pub fn get_signer(&self) -> Result<Signer, ()> {
-		let parsed_data: Vec<&str> = if self.signer_address.contains("_") {
-			self.signer_address.split("_").collect()
-		} else {
-			return Err(());
-		};
-		Ok(Signer {
-			account: sr25519::Public::from_str(parsed_data[0]).unwrap(),
-			block_validation: parsed_data[1].parse::<u32>().unwrap(),
-		})
-	}
-
 	// Extract signatures from hex
 	pub fn parse_signature(&self, account: &str) -> Result<sr25519::Signature, SignatureError> {
 		let sig = match account {
@@ -337,30 +316,25 @@ impl SecretPacket {
 	pub async fn verify_signer(&self) -> Result<bool, VerificationError> {
 		let signer = match self.get_signer() {
 			Ok(pk) => pk,
-			Err(e) => return Err(VerificationError::INVALIDSIGNER),
+			Err(_) => return Err(VerificationError::INVALIDSIGNERACCOUNT),
 		};
+
+		if !signer.is_valid().await {
+			return Err(VerificationError::EXPIREDSIGNER);
+		}
 
 		let signersig = match self.parse_signature("signer") {
 			Ok(sig) => sig,
 			Err(e) => return Err(VerificationError::INVALIDSIGNERSIG(e)),
 		};
 
-		if signer.is_valid().await {
-			let owner = self.get_owner().unwrap();
-			let result = sr25519::Pair::verify(&signersig, self.signer_address.clone(), &owner);
-			Ok(result)
-		} else {
-			Err(VerificationError::EXPIREDSIGNER)
-		}
+		let result =
+			sr25519::Pair::verify(&signersig, self.signer_address.clone(), &self.owner_address);
+		Ok(result)
 	}
 
 	// Verify secret data
 	pub async fn verify_secret(&self) -> Result<bool, VerificationError> {
-		let owner = match self.get_owner() {
-			Ok(pk) => pk,
-			Err(e) => return Err(VerificationError::INVALIDOWNER),
-		};
-
 		let signer = self.get_signer().unwrap();
 
 		let packetsig = match self.parse_signature("owner") {
@@ -371,21 +345,21 @@ impl SecretPacket {
 		};
 
 		let secret = self.parse_secret();
-		if secret.is_valid().await {
-			let result =
-				sr25519::Pair::verify(&packetsig, self.secret_data.clone(), &signer.account);
-			Ok(result)
-		} else {
-			Err(VerificationError::EXPIREDSECRET)
+		if !secret.is_valid().await {
+			return Err(VerificationError::EXPIREDSECRET);
 		}
+
+		let result = sr25519::Pair::verify(&packetsig, self.secret_data.clone(), &signer.account);
+
+		Ok(result)
 	}
 
 	// Check nft/capsule owner
 	pub async fn check_capsule_ownership(&self) -> bool {
 		let capsule_owner = get_onchain_owner(self.parse_secret().nft_id).await;
 		match capsule_owner {
-			CapsuleOwner::Owner(owner) => owner == self.owner_address.into(),
-			CapsuleOwner::NotFound => false,
+			SecretOwner::Owner(owner) => owner == self.owner_address.into(),
+			SecretOwner::NotFound => false,
 		}
 	}
 
@@ -416,6 +390,7 @@ impl SecretPacket {
 mod test {
 	use super::*;
 	use sp_keyring::AccountKeyring;
+	use tracing::info;
 
 	/* TODO: This test can not pass in workflow action, without verified account and nft_id
 	#[tokio::test]
@@ -426,52 +401,60 @@ mod test {
 		);
 		let nft_id = 10;
 		let owner = match get_capsule_owner(nft_id).await {
-			CapsuleOwner::Owner(addr) => addr,
-			CapsuleOwner::NotFound => panic!("Test erros, nft_id is not available, check your chain."),
+			SecretOwner::Owner(addr) => addr,
+			SecretOwner::NotFound => panic!("Test erros, nft_id is not available, check your chain."),
 		};
 		let other = match get_capsule_owner(nft_id + 100).await {
-			CapsuleOwner::Owner(addr) => addr,
-			CapsuleOwner::NotFound => panic!("Test erros, nft_id is not available, check your chain."),
+			SecretOwner::Owner(addr) => addr,
+			SecretOwner::NotFound => panic!("Test erros, nft_id is not available, check your chain."),
 		};
 		let unknown = get_capsule_owner(10_000).await;
 
 		assert_eq!(owner, address); // Same Capsule match Owner
 		assert_ne!(other, address); // Different Capsules, (probably) diffetent owners
 		assert_ne!(owner, AccountKeyring::Alice.to_raw_public().into()); // Unauthorized random owner
-		assert_eq!(unknown, CapsuleOwner::NotFound); // Unavailable Capsule
+		assert_eq!(unknown, SecretOwner::NotFound); // Unavailable Capsule
 	}
 	*/
+
+	/* ----------------------
+		 PARSING
+	---------------------- */
 	#[tokio::test]
 	async fn parse_secret_from_sdk_test() {
 		let secret_packet_sdk: SecretPacket = SecretPacket {
-			owner_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
-			signer_address: sr25519::Public::from_slice(&[1u8;32]).unwrap().to_string(),
-			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
-			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
+			owner_address: sr25519::Public::from_slice(&[0u8; 32]).unwrap(),
+			signer_address: sr25519::Public::from_slice(&[1u8; 32]).unwrap().to_string(),
+			secret_data: "163_1234567890abcdef_1000_10000".to_string(),
+			signature: "xxx".to_string(),
 			signersig: "xxx".to_string(),
 		};
 
 		// Signed in SDK
 		let secret_data = secret_packet_sdk.parse_secret();
 
-		assert_eq!(secret_data.nft_id, 10);
-		assert_eq!(secret_data.data, b"CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU");
+		assert_eq!(secret_data.nft_id, 163);
+		assert_eq!(secret_data.data, b"1234567890abcdef");
+		assert_eq!(secret_data.auth_token.block_number, 1000);
+		assert_eq!(secret_data.auth_token.block_validation, 10000);
 	}
 
 	#[tokio::test]
 	async fn parse_secret_from_polkadotjs_test() {
-		let secret_packet_polkadotjs:SecretPacket = SecretPacket {
-			owner_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
-			signer_address: sr25519::Public::from_slice(&[1u8;32]).unwrap().to_string(),
-			secret_data: "<Bytes>247_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU</Bytes>".to_string(), 
+		let secret_packet_polkadotjs: SecretPacket = SecretPacket {
+			owner_address: sr25519::Public::from_slice(&[0u8; 32]).unwrap(),
+			signer_address: sr25519::Public::from_slice(&[1u8; 32]).unwrap().to_string(),
+			secret_data: "<Bytes>163_1234567890abcdef_1000_10000</Bytes>".to_string(),
 			signature: "xxx".to_string(),
 			signersig: "xxx".to_string(),
 		};
 		// Signed in Polkadot.JS
 		let secret_data = secret_packet_polkadotjs.parse_secret();
 
-		assert_eq!(secret_data.nft_id, 247);
-		assert_eq!(secret_data.data, b"CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU");
+		assert_eq!(secret_data.nft_id, 163);
+		assert_eq!(secret_data.data, b"1234567890abcdef");
+		assert_eq!(secret_data.auth_token.block_number, 1000);
+		assert_eq!(secret_data.auth_token.block_validation, 10000);
 	}
 
 	#[tokio::test]
@@ -513,104 +496,119 @@ mod test {
 		let sig = secret_packet_sdk.parse_signature("owner").unwrap();
 		assert_eq!(sig, correct_sig);
 
-		// 0x prefix
+		// missing 0x prefix
 		secret_packet_sdk.signature = "42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
 		let sig = secret_packet_sdk.parse_signature("owner").unwrap_err();
 		assert_eq!(sig, SignatureError::PREFIXERROR);
 
-		// Length
+		// Incorrect Length
 		secret_packet_sdk.signature = "0x2bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
 		let sig = secret_packet_sdk.parse_signature("owner").unwrap_err();
 		assert_eq!(sig, SignatureError::LENGHTERROR);
 	}
 
+	/* ----------------------
+		 VERIFICATION
+	---------------------- */
+
 	#[tokio::test]
-	async fn verify_signature_test() {
+	async fn verify_secret_test() {
 		let mut secret_packet = SecretPacket {
-			owner_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
-			signer_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap().to_string(),
-			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
-			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
-			signersig: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
+			owner_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy").unwrap(),
+			signer_address: "<Bytes>5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy_200000</Bytes>".to_string(),
+			signersig: "0xc889f814d8811617cea97b23227b300fc900f3466f1587aa4e14e1aa3ffe3b2fead469644dad7e5cc89fb36c96bdc144ec5f4f1b5b9b96f545b10af1d3e8c282".to_string(),
+			secret_data: "<Bytes>163_1234567890abcdef_120000_100000</Bytes>".to_string(), 
+			signature: "0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16484".to_string(),
 		};
 
+		// correct
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), true);
 
-		// changed secret
-		secret_packet.secret_data = "10_DAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string();
+		// changed secret error
+		secret_packet.secret_data = "<Bytes>163_1234567890abcdee_120000_100000</Bytes>".to_string();
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), false);
 
-		// changed owner
-		secret_packet.owner_address =
-			sr25519::Public::from_slice(&AccountKeyring::Alice.to_raw_public()).unwrap();
-		secret_packet.secret_data = "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string();
+		// changed signer error
+		secret_packet.signer_address =
+			"<Bytes>5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY_200000</Bytes>".to_string();
+		secret_packet.secret_data = "<Bytes>163_1234567890abcdef_120000_100000</Bytes>".to_string();
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), false);
 
-		// changed signature
+		// changed signature error
 		secret_packet.owner_address =
 			<sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
-				"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
+				"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
 			)
 			.unwrap();
-		secret_packet.signature = "0x32bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string();
+		secret_packet.signature = "0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16485".to_string();
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), false);
+
+		// expired secret error
+		secret_packet.secret_data = "<Bytes>163_1234567890abcdee_120000_1000</Bytes>".to_string();
+		secret_packet.signature = "0x2879d6c3f63c108875219c67ce443c823c0a51b590da0aba4441c239f307354a8cbb983d9200bf67079b38c348b114d6a98d3b35cc8b4a20b4711e0e0a3e0582".to_string();
+		assert_eq!(
+			secret_packet.verify_secret().await.unwrap_err(),
+			VerificationError::EXPIREDSECRET
+		);
 	}
 
-	async fn full_verify_received_data_test() {
-		let secret_packet = SecretPacket {
-			owner_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap(),
-			signer_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6").unwrap().to_string(),
-			secret_data: "10_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU".to_string(), 
-			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
-			signersig: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
+	#[tokio::test]
+	async fn verify_request_test() {
+		let mut secret_packet = SecretPacket {
+			owner_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy").unwrap(),
+			signer_address: "<Bytes>5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy_200000</Bytes>".to_string(),
+			signersig: "0xa09ceb432262a7d148869475de27e1678caa796da754a4313ccce57a5e409c0ba7bd1f5b6d9babed2686632a0ba14673bfd5ae7df7026a1b7a766bfdf172a688".to_string(),
+			secret_data: "<Bytes>163_1234567890abcdef_120000_100000</Bytes>".to_string(), 
+			signature: "0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16484".to_string(),
 		};
 
-		let key_pair1 = sr25519::Pair::from_string_with_seed(
-			"broccoli tornado verb crane mandate wise gap shop mad quarter jar snake",
-			None,
-		)
-		.unwrap()
-		.0;
+		let correct_secret_data = SecretData {
+			nft_id: 163,
+			data: "1234567890abcdef".as_bytes().to_vec(),
+			auth_token: AuthenticationToken { block_number: 120000, block_validation: 100000 },
+		};
 
-		let _key_pair2 = AccountKeyring::Dave.pair();
+		// correct
+		assert_eq!(secret_packet.verify_request().await.unwrap(), correct_secret_data);
 
-		let _public1 = key_pair1.clone().public();
-		let public2 = sr25519::Public::from_raw(AccountKeyring::Dave.to_raw_public());
-
-		let message1 = secret_packet.secret_data.as_bytes();
-		let message2 = b"<Bytes>247_CAEAAAAAAAAAAQAhAHMAZQByAGEAaABzACAANQAgAGYAbwAgAGUAcgBhAGgAcwAgAGEAIABzAGkAIABzAGkAaABU</Bytes>";
-
-		let sig1_bytes =
-			<[u8; 64]>::from_hex(secret_packet.signature.clone().strip_prefix("0x").unwrap())
-				.unwrap();
-		let signature1 = sr25519::Signature::from_raw(sig1_bytes);
-		let sig2_bytes = <[u8; 64]>::from_hex("0x1ae93ac6f0ee8b0edec9d221371f46ce93e68fdfa9e5d68428fd1c93dc46560c1b4caba9edae2a6a299b5c7e3dfa53bb2f852848b48eae18d359c014fa188487".strip_prefix("0x").unwrap()).unwrap();
-		let signature2 = sr25519::Signature::from_raw(sig2_bytes); //key_pair2.sign(message2);
-
-		let vr1 = sr25519::Pair::verify(
-			&signature1,
-			message1,
-			&sr25519::Public::from_slice(&secret_packet.owner_address.as_slice()).unwrap(), /* public1 */
+		// changed owner error
+		secret_packet.owner_address =
+			<sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
+				"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+			)
+			.unwrap();
+		assert_eq!(
+			secret_packet.verify_request().await.unwrap_err(),
+			VerificationError::SIGNERVERIFICATIONFAILED
 		);
-		let vr2 = sr25519::Pair::verify(&signature2, message2, &public2);
 
-		info!("res1 : {}\nres2 : {}", vr1, vr2);
+		// changed signer error
+		secret_packet.owner_address =
+			<sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
+				"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
+			)
+			.unwrap();
+		secret_packet.signer_address =
+			"<Bytes>5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY_200000</Bytes>".to_string();
+		secret_packet.secret_data = "<Bytes>163_1234567890abcdef_120000_100000</Bytes>".to_string();
+		assert_eq!(
+			secret_packet.verify_request().await.unwrap_err(),
+			VerificationError::SIGNERVERIFICATIONFAILED
+		);
 
-		match secret_packet.verify_request().await {
-			Ok(_) => info!("Secret is Valid!"),
+		// changed signer signature error
+		secret_packet.signature = "0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16485".to_string();
+		assert_eq!(
+			secret_packet.verify_request().await.unwrap_err(),
+			VerificationError::SIGNERVERIFICATIONFAILED
+		);
 
-			Err(err) => match err {
-				VerificationError::INVALIDOWNERSIG(e) => info!("Signature Error!"),
-
-				VerificationError::INVALIDOWNER => info!("Invalid Owner!"),
-
-				VerificationError::INVALIDSIGNERSIG(_) => todo!(),
-				VerificationError::SIGNERVERIFICATIONFAILED => todo!(),
-				VerificationError::OWNERVERIFICATIONFAILED => todo!(),
-				VerificationError::INVALIDSIGNER => todo!(),
-				VerificationError::EXPIREDSIGNER => todo!(),
-				VerificationError::EXPIREDSECRET => todo!(),
-			},
-		}
+		// expired signer error
+		secret_packet.secret_data = "<Bytes>163_1234567890abcdee_120000_1000</Bytes>".to_string();
+		secret_packet.signature = "0x8664ed717bbc787df3344567a7bcbcee9c712f98862d5e1a7ce7956537e32b4fe675073d3937ad1983245f340aeba8aaf29f16a5d63685b51024e4452740828a".to_string();
+		assert_eq!(
+			secret_packet.verify_request().await.unwrap_err(),
+			VerificationError::SIGNERVERIFICATIONFAILED
+		);
 	}
 }
