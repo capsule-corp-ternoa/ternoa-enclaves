@@ -133,7 +133,7 @@ impl StoreRequest {
 }
 
 /* ******************************
- RETRIEVE SECRET FROM ENCALVE
+ RETRIEVE SECRET FROM ENCLAVE
 ****************************** */
 
 #[debug_handler]

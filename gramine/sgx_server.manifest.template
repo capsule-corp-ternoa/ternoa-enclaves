@@ -24,11 +24,13 @@ fs.mounts = [
   { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
   { path = "/etc", uri = "file:/etc" },
+  #TODO: keys will be replaced by fetching online pubkey from github
+  { path = "/credentials/", uri = "file:{{ credentials_path }}", type = "chroot" },
   { path = "/quote/", uri = "file:{{ quote_path }}", type = "chroot" },
   { path = "/nft/" , uri = "file:{{ seal_path }}",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
 ]
 
-# Only for development and debug, it will be replaced with _sgx_mrencalve/_sgx_mrsigner for production
+# Only for development and debug, it will be replaced with _sgx_mrenclave/_sgx_mrsigner for production
 # fs.insecure__keys."DevOnlyKey" = "0123456789ABCDEF0123456789ABCDEF"
 
 sgx.debug = true
@@ -55,8 +57,7 @@ sgx.trusted_files = [
   "file:/etc/gai.conf",
   "file:/etc/ssl/certs/ca-certificates.crt",
   "file:/etc/letsencrypt/",
-  "file:../credentials/artifacts/",
-  "file:../credentials/certificates/",
+  "file:{{ credentials_path }}/keys/cosign.pub",
   "file:bin/checksum",
   "file:bin/sgx_server.sig",
 ]

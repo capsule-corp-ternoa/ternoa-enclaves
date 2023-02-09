@@ -6,7 +6,6 @@ use axum::{
 };
 
 use serde_json::{json, Value};
-use sp_core::crypto::Ss58Codec;
 use std::time::SystemTime;
 
 use crate::servers::server_common;
@@ -29,13 +28,11 @@ use crate::chain::{
 	},
 };
 
-use crate::attestation;
 use crate::backup::admin::{backup_fetch_secrets, backup_push_secrets};
 use crate::pgp::cosign;
 
 #[derive(Clone)]
 pub struct StateConfig {
-	pub owner_key: schnorrkel::Keypair,
 	pub enclave_key: sp_core::sr25519::Pair,
 	pub seal_path: String,
 	pub identity: String,
@@ -45,26 +42,16 @@ pub struct StateConfig {
 pub async fn http_server(
 	port: &u16,
 	identity: &str,
-	account: &str,
 	certfile: &str,
 	keyfile: &str,
 	seal_path: &str,
 ) {
-	let account_keys: Vec<&str> = account.split("_").collect();
-	let private_bytes = hex::decode(account_keys[0]).expect("Error reading account data");
-	let public_bytes = hex::decode(account_keys[1]).expect("Error reading account data");
-
-	let account_pair = schnorrkel::keys::Keypair {
-		secret: schnorrkel::SecretKey::from_bytes(&private_bytes).unwrap(),
-		public: schnorrkel::PublicKey::from_bytes(&public_bytes).unwrap(),
-	};
 
 	let mut entropy = [0u8; 32];
 	rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
 	let enclave_pair = sp_core::sr25519::Pair::from_entropy(&entropy, None);
 
 	let state_config = StateConfig {
-		owner_key: account_pair,
 		enclave_key: enclave_pair.0,
 		seal_path: seal_path.to_owned(),
 		identity: identity.to_string(),
@@ -122,19 +109,37 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 
 	// TODO: cache the quote for 24 hours, not to generate it in every call.
-	let quote_vec = attestation::ra::generate_quote();
-
-	let operator =
-		sp_core::sr25519::Public::from_raw(state.owner_key.public.to_bytes()).to_ss58check();
+	//let quote_vec = attestation::ra::generate_quote();
 
 	let checksum = self_checksum();
 
-	let signature = match cosign::verify() {
-		Ok(b) => match b {
-			true => "Successful",
-			false => "Failed",
+	let binary_path = match sysinfo::get_current_pid() {
+		Ok(pid) => {
+			let path_string = "/proc/".to_owned() + &pid.to_string() + "/exe";
+			let binpath = std::path::Path::new(&path_string).read_link().unwrap();
+			binpath
 		},
-		Err(_) => "Failed",
+		Err(e) => {
+			tracing::error!("failed to get current pid: {}", e);
+			std::path::PathBuf::new()
+		},
+	};
+
+	let signed_data = std::fs::read(binary_path.clone()).unwrap();
+
+	// TODO: Read from github release path
+	let sigfile = binary_path.to_string_lossy().to_string() + ".sig";
+
+	let mut signature_data = std::fs::read_to_string(sigfile).unwrap();
+
+	signature_data = signature_data.replace("\n", "");
+
+	let signature = match cosign::verify(&signed_data, &signature_data) {
+		Ok(b) => match b {
+			true => "Successful".to_string(),
+			false => "Failed".to_string(),
+		},
+		Err(e) => format!("Binary verification Error, {}", e),
 	};
 
 	let pubkey: [u8; 32] = state.enclave_key.as_ref().to_bytes()[64..].try_into().unwrap();
@@ -145,21 +150,17 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 		"status": 200,
 		"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
 		"description": "SGX server is running!".to_string(),
-		"encalve_address": enclave_address,
-		"operator_address": operator,
+		"enclave_address": enclave_address,
 		"binary_hash" : checksum,
-		"binary_signature": signature.to_string(),
-		"quote": quote_vec,
+		"binary_signature": signature,
+		//"quote": quote_vec,
 	}))
 }
 
 fn self_checksum() -> Result<String, String> {
-	// Check running address
-
-	use sysinfo::get_current_pid;
-
+	// Get binary address on disk
 	// BUT in gramine, the binary is simply at root directory!
-	let mut binary_path = match get_current_pid() {
+	let mut binary_path = match sysinfo::get_current_pid() {
 		Ok(pid) => {
 			let path_string = "/proc/".to_owned() + &pid.to_string() + "/exe";
 			let binpath = std::path::Path::new(&path_string).read_link().unwrap();
@@ -174,7 +175,8 @@ fn self_checksum() -> Result<String, String> {
 	// Verify Ternoa checksum/signature
 	let bytes = std::fs::read(binary_path.clone()).unwrap();
 	let hash = sha256::digest(bytes.as_slice());
-
+	
+	// TODO: Get checksum from github release 
 	binary_path.pop(); // remove binary name
 	binary_path.push("checksum");
 
