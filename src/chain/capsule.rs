@@ -396,6 +396,21 @@ pub async fn capsule_set_secret_shares(
 					}),
 				);
 			},
+    		
+			VerificationError::IDISNOTASECRET => {
+				warn!("Error setting secret to TEE : nft_id is not a secret.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretSetResponse {
+						status: ReturnStatus::IDISNOTASECRET,
+						nft_id: received_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description: "Error setting secret to TEE : nft_id is not a secret."
+							.to_string(),
+					}),
+				);
+			},
 		},
 	}
 }
@@ -407,7 +422,6 @@ pub async fn capsule_set_secret_shares(
 #[derive(Serialize)]
 pub struct SecretRetrieveResponse {
 	status: ReturnStatus,
-	nft_id: u32,
 	enclave_id: String,
 	secret_data: String,
 	description: String,
@@ -432,11 +446,10 @@ pub async fn capsule_retrieve_secret_shares(
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::CAPSULEIDNOTEXIST,
-						nft_id: data.nft_id,
 						enclave_id: state.identity,
 						description: "Error retrieving secrets from TEE : nft_id does not exist"
 							.to_string(),
-						secret_data: "_".to_string(),
+						secret_data: String::new(),
 					}),
 				);
 			}
@@ -450,12 +463,11 @@ pub async fn capsule_retrieve_secret_shares(
 						StatusCode::OK,
 						Json(SecretRetrieveResponse {
 							status: ReturnStatus::CAPSULESECRETNOTACCESSIBLE,
-							nft_id: data.nft_id,
 							enclave_id: state.identity,
 							description:
 								"Error retrieving secrets from TEE : nft_id does not exist"
 									.to_string(),
-							secret_data: "_".to_string(),
+							secret_data: String::new(),
 						}),
 					);
 				},
@@ -476,12 +488,11 @@ pub async fn capsule_retrieve_secret_shares(
 						StatusCode::OK,
 						Json(SecretRetrieveResponse {
 							status: ReturnStatus::CAPSULESECRETNOTREADABLE,
-							nft_id: data.nft_id,
 							enclave_id: state.identity,
 							description:
 								"Error retrieving secrets from TEE : can not read secret data"
 									.to_string(),
-							secret_data: "_".to_string(),
+							secret_data: String::new(),
 						}),
 					);
 				},
@@ -508,7 +519,6 @@ pub async fn capsule_retrieve_secret_shares(
 				StatusCode::OK,
 				Json(SecretRetrieveResponse {
 					status: ReturnStatus::RETRIEVESUCCESS,
-					nft_id: data.nft_id,
 					enclave_id: state.identity,
 					description: "Success retrieving nft_id secret share.".to_string(),
 					secret_data: SecretData {
@@ -535,11 +545,10 @@ pub async fn capsule_retrieve_secret_shares(
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::INVALIDOWNERSIGNATURE,
-						nft_id: 0,
 						enclave_id: state.identity,
 						description: "Error Invalid Signature or Capsule owner".to_string(),
 						secret_data: SecretData {
-							nft_id: 0,
+							nft_id: requested_secret.parse_secret().nft_id,
 							data: Vec::new(),
 							auth_token: AuthenticationToken {
 								block_number: get_current_block_number().await,
@@ -560,11 +569,10 @@ pub async fn capsule_retrieve_secret_shares(
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::INVALIDOWNER,
-						nft_id: 0,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
 						secret_data: SecretData {
-							nft_id: 0,
+							nft_id: requested_secret.parse_secret().nft_id,
 							data: Vec::new(),
 							auth_token: AuthenticationToken {
 								block_number: get_current_block_number().await,
@@ -584,11 +592,10 @@ pub async fn capsule_retrieve_secret_shares(
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::INVALIDOWNER,
-						nft_id: 0,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
 						secret_data: SecretData {
-							nft_id: 0,
+							nft_id: requested_secret.parse_secret().nft_id,
 							data: Vec::new(),
 							auth_token: AuthenticationToken {
 								block_number: get_current_block_number().await,
@@ -608,11 +615,10 @@ pub async fn capsule_retrieve_secret_shares(
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::INVALIDOWNER,
-						nft_id: 0,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
 						secret_data: SecretData {
-							nft_id: 0,
+							nft_id: requested_secret.parse_secret().nft_id,
 							data: Vec::new(),
 							auth_token: AuthenticationToken {
 								block_number: get_current_block_number().await,
@@ -632,11 +638,10 @@ pub async fn capsule_retrieve_secret_shares(
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::INVALIDOWNER,
-						nft_id: 0,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
 						secret_data: SecretData {
-							nft_id: 0,
+							nft_id: requested_secret.parse_secret().nft_id,
 							data: Vec::new(),
 							auth_token: AuthenticationToken {
 								block_number: get_current_block_number().await,
@@ -656,11 +661,10 @@ pub async fn capsule_retrieve_secret_shares(
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::INVALIDOWNER,
-						nft_id: 0,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
 						secret_data: SecretData {
-							nft_id: 0,
+							nft_id: requested_secret.parse_secret().nft_id,
 							data: Vec::new(),
 							auth_token: AuthenticationToken {
 								block_number: get_current_block_number().await,
@@ -680,11 +684,10 @@ pub async fn capsule_retrieve_secret_shares(
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::INVALIDOWNER,
-						nft_id: 0,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
 						secret_data: SecretData {
-							nft_id: 0,
+							nft_id: requested_secret.parse_secret().nft_id,
 							data: Vec::new(),
 							auth_token: AuthenticationToken {
 								block_number: get_current_block_number().await,
@@ -704,11 +707,34 @@ pub async fn capsule_retrieve_secret_shares(
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::INVALIDOWNER,
-						nft_id: 0,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
 						secret_data: SecretData {
-							nft_id: 0,
+							nft_id: requested_secret.parse_secret().nft_id,
+							data: Vec::new(),
+							auth_token: AuthenticationToken {
+								block_number: get_current_block_number().await,
+								block_validation: 100,
+							},
+						}
+						.serialize(),
+					}),
+				);
+			},
+    		
+			VerificationError::IDISNOTASECRET => {
+				info!(
+					"Error retrieving secrets from TEE : Provided nft_id is not a secret : {}",
+					requested_secret.owner_address
+				);
+				return (
+					StatusCode::OK,
+					Json(SecretRetrieveResponse {
+						status: ReturnStatus::IDISNOTASECRET,
+						enclave_id: state.identity,
+						description: "Error: nft_id is not a secret".to_string(),
+						secret_data: SecretData {
+							nft_id: requested_secret.parse_secret().nft_id,
 							data: Vec::new(),
 							auth_token: AuthenticationToken {
 								block_number: get_current_block_number().await,
@@ -738,7 +764,7 @@ pub async fn capsule_remove_secret_shares(
 	State(state): State<StateConfig>,
 	Json(remove_secret): Json<SecretPacket>,
 ) -> impl IntoResponse {
-	let verified_req = remove_secret.verify_request().await;
+	let verified_req = remove_secret.verify_remove_request().await;
 	match verified_req {
 		Ok(secret) => {
 			// Check if NFT/CAPSULE is burnt
