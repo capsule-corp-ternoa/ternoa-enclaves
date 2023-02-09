@@ -27,6 +27,7 @@ sgx_server.manifest: sgx_server.manifest.template
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
 		-Darch_libdir=$(ARCH_LIBDIR) \
 		-Dquote_path=$(SGX_QUOTE_PATH) \
+		-Dcredentials_path=$(SGX_CREDENTIALS_PATH) \
 		-Dcertificates_path=$(SGX_CERT_PATH) \
 		-Dself_exe=$(SELF_EXE) \
 		-Dseal_path=$(SGX_SEAL_PATH) \
@@ -61,7 +62,6 @@ start-gramine-server: all
 		--keyfile $(SGX_TLS_KEY) \
 		--sealpath "/nft/" \
 		--identity $(SGX_IDENTITY) \
-		--account $(SGX_OWNER_KEY) \
 		> enclave.log 2>&1 &
 
 .PHONY: clean
