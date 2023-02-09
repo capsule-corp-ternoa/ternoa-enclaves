@@ -1,21 +1,16 @@
 use crate::servers::http_server::StateConfig;
 
-use async_trait::async_trait;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use hex::FromHex;
 
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, Write};
 use tracing::{error, info, warn};
 
-use sp_core::{sr25519, ByteArray, Pair};
-use subxt::utils::AccountId32;
-
 use axum::extract::Path as PathExtract;
 
-use crate::chain::chain::{get_current_block_number, get_onchain_data, nft_secret_share_oracle};
+use crate::chain::chain::{get_current_block_number, nft_secret_share_oracle};
 use crate::chain::verify::*;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 /* **********************
    SECRET AVAILABLE API
@@ -279,7 +274,7 @@ pub async fn nft_store_secret_shares(
 
 		Err(err) => match err {
 			VerificationError::INVALIDSIGNERSIG(e) => {
-				warn!("Error storing secrets to TEE : Invalid Request Signature");
+				warn!("Error storing secrets to TEE : Invalid Request Signature, {:?}", e);
 
 				return (
 					StatusCode::OK,
@@ -306,12 +301,96 @@ pub async fn nft_store_secret_shares(
 					}),
 				);
 			},
-			VerificationError::INVALIDOWNERSIG(_) => todo!(),
-			VerificationError::SIGNERVERIFICATIONFAILED => todo!(),
-			VerificationError::OWNERVERIFICATIONFAILED => todo!(),
-			VerificationError::INVALIDSIGNER => todo!(),
-			VerificationError::EXPIREDSIGNER => todo!(),
-			VerificationError::EXPIREDSECRET => todo!(),
+
+			VerificationError::INVALIDOWNERSIG(e) => {
+				warn!("Error storing secrets to TEE : Request signature is invalid. {:?}", e);
+
+				return (
+					StatusCode::OK,
+					Json(SecretStoreResponse {
+						status: ReturnStatus::EXPIREDSIGNER,
+						nft_id: received_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description: "Error storing secrets to TEE : Request signature is invalid."
+							.to_string(),
+					}),
+				);
+			},
+
+			VerificationError::SIGNERVERIFICATIONFAILED => {
+				warn!("Error storing secrets to TEE : Signer verification failed.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretStoreResponse {
+						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
+						nft_id: received_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description: "Error storing secrets to TEE : Signer verification failed."
+							.to_string(),
+					}),
+				);
+			},
+
+			VerificationError::OWNERVERIFICATIONFAILED => {
+				warn!("Error storing secrets to TEE : Ownership validation failed.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretStoreResponse {
+						status: ReturnStatus::EXPIREDSIGNER,
+						nft_id: received_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description: "Error storing secrets to TEE : Ownership validation failed."
+							.to_string(),
+					}),
+				);
+			},
+
+			VerificationError::INVALIDSIGNERACCOUNT => {
+				warn!("Error storing secrets to TEE : Signer account is invalid.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretStoreResponse {
+						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
+						nft_id: received_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description: "Error storing secrets to TEE : Signer account is invalid."
+							.to_string(),
+					}),
+				);
+			},
+
+			VerificationError::EXPIREDSIGNER => {
+				warn!("Error storing secrets to TEE : Signer account is expired.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretStoreResponse {
+						status: ReturnStatus::EXPIREDSIGNER,
+						nft_id: received_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description: "Error storing secrets to TEE : Signer account is expired."
+							.to_string(),
+					}),
+				);
+			},
+
+			VerificationError::EXPIREDSECRET => {
+				warn!("Error storing secrets to TEE : Secret request is expired.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretStoreResponse {
+						status: ReturnStatus::EXPIREDREQUEST,
+						nft_id: received_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description: "Error storing secrets to TEE : Secret request is expired."
+							.to_string(),
+					}),
+				);
+			},
 		},
 	}
 }
@@ -440,61 +519,139 @@ pub async fn nft_retrieve_secret_shares(
 
 		Err(err) => match err {
 			VerificationError::INVALIDSIGNERSIG(e) => {
-				info!(
-					"Error retrieving secrets from TEE : Invalid Signature, owner : {}",
-					requested_secret.owner_address
-				);
+				warn!("Error retrieving secrets from TEE : Invalid Request Signature, {:?}", e);
 
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
-						nft_id: 0,
+						nft_id: requested_secret.parse_secret().nft_id,
 						enclave_id: state.identity,
-						description: "Error Invalid Signature or NFT owner".to_string(),
-						secret_data: SecretData {
-							nft_id: 0,
-							data: Vec::new(),
-							auth_token: AuthenticationToken {
-								block_number: get_current_block_number().await,
-								block_validation: 100,
-							},
-						}
-						.serialize(),
+						description:
+							"Error retrieving secrets from TEE : Invalid Request Signature"
+								.to_string(),
+						secret_data: "_".to_string(),
 					}),
 				);
 			},
 
 			VerificationError::INVALIDOWNER => {
-				info!(
-					"Error retrieving secrets from TEE : Invalid Owner, owner : {}",
-					requested_secret.owner_address
-				);
+				warn!("Error retrieving secrets from TEE : Invalid NFT Owner");
+
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
 						status: ReturnStatus::INVALIDOWNER,
-						nft_id: 0,
+						nft_id: requested_secret.parse_secret().nft_id,
 						enclave_id: state.identity,
-						description: "Error Invalid NFT owner".to_string(),
-						secret_data: SecretData {
-							nft_id: 0,
-							data: Vec::new(),
-							auth_token: AuthenticationToken {
-								block_number: get_current_block_number().await,
-								block_validation: 100,
-							},
-						}
-						.serialize(),
+						description: "Error retrieving secrets from TEE : Invalid NFT Owner"
+							.to_string(),
+						secret_data: "_".to_string(),
 					}),
 				);
 			},
-			VerificationError::INVALIDOWNERSIG(_) => todo!(),
-			VerificationError::SIGNERVERIFICATIONFAILED => todo!(),
-			VerificationError::OWNERVERIFICATIONFAILED => todo!(),
-			VerificationError::INVALIDSIGNER => todo!(),
-			VerificationError::EXPIREDSIGNER => todo!(),
-			VerificationError::EXPIREDSECRET => todo!(),
+
+			VerificationError::INVALIDOWNERSIG(e) => {
+				warn!("Error retrieving secrets from TEE : Request signature is invalid. {:?}", e);
+
+				return (
+					StatusCode::OK,
+					Json(SecretRetrieveResponse {
+						status: ReturnStatus::EXPIREDSIGNER,
+						nft_id: requested_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description:
+							"Error retrieving secrets from TEE : Request signature is invalid."
+								.to_string(),
+						secret_data: "_".to_string(),
+					}),
+				);
+			},
+
+			VerificationError::SIGNERVERIFICATIONFAILED => {
+				warn!("Error retrieving secrets from TEE : Signer verification failed.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretRetrieveResponse {
+						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
+						nft_id: requested_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description:
+							"Error retrieving secrets from TEE : Signer verification failed."
+								.to_string(),
+						secret_data: "_".to_string(),
+					}),
+				);
+			},
+
+			VerificationError::OWNERVERIFICATIONFAILED => {
+				warn!("Error retrieving secrets from TEE : Ownership validation failed.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretRetrieveResponse {
+						status: ReturnStatus::INVALIDOWNER,
+						nft_id: requested_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description:
+							"Error retrieving secrets from TEE : Ownership validation failed."
+								.to_string(),
+						secret_data: "_".to_string(),
+					}),
+				);
+			},
+
+			VerificationError::INVALIDSIGNERACCOUNT => {
+				warn!("Error retrieving secrets from TEE : Signer account is invalid.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretRetrieveResponse {
+						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
+						nft_id: requested_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description:
+							"Error retrieving secrets from TEE : Signer account is invalid."
+								.to_string(),
+						secret_data: "_".to_string(),
+					}),
+				);
+			},
+
+			VerificationError::EXPIREDSIGNER => {
+				warn!("Error retrieving secrets from TEE : Signer account is expired.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretRetrieveResponse {
+						status: ReturnStatus::EXPIREDSIGNER,
+						nft_id: requested_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description:
+							"Error retrieving secrets from TEE : Signer account is expired."
+								.to_string(),
+						secret_data: "_".to_string(),
+					}),
+				);
+			},
+
+			VerificationError::EXPIREDSECRET => {
+				warn!("Error retrieving secrets from TEE : Secret request is expired.");
+
+				return (
+					StatusCode::OK,
+					Json(SecretRetrieveResponse {
+						status: ReturnStatus::EXPIREDREQUEST,
+						nft_id: requested_secret.parse_secret().nft_id,
+						enclave_id: state.identity,
+						description:
+							"Error retrieving secrets from TEE : Secret request is expired."
+								.to_string(),
+						secret_data: "_".to_string(),
+					}),
+				);
+			},
 		},
 	}
 }
@@ -560,12 +717,12 @@ pub async fn nft_remove_secret_shares(
 					);
 				}
 
-				let mut f = match std::fs::remove_file(file_path.clone()) {
-					Ok(file) => {
+				match std::fs::remove_file(file_path.clone()) {
+					Ok(_) => {
 						return (
 							StatusCode::OK,
 							Json(SecretRemoveResponse {
-								status: ReturnStatus::SECRETREMOVED,
+								status: ReturnStatus::REMOVESUCCESS,
 								nft_id: secret.nft_id,
 								enclave_id: state.identity,
 								description: "Secret ia successfully removed from enclave."
