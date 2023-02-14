@@ -1,0 +1,104 @@
+gramine-manifest \
+	-Dlog_level=error \
+	-Darch_libdir=/lib/x86_64-linux-gnu \
+	-Dquote_path=/opt/sgx_dev/credentials/quote \
+	-Dcredentials_path=/opt/sgx_dev/credentials/ \
+	-Dcertificates_path=/etc/letsencrypt/live/dev-c1n1.ternoa.network \
+	-Dself_exe=bin/sgx_server \
+	-Dseal_path=/opt/sgx_dev/gramine/nft \
+	sgx_server.manifest.template sgx_server.manifest
+gramine-sgx-sign \
+	--manifest sgx_server.manifest \
+	--output sgx_server.manifest.sgx
+Attributes:
+    size:        0x10000000
+    thread_num:  24
+    isv_prod_id: 11
+    isv_svn:     102
+    attr.flags:  0x6
+    attr.xfrm:   0x3
+    misc_select: 0x0
+SGX remote attestation:
+    EPID (spid = `15AD86B4CFA46B327A8BFB79AA0D67B7`, linkable = True)
+Memory:
+    000000000ff6f000-0000000010000000 [REG:R--] (manifest) measured
+    000000000feaf000-000000000ff6f000 [REG:RW-] (ssa) measured
+    000000000fe97000-000000000feaf000 [TCS:---] (tcs) measured
+    000000000fe7f000-000000000fe97000 [REG:RW-] (tls) measured
+    000000000fe3f000-000000000fe7f000 [REG:RW-] (stack) measured
+    000000000fdff000-000000000fe3f000 [REG:RW-] (stack) measured
+    000000000fdbf000-000000000fdff000 [REG:RW-] (stack) measured
+    000000000fd7f000-000000000fdbf000 [REG:RW-] (stack) measured
+    000000000fd3f000-000000000fd7f000 [REG:RW-] (stack) measured
+    000000000fcff000-000000000fd3f000 [REG:RW-] (stack) measured
+    000000000fcbf000-000000000fcff000 [REG:RW-] (stack) measured
+    000000000fc7f000-000000000fcbf000 [REG:RW-] (stack) measured
+    000000000fc3f000-000000000fc7f000 [REG:RW-] (stack) measured
+    000000000fbff000-000000000fc3f000 [REG:RW-] (stack) measured
+    000000000fbbf000-000000000fbff000 [REG:RW-] (stack) measured
+    000000000fb7f000-000000000fbbf000 [REG:RW-] (stack) measured
+    000000000fb3f000-000000000fb7f000 [REG:RW-] (stack) measured
+    000000000faff000-000000000fb3f000 [REG:RW-] (stack) measured
+    000000000fabf000-000000000faff000 [REG:RW-] (stack) measured
+    000000000fa7f000-000000000fabf000 [REG:RW-] (stack) measured
+    000000000fa3f000-000000000fa7f000 [REG:RW-] (stack) measured
+    000000000f9ff000-000000000fa3f000 [REG:RW-] (stack) measured
+    000000000f9bf000-000000000f9ff000 [REG:RW-] (stack) measured
+    000000000f97f000-000000000f9bf000 [REG:RW-] (stack) measured
+    000000000f93f000-000000000f97f000 [REG:RW-] (stack) measured
+    000000000f8ff000-000000000f93f000 [REG:RW-] (stack) measured
+    000000000f8bf000-000000000f8ff000 [REG:RW-] (stack) measured
+    000000000f87f000-000000000f8bf000 [REG:RW-] (stack) measured
+    000000000f86f000-000000000f87f000 [REG:RW-] (sig_stack) measured
+    000000000f85f000-000000000f86f000 [REG:RW-] (sig_stack) measured
+    000000000f84f000-000000000f85f000 [REG:RW-] (sig_stack) measured
+    000000000f83f000-000000000f84f000 [REG:RW-] (sig_stack) measured
+    000000000f82f000-000000000f83f000 [REG:RW-] (sig_stack) measured
+    000000000f81f000-000000000f82f000 [REG:RW-] (sig_stack) measured
+    000000000f80f000-000000000f81f000 [REG:RW-] (sig_stack) measured
+    000000000f7ff000-000000000f80f000 [REG:RW-] (sig_stack) measured
+    000000000f7ef000-000000000f7ff000 [REG:RW-] (sig_stack) measured
+    000000000f7df000-000000000f7ef000 [REG:RW-] (sig_stack) measured
+    000000000f7cf000-000000000f7df000 [REG:RW-] (sig_stack) measured
+    000000000f7bf000-000000000f7cf000 [REG:RW-] (sig_stack) measured
+    000000000f7af000-000000000f7bf000 [REG:RW-] (sig_stack) measured
+    000000000f79f000-000000000f7af000 [REG:RW-] (sig_stack) measured
+    000000000f78f000-000000000f79f000 [REG:RW-] (sig_stack) measured
+    000000000f77f000-000000000f78f000 [REG:RW-] (sig_stack) measured
+    000000000f76f000-000000000f77f000 [REG:RW-] (sig_stack) measured
+    000000000f75f000-000000000f76f000 [REG:RW-] (sig_stack) measured
+    000000000f74f000-000000000f75f000 [REG:RW-] (sig_stack) measured
+    000000000f73f000-000000000f74f000 [REG:RW-] (sig_stack) measured
+    000000000f72f000-000000000f73f000 [REG:RW-] (sig_stack) measured
+    000000000f71f000-000000000f72f000 [REG:RW-] (sig_stack) measured
+    000000000f70f000-000000000f71f000 [REG:RW-] (sig_stack) measured
+    000000000f6ff000-000000000f70f000 [REG:RW-] (sig_stack) measured
+    000000000f2e2000-000000000f326000 [REG:R-X] (code) measured
+    000000000f327000-000000000f6ff000 [REG:RW-] (data) measured
+    0000000000010000-000000000f2e2000 [REG:RWX] (free)
+Measurement:
+    8e53f97be88a0f7ea248d429c2597c0c7103bac87f6a50f03473284b7c801002
+gramine-sgx-get-token \
+	--output sgx_server.token --sig sgx_server.sig
+Attributes:
+    mr_enclave:  8e53f97be88a0f7ea248d429c2597c0c7103bac87f6a50f03473284b7c801002
+    mr_signer:   b2f54ca9ad963ab0ba7553e2fedcaa9a64e9593c95c94046ce30861f03e7e627
+    isv_prod_id: 11
+    isv_svn:     102
+    attr.flags:  0000000000000006
+    attr.xfrm:   00000000000000e7
+    mask.flags:  ffffffffffffffff
+    mask.xfrm:   fffffffffff9ff1b
+    misc_select: 00000000
+    misc_mask:   ffffffff
+    modulus:     2d25879a3d611eab80d53aefd8525d37...
+    exponent:    3
+    signature:   1a2b0e369b9d3219371f32a976fceffa...
+    date:        2023-02-14
+gramine-sgx sgx_server \
+	--port 8101 \
+	--certfile /etc/letsencrypt/live/dev-c1n1.ternoa.network/cert.pem \
+	--keyfile /etc/letsencrypt/live/dev-c1n1.ternoa.network/privkey.pem \
+	--sealpath "/nft/" \
+	--identity DEV0-C1N1EI \
+	> enclave.log 2>&1 &
