@@ -1,0 +1,28 @@
+Gramine is starting. Parsing TOML manifest file, this may take some time...
+-----------------------------------------------------------------------------------------------------------------------
+Gramine detected the following insecure configurations:
+
+  - sgx.debug = true                           (this is a debug enclave)
+  - loader.insecure__use_cmdline_argv = true   (forwarding command-line args from untrusted host to the app)
+  - sys.insecure__allow_eventfd = true         (host-based eventfd is enabled)
+  - sgx.allowed_files = [ ... ]                (some files are passed through from untrusted host without verification)
+
+Gramine will continue application execution, but this configuration must not be used in production!
+-----------------------------------------------------------------------------------------------------------------------
+
+[2m2023-02-14T10:16:47.014227Z[0m [32m INFO[0m [2msgx_server::servers::server_common[0m[2m:[0m listening on 0.0.0.0:8101
+[2m2023-02-14T10:16:47.017670Z[0m [32m INFO[0m [2msgx_server::servers::server_common[0m[2m:[0m Server is listening 0.0.0.0 on Port 8101'
+
+[2m2023-02-14T10:17:05.431591Z[0m [32m INFO[0m [2msgx_server::chain::capsule[0m[2m:[0m Seal path checked, path: /nft/
+[2m2023-02-14T10:17:05.432000Z[0m [32m INFO[0m [2msgx_server::chain::capsule[0m[2m:[0m Secret is successfully stored to TEE, nft_id = 330  Owner = 5D1rVqPFxDBjYQ2fnhRVFE2cswrAFtEWPbpZAptb3Pqxiw1s
+[2m2023-02-14T10:17:05.782264Z[0m [31mERROR[0m [2msgx_server::chain::capsule[0m[2m:[0m Error sending proof of storage to chain, Capsule nft_id : 330, Error : Rpc error: RPC error: RPC call failed: ErrorObject { code: ServerError(1010), message: "Invalid Transaction", data: Some(RawValue("Inability to pay some fees (e.g. account balance too low)")) }
+[2m2023-02-14T10:19:16.068398Z[0m [32m INFO[0m [2msgx_server::servers::http_server[0m[2m:[0m Binary hash match : 4c55f91f2c839b72ddd79526c9297dc5eaa424cdc165946cd7d0f1b2a010bdce
+[2m2023-02-14T10:19:16.136490Z[0m [32m INFO[0m [2msgx_server::pgp::cosign[0m[2m:[0m Binary file Verification Succeeded.
+[2m2023-02-14T10:20:40.797892Z[0m [32m INFO[0m [2msgx_server::chain::capsule[0m[2m:[0m Seal path checked, path: /nft/
+[2m2023-02-14T10:20:40.798158Z[0m [32m INFO[0m [2msgx_server::chain::capsule[0m[2m:[0m Secret is successfully stored to TEE, nft_id = 330  Owner = 5D1rVqPFxDBjYQ2fnhRVFE2cswrAFtEWPbpZAptb3Pqxiw1s
+[2m2023-02-14T10:20:41.201892Z[0m [31mERROR[0m [2msgx_server::chain::capsule[0m[2m:[0m Error sending proof of storage to chain, Capsule nft_id : 330, Error : Rpc error: RPC error: RPC call failed: ErrorObject { code: ServerError(1010), message: "Invalid Transaction", data: Some(RawValue("Inability to pay some fees (e.g. account balance too low)")) }
+[2m2023-02-14T10:22:56.360534Z[0m [32m INFO[0m [2msgx_server::servers::http_server[0m[2m:[0m Binary hash match : 4c55f91f2c839b72ddd79526c9297dc5eaa424cdc165946cd7d0f1b2a010bdce
+[2m2023-02-14T10:22:56.423098Z[0m [32m INFO[0m [2msgx_server::pgp::cosign[0m[2m:[0m Binary file Verification Succeeded.
+[2m2023-02-14T10:23:10.864232Z[0m [32m INFO[0m [2msgx_server::servers::http_server[0m[2m:[0m Binary hash match : 4c55f91f2c839b72ddd79526c9297dc5eaa424cdc165946cd7d0f1b2a010bdce
+[2m2023-02-14T10:23:10.926838Z[0m [32m INFO[0m [2msgx_server::pgp::cosign[0m[2m:[0m Binary file Verification Succeeded.
+[2m2023-02-14T10:40:41.778226Z[0m [31mERROR[0m [2msgx_server::chain::capsule[0m[2m:[0m Error storing capsule secret-share to TEE : capsule is not syncing, Capsule nft_id : 324, path : /nft/

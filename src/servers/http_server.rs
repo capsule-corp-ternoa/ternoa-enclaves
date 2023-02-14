@@ -46,7 +46,6 @@ pub async fn http_server(
 	keyfile: &str,
 	seal_path: &str,
 ) {
-
 	let mut entropy = [0u8; 32];
 	rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
 	let enclave_pair = sp_core::sr25519::Pair::from_entropy(&entropy, None);
@@ -63,7 +62,9 @@ pub async fn http_server(
 		// allow `GET` and `POST` when accessing the resource
 		.allow_methods([Method::GET, Method::POST])
 		// allow requests from any origin
-		.allow_origin(Any);
+		.allow_origin(Any)
+		.allow_headers(Any)
+		.allow_credentials(true);
 
 	let http_app = Router::new()
 		.fallback_service(
@@ -75,28 +76,28 @@ pub async fn http_server(
 					)
 				}),
 		)
-		.layer(cors)
 		// STATE API
 		.route("/health", get(get_health_status))
 		// CENTRALIZED BACKUP API
 		.route("/api/backup/fetchEnclaveSecrets", post(backup_fetch_secrets))
 		.route("/api/backup/pushEnclaveSecrets", post(backup_push_secrets))
 		// NFT SECRET SHARING API
-		.route("/api/nft/getViewsLog/:nft_id", get(nft_get_views_handler))
-		.route("/api/nft/isSecretAvailable/:nft_id", get(is_nft_available))
-		.route("/api/nft/storeSecretShares", post(nft_store_secret_shares))
-		.route("/api/nft/retrieveSecretShares", post(nft_retrieve_secret_shares))
-		.route("/api/nft/removeSecretShares", post(nft_remove_secret_shares))
+		.route("/api/secret-nft/getViewsLog/:nft_id", get(nft_get_views_handler))
+		.route("/api/secret-nft/isSecretAvailable/:nft_id", get(is_nft_available))
+		.route("/api/secret-nft/storeSecretShares", post(nft_store_secret_shares))
+		.route("/api/secret-nft/retrieveSecretShares", post(nft_retrieve_secret_shares))
+		.route("/api/secret-nft/removeSecretShares", post(nft_remove_secret_shares))
 		// CAPSULE SECRET SHARING API
-		.route("/api/capsule/getViewsLog/:capsule_id", get(capsule_get_views_handler))
-		.route("/api/capsule/isSecretAvailable/:nft_id", get(is_capsule_available))
-		.route("/api/capsule/setSecretShares", post(capsule_set_secret_shares))
-		.route("/api/capsule/retrieveSecretShares", post(capsule_retrieve_secret_shares))
-		.route("/api/capsule/removeSecretShares", post(capsule_remove_secret_shares))
+		.route("/api/capsule-nft/getViewsLog/:capsule_id", get(capsule_get_views_handler))
+		.route("/api/capsule-nft/isSecretAvailable/:nft_id", get(is_capsule_available))
+		.route("/api/capsule-nft/setSecretShares", post(capsule_set_secret_shares))
+		.route("/api/capsule-nft/retrieveSecretShares", post(capsule_retrieve_secret_shares))
+		.route("/api/capsule-nft/removeSecretShares", post(capsule_remove_secret_shares))
 		// TEST APIS
 		.route("/api/getNFTData/:nft_id", get(get_nft_data_handler))
 		.route("/api/rpcQuery/:blocknumber", get(rpc_query))
 		.route("/api/submitTx/:amount", get(submit_tx))
+		.layer(CorsLayer::permissive())
 		.with_state(state_config);
 
 	server_common::serve(http_app, port, certfile, keyfile).await;
@@ -175,8 +176,8 @@ fn self_checksum() -> Result<String, String> {
 	// Verify Ternoa checksum/signature
 	let bytes = std::fs::read(binary_path.clone()).unwrap();
 	let hash = sha256::digest(bytes.as_slice());
-	
-	// TODO: Get checksum from github release 
+
+	// TODO: Get checksum from github release
 	binary_path.pop(); // remove binary name
 	binary_path.push("checksum");
 
