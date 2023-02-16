@@ -24,9 +24,9 @@ fs.mounts = [
   { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
   { path = "/etc", uri = "file:/etc" },
-  #TODO: keys will be replaced by fetching online pubkey from github
-  { path = "/credentials/", uri = "file:{{ credentials_path }}", type = "chroot" },
   { path = "/quote/", uri = "file:{{ quote_path }}", type = "chroot" },
+  # TODO : sealed folder for certificates
+  { path = "/certificates", uri = "file:{{ credentials_path }}/certificates", type = "chroot" },
   { path = "/nft/" , uri = "file:{{ seal_path }}",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
 ]
 
@@ -41,6 +41,8 @@ loader.pal_internal_mem_size = "64M"
 
 sgx.allowed_files = [
   "file:{{ quote_path }}/",
+  # TODO: removed when converted to sealed folder. 
+  "file:{{ credentials_path }}/certificates",
 ]
 
 sgx.trusted_files = [
@@ -57,11 +59,9 @@ sgx.trusted_files = [
   "file:/etc/gai.conf",
   "file:/etc/ssl/certs/ca-certificates.crt",
   "file:/etc/letsencrypt/",
-  "file:{{ credentials_path }}/keys/cosign.pub",
   "file:bin/checksum",
   "file:bin/sgx_server.sig",
 ]
-
 
 # The Tokio runtime requires eventfd, and the Gramine implementation
 # currently relies on the host in an insecure manner. This setting isn't
