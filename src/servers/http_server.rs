@@ -5,16 +5,21 @@ use axum::{
 	Json, Router,
 };
 
-use serde_json::{json, Value};
-use std::time::SystemTime;
+use reqwest;
 
-use crate::servers::server_common;
-
-use std::path::PathBuf;
 use tower_http::{
 	cors::{Any, CorsLayer},
 	services::ServeDir,
 };
+
+use anyhow::{anyhow, Error};
+
+use serde_json::{json, Value};
+use tracing::{info, error};
+
+use std::{path::PathBuf, time::SystemTime};
+
+use crate::servers::server_common;
 
 use crate::chain::{
 	capsule::{
@@ -39,13 +44,10 @@ pub struct StateConfig {
 }
 
 /* HTTP Server */
-pub async fn http_server(
-	port: &u16,
-	identity: &str,
-	certfile: &str,
-	keyfile: &str,
-	seal_path: &str,
-) {
+pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &str) {
+	// Download cosign.pub for binary verification
+	// TODO: publish the key to release folder of sgx_server repository after being open-sorced.
+
 	let mut entropy = [0u8; 32];
 	rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
 	let enclave_pair = sp_core::sr25519::Pair::from_entropy(&entropy, None);
@@ -55,10 +57,10 @@ pub async fn http_server(
 		seal_path: seal_path.to_owned(),
 		identity: identity.to_string(),
 	};
-
+	
 	let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
 
-	let cors = CorsLayer::new()
+	let _cors = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
 		.allow_methods([Method::GET, Method::POST])
 		// allow requests from any origin
@@ -100,7 +102,7 @@ pub async fn http_server(
 		.layer(CorsLayer::permissive())
 		.with_state(state_config);
 
-	server_common::serve(http_app, port, certfile, keyfile).await;
+	server_common::serve(http_app, domain, port).await.unwrap();
 }
 
 /*  -------------Handlers------------- */
@@ -111,7 +113,7 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 
 	// TODO: cache the quote for 24 hours, not to generate it in every call.
 	//let quote_vec = attestation::ra::generate_quote();
-
+	
 	let checksum = self_checksum();
 
 	let binary_path = match sysinfo::get_current_pid() {
@@ -121,7 +123,7 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 			binpath
 		},
 		Err(e) => {
-			tracing::error!("failed to get current pid: {}", e);
+			error!("failed to get current pid: {}", e);
 			std::path::PathBuf::new()
 		},
 	};
@@ -168,7 +170,7 @@ fn self_checksum() -> Result<String, String> {
 			binpath
 		},
 		Err(e) => {
-			tracing::error!("failed to get current pid: {}", e);
+			error!("failed to get current pid: {}", e);
 			std::path::PathBuf::new()
 		},
 	};
@@ -192,10 +194,24 @@ fn self_checksum() -> Result<String, String> {
 		.unwrap_or(&binary_hash);
 
 	if binary_hash != hash {
-		tracing::error!("Binary hash doesn't match!");
+		error!("Binary hash doesn't match!");
 		return Err(hash);
 	} else {
-		tracing::info!("Binary hash match : {}", hash);
+		info!("Binary hash match : {}", hash);
 		return Ok(hash);
 	}
+}
+
+pub fn downloader(url: &str) -> Result<String, Error> {
+	let response = match reqwest::blocking::get(url) {
+		Ok(resp) => resp,
+		Err(e) => return Err(anyhow!("Error accessing url: {}", e)),
+	};
+	
+	let content = match response.text() {
+    	Ok(s) => s,
+    	Err(e) => return Err(anyhow!("Error reading response: {}", e)),
+	};
+	
+	Ok(content)
 }

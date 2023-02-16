@@ -559,7 +559,10 @@ pub async fn capsule_retrieve_secret_shares(
 						status: ReturnStatus::INVALIDOWNERSIGNATURE,
 						enclave_id: state.identity,
 						description: "Error Invalid Signature or Capsule owner".to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},
@@ -575,7 +578,10 @@ pub async fn capsule_retrieve_secret_shares(
 						status: ReturnStatus::INVALIDOWNER,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},
@@ -590,7 +596,10 @@ pub async fn capsule_retrieve_secret_shares(
 						status: ReturnStatus::INVALIDOWNER,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},
@@ -605,7 +614,10 @@ pub async fn capsule_retrieve_secret_shares(
 						status: ReturnStatus::INVALIDOWNER,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},
@@ -620,7 +632,10 @@ pub async fn capsule_retrieve_secret_shares(
 						status: ReturnStatus::INVALIDOWNER,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},
@@ -635,7 +650,10 @@ pub async fn capsule_retrieve_secret_shares(
 						status: ReturnStatus::INVALIDOWNER,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},
@@ -650,7 +668,10 @@ pub async fn capsule_retrieve_secret_shares(
 						status: ReturnStatus::INVALIDOWNER,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},
@@ -665,7 +686,10 @@ pub async fn capsule_retrieve_secret_shares(
 						status: ReturnStatus::INVALIDOWNER,
 						enclave_id: state.identity,
 						description: "Error Invalid Capsule owner".to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},
@@ -681,7 +705,10 @@ pub async fn capsule_retrieve_secret_shares(
 						status: ReturnStatus::IDISNOTACAPSULE,
 						enclave_id: state.identity,
 						description: "Error: Capsule nft_id is not a Capsule".to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},
