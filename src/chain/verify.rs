@@ -256,12 +256,31 @@ impl SecretStorePacket {
 		} else {
 			return Err(());
 		};
+		
+		if parsed_data.len() < 3 {
+			return Err(())
+		}
+
+		let account = match sr25519::Public::from_str(parsed_data[0]) {
+			Ok(acc) => acc,
+			Err(_) => return Err(()),
+		};
+
+		let block_num = match parsed_data[1].parse::<u32>() {
+			Ok(bn) => bn,
+			Err(_) => return Err(()),
+		};
+
+		let block_valid = match parsed_data[2].parse::<u32>() {
+			Ok(bv) => bv,
+			Err(_) => return Err(()),
+		};
 
 		Ok(Signer {
-			account: sr25519::Public::from_str(parsed_data[0]).unwrap(),
+			account: account,
 			auth_token: AuthenticationToken {
-				block_number: parsed_data[1].parse::<u32>().unwrap(),
-				block_validation: parsed_data[2].parse::<u32>().unwrap(),
+				block_number: block_num,
+				block_validation: block_valid,
 			},
 		})
 	}
