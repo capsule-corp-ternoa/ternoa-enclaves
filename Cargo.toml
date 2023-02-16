@@ -14,8 +14,11 @@ async-trait = "0.1.61"
 axum = {version = "0.6.2", features = ["ws", "headers", "macros"]}
 axum-jrpc = "0.3.2"
 axum-server = { version = "0.4.4", features = ["tls-rustls"] }
+rustls = "0.20.6"
+reqwest = "0.11.14"
 
 tokio = { version = "1.25", features = ["full"] }
+tokio-stream = { version="0.1.9", features = ["net"] }
 
 tower-http = { version = "0.3.5", features = ["cors","fs", "trace"] }
 
@@ -47,9 +50,9 @@ tokio-test = "0.4.2"
 parity-scale-codec = { version = "3.2.1", default-features = false, features = ["derive", "full", "bit-vec"] }
 
 subxt = { git = "https://github.com/paritytech/subxt.git" , features = ["substrate-compat"]}
-sp-keyring = "12.0.0"
-sp-runtime = { version = "12.0.0" }
-sp-core = { version = "11.0.0", default-features = false, features = ["full_crypto"] }
+sp-keyring = "18.0.0"
+sp-runtime = { version = "18.0.0" }
+sp-core = { version = "16.0.0", default-features = false, features = ["full_crypto"] }
 
 # Crypto / Keys
 schnorrkel = "0.10.2"
@@ -57,3 +60,6 @@ sha256 = "1.1.1"
 sequoia-openpgp = "1.13.0"
 sigstore = {git = "https://github.com/sigstore/sigstore-rs.git"}
 rcgen = "0.10.0"
+
+rustls-acme = {version = "0.5.2", features = ["axum"]}
+

@@ -5,6 +5,8 @@ use sigstore::crypto::{
 	CosignVerificationKey, SigStoreSigner, Signature, SigningScheme,
 };
 
+use crate::servers::http_server::downloader;
+
 fn _import_skey(path: &str, pass: &str) -> SigStoreSigner {
 	// Imported encrypted PEM encoded private key as SigStoreKeyPair.
 	let ecdsa_p256_asn1_encrypted_private_pem = std::fs::read(path).unwrap();
@@ -31,10 +33,13 @@ fn import_vkey() -> CosignVerificationKey {
 	// Production
 	//let ecdsa_p256_asn1_public_pem = std::fs::read("keys/cosign.pub").unwrap();
 	// Test
-
-	let ecdsa_p256_asn1_public_pem = std::fs::read("./credentials/keys/cosign.pub").unwrap();
+	let url = "https://gist.githubusercontent.com/zorvan/46b26ff51b27590683ddaf70c0ea9dac/raw/2b437edaa808b79f2e7768cde9085150b2f10a32/cosign.pub";
+	let get_pub = downloader(url).unwrap();
+	let ecdsa_p256_asn1_public_pem = get_pub.as_bytes();
+	
+	//let ecdsa_p256_asn1_public_pem = std::fs::read("./bin/cosign.pub").unwrap();
 	let verification_key =
-		CosignVerificationKey::from_pem(&ecdsa_p256_asn1_public_pem, &SigningScheme::default())
+		CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default())
 			.unwrap();
 
 	verification_key
