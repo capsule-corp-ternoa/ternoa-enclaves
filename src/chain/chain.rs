@@ -95,11 +95,13 @@ struct JsonTX {
 	tx_hash: String,
 }
 
+use sp_keyring::AccountKeyring;
+
 pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoResponse {
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 
-	let signer = PairSigner::new(sp_keyring::AccountKeyring::Alice.pair());
-	let dest = sp_keyring::AccountKeyring::Bob.to_account_id().into();
+	let signer = PairSigner::new(AccountKeyring::Alice.pair());
+	let dest = AccountKeyring::Bob.to_account_id().into();
 
 	// Create a transaction to submit:
 	let tx = ternoa::tx().balances().transfer(dest, amount);
