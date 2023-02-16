@@ -595,7 +595,10 @@ pub async fn nft_retrieve_secret_shares(
 						description:
 							"Error retrieving NFT secret-share from TEE : Invalid NFT Owner"
 								.to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},
@@ -707,7 +710,10 @@ pub async fn nft_retrieve_secret_shares(
 						description:
 							"Error retrieving NFT secret-share from TEE : nft_id is not a secret."
 								.to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!(
+							"{{nft_id:{}}}",
+							requested_secret.parse_secret().nft_id
+						),
 					}),
 				);
 			},

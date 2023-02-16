@@ -1,3 +1,4 @@
+#!/bin/bash
 
 # ASSETS STRUCTURE
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )
@@ -5,11 +6,12 @@ SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
 SEAL_PATH=$GRAMINE_PATH/nft
 CERT_PATH=$BASEDIR/credentials/certificates
-ACCOUNTS_PATH=$BASEDIR/credentials/accounts/
+ACCOUNTS_PATH=$BASEDIR/credentials/accounts
 QUOTE_PATH=$BASEDIR/credentials/quote
-CREDENTIALS_PATH=$BASEDIR/credentials/
+CREDENTIALS_PATH=$BASEDIR/credentials
 
 # DEFAULT VALUES
+DOMAIN=${DOMIAN:-dev-c1n1.ternoa.network}
 PORT=${PORT:-8101}
 MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
 HTTPS_PUBLIC_KEY=${HTTPS_PUBLIC_KEY:-$CERT_PATH/server_cert.pem}
@@ -48,28 +50,20 @@ die() {
 
 while :; do
     case $1 in
-        -p|--port)
+        -d|--domain)
+	    if [ "$2" ]; then
+		DOMAIN=$2
+		shift
+	    else
+		die 'ERROR: "--domian" requires a non-empty option argument.'
+	    fi
+        ;;
+		-p|--port)
 	    if [ "$2" ]; then
 		PORT=$2
 		shift
 	    else
 		die 'ERROR: "--port" requires a non-empty option argument.'
-	    fi
-        ;;
-        -c|--cert)
-	    if [ "$2" ]; then
-		HTTPS_PUBLIC_KEY=$2
-		shift
-	    else
-		die 'ERROR: "--cert" requires a non-empty option argument.'
-	    fi
-        ;;
-        -s|--key)
-	    if [ "$2" ]; then
-		HTTPS_PRIVATE_KEY=$2
-		shift
-	    else
-		die 'ERROR: "--key" requires a non-empty option argument.'
 	    fi
         ;;
         -n|--secrets)
@@ -104,11 +98,12 @@ while :; do
 	    else
 		cargo build --release
 	    fi
-
+		echo "creating binary checksum ..."
 	    cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
 	    cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
 	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
 	    
+		echo "signing the binary ..."
 	    cosign sign-blob --key $BASEDIR/credentials/keys/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
 		tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
 		mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
@@ -133,7 +128,7 @@ IWhite='\033[0;97m'       # White
 BIWhite='\033[1;97m'      # White
 
 # Import Keypair from account
-echo -e "\n\n${BIWhite}Importing the account${NC}"
+#echo -e "\n\n${BIWhite}Importing the account${NC}"
 #TERNOA_ACCOUNT_KEY="$(python $SCRIPTS_PATH/import_account.py $TERNOA_ACCOUNT_PATH)"
 #if [ -z "$TERNOA_ACCOUNT_KEY" ]; then
 #    echo -e "${IRed}Can not decode account file${NC}"
@@ -152,6 +147,7 @@ echo -e "enclave name:\t ${IGreen}$ENCLAVE_IDENTITY${NC}"
 cd $GRAMINE_PATH
 echo -n -e "\n${BIWhite}Creating Enclave ${NC}"
 make 	SGX=1 \
+	SGX_DOMAIN=$DOMAIN \
 	SGX_PORT=$PORT \
 	SGX_BASE_PATH=$BASEDIR \
 	SGX_TLS_CERT=$HTTPS_PUBLIC_KEY \
@@ -179,11 +175,11 @@ echo -e "\n${NC}View ${IBlue}gramine/make.log${NC} for enclave details."
 
 COUNTER=0
 echo -n -e "\n${BIWhite}Initializing Enclave "
-while ! (test -f "$GRAMINE_PATH/enclave.log") || ! (grep -q "Port $PORT" "$GRAMINE_PATH/enclave.log"); do
+while ! (test -f "$GRAMINE_PATH/enclave.log") || ! (grep -q "443" "$GRAMINE_PATH/enclave.log"); do
     echo -n "."
     sleep 1
     let COUNTER=$COUNTER+1
-    if [ $COUNTER -ge 10 ]; then
+    if [ $COUNTER -ge 20 ]; then
 	break
     fi
 done
