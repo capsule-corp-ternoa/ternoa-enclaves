@@ -1,6 +1,8 @@
 use hex::FromHex;
 use std::str::FromStr;
 
+#[allow(unused_imports)]
+//#![allow(dead_code)
 use sp_core::{sr25519, ByteArray, Pair};
 use subxt::utils::AccountId32;
 
@@ -13,10 +15,10 @@ use crate::chain::chain::{get_current_block_number, get_onchain_data};
 ********************** */
 
 #[derive(Debug)]
-pub enum SecretError {
-	InvalidSignature,
-	InvalidOwner,
-	InvalidSigner,
+pub enum _SecretError {
+	_InvalidSignature,
+	_InvalidOwner,
+	_InvalidSigner,
 }
 
 #[derive(Serialize, PartialEq)]
@@ -232,7 +234,6 @@ impl SecretStoreData {
 	}
 }
 
-
 /* ----------------------------------
 SECRET-PACKET IMPLEMENTATION
 ----------------------------------*/
@@ -372,7 +373,10 @@ impl SecretStorePacket {
 	pub async fn check_ownership(&self) -> bool {
 		let capsule_owner = get_onchain_owner(self.parse_secret().nft_id).await;
 		match capsule_owner {
-			SecretOwner::Owner(owner) => owner == self.owner_address.into(),
+			SecretOwner::Owner(owner) => {
+				owner
+					== subxt::utils::AccountId32::from_str(&self.owner_address.to_string()).unwrap()
+			},
 			SecretOwner::NotFound => false,
 		}
 	}
@@ -407,9 +411,7 @@ impl SecretStorePacket {
 			Err(e) => Err(e),
 		}
 	}
-
 }
-
 
 /* **********************
 		 TEST
@@ -552,14 +554,16 @@ mod test {
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), true);
 
 		// changed secret error
-		secret_packet.secret_data = "324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-O)_214188_1000000".to_string();
+		secret_packet.secret_data =
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-O)_214188_1000000".to_string();
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), false);
 
 		// changed signer error
 		secret_packet.signer_address =
-			"5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET_214188_1000000"
+			"5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET_214188_1000000".to_string();
+		secret_packet.secret_data =
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_10000000"
 				.to_string();
-		secret_packet.secret_data = "324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_10000000".to_string();
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), false);
 
 		// changed signature error
@@ -572,7 +576,8 @@ mod test {
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), false);
 
 		// expired secret error
-		secret_packet.secret_data = "324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_10".to_string();
+		secret_packet.secret_data =
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_10".to_string();
 		secret_packet.signature = "0x2879d6c3f63c108875219c67ce443c823c0a51b590da0aba4441c239f307354a8cbb983d9200bf67079b38c348b114d6a98d3b35cc8b4a20b4711e0e0a3e0582".to_string();
 		assert_eq!(
 			secret_packet.verify_secret().await.unwrap_err(),
@@ -582,12 +587,9 @@ mod test {
 
 	#[tokio::test]
 	async fn verify_request_test() {
-		let owner_secret_key = schnorrkel::SecretKey::from_bytes(&<[u8; 64]>::from_hex("1c4a6fe4fe51c00cd8b5948a143f055b789050b99fd28d95095b542dd122370c").unwrap()).unwrap();
-		let owner_keypair = owner_secret_key.to_keypair();
-
 		let mut secret_packet = SecretStorePacket {
 			owner_address:<sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET").unwrap(),
-			signer_address:"5GxffGgHzTFu8mmHCRbw9YZkkcwTZreL2FVLQHVb4FVgEPcE_214188_1000000".to_string(),
+			signer_address:"5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET_214188_1000000".to_string(),
 			signersig:"0xa4f331ec6c6197a95122f171fbbb561f528085b2ca5176d676596eea03669718a7047cd29db3da4f5c48d3eb9df5648c8b90851fe9781dfaa11aef0eb1e6b88a".to_string(),
 			secret_data:"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_1000000".to_string(),
 			signature:"0x64bc35276740fe6b196c7f18b22be553088555a1a282269d8b85546fcd7e68635392b0fc16e535a6e9187d5e6cbc02fd2c3b62546e848754942023176152f488".to_string(),
@@ -631,7 +633,8 @@ mod test {
 		secret_packet.signer_address =
 			"<Bytes>5GxffGgHzTFu8mmHCRbw9YZkkcwTZreL2FVLQHVb4FVgEPcE_214188_1000000</Bytes>"
 				.to_string();
-		secret_packet.secret_data = "324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_1000000".to_string();
+		secret_packet.secret_data =
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_1000000".to_string();
 		assert_eq!(
 			secret_packet.verify_request().await.unwrap_err(),
 			VerificationError::SIGNERVERIFICATIONFAILED
@@ -645,7 +648,8 @@ mod test {
 		);
 
 		// expired signer error
-		secret_packet.secret_data = "324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_1000000".to_string();
+		secret_packet.secret_data =
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_1000000".to_string();
 		secret_packet.signature = "0x8664ed717bbc787df3344567a7bcbcee9c712f98862d5e1a7ce7956537e32b4fe675073d3937ad1983245f340aeba8aaf29f16a5d63685b51024e4452740828a".to_string();
 		assert_eq!(
 			secret_packet.verify_request().await.unwrap_err(),
