@@ -74,14 +74,6 @@ while :; do
 		die 'ERROR: "--secrets" requires a non-empty option argument.'
 	    fi
         ;;
-        -a|--account)
-	    if [ "$2" ]; then
-		TERNOA_ACCOUNT_PATH=$2
-		shift
-	    else
-		die 'ERROR: "--account" requires a non-empty option argument.'
-	    fi
-        ;;
 	-i|--identity)
 	    if [ "$2" ]; then
 		ENCLAVE_IDENTITY=$2
@@ -98,8 +90,11 @@ while :; do
 	    else
 		cargo build --release
 	    fi
+		
+		mkdir -p $GRAMINE_PATH/bin/
+		cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
+
 		echo "creating binary checksum ..."
-	    cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
 	    cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
 	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
 	    
@@ -109,7 +104,7 @@ while :; do
 		mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
 	;;
 	-h|--help)
-	    echo "usage: start-server.h --port <port-number> --cert <TLS Cert Path> --key <TLS Private Key Path> --secrets <Seal Path> --account <Ternoa Account Json File> --identity <Arbitraty Enclave Name> [-b|--build]"
+	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n -b | --build \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
 	    exit 0
 	    ;;
         *) break
