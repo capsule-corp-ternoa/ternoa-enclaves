@@ -14,15 +14,11 @@ use crate::servers::http_server;
 struct Args {
 	/// Server Port
 	#[arg(short, long)]
+	domain: String,
+
+	/// Server Port
+	#[arg(short, long)]
 	port: u16,
-
-	/// Path to the file, containing certificate for TLS connection
-	#[arg(short, long, default_value_t = String::from("/credentials/certificates/server_cert.pem"))]
-	certfile: String,
-
-	/// Path to the file, containing private-key for TLS connection
-	#[arg(short, long, default_value_t = String::from("/credentials/certificates/server_key.pem"))]
-	keyfile: String,
 
 	/// Path to the location for storing sealed NFT secret shares
 	#[arg(short, long, default_value_t = String::from("/nft/"))]
@@ -42,12 +38,5 @@ async fn main() {
 
 	let args = Args::parse();
 
-	http_server::http_server(
-		&args.port,
-		&args.identity,
-		&args.certfile,
-		&args.keyfile,
-		&args.sealpath,
-	)
-	.await;
+	http_server::http_server(&args.domain, &args.port, &args.identity, &args.sealpath).await;
 }
