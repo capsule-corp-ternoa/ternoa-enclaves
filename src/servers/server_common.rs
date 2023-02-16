@@ -1,53 +1,104 @@
+use rustls::ServerConfig;
+use rustls_acme::caches::DirCache;
+use rustls_acme::AcmeConfig;
+use std::net::{Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::sleep;
+use tokio_stream::StreamExt;
+
 use axum::Router;
 use axum_server::tls_rustls::RustlsConfig;
-use std::net::SocketAddr;
-use tracing::info;
-use rcgen;
-use rcgen::generate_simple_self_signed;
+use axum_server::Handle;
 
-/* Secure Server powered by Hyper */
+use tracing::{error, info};
 
-pub async fn serve(app: Router, port: &u16, certfile: &str, keyfile: &str) {
-	let socket_addr = SocketAddr::from(([0, 0, 0, 0], *port));
+pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::Error> {
+	let socket_addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 443));
 
-	tracing::info!("listening on {}", socket_addr);
-	
-	let file = std::fs::File::open("/etc/hosts").unwrap();
-    let lines = std::io::BufRead::lines(std::io::BufReader::new(file));
-	let domains: Vec<String> = lines.last().unwrap().unwrap().split("\t").map(|s| s.to_string()).collect();
+	info!("starting certificate server on {}", socket_addr);
 
-	let certificate = generate_simple_self_signed(domains).unwrap();
-	
-	let cert_pem = certificate.serialize_pem().expect("Error in certificate serialization to pem format");
-	let cert_key = certificate.serialize_private_key_pem();
+	let mut state = AcmeConfig::new([domain])
+		.contact(
+			["amin@capsule-corp.io", "soufiane@capsule-corp.io"]
+				.iter()
+				.map(|e| format!("mailto:{}", e.to_owned())),
+		)
+		.cache_option(Some(DirCache::new(PathBuf::from(r"/certificates/"))))
+		.directory_lets_encrypt(true)
+		.state();
 
-	//std::fs::write("/nft/certfile.pem", cert_pem).expect("Can not write certificate to sealed folder.");
-	//std::fs::write("/nft/keyfile.pem", cert_key).expect("Can not write certificate-key to sealed folder.");
+	let rustls_config = ServerConfig::builder()
+		.with_safe_defaults()
+		.with_no_client_auth()
+		.with_cert_resolver(state.resolver());
 
-	let config = match RustlsConfig::from_pem(cert_pem.as_bytes().to_vec(), cert_key.as_bytes().to_vec()).await {
-		Ok(conf) => conf,
-		Err(e) => {
-			panic!("Error in server config : {}, path1 = {}, path2 = {}", e, certfile, keyfile)
+	let acceptor = state.axum_acceptor(Arc::new(rustls_config.clone()));
+
+	tokio::spawn(async move {
+		loop {
+			match state.next().await.unwrap() {
+				Ok(ok) => info!("event: {:?}", ok),
+				Err(err) => error!("error: {:?}", err),
+			}
+		}
+	});
+
+	let config = RustlsConfig::from_config(Arc::new(rustls_config.clone()));
+
+	let dummy_app = Router::new().route("/", axum::routing::get(|| async { "Hello Tls!" }));
+
+	// Spawn a task to shutdown server.
+	let handle = Handle::new();
+	tokio::spawn(shutdown(handle.clone()));
+
+	info!("Certificate Server is listening {} on Port 443'\n", socket_addr.ip());
+
+	let cert_server = axum_server::bind_rustls(socket_addr, config.clone())
+		.acceptor(acceptor.clone())
+		.handle(handle)
+		.serve(dummy_app.into_make_service())
+		.await;
+
+	match cert_server {
+		Ok(_) => {
+			info!("Certificate Server finished successfully");
 		},
-	};
 
-	/*
-	let config = match RustlsConfig::from_pem_file(certfile, keyfile).await {
-		Ok(conf) => conf,
 		Err(e) => {
-			panic!("Error in server config : {}, path1 = {}, path2 = {}", e, certfile, keyfile)
+			info!("Error in certificate server : {}", e);
+			return Err(anyhow::anyhow!(format!("Error in certificate server : {}", e)));
 		},
-	};
-	*/
-	
-	info!("Server is listening {} on Port {}'\n", socket_addr.ip(), socket_addr.port());
+	}
 
-	let server = axum_server::bind_rustls(socket_addr, config)
+	let socket_addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, *port));
+	info!("SGX Server is listening {}'\n", socket_addr);
+
+	let sgx_server = axum_server::bind_rustls(socket_addr, config)
+		//.acceptor(acceptor)
 		.serve(app.into_make_service())
 		.await;
 
-	match server {
-		Ok(_) => info!("Server finished successfully"),
-		Err(e) => info!("Error in sgx server : {}", e),
+	match sgx_server {
+		Ok(_) => {
+			info!("SGX Server finished successfully");
+			Ok(())
+		},
+
+		Err(e) => {
+			info!("Error in SGX server : {}", e);
+			Err(anyhow::anyhow!(format!("Error in sgx server : {}", e)))
+		},
 	}
+}
+
+async fn shutdown(handle: Handle) {
+	// Wait 20 seconds.
+	sleep(Duration::from_secs(20)).await;
+
+	info!("sending shutdown signal to Certificate server");
+
+	// Signal the server to shutdown using Handle.
+	handle.shutdown();
 }
