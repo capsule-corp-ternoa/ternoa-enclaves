@@ -277,18 +277,34 @@ pub struct SecretStoreResponse {
 
 pub async fn nft_store_secret_shares(
 	State(state): State<StateConfig>,
-	Json(received_secret): Json<SecretStorePacket>,
+	Json(request): Json<SecretStorePacket>,
 ) -> impl IntoResponse {
-	let verified_secret = received_secret.verify_request().await;
+	let verified_secret = request.verify_request().await;
 
 	match verified_secret {
 		Ok(secret) => {
 			let status = get_onchain_status(secret.nft_id).await;
+			
+			if !status.is_secret {
+				error!(
+					"Error storing secret-nft shares to TEE : nft_id.{} is not a secret-nft", secret.nft_id);
+
+				return (
+					StatusCode::OK,
+					Json(SecretStoreResponse {
+						status: ReturnStatus::SECRETNFTNOTSYNCING,
+						nft_id: secret.nft_id,
+						enclave_id: state.identity,
+						description:
+							"Error storing secret-nft shares to TEE : this nft-id is not a secret-nft"
+								.to_string(),
+					}),
+				);
+			}
+
 			if !status.is_syncing_secret {
 				error!(
-					"Error storing secret-nft shares to TEE : secret-nft is not in syncing mode, nft_id : {}, path : {}",
-					secret.nft_id, state.seal_path
-				);
+					"Error storing secret-nft shares to TEE : secret-nft is not in syncing mode, nft_id : {}", secret.nft_id);
 
 				return (
 					StatusCode::OK,
@@ -365,8 +381,8 @@ pub async fn nft_store_secret_shares(
 
 			match f.write_all(&secret.data) {
 				Ok(_) => info!(
-					"Secret is successfully stored to TEE, nft_id = {}  Owner = {}",
-					secret.nft_id, received_secret.owner_address
+					"Secret is stored to TEE, nft_id = {}  Owner = {}",
+					secret.nft_id, request.owner_address
 				),
 				Err(err) => {
 					error!("Error storing NFT secret-share to TEE : error in writing data to file, nft_id : {}, path: {}, Error : {}", secret.nft_id, file_path, err);
@@ -390,7 +406,7 @@ pub async fn nft_store_secret_shares(
 				Ok(txh) => {
 					info!(
 						"Proof of storage has been sent to secret-nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
-						secret.nft_id, received_secret.owner_address, txh
+						secret.nft_id, request.owner_address, txh
 					);
 
 					// Log file for tracing the NFT secret-share VIEW history in Marketplace.
@@ -409,20 +425,23 @@ pub async fn nft_store_secret_shares(
 				},
 
 				Err(err) => {
+					let err_str = err.to_string();
 					error!(
 						"Error sending proof of storage to chain, nft_id : {}, Error : {}",
-						secret.nft_id, err
+						secret.nft_id, err_str
 					);
 
 					std::fs::remove_file(file_path.clone()).expect("Can not remove secret file");
 
+					warn!("removed secret-share from TEE due to previous error, nft_id : {}", secret.nft_id);
+					
 					return (
 						StatusCode::OK,
 						Json(SecretStoreResponse {
 							status: ReturnStatus::ORACLEFAILURE,
 							nft_id: secret.nft_id,
 							enclave_id: state.identity,
-							description: "Error sending proof of storage to chain.".to_string(),
+							description: format!("{} => {}", "Error sending proof of storage to chain.".to_string(), err_str),
 						}),
 					);
 				},
@@ -441,7 +460,7 @@ pub async fn nft_store_secret_shares(
 						StatusCode::OK,
 						Json(SecretStoreResponse {
 							status: ReturnStatus::INVALIDSIGNERSIGNATURE,
-							nft_id: received_secret.parse_secret().nft_id,
+							nft_id: request.parse_secret().unwrap().nft_id,
 							enclave_id: state.identity,
 							description:
 								"Error storing NFT secret-share to TEE : Invalid Request Signature"
@@ -450,14 +469,14 @@ pub async fn nft_store_secret_shares(
 					);
 				},
 
-				VerificationError::INVALIDOWNER => {
+				VerificationError::INVALIDOWNERACCOUNT => {
 					warn!("Error storing NFT secret-share to TEE : Invalid NFT Owner");
 
 					return (
 						StatusCode::OK,
 						Json(SecretStoreResponse {
-							status: ReturnStatus::INVALIDOWNER,
-							nft_id: received_secret.parse_secret().nft_id,
+							status: ReturnStatus::INVALIDOWNERACCOUNT,
+							nft_id: request.parse_secret().unwrap().nft_id,
 							enclave_id: state.identity,
 							description:
 								"Error storing NFT secret-share to TEE : Invalid NFT Owner"
@@ -473,7 +492,7 @@ pub async fn nft_store_secret_shares(
 					StatusCode::OK,
 					Json(SecretStoreResponse {
 						status: ReturnStatus::EXPIREDSIGNER,
-						nft_id: received_secret.parse_secret().nft_id,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description: "Error storing NFT secret-share to TEE : Request signature is invalid."
 							.to_string(),
@@ -488,7 +507,7 @@ pub async fn nft_store_secret_shares(
 					StatusCode::OK,
 					Json(SecretStoreResponse {
 						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
-						nft_id: received_secret.parse_secret().nft_id,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description: "Error storing NFT secret-share to TEE : Signer signature verification failed."
 							.to_string(),
@@ -503,7 +522,7 @@ pub async fn nft_store_secret_shares(
 					StatusCode::OK,
 					Json(SecretStoreResponse {
 						status: ReturnStatus::EXPIREDSIGNER,
-						nft_id: received_secret.parse_secret().nft_id,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description: "Error storing NFT secret-share to TEE : Ownership validation failed."
 							.to_string(),
@@ -518,7 +537,7 @@ pub async fn nft_store_secret_shares(
 						StatusCode::OK,
 						Json(SecretStoreResponse {
 							status: ReturnStatus::INVALIDSIGNERSIGNATURE,
-							nft_id: received_secret.parse_secret().nft_id,
+							nft_id: request.parse_secret().unwrap().nft_id,
 							enclave_id: state.identity,
 							description:
 								"Error storing NFT secret-share to TEE : Signer account is invalid."
@@ -534,7 +553,7 @@ pub async fn nft_store_secret_shares(
 						StatusCode::OK,
 						Json(SecretStoreResponse {
 							status: ReturnStatus::EXPIREDSIGNER,
-							nft_id: received_secret.parse_secret().nft_id,
+							nft_id: request.parse_secret().unwrap().nft_id,
 							enclave_id: state.identity,
 							description:
 								"Error storing NFT secret-share to TEE : Signer account is expired."
@@ -550,7 +569,7 @@ pub async fn nft_store_secret_shares(
 						StatusCode::OK,
 						Json(SecretStoreResponse {
 							status: ReturnStatus::EXPIREDREQUEST,
-							nft_id: received_secret.parse_secret().nft_id,
+							nft_id: request.parse_secret().unwrap().nft_id,
 							enclave_id: state.identity,
 							description:
 								"Error storing NFT secret-share to TEE : Secret request is expired."
@@ -566,7 +585,7 @@ pub async fn nft_store_secret_shares(
 						StatusCode::OK,
 						Json(SecretStoreResponse {
 							status: ReturnStatus::IDISNOTASECRET,
-							nft_id: received_secret.parse_secret().nft_id,
+							nft_id: request.parse_secret().unwrap().nft_id,
 							enclave_id: state.identity,
 							description:
 								"Error storing NFT secret-share to TEE : nft_id is not a secret."
@@ -574,6 +593,10 @@ pub async fn nft_store_secret_shares(
 						}),
 					);
 				},
+				VerificationError::INVALIDAUTHTOKEN => todo!(),
+				VerificationError::INVALIDNFTID => todo!(),
+				VerificationError::MALFORMATEDSIGNER => todo!(),
+				VerificationError::MALFORMATEDSECRET => todo!(),
 			}
 		},
 	}
@@ -592,12 +615,30 @@ pub struct SecretRetrieveResponse {
 
 pub async fn nft_retrieve_secret_shares(
 	State(state): State<StateConfig>,
-	Json(requested_secret): Json<SecretStorePacket>,
+	Json(request): Json<SecretStorePacket>,
 ) -> impl IntoResponse {
-	let verified_req = requested_secret.verify_request().await;
+	let verified_req = request.verify_request().await;
 
 	match verified_req {
 		Ok(data) => {
+			let status = get_onchain_status(data.nft_id).await;
+			if !status.is_secret {
+				error!(
+					"Error retrieving secret-nft shares to TEE : nft_id : {} is not a secret-nft", data.nft_id);
+
+				return (
+					StatusCode::OK,
+					Json(SecretRetrieveResponse {
+						status: ReturnStatus::SECRETNFTNOTSYNCING,
+						enclave_id: state.identity,
+						description:
+							"Error storing secret-nft shares to TEE : this nft-id is not a secret-nft"
+								.to_string(),
+        				secret_data: format!("{{nft_id:{}}}", data.nft_id),
+					}),
+				);
+			}
+
 			let file_path = state.seal_path.clone() + "nft_" + &data.nft_id.to_string() + ".secret";
 			if !std::path::Path::new(&file_path).is_file() {
 				warn!(
@@ -641,7 +682,7 @@ pub async fn nft_retrieve_secret_shares(
 			match file.read_to_end(&mut nft_secret_share) {
 				Ok(_) => info!(
 					"Secret shares of {} retrieved by {}",
-					data.nft_id, requested_secret.owner_address
+					data.nft_id, request.owner_address
 				),
 
 				Err(err) => {
@@ -671,7 +712,7 @@ pub async fn nft_retrieve_secret_shares(
 			log_file.seek(std::io::SeekFrom::End(0)).unwrap();
 
 			let time: chrono::DateTime<chrono::offset::Utc> = std::time::SystemTime::now().into();
-			let log_data = requested_secret.owner_address.to_string()
+			let log_data = request.owner_address.to_string()
 				+ " Viewed the secret on "
 				+ time.format("%Y-%m-%d %H:%M:%S").to_string().as_str()
 				+ "\n";
@@ -714,25 +755,25 @@ pub async fn nft_retrieve_secret_shares(
 						description:
 							"Error retrieving NFT secret-share from TEE : Invalid Secret-Data Signature"
 								.to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!("{{nft_id:{}}}", request.parse_secret().unwrap().nft_id),
 					}),
 				);
 			},
 
-			VerificationError::INVALIDOWNER => {
+			VerificationError::INVALIDOWNERACCOUNT => {
 				warn!("Error retrieving NFT secret-share from TEE : Invalid NFT Owner");
 
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
-						status: ReturnStatus::INVALIDOWNER,
+						status: ReturnStatus::INVALIDOWNERACCOUNT,
 						enclave_id: state.identity,
 						description:
 							"Error retrieving NFT secret-share from TEE : Invalid NFT Owner"
 								.to_string(),
 						secret_data: format!(
 							"{{nft_id:{}}}",
-							requested_secret.parse_secret().nft_id
+							request.parse_secret().unwrap().nft_id
 						),
 					}),
 				);
@@ -749,7 +790,7 @@ pub async fn nft_retrieve_secret_shares(
 						description:
 							"Error retrieving NFT secret-share from TEE : Request signature is invalid."
 								.to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!("{{nft_id:{}}}", request.parse_secret().unwrap().nft_id),
 					}),
 				);
 			},
@@ -765,7 +806,7 @@ pub async fn nft_retrieve_secret_shares(
 						description:
 							"Error retrieving NFT secret-share from TEE : Signer signature verification failed."
 								.to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!("{{nft_id:{}}}", request.parse_secret().unwrap().nft_id),
 					}),
 				);
 			},
@@ -776,12 +817,12 @@ pub async fn nft_retrieve_secret_shares(
 				return (
 					StatusCode::OK,
 					Json(SecretRetrieveResponse {
-						status: ReturnStatus::INVALIDOWNER,
+						status: ReturnStatus::INVALIDOWNERACCOUNT,
 						enclave_id: state.identity,
 						description:
 							"Error retrieving NFT secret-share from TEE : Ownership validation failed."
 								.to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!("{{nft_id:{}}}", request.parse_secret().unwrap().nft_id),
 					}),
 				);
 			},
@@ -797,7 +838,7 @@ pub async fn nft_retrieve_secret_shares(
 						description:
 							"Error retrieving NFT secret-share from TEE : Signer account is invalid."
 								.to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!("{{nft_id:{}}}", request.parse_secret().unwrap().nft_id),
 					}),
 				);
 			},
@@ -813,7 +854,7 @@ pub async fn nft_retrieve_secret_shares(
 						description:
 							"Error retrieving NFT secret-share from TEE : Signer account is expired."
 								.to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!("{{nft_id:{}}}", request.parse_secret().unwrap().nft_id),
 					}),
 				);
 			},
@@ -829,7 +870,7 @@ pub async fn nft_retrieve_secret_shares(
 						description:
 							"Error retrieving NFT secret-share from TEE : Secret request is expired."
 								.to_string(),
-						secret_data: format!("{{nft_id:{}}}", requested_secret.parse_secret().nft_id),
+						secret_data: format!("{{nft_id:{}}}", request.parse_secret().unwrap().nft_id),
 					}),
 				);
 			},
@@ -847,11 +888,15 @@ pub async fn nft_retrieve_secret_shares(
 								.to_string(),
 						secret_data: format!(
 							"{{nft_id:{}}}",
-							requested_secret.parse_secret().nft_id
+							request.parse_secret().unwrap().nft_id
 						),
 					}),
 				);
 			},
+			VerificationError::INVALIDAUTHTOKEN => todo!(),
+			VerificationError::INVALIDNFTID => todo!(),
+			VerificationError::MALFORMATEDSIGNER => todo!(),
+			VerificationError::MALFORMATEDSECRET => todo!(),
 		},
 	}
 }
@@ -869,12 +914,12 @@ pub struct SecretRemoveResponse {
 
 pub async fn nft_remove_secret_shares(
 	State(state): State<StateConfig>,
-	Json(remove_secret): Json<SecretStorePacket>,
+	Json(request): Json<SecretStorePacket>,
 ) -> impl IntoResponse {
-	let verified_req = remove_secret.verify_remove_request().await;
+	let verified_req = request.verify_remove_request().await;
 	match verified_req {
 		Ok(secret) => {
-			// Check if NFT/CAPSULE is burnt
+			// Check if NFT is burnt
 			let status = get_onchain_status(secret.nft_id).await;
 			if status.is_burnt {
 				if std::path::Path::new(&state.clone().seal_path).exists() {
@@ -971,7 +1016,7 @@ pub async fn nft_remove_secret_shares(
 					StatusCode::OK,
 					Json(SecretRemoveResponse {
 						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
-						nft_id: remove_secret.parse_secret().nft_id,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description:
 							"Error removing NFT secret-share from TEE : Invalid Secret-Data Signature"
@@ -980,14 +1025,14 @@ pub async fn nft_remove_secret_shares(
 				);
 			},
 
-			VerificationError::INVALIDOWNER => {
+			VerificationError::INVALIDOWNERACCOUNT => {
 				warn!("Error removing NFT secret-share from TEE : Invalid NFT Owner");
 
 				return (
 					StatusCode::OK,
 					Json(SecretRemoveResponse {
-						status: ReturnStatus::INVALIDOWNER,
-						nft_id: remove_secret.parse_secret().nft_id,
+						status: ReturnStatus::INVALIDOWNERACCOUNT,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description: "Error removing NFT secret-share from TEE : Invalid NFT Owner"
 							.to_string(),
@@ -1005,7 +1050,7 @@ pub async fn nft_remove_secret_shares(
 					StatusCode::OK,
 					Json(SecretRemoveResponse {
 						status: ReturnStatus::EXPIREDSIGNER,
-						nft_id: remove_secret.parse_secret().nft_id,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description:
 							"Error removing NFT secret-share from TEE : Request signature is invalid."
@@ -1021,7 +1066,7 @@ pub async fn nft_remove_secret_shares(
 					StatusCode::OK,
 					Json(SecretRemoveResponse {
 						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
-						nft_id: remove_secret.parse_secret().nft_id,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description:
 							"Error removing NFT secret-share from TEE : Signer signature verification failed."
@@ -1036,8 +1081,8 @@ pub async fn nft_remove_secret_shares(
 				return (
 					StatusCode::OK,
 					Json(SecretRemoveResponse {
-						status: ReturnStatus::INVALIDOWNER,
-						nft_id: remove_secret.parse_secret().nft_id,
+						status: ReturnStatus::INVALIDOWNERACCOUNT,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description:
 							"Error removing NFT secret-share from TEE : Ownership validation failed."
@@ -1053,7 +1098,7 @@ pub async fn nft_remove_secret_shares(
 					StatusCode::OK,
 					Json(SecretRemoveResponse {
 						status: ReturnStatus::INVALIDSIGNERSIGNATURE,
-						nft_id: remove_secret.parse_secret().nft_id,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description:
 							"Error removing NFT secret-share from TEE : Signer account is invalid."
@@ -1069,7 +1114,7 @@ pub async fn nft_remove_secret_shares(
 					StatusCode::OK,
 					Json(SecretRemoveResponse {
 						status: ReturnStatus::EXPIREDSIGNER,
-						nft_id: remove_secret.parse_secret().nft_id,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description:
 							"Error removing NFT secret-share from TEE : Signer account is expired."
@@ -1085,7 +1130,7 @@ pub async fn nft_remove_secret_shares(
 					StatusCode::OK,
 					Json(SecretRemoveResponse {
 						status: ReturnStatus::EXPIREDREQUEST,
-						nft_id: remove_secret.parse_secret().nft_id,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description:
 							"Error removing NFT secret-share from TEE : Secret request is expired."
@@ -1101,7 +1146,7 @@ pub async fn nft_remove_secret_shares(
 					StatusCode::OK,
 					Json(SecretRemoveResponse {
 						status: ReturnStatus::IDISNOTASECRET,
-						nft_id: remove_secret.parse_secret().nft_id,
+						nft_id: request.parse_secret().unwrap().nft_id,
 						enclave_id: state.identity,
 						description:
 							"Error removing NFT secret-share from TEE : nft_id is not a secret."
@@ -1109,6 +1154,10 @@ pub async fn nft_remove_secret_shares(
 					}),
 				);
 			},
+			VerificationError::INVALIDAUTHTOKEN => todo!(),
+			VerificationError::INVALIDNFTID => todo!(),
+			VerificationError::MALFORMATEDSIGNER => todo!(),
+			VerificationError::MALFORMATEDSECRET => todo!(),
 		},
 	}
 }
