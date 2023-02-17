@@ -1,7 +1,9 @@
 use hex::FromHex;
 use std::str::FromStr;
 
-use sp_core::{sr25519, ByteArray, Pair};
+#[allow(unused_imports)]
+//#![allow(dead_code)
+use sp_core::{crypto::Ss58Codec, sr25519, ByteArray, Pair};
 use subxt::utils::AccountId32;
 
 use serde::{Deserialize, Serialize};
@@ -13,10 +15,10 @@ use crate::chain::chain::{get_current_block_number, get_onchain_data};
 ********************** */
 
 #[derive(Debug)]
-pub enum SecretError {
-	InvalidSignature,
-	InvalidOwner,
-	InvalidSigner,
+pub enum _SecretError {
+	_InvalidSignature,
+	_InvalidOwner,
+	_InvalidSigner,
 }
 
 #[derive(Serialize, PartialEq)]
@@ -28,7 +30,9 @@ pub enum ReturnStatus {
 	INVALIDSIGNERSIGNATURE,
 	INVALIDOWNERSIGNATURE,
 
-	INVALIDOWNER,
+	INVALIDOWNERACCOUNT,
+	INVALIDSIGNERACCOUNT,
+	INVALIDAUTHTOKEN,
 
 	EXPIREDSIGNER,
 	EXPIREDREQUEST,
@@ -47,11 +51,14 @@ pub enum ReturnStatus {
 	CAPSULESECRETNOTACCESSIBLE,
 	CAPSULESECRETNOTREADABLE,
 
-	NFTNOTBURNT,
 	IDISNOTASECRET,
+	IDISNOTACAPSULE,
 
 	CAPSULENOTBURNT,
 	CAPSULENOTSYNCING,
+
+	SECRETNFTNOTBURNT,
+	SECRETNFTNOTSYNCING,
 }
 
 // Errors when parsing signature
@@ -71,8 +78,13 @@ pub enum VerificationError {
 	SIGNERVERIFICATIONFAILED,
 	OWNERVERIFICATIONFAILED,
 
-	INVALIDOWNER,
+	INVALIDOWNERACCOUNT,
 	INVALIDSIGNERACCOUNT,
+	INVALIDAUTHTOKEN,
+
+	INVALIDNFTID,
+	MALFORMATEDSIGNER,
+	MALFORMATEDSECRET,
 
 	EXPIREDSIGNER,
 	EXPIREDSECRET,
@@ -89,21 +101,21 @@ pub struct AuthenticationToken {
 
 // Secret Data structure
 #[derive(Clone, Debug, PartialEq)]
-pub struct SecretData {
+pub struct SecretStoreData {
 	pub nft_id: u32,
 	pub data: Vec<u8>,
 	pub auth_token: AuthenticationToken,
 }
 
 // Packet-signer and validity of it
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Signer {
 	account: sr25519::Public,
 	auth_token: AuthenticationToken,
 }
 
 #[derive(Deserialize, Clone)]
-pub struct SecretPacket {
+pub struct SecretStorePacket {
 	pub owner_address: sr25519::Public,
 
 	// Signed by owner
@@ -198,8 +210,8 @@ pub async fn get_onchain_status(nft_id: u32) -> OnchainStatus {
 }
 
 /* ----------------------------------
-   AUTHENTICATION TOKEN IMPLEMENTATION
-   ----------------------------------*/
+AUTHENTICATION TOKEN IMPLEMENTATION
+----------------------------------*/
 
 // Retrieving the stored secret
 impl AuthenticationToken {
@@ -220,10 +232,12 @@ impl AuthenticationToken {
 ----------------------------------*/
 
 // Retrieving the stored secret
-impl SecretData {
+impl SecretStoreData {
 	// TODO: use json canonicalization of JOSE/JWT encoder
 	pub fn serialize(self) -> String {
-		self.nft_id.to_string() + "_" + &String::from_utf8(self.data).unwrap() + "_" + &self.auth_token.serialize()
+		self.nft_id.to_string()
+			+ "_" + &String::from_utf8(self.data).unwrap()
+			+ "_" + &self.auth_token.serialize()
 	}
 }
 
@@ -231,10 +245,11 @@ impl SecretData {
 SECRET-PACKET IMPLEMENTATION
 ----------------------------------*/
 
-impl SecretPacket {
+impl SecretStorePacket {
 	// Signer string to public key
-	pub fn get_signer(&self) -> Result<Signer, ()> {
+	pub fn get_signer(&self) -> Result<Signer, VerificationError> {
 		let mut signer = self.signer_address.clone();
+
 		if signer.starts_with("<Bytes>") && signer.ends_with("</Bytes>") {
 			signer = signer
 				.strip_prefix("<Bytes>")
@@ -247,21 +262,41 @@ impl SecretPacket {
 		let parsed_data: Vec<&str> = if signer.contains("_") {
 			signer.split("_").collect()
 		} else {
-			return Err(());
+			return Err(VerificationError::MALFORMATEDSIGNER);
+		};
+
+		if parsed_data.len() < 3 {
+			return Err(VerificationError::MALFORMATEDSIGNER);
+		}
+
+		let account = match sr25519::Public::from_ss58check(parsed_data[0]) {
+			Ok(acc) => acc,
+			Err(_) => return Err(VerificationError::INVALIDSIGNERACCOUNT),
+		};
+
+		let block_num = match parsed_data[1].parse::<u32>() {
+			Ok(bn) => bn,
+			Err(_) => return Err(VerificationError::INVALIDAUTHTOKEN),
+		};
+
+		let block_valid = match parsed_data[2].parse::<u32>() {
+			Ok(bv) => bv,
+			Err(_) => return Err(VerificationError::INVALIDAUTHTOKEN),
 		};
 
 		Ok(Signer {
-			account: sr25519::Public::from_str(parsed_data[0]).unwrap(),
+			account,
 			auth_token: AuthenticationToken {
-				block_number: parsed_data[1].parse::<u32>().unwrap(),
-				block_validation: parsed_data[2].parse::<u32>().unwrap(),
+				block_number: block_num,
+				block_validation: block_valid,
 			},
 		})
 	}
 
 	// TODO: use json canonicalization of JOSE/JWT decoder
-	pub fn parse_secret(&self) -> SecretData {
+	pub fn parse_secret(&self) -> Result<SecretStoreData, VerificationError> {
 		let mut secret_data = self.secret_data.clone();
+
 		if secret_data.starts_with("<Bytes>") && secret_data.ends_with("</Bytes>") {
 			secret_data = secret_data
 				.strip_prefix("<Bytes>")
@@ -274,11 +309,30 @@ impl SecretPacket {
 		let parsed_data: Vec<&str> = if secret_data.contains("_") {
 			secret_data.split("_").collect()
 		} else {
-			vec![&secret_data]
+			return Err(VerificationError::MALFORMATEDSIGNER);
 		};
 
-		SecretData {
-			nft_id: parsed_data[0].parse::<u32>().unwrap(),
+		if parsed_data.len() < 4 {
+			return Err(VerificationError::MALFORMATEDSECRET);
+		}
+
+		let nft_id = match parsed_data[0].parse::<u32>() {
+			Ok(n) => n,
+			Err(_) => return Err(VerificationError::INVALIDNFTID),
+		};
+
+		let block_number = match parsed_data[2].parse::<u32>() {
+			Ok(bn) => bn,
+			Err(_) => return Err(VerificationError::INVALIDAUTHTOKEN),
+		};
+
+		let block_validation = match parsed_data[3].parse::<u32>() {
+			Ok(bv) => bv,
+			Err(_) => return Err(VerificationError::INVALIDAUTHTOKEN),
+		};
+
+		Ok(SecretStoreData {
+			nft_id,
 
 			data: if !parsed_data[1].is_empty() {
 				parsed_data[1].as_bytes().to_vec()
@@ -286,11 +340,8 @@ impl SecretPacket {
 				Vec::new()
 			},
 
-			auth_token: AuthenticationToken {
-				block_number: parsed_data[2].parse::<u32>().unwrap(),
-				block_validation: parsed_data[3].parse::<u32>().unwrap(),
-			},
-		}
+			auth_token: AuthenticationToken { block_number, block_validation },
+		})
 	}
 
 	// Extract signatures from hex
@@ -346,10 +397,14 @@ impl SecretPacket {
 			},
 		};
 
-		let secret = self.parse_secret();
+		let secret = match self.parse_secret() {
+			Ok(sec) => sec,
+			Err(e) => return Err(e),
+		};
+
 		let nft_status = get_onchain_status(secret.nft_id).await;
 
-		if !nft_status.is_secret {
+		if !nft_status.is_secret && !nft_status.is_capsule {
 			return Err(VerificationError::IDISNOTASECRET);
 		}
 
@@ -363,39 +418,49 @@ impl SecretPacket {
 	}
 
 	// Check nft/capsule owner
-	pub async fn check_ownership(&self) -> bool {
-		let capsule_owner = get_onchain_owner(self.parse_secret().nft_id).await;
+	pub async fn check_ownership(&self, nft_id: u32) -> bool {
+		let capsule_owner = get_onchain_owner(nft_id).await;
 		match capsule_owner {
-			SecretOwner::Owner(owner) => owner == self.owner_address.into(),
+			SecretOwner::Owner(owner) => {
+				owner
+					== subxt::utils::AccountId32::from_str(&self.owner_address.to_string()).unwrap()
+			},
 			SecretOwner::NotFound => false,
 		}
 	}
 
-	pub async fn verify_request(&self) -> Result<SecretData, VerificationError> {
+	pub async fn verify_request(&self) -> Result<SecretStoreData, VerificationError> {
 		match self.verify_signer().await {
-			// TODO: For burnt nft/capsule "check ownership" will fail!
-			Ok(true) => match self.check_ownership().await {
-				true => match self.verify_secret().await {
-					Ok(true) => Ok(self.parse_secret()),
-					Ok(false) => Err(VerificationError::OWNERVERIFICATIONFAILED),
-					Err(e) => Err(e),
-				},
+			Ok(true) => {
+				let secret = match self.parse_secret() {
+					Ok(sec) => sec,
+					Err(e) => return Err(e),
+				};
 
-				false => Err(VerificationError::INVALIDOWNER),
+				if self.check_ownership(secret.nft_id).await {
+					match self.verify_secret().await {
+						Ok(true) => Ok(secret),
+						Ok(false) => Err(VerificationError::OWNERVERIFICATIONFAILED),
+						Err(e) => Err(e),
+					}
+				} else {
+					Err(VerificationError::INVALIDOWNERACCOUNT)
+				}
 			},
 
 			Ok(false) => Err(VerificationError::SIGNERVERIFICATIONFAILED),
+
 			Err(e) => Err(e),
 		}
 	}
 
-	pub async fn verify_remove_request(&self) -> Result<SecretData, VerificationError> {
+	pub async fn verify_remove_request(&self) -> Result<SecretStoreData, VerificationError> {
 		match self.verify_signer().await {
 			Ok(true) => match self.verify_secret().await {
-					Ok(true) => Ok(self.parse_secret()),
-					Ok(false) => Err(VerificationError::OWNERVERIFICATIONFAILED),
-					Err(e) => Err(e),
-				},
+				Ok(true) => self.parse_secret(),
+				Ok(false) => Err(VerificationError::OWNERVERIFICATIONFAILED),
+				Err(e) => Err(e),
+			},
 
 			Ok(false) => Err(VerificationError::SIGNERVERIFICATIONFAILED),
 			Err(e) => Err(e),
@@ -409,39 +474,15 @@ impl SecretPacket {
 
 #[cfg(test)]
 mod test {
+
 	use super::*;
-
-	/* TODO: This test can not pass in workflow action, without verified account and nft_id
-	#[tokio::test]
-	async fn get_capsule_owner_test() {
-		let address = AccountId32::from(
-			sr25519::Public::from_ss58check("5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6")
-				.unwrap(),
-		);
-		let nft_id = 10;
-		let owner = match get_capsule_owner(nft_id).await {
-			SecretOwner::Owner(addr) => addr,
-			SecretOwner::NotFound => panic!("Test erros, nft_id is not available, check your chain."),
-		};
-		let other = match get_capsule_owner(nft_id + 100).await {
-			SecretOwner::Owner(addr) => addr,
-			SecretOwner::NotFound => panic!("Test erros, nft_id is not available, check your chain."),
-		};
-		let unknown = get_capsule_owner(10_000).await;
-
-		assert_eq!(owner, address); // Same Capsule match Owner
-		assert_ne!(other, address); // Different Capsules, (probably) diffetent owners
-		assert_ne!(owner, AccountKeyring::Alice.to_raw_public().into()); // Unauthorized random owner
-		assert_eq!(unknown, SecretOwner::NotFound); // Unavailable Capsule
-	}
-	*/
 
 	/* ----------------------
 		 PARSING
 	---------------------- */
 	#[tokio::test]
 	async fn parse_secret_from_sdk_test() {
-		let secret_packet_sdk: SecretPacket = SecretPacket {
+		let secret_packet_sdk: SecretStorePacket = SecretStorePacket {
 			owner_address: sr25519::Public::from_slice(&[0u8; 32]).unwrap(),
 			signer_address: sr25519::Public::from_slice(&[1u8; 32]).unwrap().to_string(),
 			secret_data: "163_1234567890abcdef_1000_10000".to_string(),
@@ -450,7 +491,7 @@ mod test {
 		};
 
 		// Signed in SDK
-		let secret_data = secret_packet_sdk.parse_secret();
+		let secret_data = secret_packet_sdk.parse_secret().unwrap();
 
 		assert_eq!(secret_data.nft_id, 163);
 		assert_eq!(secret_data.data, b"1234567890abcdef");
@@ -460,7 +501,7 @@ mod test {
 
 	#[tokio::test]
 	async fn parse_secret_from_polkadotjs_test() {
-		let secret_packet_polkadotjs: SecretPacket = SecretPacket {
+		let secret_packet_polkadotjs: SecretStorePacket = SecretStorePacket {
 			owner_address: sr25519::Public::from_slice(&[0u8; 32]).unwrap(),
 			signer_address: sr25519::Public::from_slice(&[1u8; 32]).unwrap().to_string(),
 			secret_data: "<Bytes>163_1234567890abcdef_1000_10000</Bytes>".to_string(),
@@ -468,7 +509,7 @@ mod test {
 			signersig: "xxx".to_string(),
 		};
 		// Signed in Polkadot.JS
-		let secret_data = secret_packet_polkadotjs.parse_secret();
+		let secret_data = secret_packet_polkadotjs.parse_secret().unwrap();
 
 		assert_eq!(secret_data.nft_id, 163);
 		assert_eq!(secret_data.data, b"1234567890abcdef");
@@ -478,8 +519,8 @@ mod test {
 
 	#[tokio::test]
 	async fn get_public_key_test() {
-		let secret_packet_sdk: SecretPacket = SecretPacket {
-			owner_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
+		let secret_packet_sdk: SecretStorePacket = SecretStorePacket {
+			owner_address: sr25519::Public::from_ss58check(
 				"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
 			)
 			.unwrap(),
@@ -504,7 +545,7 @@ mod test {
 	async fn parse_signature_test() {
 		let correct_sig = sr25519::Signature::from_raw(<[u8;64]>::from_hex("42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b").unwrap());
 
-		let mut secret_packet_sdk: SecretPacket = SecretPacket {
+		let mut secret_packet_sdk: SecretStorePacket = SecretStorePacket {
 			owner_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
 			signer_address: sr25519::Public::from_slice(&[1u8;32]).unwrap().to_string(),
 			secret_data: "xxx".to_string(), 
@@ -532,38 +573,40 @@ mod test {
 
 	#[tokio::test]
 	async fn verify_secret_test() {
-		let mut secret_packet = SecretPacket {
-			owner_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy").unwrap(),
-			signer_address: "<Bytes>5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy_120000_100000</Bytes>".to_string(),
-			signersig: "0xc889f814d8811617cea97b23227b300fc900f3466f1587aa4e14e1aa3ffe3b2fead469644dad7e5cc89fb36c96bdc144ec5f4f1b5b9b96f545b10af1d3e8c282".to_string(),
-			secret_data: "<Bytes>163_1234567890abcdef_120000_100000</Bytes>".to_string(), 
-			signature: "0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16484".to_string(),
+		let mut secret_packet = SecretStorePacket {
+			owner_address:sr25519::Public::from_ss58check("5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET").unwrap(),
+			signer_address:"5GxffGgHzTFu8mmHCRbw9YZkkcwTZreL2FVLQHVb4FVgEPcE_214188_1000000".to_string(),
+			signersig:"0xa4f331ec6c6197a95122f171fbbb561f528085b2ca5176d676596eea03669718a7047cd29db3da4f5c48d3eb9df5648c8b90851fe9781dfaa11aef0eb1e6b88a".to_string(),
+			secret_data:"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_1000000".to_string(),
+			signature:"0x64bc35276740fe6b196c7f18b22be553088555a1a282269d8b85546fcd7e68635392b0fc16e535a6e9187d5e6cbc02fd2c3b62546e848754942023176152f488".to_string(),
 		};
 
 		// correct
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), true);
 
 		// changed secret error
-		secret_packet.secret_data = "<Bytes>163_1234567890abcdee_120000_100000</Bytes>".to_string();
+		secret_packet.secret_data =
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-O)_214188_1000000".to_string();
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), false);
 
 		// changed signer error
 		secret_packet.signer_address =
-			"<Bytes>5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY_120000_100000</Bytes>".to_string();
-		secret_packet.secret_data = "<Bytes>163_1234567890abcdef_120000_100000</Bytes>".to_string();
+			"5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET_214188_1000000".to_string();
+		secret_packet.secret_data =
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_10000000"
+				.to_string();
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), false);
 
 		// changed signature error
 		secret_packet.owner_address =
-			<sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
-				"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
-			)
-			.unwrap();
+			sr25519::Public::from_ss58check("5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy")
+				.unwrap();
 		secret_packet.signature = "0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16485".to_string();
 		assert_eq!(secret_packet.verify_secret().await.unwrap(), false);
 
 		// expired secret error
-		secret_packet.secret_data = "<Bytes>163_1234567890abcdee_120000_1000</Bytes>".to_string();
+		secret_packet.secret_data =
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_10".to_string();
 		secret_packet.signature = "0x2879d6c3f63c108875219c67ce443c823c0a51b590da0aba4441c239f307354a8cbb983d9200bf67079b38c348b114d6a98d3b35cc8b4a20b4711e0e0a3e0582".to_string();
 		assert_eq!(
 			secret_packet.verify_secret().await.unwrap_err(),
@@ -572,62 +615,105 @@ mod test {
 	}
 
 	#[tokio::test]
-	async fn verify_request_test() {
-		let mut secret_packet = SecretPacket {
-			owner_address: <sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check("5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy").unwrap(),
-			signer_address: "<Bytes>5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy_120000_100000</Bytes>".to_string(),
-			signersig: "0xa09ceb432262a7d148869475de27e1678caa796da754a4313ccce57a5e409c0ba7bd1f5b6d9babed2686632a0ba14673bfd5ae7df7026a1b7a766bfdf172a688".to_string(),
-			secret_data: "<Bytes>163_1234567890abcdef_120000_100000</Bytes>".to_string(), 
-			signature: "0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16484".to_string(),
+	async fn verify_polkadotjs_request_test() {
+		let owner1 = sr25519::Pair::generate().0;
+		let signer1 = sr25519::Pair::generate().0;
+		let signer_address1 =
+			"<Bytes>".to_string() + &signer1.public().to_ss58check() + "_214299_1000000</Bytes>";
+		let signersig1 = owner1.sign(signer_address1.as_bytes());
+		let secret_data1 = "<Bytes>324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000</Bytes>";
+		let signature1 = signer1.sign(secret_data1.as_bytes());
+
+		let secret_packet1 = SecretStorePacket {
+			owner_address: owner1.public(),
+			signer_address: signer_address1.to_string(),
+			signersig: format!("{}{:?}", "0x", signersig1),
+			secret_data: secret_data1.to_string(),
+			signature: format!("{}{:?}", "0x", signature1),
 		};
 
-		let correct_secret_data = SecretData {
-			nft_id: 163,
-			data: "1234567890abcdef".as_bytes().to_vec(),
-			auth_token: AuthenticationToken { block_number: 120000, block_validation: 100000 },
+		let sig1 = secret_packet1.parse_signature("signer").unwrap();
+		let res1 = sr25519::Pair::verify(
+			&sig1,
+			secret_packet1.clone().signer_address,
+			&secret_packet1.owner_address,
+		);
+		assert!(res1);
+
+		let correct_secret_data = SecretStoreData {
+			nft_id: 324,
+			data: "thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)".as_bytes().to_vec(),
+			auth_token: AuthenticationToken { block_number: 214299, block_validation: 1000000 },
 		};
 
 		// correct
-		assert_eq!(secret_packet.verify_request().await.unwrap(), correct_secret_data);
+		assert_eq!(secret_packet1.verify_remove_request().await.unwrap(), correct_secret_data);
+	}
+
+	#[tokio::test]
+	async fn verify_signer_request_test() {
+		// Test
+		let owner = sr25519::Pair::generate().0;
+		let signer = sr25519::Pair::generate().0;
+		let signer_address = signer.public().to_ss58check() + "_214299_1000000";
+		let signersig = owner.sign(signer_address.as_bytes());
+		let secret_data =
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000";
+		let signature = signer.sign(secret_data.as_bytes());
+
+		let mut secret_packet = SecretStorePacket {
+			owner_address: owner.public(),
+			signer_address: signer_address.to_string(),
+			signersig: format!("{}{:?}", "0x", signersig),
+			secret_data: secret_data.to_string(),
+			signature: format!("{}{:?}", "0x", signature),
+		};
+
+		let correct_secret_data = SecretStoreData {
+			nft_id: 324,
+			data: "thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)".as_bytes().to_vec(),
+			auth_token: AuthenticationToken { block_number: 214299, block_validation: 1000000 },
+		};
+
+		// correct
+		assert_eq!(secret_packet.verify_remove_request().await.unwrap(), correct_secret_data);
 
 		// changed owner error
 		secret_packet.owner_address =
-			<sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
-				"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-			)
-			.unwrap();
+			sr25519::Public::from_ss58check("5DLgQdhNz8B7RTKKMRCDwJWWbqu5FRYsLgJivLhVaYEsCpin")
+				.unwrap();
 		assert_eq!(
-			secret_packet.verify_request().await.unwrap_err(),
+			secret_packet.verify_remove_request().await.unwrap_err(),
 			VerificationError::SIGNERVERIFICATIONFAILED
 		);
 
 		// changed signer error
-		secret_packet.owner_address =
-			<sr25519::Public as sp_core::crypto::Ss58Codec>::from_ss58check(
-				"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
-			)
-			.unwrap();
+		secret_packet.owner_address = owner.public();
 		secret_packet.signer_address =
-			"<Bytes>5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY_120000_100000</Bytes>".to_string();
-		secret_packet.secret_data = "<Bytes>163_1234567890abcdef_120000_100000</Bytes>".to_string();
+			sr25519::Pair::generate().0.public().to_ss58check() + "_214299_1000000";
 		assert_eq!(
-			secret_packet.verify_request().await.unwrap_err(),
+			secret_packet.verify_remove_request().await.unwrap_err(),
 			VerificationError::SIGNERVERIFICATIONFAILED
 		);
 
 		// changed signer signature error
-		secret_packet.signature = "0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16485".to_string();
+		secret_packet.signer_address = signer.public().to_ss58check() + "_214299_1000000";
+		secret_packet.signersig = "0xa4f331ec6c6197a95122f171fbbb561f528085b2ca5176d676596eea03669718a7047cd29db3da4f5c48d3eb9df5648c8b90851fe9781dfaa11aef0eb1e6b88a".to_string();
 		assert_eq!(
-			secret_packet.verify_request().await.unwrap_err(),
+			secret_packet.verify_remove_request().await.unwrap_err(),
 			VerificationError::SIGNERVERIFICATIONFAILED
 		);
 
 		// expired signer error
-		secret_packet.secret_data = "<Bytes>163_1234567890abcdee_120000_1000</Bytes>".to_string();
-		secret_packet.signature = "0x8664ed717bbc787df3344567a7bcbcee9c712f98862d5e1a7ce7956537e32b4fe675073d3937ad1983245f340aeba8aaf29f16a5d63685b51024e4452740828a".to_string();
+		let expired_signer_address = signer.public().to_ss58check() + "_214299_10";
+		let expired_signersig = owner.sign(signer_address.as_bytes());
+
+		secret_packet.signer_address = expired_signer_address;
+		secret_packet.signersig = format!("{}{:?}", "0x", expired_signersig);
+
 		assert_eq!(
-			secret_packet.verify_request().await.unwrap_err(),
-			VerificationError::SIGNERVERIFICATIONFAILED
+			secret_packet.verify_remove_request().await.unwrap_err(),
+			VerificationError::EXPIREDSIGNER
 		);
 	}
 }
