@@ -6,7 +6,6 @@ SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
 SEAL_PATH=$GRAMINE_PATH/nft
 CERT_PATH=$BASEDIR/credentials/certificates
-ACCOUNTS_PATH=$BASEDIR/credentials/accounts
 QUOTE_PATH=$BASEDIR/credentials/quote
 CREDENTIALS_PATH=$BASEDIR/credentials
 
@@ -14,24 +13,12 @@ CREDENTIALS_PATH=$BASEDIR/credentials
 DOMAIN=${DOMIAN:-dev-c1n1.ternoa.network}
 PORT=${PORT:-8101}
 MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
-HTTPS_PUBLIC_KEY=${HTTPS_PUBLIC_KEY:-$CERT_PATH/server_cert.pem}
-HTTPS_PRIVATE_KEY=${HTTPS_PRIVATE_KEY:-$CERT_PATH/server_key.pem}
 NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
-#TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} # PASSWORD = Test123456
-#TERNOA_ACCOUNT_KEY=
+# PASSWORD = Test123456
+#TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} 
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
 
-# VALID CERTIFICATES
-VALIDCERT_PATH=/etc/letsencrypt/live
-if [ -d "$VALIDCERT_PATH" ]; then
-    CERTBASE=/etc/letsencrypt/live
-    DOMAIN=$(ls $CERTBASE | grep ternoa)
-    CERT_PATH=$CERTBASE/$DOMAIN
-    HTTPS_PUBLIC_KEY=$CERT_PATH/cert.pem
-    HTTPS_PRIVATE_KEY=$CERT_PATH/privkey.pem
-else
-    echo "$VALIDCERT_PATH directory does not exist. Self-signed certificate will be used."
-fi
+
 
 # OVERWRITE WITH PRODUCTION VALUES
 ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
@@ -132,11 +119,9 @@ BIWhite='\033[1;97m'      # White
 
 echo -e "\nport:\t\t ${IGreen}$PORT${NC}"
 echo -e "domain name:\t ${IGreen}$DOMAIN${NC}"
-echo -e "public key:\t ${IGreen}$HTTPS_PUBLIC_KEY${NC}"
-echo -e "private key:\t ${IGreen}$HTTPS_PRIVATE_KEY${NC}"
 echo -e "nft secrets:\t ${IGreen}$NFT_SERCRETS_PATH${NC}"
-echo -e "account key:\t ${IGreen}$TERNOA_ACCOUNT_PATH${NC}"
 echo -e "enclave name:\t ${IGreen}$ENCLAVE_IDENTITY${NC}"
+echo -e "account key:\t ${IGreen}$TERNOA_ACCOUNT_PATH${NC}" # WILL BE REPLACED BY GITHUB SCRIPT
 
 # Create Enclave using Makefile
 cd $GRAMINE_PATH
@@ -145,8 +130,6 @@ make 	SGX=1 \
 	SGX_DOMAIN=$DOMAIN \
 	SGX_PORT=$PORT \
 	SGX_BASE_PATH=$BASEDIR \
-	SGX_TLS_CERT=$HTTPS_PUBLIC_KEY \
-	SGX_TLS_KEY=$HTTPS_PRIVATE_KEY \
 	SGX_SEAL_PATH=$NFT_SERCRETS_PATH \
 	SGX_QUOTE_PATH=$QUOTE_PATH \
 	SGX_CREDENTIALS_PATH=$CREDENTIALS_PATH \
