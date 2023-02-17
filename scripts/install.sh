@@ -148,8 +148,6 @@ source ~/.profile
 git clone https://github.com/capsule-corp-ternoa/sgx_server.git
 cd sgx_server
 ./start-server.sh \
---cert /etc/letsencrypt/live/mainnet-c1n2.ternoa.network/cert.pem \
---key /etc/letsencrypt/live/mainnet-c1n2.ternoa.network/privkey.pem \
 --account ./ternoa_account.json \
 --secrets /opt/sgx_server_nft/ \
 --identity C1N2E1 \

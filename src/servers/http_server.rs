@@ -5,16 +5,21 @@ use axum::{
 	Json, Router,
 };
 
-use serde_json::{json, Value};
-use std::time::SystemTime;
+use reqwest;
 
-use crate::servers::server_common;
-
-use std::path::PathBuf;
 use tower_http::{
 	cors::{Any, CorsLayer},
 	services::ServeDir,
 };
+
+use anyhow::{anyhow, Error};
+
+use serde_json::{json, Value};
+use tracing::{error, info};
+
+use std::{path::PathBuf, time::SystemTime};
+
+use crate::servers::server_common;
 
 use crate::chain::{
 	capsule::{
@@ -39,13 +44,9 @@ pub struct StateConfig {
 }
 
 /* HTTP Server */
-pub async fn http_server(
-	port: &u16,
-	identity: &str,
-	certfile: &str,
-	keyfile: &str,
-	seal_path: &str,
-) {
+pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &str) {
+	// Download cosign.pub for binary verification
+	// TODO: publish the key to release folder of sgx_server repository after being open-sorced.
 
 	let mut entropy = [0u8; 32];
 	rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
@@ -59,11 +60,13 @@ pub async fn http_server(
 
 	let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
 
-	let cors = CorsLayer::new()
+	let _cors = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
 		.allow_methods([Method::GET, Method::POST])
 		// allow requests from any origin
-		.allow_origin(Any);
+		.allow_origin(Any)
+		.allow_headers(Any)
+		.allow_credentials(true);
 
 	let http_app = Router::new()
 		.fallback_service(
@@ -75,31 +78,31 @@ pub async fn http_server(
 					)
 				}),
 		)
-		.layer(cors)
 		// STATE API
 		.route("/health", get(get_health_status))
 		// CENTRALIZED BACKUP API
 		.route("/api/backup/fetchEnclaveSecrets", post(backup_fetch_secrets))
 		.route("/api/backup/pushEnclaveSecrets", post(backup_push_secrets))
 		// NFT SECRET SHARING API
-		.route("/api/nft/getViewsLog/:nft_id", get(nft_get_views_handler))
-		.route("/api/nft/isSecretAvailable/:nft_id", get(is_nft_available))
-		.route("/api/nft/storeSecretShares", post(nft_store_secret_shares))
-		.route("/api/nft/retrieveSecretShares", post(nft_retrieve_secret_shares))
-		.route("/api/nft/removeSecretShares", post(nft_remove_secret_shares))
+		.route("/api/secret-nft/getViewsLog/:nft_id", get(nft_get_views_handler))
+		.route("/api/secret-nft/isSecretAvailable/:nft_id", get(is_nft_available))
+		.route("/api/secret-nft/storeSecretShares", post(nft_store_secret_shares))
+		.route("/api/secret-nft/retrieveSecretShares", post(nft_retrieve_secret_shares))
+		.route("/api/secret-nft/removeSecretShares", post(nft_remove_secret_shares))
 		// CAPSULE SECRET SHARING API
-		.route("/api/capsule/getViewsLog/:capsule_id", get(capsule_get_views_handler))
-		.route("/api/capsule/isSecretAvailable/:nft_id", get(is_capsule_available))
-		.route("/api/capsule/setSecretShares", post(capsule_set_secret_shares))
-		.route("/api/capsule/retrieveSecretShares", post(capsule_retrieve_secret_shares))
-		.route("/api/capsule/removeSecretShares", post(capsule_remove_secret_shares))
+		.route("/api/capsule-nft/getViewsLog/:capsule_id", get(capsule_get_views_handler))
+		.route("/api/capsule-nft/isSecretAvailable/:nft_id", get(is_capsule_available))
+		.route("/api/capsule-nft/setSecretShares", post(capsule_set_secret_shares))
+		.route("/api/capsule-nft/retrieveSecretShares", post(capsule_retrieve_secret_shares))
+		.route("/api/capsule-nft/removeSecretShares", post(capsule_remove_secret_shares))
 		// TEST APIS
 		.route("/api/getNFTData/:nft_id", get(get_nft_data_handler))
 		.route("/api/rpcQuery/:blocknumber", get(rpc_query))
 		.route("/api/submitTx/:amount", get(submit_tx))
+		.layer(CorsLayer::permissive())
 		.with_state(state_config);
 
-	server_common::serve(http_app, port, certfile, keyfile).await;
+	server_common::serve(http_app, domain, port).await.unwrap();
 }
 
 /*  -------------Handlers------------- */
@@ -120,7 +123,7 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 			binpath
 		},
 		Err(e) => {
-			tracing::error!("failed to get current pid: {}", e);
+			error!("failed to get current pid: {}", e);
 			std::path::PathBuf::new()
 		},
 	};
@@ -167,7 +170,7 @@ fn self_checksum() -> Result<String, String> {
 			binpath
 		},
 		Err(e) => {
-			tracing::error!("failed to get current pid: {}", e);
+			error!("failed to get current pid: {}", e);
 			std::path::PathBuf::new()
 		},
 	};
@@ -175,8 +178,8 @@ fn self_checksum() -> Result<String, String> {
 	// Verify Ternoa checksum/signature
 	let bytes = std::fs::read(binary_path.clone()).unwrap();
 	let hash = sha256::digest(bytes.as_slice());
-	
-	// TODO: Get checksum from github release 
+
+	// TODO: Get checksum from github release
 	binary_path.pop(); // remove binary name
 	binary_path.push("checksum");
 
@@ -191,10 +194,24 @@ fn self_checksum() -> Result<String, String> {
 		.unwrap_or(&binary_hash);
 
 	if binary_hash != hash {
-		tracing::error!("Binary hash doesn't match!");
+		error!("Binary hash doesn't match!");
 		return Err(hash);
 	} else {
-		tracing::info!("Binary hash match : {}", hash);
+		info!("Binary hash match : {}", hash);
 		return Ok(hash);
 	}
+}
+
+pub fn downloader(url: &str) -> Result<String, Error> {
+	let response = match reqwest::blocking::get(url) {
+		Ok(resp) => resp,
+		Err(e) => return Err(anyhow!("Error accessing url: {}", e)),
+	};
+
+	let content = match response.text() {
+		Ok(s) => s,
+		Err(e) => return Err(anyhow!("Error reading response: {}", e)),
+	};
+
+	Ok(content)
 }
