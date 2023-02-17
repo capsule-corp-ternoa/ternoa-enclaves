@@ -15,7 +15,7 @@ use tower_http::{
 use anyhow::{anyhow, Error};
 
 use serde_json::{json, Value};
-use tracing::{info, error};
+use tracing::{error, info};
 
 use std::{path::PathBuf, time::SystemTime};
 
@@ -57,7 +57,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		seal_path: seal_path.to_owned(),
 		identity: identity.to_string(),
 	};
-	
+
 	let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
 
 	let _cors = CorsLayer::new()
@@ -113,7 +113,7 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 
 	// TODO: cache the quote for 24 hours, not to generate it in every call.
 	//let quote_vec = attestation::ra::generate_quote();
-	
+
 	let checksum = self_checksum();
 
 	let binary_path = match sysinfo::get_current_pid() {
@@ -207,11 +207,11 @@ pub fn downloader(url: &str) -> Result<String, Error> {
 		Ok(resp) => resp,
 		Err(e) => return Err(anyhow!("Error accessing url: {}", e)),
 	};
-	
+
 	let content = match response.text() {
-    	Ok(s) => s,
-    	Err(e) => return Err(anyhow!("Error reading response: {}", e)),
+		Ok(s) => s,
+		Err(e) => return Err(anyhow!("Error reading response: {}", e)),
 	};
-	
+
 	Ok(content)
 }
