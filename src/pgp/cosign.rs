@@ -1,5 +1,3 @@
-use std::io::Read;
-
 use anyhow::Result;
 
 use sigstore::crypto::{
@@ -7,10 +5,12 @@ use sigstore::crypto::{
 	CosignVerificationKey, SigStoreSigner, Signature, SigningScheme,
 };
 
+use crate::servers::http_server::downloader;
+
 fn _import_skey(path: &str, pass: &str) -> SigStoreSigner {
 	// Imported encrypted PEM encoded private key as SigStoreKeyPair.
 	let ecdsa_p256_asn1_encrypted_private_pem = std::fs::read(path).unwrap();
-	
+
 	let _key_pair = SigStoreKeyPair::from_encrypted_pem(
 		&ecdsa_p256_asn1_encrypted_private_pem,
 		pass.as_bytes(),
@@ -33,10 +33,13 @@ fn import_vkey() -> CosignVerificationKey {
 	// Production
 	//let ecdsa_p256_asn1_public_pem = std::fs::read("keys/cosign.pub").unwrap();
 	// Test
+	let url = "https://gist.githubusercontent.com/zorvan/46b26ff51b27590683ddaf70c0ea9dac/raw/2b437edaa808b79f2e7768cde9085150b2f10a32/cosign.pub";
+	let get_pub = downloader(url).unwrap();
+	let ecdsa_p256_asn1_public_pem = get_pub.as_bytes();
 
-	let ecdsa_p256_asn1_public_pem = std::fs::read("./credentials/keys/cosign.pub").unwrap();
+	//let ecdsa_p256_asn1_public_pem = std::fs::read("./bin/cosign.pub").unwrap();
 	let verification_key =
-		CosignVerificationKey::from_pem(&ecdsa_p256_asn1_public_pem, &SigningScheme::default())
+		CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default())
 			.unwrap();
 
 	verification_key
@@ -45,9 +48,10 @@ fn import_vkey() -> CosignVerificationKey {
 pub fn verify(signed_data: &[u8], signature_data: &str) -> Result<bool, anyhow::Error> {
 	// TODO: from github release
 	let verification_key = import_vkey();
-	
+
 	//Verifying the signature of the binary file
-	match verification_key.verify_signature(Signature::Base64Encoded(signature_data.as_bytes()), &signed_data)
+	match verification_key
+		.verify_signature(Signature::Base64Encoded(signature_data.as_bytes()), &signed_data)
 	{
 		Ok(_) => {
 			tracing::info!("Binary file Verification Succeeded.");
@@ -71,7 +75,7 @@ mod test {
 		const DATA: &str = "DATA TO BE SIGNED BY COSIGN";
 
 		/* PASSWORD MUST BE RIGHT*/
-		let signing_key = _import_skey("credentials/keys/cosign.key","Test123456");
+		let signing_key = _import_skey("credentials/keys/cosign.key", "Test123456");
 
 		let signature = signing_key.sign(DATA.as_bytes()).unwrap();
 
@@ -111,7 +115,7 @@ mod test {
 		};
 		let data = std::fs::read(binary_path.clone()).unwrap();
 
-		let signing_key = _import_skey("credentials/keys/cosign.key","Test123456");
+		let signing_key = _import_skey("credentials/keys/cosign.key", "Test123456");
 
 		let signature = signing_key.sign(&data).unwrap();
 		let encoded_sig = general_purpose::STANDARD.encode(signature);

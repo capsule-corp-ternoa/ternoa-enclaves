@@ -1,4 +1,6 @@
-BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )/
+#!/bin/bash
+
+BASEDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 SCRIPTSPATH="$BASEDIR/scripts/"
 GRAMINEPATH="$BASEDIR/gramine/"
 SEALPATH="$GRAMINEPATH/nft/"

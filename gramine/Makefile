@@ -57,9 +57,8 @@ endif
 .PHONY: start-gramine-server
 start-gramine-server: all
 	$(GRAMINE) sgx_server \
+		--domain $(SGX_DOMAIN) \
 		--port $(SGX_PORT) \
-		--certfile $(SGX_TLS_CERT) \
-		--keyfile $(SGX_TLS_KEY) \
 		--sealpath "/nft/" \
 		--identity $(SGX_IDENTITY) \
 		> enclave.log 2>&1 &
