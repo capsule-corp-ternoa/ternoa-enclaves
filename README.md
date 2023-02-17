@@ -53,7 +53,7 @@ subxt codegen --url wss://alphanet.ternoa.com:443 > ternoa_alphanet.code
 If you are on a SGX machine :
 
 ```shell
-scripts/start-server.sh -b -p 8101 -i DEV0-C1N1EI
+sudo ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8102 --identity DEV-C1N1EI --build
 ```
 otherwise you need to run in simulation mode : 
 ```shell
@@ -63,7 +63,7 @@ default port is 8100 .
 
 To stop the Enclave properly :
 ```shell
-scripts/stop-server.sh -p 8101
+sudo scripts/stop-server.sh --port 8102
 ```
 ## Quote and Report
 If enclave starts successfully, the quote data, IAS reports and log information will be available on [quote](./quote/) folder.
