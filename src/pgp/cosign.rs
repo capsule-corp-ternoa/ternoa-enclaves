@@ -29,17 +29,16 @@ fn _import_skey(path: &str, pass: &str) -> SigStoreSigner {
 }
 
 fn import_vkey() -> CosignVerificationKey {
-	// Imported PEM encoded public key as CosignVerificationKey using ECDSA_P256_ASN1_PUBLIC_PEM as verification algorithm.
 	// Production
-	//let ecdsa_p256_asn1_public_pem = std::fs::read("keys/cosign.pub").unwrap();
-	// Test
 	let url = "https://gist.githubusercontent.com/zorvan/46b26ff51b27590683ddaf70c0ea9dac/raw/2b437edaa808b79f2e7768cde9085150b2f10a32/cosign.pub";
 	let get_pub = downloader(url).unwrap();
 	let ecdsa_p256_asn1_public_pem = get_pub.as_bytes();
 
-	//let ecdsa_p256_asn1_public_pem = std::fs::read("./bin/cosign.pub").unwrap();
+	// Imported PEM encoded public key as CosignVerificationKey using ECDSA_P256_ASN1_PUBLIC_PEM as
+	// verification algorithm. let ecdsa_p256_asn1_public_pem =
+	// std::fs::read("/keys/cosign.pub").unwrap();
 	let verification_key =
-		CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default())
+		CosignVerificationKey::from_pem(&ecdsa_p256_asn1_public_pem, &SigningScheme::default())
 			.unwrap();
 
 	verification_key
@@ -74,7 +73,7 @@ mod test {
 	fn sign_test() {
 		const DATA: &str = "DATA TO BE SIGNED BY COSIGN";
 
-		/* PASSWORD MUST BE RIGHT*/
+		/* PASSWORD MUST BE RIGHT */
 		let signing_key = _import_skey("credentials/keys/cosign.key", "Test123456");
 
 		let signature = signing_key.sign(DATA.as_bytes()).unwrap();

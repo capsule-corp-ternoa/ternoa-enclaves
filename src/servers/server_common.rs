@@ -1,16 +1,16 @@
 use rustls::ServerConfig;
-use rustls_acme::caches::DirCache;
-use rustls_acme::AcmeConfig;
-use std::net::{Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
+use rustls_acme::{caches::DirCache, AcmeConfig};
+use std::{
+	net::{Ipv4Addr, SocketAddr},
+	path::PathBuf,
+	sync::Arc,
+	time::Duration,
+};
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
 
 use axum::Router;
-use axum_server::tls_rustls::RustlsConfig;
-use axum_server::Handle;
+use axum_server::{tls_rustls::RustlsConfig, Handle};
 
 use tracing::{error, info};
 
@@ -47,11 +47,12 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 	let config = RustlsConfig::from_config(Arc::new(rustls_config.clone()));
 
-	let dummy_app = Router::new().route("/", axum::routing::get(|| async { "Hello Tls!" }));
+	let dummy_app =
+		Router::new().route("/", axum::routing::get(|| async { "Server is updating!" }));
 
 	// Spawn a task to shutdown server.
 	let handle = Handle::new();
-	tokio::spawn(shutdown(handle.clone()));
+	tokio::spawn(cert_shutdown(handle.clone()));
 
 	info!("Certificate Server is listening {} on Port 443'\n", socket_addr.ip());
 
@@ -68,7 +69,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 		Err(e) => {
 			info!("Error in certificate server : {}", e);
-			return Err(anyhow::anyhow!(format!("Error in certificate server : {}", e)));
+			return Err(anyhow::anyhow!(format!("Error in certificate server : {}", e)))
 		},
 	}
 
@@ -93,7 +94,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	}
 }
 
-async fn shutdown(handle: Handle) {
+async fn cert_shutdown(handle: Handle) {
 	// Wait 20 seconds.
 	sleep(Duration::from_secs(20)).await;
 
