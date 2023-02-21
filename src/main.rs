@@ -20,7 +20,7 @@ struct Args {
 	#[arg(short, long)]
 	port: u16,
 
-	/// Path to the location for storing sealed NFT secret shares
+	/// Path to the location for storing sealed NFT key-shares
 	#[arg(short, long, default_value_t = String::from("/nft/"))]
 	sealpath: String,
 
