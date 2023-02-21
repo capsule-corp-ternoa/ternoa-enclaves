@@ -61,7 +61,7 @@ start-gramine-server: all
 		--port $(SGX_PORT) \
 		--sealpath "/nft/" \
 		--identity $(SGX_IDENTITY) \
-		> enclave.log 2>&1 &
+		>> enclave.log 2>&1 &
 
 .PHONY: clean
 clean:
