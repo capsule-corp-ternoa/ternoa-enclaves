@@ -1,6 +1,6 @@
 [package]
 name = "sgx_server"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [[bin]]
@@ -36,6 +36,8 @@ base64 = "0.21.0"
 
 log = "0.4.17"
 chrono = "0.4.23"
+tokio-cron-scheduler = "0.9.4"
+cached = "0.42.0"
 
 rand = "0.8.5"
 clap = { version = "4.0.29", features = ["derive"] }

@@ -118,7 +118,7 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 				sender: String::from("ALICE"),
 				receiver: String::from("BOB"),
 				tx_hash: e.to_string(),
-			});
+			})
 		},
 	};
 
@@ -192,7 +192,7 @@ struct JsonNFTData {
 	offchain_data: String,
 }
 
-pub async fn get_nft_data_handler(PathExtract(nft_id): PathExtract<u32>) -> impl IntoResponse {
+pub async fn get_nft_data(PathExtract(nft_id): PathExtract<u32>) -> impl IntoResponse {
 	let data = get_onchain_data(nft_id).await;
 	match data {
 		Some(nft_data) => {
@@ -233,13 +233,14 @@ impl fmt::Display for NFTData<AccountId32> {
 	}
 }
 
-// -------------- SECRET NFT SYNC (ORACLE) --------------
+// -------------- SECRET-NFT SYNC (ORACLE) --------------
 
 // TODO: Define macro for nft/capsule
 // TODO: Proof of storage (through heart-beats)
-// TODO: Proof of decryption (i.e This secret share belongs to the key for decrypting the corresponding nft media file on IPFS)
+// TODO: Proof of decryption (i.e This key-share belongs to the key for decrypting the corresponding
+// nft media file on IPFS)
 
-pub async fn nft_secret_share_oracle(
+pub async fn nft_keyshare_oracle(
 	keypair: sp_core::sr25519::Pair,
 	nft_id: u32,
 ) -> Result<sp_core::H256, subxt::Error> {
@@ -259,9 +260,10 @@ pub async fn nft_secret_share_oracle(
 
 // TODO: Define macro for nft/capsule
 // TODO: Proof of storage (through heart-beats)
-// TODO: Proof of decryption (i.e This secret share belongs to the key for decrypting the corresponding nft media file on IPFS)
+// TODO: Proof of decryption (i.e This key-share belongs to the key for decrypting the corresponding
+// nft media file on IPFS)
 
-pub async fn capsule_secret_share_oracle(
+pub async fn capsule_keyshare_oracle(
 	keypair: sp_core::sr25519::Pair,
 	capsule_id: u32,
 ) -> Result<sp_core::H256, subxt::Error> {
@@ -306,7 +308,7 @@ mod test {
 			info!("{}: {}", hex::encode(key), account.data.free);
 			counter += 1;
 			if counter > 10 {
-				break;
+				break
 			}
 		}
 	}
