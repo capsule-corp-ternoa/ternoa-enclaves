@@ -97,7 +97,7 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 impl BackupRequest {
 	fn verify_request(&self) -> Result<bool, BackupError> {
 		if !verify_account_id(&self.data.signer_address) {
-			return Err(BackupError::UnAuthorizedSigner);
+			return Err(BackupError::UnAuthorizedSigner)
 		}
 
 		if verify_signature(
@@ -115,7 +115,7 @@ impl BackupRequest {
 impl StoreRequest {
 	fn verify_request(&self) -> Result<bool, BackupError> {
 		if !verify_account_id(&self.data.signer_address) {
-			return Err(BackupError::UnAuthorizedSigner);
+			return Err(BackupError::UnAuthorizedSigner)
 		}
 
 		let message_str = serde_json::to_string(&self.data).unwrap();
@@ -132,11 +132,11 @@ impl StoreRequest {
 }
 
 /* ******************************
- RETRIEVE SECRET FROM ENCLAVE
+ RETRIEVE KEYSHARES FROM ENCLAVE
 ****************************** */
 
 #[debug_handler]
-pub async fn backup_fetch_secrets(
+pub async fn backup_fetch_keyshares(
 	State(state): State<StateConfig>,
 	backup_request: String,
 ) -> impl IntoResponse {
@@ -144,7 +144,7 @@ pub async fn backup_fetch_secrets(
 		Ok(preq) => preq,
 		Err(e) => {
 			info!(
-				"Error backup secret : Can not deserialize the backup request : {}",
+				"Error backup keyshares : Can not deserialize the backup request : {}",
 				backup_request
 			);
 
@@ -154,7 +154,7 @@ pub async fn backup_fetch_secrets(
 					status: "Error can not deserialize the request : ".to_string() + &e.to_string(),
 					data: BTreeMap::new(),
 				}),
-			);
+			)
 		},
 	};
 
@@ -165,11 +165,11 @@ pub async fn backup_fetch_secrets(
 			let mut backup_response_data: BTreeMap<String, String> = BTreeMap::new();
 
 			for nft_id in parsed_request.data.nfts {
-				let file_path = state.seal_path.to_owned() + &nft_id.to_string() + ".secret";
+				let file_path = state.seal_path.to_owned() + &nft_id.to_string() + ".keyshare";
 
 				if !std::path::Path::new(&file_path).is_file() {
 					info!(
-						"Error backup secrets from TEE : file path does not exist, file_path : {}",
+						"Error backup keyshares from TEE : file path does not exist, file_path : {}",
 						file_path
 					);
 					return (
@@ -181,35 +181,35 @@ pub async fn backup_fetch_secrets(
 							),
 							data: BTreeMap::new(),
 						}),
-					);
+					)
 				}
 
 				let mut file = match std::fs::File::open(file_path) {
 					Ok(file) => file,
 					Err(_) => {
 						info!(
-							"Error backup secrets from TEE : nft_id does not exist, nft_id : {}",
+							"Error backup keyshares from TEE : nft_id does not exist, nft_id : {}",
 							nft_id
 						);
 
 						return (
 							StatusCode::UNPROCESSABLE_ENTITY,
 							Json(BackupResponse {
-								status: format!("Error retrieving secrets from TEE : nft_id does not exist, nft_id : {}", nft_id ), 
+								status: format!("Error retrieving keyshares from TEE : nft_id does not exist, nft_id : {}", nft_id ), 
 								data: BTreeMap::new(),
 							}),
 						);
 					},
 				};
 
-				let mut nft_secret_share = String::new();
+				let mut nft_keyshare = String::new();
 
-				file.read_to_string(&mut nft_secret_share).unwrap();
+				file.read_to_string(&mut nft_keyshare).unwrap();
 
-				backup_response_data.insert(nft_id.to_string(), nft_secret_share);
+				backup_response_data.insert(nft_id.to_string(), nft_keyshare);
 
 				log::debug!(
-					"Secret shares of {} retrieved by {}",
+					"Key-shares of {} retrieved by {}",
 					nft_id,
 					parsed_request.data.signer_address
 				);
@@ -221,18 +221,17 @@ pub async fn backup_fetch_secrets(
 					status: "Successful".to_string(),
 					data: backup_response_data,
 				}),
-			);
+			)
 		},
 
-		Err(err) => {
+		Err(err) =>
 			return (
 				StatusCode::OK,
 				Json(BackupResponse {
 					status: format!("Error Backup Request : {:?}", err),
 					data: BTreeMap::new(),
 				}),
-			)
-		},
+			),
 	}
 }
 
@@ -240,9 +239,9 @@ pub async fn backup_fetch_secrets(
  STORE SECRET TO ENCLAVE
 ************************* */
 
-//pub async fn backup_push_secrets(Json(received_secret): Json<SecretPacket>) -> impl IntoResponse
+//pub async fn backup_push_keyshares(Json(received_data): Json<SecretPacket>) -> impl IntoResponse
 #[debug_handler]
-pub async fn backup_push_secrets(
+pub async fn backup_push_keyshares(
 	State(state): State<StateConfig>,
 	store_request: String,
 ) -> impl IntoResponse {
@@ -250,7 +249,7 @@ pub async fn backup_push_secrets(
 		Ok(preq) => preq,
 		Err(e) => {
 			info!(
-				"Error restore secret : Can not deserialize the store request : {}",
+				"Error restore keyshares : Can not deserialize the store request : {}",
 				store_request
 			);
 
@@ -259,7 +258,7 @@ pub async fn backup_push_secrets(
 				Json(StoreResponse {
 					status: "Error can not deserialize the request : ".to_string() + &e.to_string(),
 				}),
-			);
+			)
 		},
 	};
 
@@ -267,59 +266,59 @@ pub async fn backup_push_secrets(
 
 	match verified_req {
 		Ok(_) => {
-			for (nft_id, secret) in parsed_request.data.nfts {
+			for (nft_id, keyshare) in parsed_request.data.nfts {
 				std::fs::create_dir_all(state.seal_path.clone()).unwrap();
-				let file_path = state.seal_path.to_owned() + &nft_id.to_string() + ".secret";
+				let file_path = state.seal_path.to_owned() + &nft_id.to_string() + ".keyshare";
 
 				if std::path::Path::new(file_path.as_str()).exists() {
 					let message = format!(
-						"Error storing secrets to TEE : nft_id already exists, nft_id = {}",
+						"Error storing keyshares to TEE : nft_id already exists, nft_id = {}",
 						nft_id
 					);
 
 					log::warn!("{}", message);
 
-					return (StatusCode::OK, Json(StoreResponse { status: message }));
+					return (StatusCode::OK, Json(StoreResponse { status: message }))
 				}
 
 				let mut f = match std::fs::File::create(file_path) {
 					Ok(file) => file,
 					Err(err) => {
-						let message = format!("Error storing secrets to TEE : error in creating file on disk, nft_id = {}, Error = {:?}", nft_id, err);
+						let message = format!("Error storing keyshares to TEE : error in creating file on disk, nft_id = {}, Error = {:?}", nft_id, err);
 
 						log::warn!("{}", message);
 
-						return (StatusCode::OK, Json(StoreResponse { status: message }));
+						return (StatusCode::OK, Json(StoreResponse { status: message }))
 					},
 				};
 
-				f.write_all(secret.as_bytes()).unwrap();
+				f.write_all(keyshare.as_bytes()).unwrap();
 
 				log::debug!(
-					"Secret is successfully stored to TEE, nft_id = {} by admin = {}",
+					"Key-share is successfully stored to TEE, nft_id = {} by admin = {}",
 					nft_id,
 					parsed_request.data.signer_address
 				);
 			}
 
 			log::info!(
-				"All Secrets are successfully stored to TEE by admin = {}",
+				"All keyshares are successfully stored to TEE by admin = {}",
 				parsed_request.data.signer_address
 			);
 
 			return (
 				StatusCode::OK,
 				Json(StoreResponse {
-					status: "All Secrets are successfully stored to TEE".to_string(),
+					status: "All keyshares are successfully stored to TEE".to_string(),
 				}),
-			);
+			)
 		},
 
 		Err(err) => {
-			let message = format!("Error storing secrets to TEE : {:?}", err);
+			let message = format!("Error storing keyshares to TEE : {:?}", err);
 			log::warn!("{}", message);
 
-			return (StatusCode::OK, Json(StoreResponse { status: message }));
+			return (StatusCode::OK, Json(StoreResponse { status: message }))
 		},
 	}
 }
@@ -351,7 +350,7 @@ mod test {
 			serde_json::from_str(&store_body.clone()).expect("error in store request json-body");
 
 		match store_packet.verify_request() {
-			Ok(_) => info!("Store Request : Secret is Valid!"),
+			Ok(_) => info!("Store Request : Key-shares is Valid!"),
 			Err(err) => match err {
 				BackupError::InvalidSignature => info!("Store Request : Signature Error!"),
 				BackupError::UnAuthorizedSigner => info!("Store Request : Unauthorized Admin!"),
@@ -371,7 +370,7 @@ mod test {
 			serde_json::from_str(&backup_body.clone()).expect("error in backup request json-body");
 
 		match backup_packet.verify_request() {
-			Ok(_) => info!("Backup Request : Secret is Valid!"),
+			Ok(_) => info!("Backup Request : Key-share is Valid!"),
 
 			Err(err) => match err {
 				BackupError::InvalidSignature => info!("Backup Request : Signature Error!"),
