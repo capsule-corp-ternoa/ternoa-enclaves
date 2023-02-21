@@ -23,18 +23,22 @@ use crate::servers::server_common;
 
 use crate::chain::{
 	capsule::{
-		capsule_get_views_handler, capsule_remove_secret_shares, capsule_retrieve_secret_shares,
-		capsule_set_secret_shares, is_capsule_available,
+		capsule_get_views, capsule_remove_keyshare, capsule_retrieve_keyshare,
+		capsule_set_keyshare, is_capsule_available,
 	},
-	chain::{get_nft_data_handler, rpc_query, submit_tx},
+	chain::{get_nft_data, rpc_query, submit_tx},
 	nft::{
-		is_nft_available, nft_get_views_handler, nft_remove_secret_shares,
-		nft_retrieve_secret_shares, nft_store_secret_shares,
+		is_nft_available, nft_get_views, nft_remove_keyshare, nft_retrieve_keyshare,
+		nft_store_keyshare,
 	},
 };
 
-use crate::backup::admin::{backup_fetch_secrets, backup_push_secrets};
-use crate::pgp::cosign;
+use crate::{
+	backup::admin::{backup_fetch_keyshares, backup_push_keyshares},
+	pgp::cosign,
+};
+
+use cached::proc_macro::once;
 
 #[derive(Clone)]
 pub struct StateConfig {
@@ -45,8 +49,7 @@ pub struct StateConfig {
 
 /* HTTP Server */
 pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &str) {
-	// Download cosign.pub for binary verification
-	// TODO: publish the key to release folder of sgx_server repository after being open-sorced.
+	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
 
 	let mut entropy = [0u8; 32];
 	rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
@@ -79,39 +82,42 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 				}),
 		)
 		// STATE API
-		.route("/health", get(get_health_status))
+		.route("/api/health", get(get_health_status))
 		// CENTRALIZED BACKUP API
-		.route("/api/backup/fetchEnclaveSecrets", post(backup_fetch_secrets))
-		.route("/api/backup/pushEnclaveSecrets", post(backup_push_secrets))
-		// NFT SECRET SHARING API
-		.route("/api/secret-nft/getViewsLog/:nft_id", get(nft_get_views_handler))
-		.route("/api/secret-nft/isSecretAvailable/:nft_id", get(is_nft_available))
-		.route("/api/secret-nft/storeSecretShares", post(nft_store_secret_shares))
-		.route("/api/secret-nft/retrieveSecretShares", post(nft_retrieve_secret_shares))
-		.route("/api/secret-nft/removeSecretShares", post(nft_remove_secret_shares))
-		// CAPSULE SECRET SHARING API
-		.route("/api/capsule-nft/getViewsLog/:capsule_id", get(capsule_get_views_handler))
-		.route("/api/capsule-nft/isSecretAvailable/:nft_id", get(is_capsule_available))
-		.route("/api/capsule-nft/setSecretShares", post(capsule_set_secret_shares))
-		.route("/api/capsule-nft/retrieveSecretShares", post(capsule_retrieve_secret_shares))
-		.route("/api/capsule-nft/removeSecretShares", post(capsule_remove_secret_shares))
+		.route("/api/backup/fetch-keyshares", post(backup_fetch_keyshares))
+		.route("/api/backup/push-keyshares", post(backup_push_keyshares))
+		// NFT SECRET-SHARING API
+		.route("/api/secret-nft/get-views-log/:nft_id", get(nft_get_views))
+		.route("/api/secret-nft/is-keyshare-available/:nft_id", get(is_nft_available))
+		.route("/api/secret-nft/store-keyshare", post(nft_store_keyshare))
+		.route("/api/secret-nft/retrieve-keyshare", post(nft_retrieve_keyshare))
+		.route("/api/secret-nft/remove-keyshare", post(nft_remove_keyshare))
+		// CAPSULE SECRET-SHARING API
+		.route("/api/capsule-nft/get-views-log/:nft_id", get(capsule_get_views))
+		.route("/api/capsule-nft/is-keyshare-available/:nft_id", get(is_capsule_available))
+		.route("/api/capsule-nft/set-keyshare", post(capsule_set_keyshare))
+		.route("/api/capsule-nft/retrieve-keyshare", post(capsule_retrieve_keyshare))
+		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
 		// TEST APIS
-		.route("/api/getNFTData/:nft_id", get(get_nft_data_handler))
-		.route("/api/rpcQuery/:blocknumber", get(rpc_query))
-		.route("/api/submitTx/:amount", get(submit_tx))
+		.route("/api/get-nft-aata/:nft_id", get(get_nft_data))
+		.route("/api/rpc-query/:blocknumber", get(rpc_query))
+		.route("/api/submit-tx/:amount", get(submit_tx))
 		.layer(CorsLayer::permissive())
 		.with_state(state_config);
 
 	server_common::serve(http_app, domain, port).await.unwrap();
 }
 
-/*  -------------Handlers------------- */
+async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
+	evalueate_health_status(&state).unwrap()
+}
 
 // TODO: check the request for signed data and prevent flooding requests.
-async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
+// TODO: cache the quote for 24 hours, not to generate/verify data in every call.
+#[once(time = 86400, option = true, sync_writes = true)]
+fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 
-	// TODO: cache the quote for 24 hours, not to generate it in every call.
 	//let quote_vec = attestation::ra::generate_quote();
 
 	let checksum = self_checksum();
@@ -149,7 +155,7 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 
 	let enclave_address = sp_core::sr25519::Public::from_raw(pubkey);
 
-	Json(json!({
+	Some(Json(json!({
 		"status": 200,
 		"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
 		"description": "SGX server is running!".to_string(),
@@ -157,7 +163,7 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 		"binary_hash" : checksum,
 		"binary_signature": signature,
 		//"quote": quote_vec,
-	}))
+	})))
 }
 
 fn self_checksum() -> Result<String, String> {
@@ -195,10 +201,10 @@ fn self_checksum() -> Result<String, String> {
 
 	if binary_hash != hash {
 		error!("Binary hash doesn't match!");
-		return Err(hash);
+		return Err(hash)
 	} else {
 		info!("Binary hash match : {}", hash);
-		return Ok(hash);
+		return Ok(hash)
 	}
 }
 

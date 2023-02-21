@@ -8,7 +8,7 @@ use tracing::info;
 pub fn _generate_quote() -> Vec<u8> {
 	if !std::path::Path::new("/dev/attestation/user_report_data").exists() {
 		info!("This is NOT inside an Enclave!");
-		return "This is NOT inside an Enclave!".as_bytes().to_vec();
+		return "This is NOT inside an Enclave!".as_bytes().to_vec()
 	}
 
 	let mut f1 = OpenOptions::new()
@@ -36,5 +36,5 @@ pub fn _generate_quote() -> Vec<u8> {
 	let mut f4 = File::create("/quote/enclave.quote").unwrap();
 	f4.write_all(&contents).unwrap();
 
-	return contents;
+	return contents
 }
