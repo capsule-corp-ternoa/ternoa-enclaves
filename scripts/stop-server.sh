@@ -32,21 +32,21 @@ while :; do
         -i|--identity)
 	    if [ "$2" ]; then
 		ENCLAVE_ID="identity $2"
-                stop_enclave "$ENCLAVE_ID"
+        stop_enclave "$ENCLAVE_ID"
 		shift
 	    else
 		die 'ERROR: "--identity" requires a non-empty option argument.'
 	    fi
-            ;;
+        ;;
         -p|--port)
 	    if [ "$2" ]; then
 		PORTID="port $2"
-                stop_enclave "$PORTID"
+        stop_enclave "$PORTID"
 		shift
 	    else
 		die 'ERROR: "--port" requires a non-empty option argument.'
 	    fi
-            ;;
+        ;;
         *) break
     esac
     shift

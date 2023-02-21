@@ -24,10 +24,11 @@ fs.mounts = [
   { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
   { path = "/etc", uri = "file:/etc" },
-  { path = "/quote/", uri = "file:{{ quote_path }}", type = "chroot" },
+  { path = "/quote", uri = "file:{{ quote_path }}", type = "chroot" },
   # TODO : sealed folder for certificates
   { path = "/certificates", uri = "file:{{ credentials_path }}/certificates", type = "chroot" },
-  { path = "/nft/" , uri = "file:{{ seal_path }}",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
+  { path = "/keys", uri = "file:{{ credentials_path }}/keys", type = "chroot" },
+  { path = "/nft" , uri = "file:{{ seal_path }}",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
 ]
 
 # Only for development and debug, it will be replaced with _sgx_mrenclave/_sgx_mrsigner for production
@@ -61,6 +62,7 @@ sgx.trusted_files = [
   "file:/etc/letsencrypt/",
   "file:bin/checksum",
   "file:bin/sgx_server.sig",
+  "file:{{ credentials_path }}/keys/cosign.pub",
 ]
 
 # The Tokio runtime requires eventfd, and the Gramine implementation

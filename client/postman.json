@@ -12,7 +12,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/health",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/health",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -21,7 +21,32 @@
 					],
 					"port": "8101",
 					"path": [
+						"api",
 						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "NFT-is-keyshare-available",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/secret-nft/is-keyshare-available/444",
+					"protocol": "https",
+					"host": [
+						"dev-c1n1",
+						"ternoa",
+						"network"
+					],
+					"port": "8101",
+					"path": [
+						"api",
+						"secret-nft",
+						"is-keyshare-available",
+						"444"
 					]
 				}
 			},
@@ -33,7 +58,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/nft/getViewsLog/0",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/secret-nft/get-views-log/444",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -43,46 +68,22 @@
 					"port": "8101",
 					"path": [
 						"api",
-						"nft",
-						"getViewsLog",
-						"0"
+						"secret-nft",
+						"get-views-log",
+						"444"
 					]
 				}
 			},
 			"response": []
 		},
 		{
-			"name": "NFT-is-secret-available",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/nft/isSecretAvailable/0",
-					"protocol": "https",
-					"host": [
-						"dev-c1n1",
-						"ternoa",
-						"network"
-					],
-					"port": "8101",
-					"path": [
-						"api",
-						"nft",
-						"isSecretAvailable",
-						"0"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "NFT-Store-Secret",
+			"name": "NFT-Store-Keyshare",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"owner_address\":\"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\",\n    \"signer_address\":\"<Bytes>5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy_200000</Bytes>\",\n    \"signersig\": \"0xa09ceb432262a7d148869475de27e1678caa796da754a4313ccce57a5e409c0ba7bd1f5b6d9babed2686632a0ba14673bfd5ae7df7026a1b7a766bfdf172a688\",\n    \"secret_data\": \"<Bytes>163_1234567890abcdef_120000_100000</Bytes>\", \n    \"signature\": \"0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16484\"\n}",
+					"raw": "{  \n    \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",  \n    \"signer_address\": \"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs_214299_1000000\",  \n    \"signersig\": \"0xa6f4b9fcb96291c3b9a628449ace134e161f0aa7f7b6b1c7bfb42a3398919038dfa104362fdda1cb5954838909cd7dff08f8bd2d49b097d11fd3b7d14b6c9682\",  \n    \"secret_data\": \"494_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000\",  \n    \"signature\": \"0xd2ae8f5d20214212a94bb55bfd88d748eaabbbffeec0b372811f78b60279de512c44ca87720703b20de52a50595f4551b8b13e538dffd3ac18968d8412dba98d\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -90,7 +91,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/nft/storeSecretShares",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/secret-nft/store-keyshare",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -100,16 +101,15 @@
 					"port": "8101",
 					"path": [
 						"api",
-						"nft",
-						"storeSecretShares"
+						"secret-nft",
+						"store-keyshare"
 					]
-				},
-				"description": "Store Secret"
+				}
 			},
 			"response": []
 		},
 		{
-			"name": "NFT-Retrieve-Secret",
+			"name": "NFT-Retrieve-Keyshare",
 			"protocolProfileBehavior": {
 				"disabledSystemHeaders": {}
 			},
@@ -118,7 +118,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"owner_address\":\"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\",\n    \"signer_address\":\"<Bytes>5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy_200000</Bytes>\",\n    \"signersig\": \"0xa09ceb432262a7d148869475de27e1678caa796da754a4313ccce57a5e409c0ba7bd1f5b6d9babed2686632a0ba14673bfd5ae7df7026a1b7a766bfdf172a688\",\n    \"secret_data\": \"<Bytes>163_0000000000000000_120000_100000</Bytes>\", \n    \"signature\": \"0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16484\"\n}",
+					"raw": "{  \n    \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",  \n    \"data\": \"494_214299_1000000\",  \n    \"signature\": \"0x22d8812c669c67b98bcba386528fe80e17452d9a1c55871305d61f1c85a1210648860309ce280225dec32eb3b9f82382df30f581328a32f2a7d6f44ae422e48c\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -126,7 +126,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/nft/retrieveSecretShares",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/secret-nft/retrieve-keyshare",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -136,8 +136,8 @@
 					"port": "8101",
 					"path": [
 						"api",
-						"nft",
-						"retrieveSecretShares"
+						"secret-nft",
+						"retrieve-keyshare"
 					]
 				},
 				"description": "Retrieve Secret Share"
@@ -145,13 +145,13 @@
 			"response": []
 		},
 		{
-			"name": "NFT-Remove-Secret",
+			"name": "NFT-Remove-Keyshare",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"owner_address\":\"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\",\n    \"signer_address\":\"<Bytes>5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy_10000</Bytes>\",\n    \"signersig\": \"0xcc94304cc8a4308f7e5411e1593d3fc214416b0f78c0ba37e538e932afe7f9782ee8ba583e014c3ad69b83e0880e5d1d5294c11f4f64f43d6297142937b58d81\",\n    \"secret_data\": \"<Bytes>163_0000000000000000_1000_10000</Bytes>\", \n    \"signature\": \"0xcc94304cc8a4308f7e5411e1593d3fc214416b0f78c0ba37e538e932afe7f9782ee8ba583e014c3ad69b83e0880e5d1d5294c11f4f64f43d6297142937b58d81\"\n}",
+					"raw": "{  \n    \"owner_address\": \"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs\",  \n    \"nft_id\": 494\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -159,7 +159,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/nft/removeSecretShares",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/secret-nft/remove-keyshare",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -169,11 +169,35 @@
 					"port": "8101",
 					"path": [
 						"api",
-						"nft",
-						"removeSecretShares"
+						"secret-nft",
+						"remove-keyshare"
 					]
 				},
 				"description": "Store Secret"
+			},
+			"response": []
+		},
+		{
+			"name": "Capsule-is-keyshare-available",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule-nft/is-keyshare-available/444",
+					"protocol": "https",
+					"host": [
+						"dev-c1n1",
+						"ternoa",
+						"network"
+					],
+					"port": "8101",
+					"path": [
+						"api",
+						"capsule-nft",
+						"is-keyshare-available",
+						"444"
+					]
+				}
 			},
 			"response": []
 		},
@@ -183,7 +207,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule/getViewsLog/0",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule-nft/get-views-log/324",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -193,46 +217,22 @@
 					"port": "8101",
 					"path": [
 						"api",
-						"capsule",
-						"getViewsLog",
-						"0"
+						"capsule-nft",
+						"get-views-log",
+						"324"
 					]
 				}
 			},
 			"response": []
 		},
 		{
-			"name": "Capsule-is-secret-available",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule/isSecretAvailable/163",
-					"protocol": "https",
-					"host": [
-						"dev-c1n1",
-						"ternoa",
-						"network"
-					],
-					"port": "8101",
-					"path": [
-						"api",
-						"capsule",
-						"isSecretAvailable",
-						"163"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "Capsule-Set-Secret",
+			"name": "Capsule-Set-Keyshare",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"owner_address\":\"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\",\n    \"signer_address\":\"<Bytes>5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy_200000</Bytes>\",\n    \"signersig\": \"0xa09ceb432262a7d148869475de27e1678caa796da754a4313ccce57a5e409c0ba7bd1f5b6d9babed2686632a0ba14673bfd5ae7df7026a1b7a766bfdf172a688\",\n    \"secret_data\": \"<Bytes>163_1234567890abcdef_120000_100000</Bytes>\", \n    \"signature\": \"0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16484\"\n}",
+					"raw": "{\n  \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n  \"signer_address\": \"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs_214299_1000000\",\n  \"signersig\": \"0x0eca1ac1c4639b608add0c309153c9881bd2f76cfafc12864fd3dcfe1c131c7499c0d28af4bce73adb77eeb3510d7c9bebe3216f04c915b6fda4a4f74b6cf589\",\n  \"secret_data\": \"494_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000\",\n  \"signature\": \"0x1e124c01e9448b279bcfc706c6b39d674e47bab0da68778dac1537488e8d401a8d6815aaca9771ad455ea8b876e21092272f8483d29239a36f65d4c9f14a5787\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -240,7 +240,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule/setSecretShares",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule-nft/set-keyshare",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -250,8 +250,8 @@
 					"port": "8101",
 					"path": [
 						"api",
-						"capsule",
-						"setSecretShares"
+						"capsule-nft",
+						"set-keyshare"
 					]
 				},
 				"description": "Store Secret"
@@ -259,13 +259,13 @@
 			"response": []
 		},
 		{
-			"name": "Capsule-Retrieve-Secret",
+			"name": "Capsule-Retrieve-Keyshare",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"owner_address\":\"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\",\n    \"signer_address\":\"<Bytes>5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy_200000</Bytes>\",\n    \"signersig\": \"0xa09ceb432262a7d148869475de27e1678caa796da754a4313ccce57a5e409c0ba7bd1f5b6d9babed2686632a0ba14673bfd5ae7df7026a1b7a766bfdf172a688\",\n    \"secret_data\": \"<Bytes>163_0000000000000000_120000_100000</Bytes>\", \n    \"signature\": \"0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16484\"\n}",
+					"raw": "{  \n    \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",  \n    \"data\": \"494_214299_1000000\",  \n    \"signature\": \"0x22d8812c669c67b98bcba386528fe80e17452d9a1c55871305d61f1c85a1210648860309ce280225dec32eb3b9f82382df30f581328a32f2a7d6f44ae422e48c\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -273,7 +273,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule/retrieveSecretShares",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule-nft/retrieve-keyshare",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -283,8 +283,8 @@
 					"port": "8101",
 					"path": [
 						"api",
-						"capsule",
-						"retrieveSecretShares"
+						"capsule-nft",
+						"retrieve-keyshare"
 					]
 				},
 				"description": "Store Secret"
@@ -292,13 +292,13 @@
 			"response": []
 		},
 		{
-			"name": "Capsule-Remove-Secret",
+			"name": "Capsule-Remove-Keyshare",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"owner_address\":\"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\",\n    \"signer_address\":\"<Bytes>5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy_10000</Bytes>\",\n    \"signersig\": \"0xcc94304cc8a4308f7e5411e1593d3fc214416b0f78c0ba37e538e932afe7f9782ee8ba583e014c3ad69b83e0880e5d1d5294c11f4f64f43d6297142937b58d81\",\n    \"secret_data\": \"<Bytes>163_0000000000000000_1000_10000</Bytes>\", \n    \"signature\": \"0xcc94304cc8a4308f7e5411e1593d3fc214416b0f78c0ba37e538e932afe7f9782ee8ba583e014c3ad69b83e0880e5d1d5294c11f4f64f43d6297142937b58d81\"\n}",
+					"raw": "{  \n    \"owner_address\": \"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs\",  \n    \"nft_id\": 494\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -306,7 +306,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule/removeSecretShares",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule-nft/remove-keyshare",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -316,8 +316,8 @@
 					"port": "8101",
 					"path": [
 						"api",
-						"capsule",
-						"removeSecretShares"
+						"capsule-nft",
+						"remove-keyshare"
 					]
 				},
 				"description": "Store Secret"
@@ -325,13 +325,13 @@
 			"response": []
 		},
 		{
-			"name": "Admin-Push-Secrets",
+			"name": "Admin-Push-Keyshares",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"data\": {\n        \"nfts\": {\n            \"247\": \"SecretShareNum1ForNFTID247\",\n            \"258\": \"SecretShareNum1ForNFTID258\",\n            \"274\": \"SecretShareNum1ForNFTID274\"\n        },\n        \"signerAddress\": \"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\"\n    },\n    \"signature\":  \"6e45e4bf575d8490f94c3d4b7153032735e377354bb7937a8fc538474c2357076f7722005c601c000b109fb4c6a5b41caedf43775267026041dd6d736290db84\"\n}",
+					"raw": "{\n    \"data\": {\n        \"nfts\": {\n            \"247\": \"SecretShareNum1ForNFTID247\",\n            \"258\": \"SecretShareNum1ForNFTID258\",\n            \"274\": \"SecretShareNum1ForNFTID274\"\n        },\n        \"signer_address\": \"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\"\n    },\n    \"signature\":  \"6e45e4bf575d8490f94c3d4b7153032735e377354bb7937a8fc538474c2357076f7722005c601c000b109fb4c6a5b41caedf43775267026041dd6d736290db84\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -339,7 +339,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/pushEnclaveSecrets",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/push-keyshares",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -350,20 +350,20 @@
 					"path": [
 						"api",
 						"backup",
-						"pushEnclaveSecrets"
+						"push-keyshares"
 					]
 				}
 			},
 			"response": []
 		},
 		{
-			"name": "Admin-Fetch-Secrets",
+			"name": "Admin-Fetch-Keyshares",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"data\": {\n        \"nfts\": [247,258,274],            \n        \"signerAddress\": \"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\"\n    },\n    \"signature\": \"ae2490d6b3bef0811aaab582c7f87026948af3d1b94e839bf37986b78171846229a04ed28de862bea4ebc088117e7a388bae67fc7f738b88a7e09166fb660d88\"\n}\n",
+					"raw": "{\n    \"data\": {\n        \"nfts\": [247,258,274],            \n        \"signer_address\": \"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\"\n    },\n    \"signature\": \"ae2490d6b3bef0811aaab582c7f87026948af3d1b94e839bf37986b78171846229a04ed28de862bea4ebc088117e7a388bae67fc7f738b88a7e09166fb660d88\"\n}\n",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -371,7 +371,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/fetchEnclaveSecrets",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/fetch-keyshares",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -382,7 +382,7 @@
 					"path": [
 						"api",
 						"backup",
-						"fetchEnclaveSecrets"
+						"fetch-keyshares"
 					]
 				}
 			},
