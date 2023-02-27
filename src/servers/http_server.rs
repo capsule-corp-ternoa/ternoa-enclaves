@@ -7,10 +7,13 @@ use axum::{
 
 use reqwest;
 
+use sp_core::Pair;
 use tower_http::{
 	cors::{Any, CorsLayer},
 	services::ServeDir,
 };
+
+use tower::ServiceBuilder;
 
 use anyhow::{anyhow, Error};
 
@@ -38,6 +41,12 @@ use crate::{
 };
 
 use cached::proc_macro::once;
+use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
+
+use std::{
+	fs::File,
+	io::{Read, Write},
+};
 
 #[derive(Clone)]
 pub struct StateConfig {
@@ -49,13 +58,35 @@ pub struct StateConfig {
 /* HTTP Server */
 pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &str) {
 	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
+	let encalve_account_file = "/nft/enclave_account.key";
 
-	let mut entropy = [0u8; 32];
-	rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
-	let enclave_pair = sp_core::sr25519::Pair::from_entropy(&entropy, None);
+	let enclave_keypair = if std::path::Path::new(&encalve_account_file.clone()).exists() {
+		info!("Enclave Account Exists, Importing it! :, path: {}", encalve_account_file);
+
+		let mut ekfile = File::open(&encalve_account_file.clone()).unwrap();
+		let mut phrase = String::new();
+		ekfile.read_to_string(&mut phrase).unwrap();
+		let (keypair, _seed) = sp_core::sr25519::Pair::from_phrase(&phrase, None).unwrap();
+
+		keypair
+	} else {
+		info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
+		let (keypair, phrase, s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
+		let mut ekfile = File::open(&encalve_account_file.clone()).unwrap();
+		ekfile.write_all(phrase.as_bytes()).unwrap();
+
+		keypair
+
+		/*
+		let mut entropy = [0u8; 32];
+		rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
+		let enclave_pair = sp_core::sr25519::Pair::from_entropy(&entropy, None);
+		enclave_pair.0
+		*/
+	};
 
 	let state_config = StateConfig {
-		enclave_key: enclave_pair.0,
+		enclave_key: enclave_keypair,
 		seal_path: seal_path.to_owned(),
 		identity: identity.to_string(),
 	};
@@ -69,6 +100,10 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.allow_origin(Any)
 		.allow_headers(Any)
 		.allow_credentials(true);
+
+	let monitor_layer = ServiceBuilder::new()
+		.layer(NewSentryLayer::new_from_top())
+		.layer(SentryHttpLayer::with_transaction());
 
 	let http_app = Router::new()
 		.fallback_service(
@@ -99,6 +134,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.route("/api/capsule-nft/set-keyshare", post(capsule_set_keyshare))
 		.route("/api/capsule-nft/retrieve-keyshare", post(capsule_retrieve_keyshare))
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
+		.layer(monitor_layer)
 		.layer(CorsLayer::permissive())
 		.with_state(state_config);
 

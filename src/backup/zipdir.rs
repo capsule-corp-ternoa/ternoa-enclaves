@@ -1,7 +1,7 @@
 use std::{
-	io::{self,prelude::*, Seek, Write},
-	iter::Iterator,
 	fs,
+	io::{self, prelude::*, Seek, Write},
+	iter::Iterator,
 };
 use zip::{result::ZipError, write::FileOptions};
 
@@ -102,46 +102,46 @@ fn doit(
 /* ----------------------------
 		EXTRACT ARCHIVE
 -------------------------------*/
-pub fn zip_extract(filename: &str, outdir: &str)  {
-    
-    let fname = std::path::Path::new(filename);
-    let infile = fs::File::open(fname).unwrap();
+pub fn zip_extract(filename: &str, outdir: &str) {
+	let fname = std::path::Path::new(filename);
+	let infile = fs::File::open(fname).unwrap();
 
-    let mut archive = zip::ZipArchive::new(infile).unwrap();
+	let mut archive = zip::ZipArchive::new(infile).unwrap();
 
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i).unwrap();
-        let outpath = match file.enclosed_name() {
-            Some(path) => path.to_owned(),
-            None => continue,
-        };
-		
+	for i in 0..archive.len() {
+		let mut file = archive.by_index(i).unwrap();
+		let outpath = match file.enclosed_name() {
+			Some(path) => path.to_owned(),
+			None => continue,
+		};
+
 		let fullpath_str = outdir.to_string() + outpath.to_str().unwrap();
 		let fullpath = Path::new(&fullpath_str);
-		
+
 		// DIRECTORY
-        if (*file.name()).ends_with('/') {
-            fs::create_dir_all(&fullpath).unwrap();
-        } else { // FILE
-            if let Some(p) = fullpath.parent() {
-                if !p.exists() {
-                    fs::create_dir_all(p).unwrap();
-                }
-            }
-            let mut outfile = fs::File::create(&fullpath).unwrap();
-            io::copy(&mut file, &mut outfile).unwrap();
-        }
+		if (*file.name()).ends_with('/') {
+			fs::create_dir_all(&fullpath).unwrap();
+		} else {
+			// FILE
+			if let Some(p) = fullpath.parent() {
+				if !p.exists() {
+					fs::create_dir_all(p).unwrap();
+				}
+			}
+			let mut outfile = fs::File::create(&fullpath).unwrap();
+			io::copy(&mut file, &mut outfile).unwrap();
+		}
 
-        // Get and Set permissions
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
+		// Get and Set permissions
+		#[cfg(unix)]
+		{
+			use std::os::unix::fs::PermissionsExt;
 
-            if let Some(mode) = file.unix_mode() {
-                fs::set_permissions(&fullpath, fs::Permissions::from_mode(mode)).unwrap();
-            }
-        }
-    }
+			if let Some(mode) = file.unix_mode() {
+				fs::set_permissions(&fullpath, fs::Permissions::from_mode(mode)).unwrap();
+			}
+		}
+	}
 }
 
 #[cfg(test)]
