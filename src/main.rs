@@ -36,6 +36,16 @@ async fn main() {
 	let subscriber = FmtSubscriber::builder().with_max_level(Level::TRACE).finish();
 	tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed"); // TODO: manage expect()
 
+	let _guard = sentry::init((
+		"https://089e5c79239442bfb6af6e5d7676644c@error.ternoa.dev/22",
+		sentry::ClientOptions {
+			release: sentry::release_name!(),
+			traces_sample_rate: 5.0,
+			debug: true,
+			..Default::default()
+		},
+	));
+
 	let args = Args::parse();
 
 	http_server::http_server(&args.domain, &args.port, &args.identity, &args.sealpath).await;
