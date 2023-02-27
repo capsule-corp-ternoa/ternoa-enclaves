@@ -22,8 +22,6 @@ use tracing::{error, info};
 
 use std::{path::PathBuf, time::SystemTime};
 
-use crate::servers::server_common;
-
 use crate::chain::{
 	capsule::{
 		capsule_get_views, capsule_remove_keyshare, capsule_retrieve_keyshare,
@@ -36,7 +34,7 @@ use crate::chain::{
 };
 
 use crate::{
-	backup::admin::{backup_fetch_keyshares, backup_push_keyshares},
+	backup::admin::{backup_fetch_keyshares, backup_push_keyshares,backup_fetch_bulk, backup_push_bulk},
 	pgp::cosign,
 };
 
@@ -47,6 +45,8 @@ use std::{
 	fs::File,
 	io::{Read, Write},
 };
+
+use super::server_common;
 
 #[derive(Clone)]
 pub struct StateConfig {
@@ -71,19 +71,19 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		keypair
 	} else {
 		info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
-		let (keypair, phrase, s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
-		let mut ekfile = File::open(&encalve_account_file.clone()).unwrap();
+		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
+		let mut ekfile = File::create(&encalve_account_file.clone()).unwrap();
 		ekfile.write_all(phrase.as_bytes()).unwrap();
 
 		keypair
-
-		/*
-		let mut entropy = [0u8; 32];
-		rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
-		let enclave_pair = sp_core::sr25519::Pair::from_entropy(&entropy, None);
-		enclave_pair.0
-		*/
 	};
+
+	/*
+			let mut entropy = [0u8; 32];
+			rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
+			let enclave_pair = sp_core::sr25519::Pair::from_entropy(&entropy, None);
+			let enclave_keypair = enclave_pair.0;
+	*/
 
 	let state_config = StateConfig {
 		enclave_key: enclave_keypair,
@@ -120,8 +120,8 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		// CENTRALIZED BACKUP API
 		.route("/api/backup/fetch-keyshares", post(backup_fetch_keyshares))
 		.route("/api/backup/push-keyshares", post(backup_push_keyshares))
-		.route("/api/backup/fetch-bulk", post(backup_fetch_keyshares))
-		.route("/api/backup/push-bulk", post(backup_push_keyshares))
+		.route("/api/backup/fetch-bulk", post(backup_fetch_bulk))
+		.route("/api/backup/push-bulk", post(backup_push_bulk))
 		// NFT SECRET-SHARING API
 		.route("/api/secret-nft/get-views-log/:nft_id", get(nft_get_views))
 		.route("/api/secret-nft/is-keyshare-available/:nft_id", get(is_nft_available))
