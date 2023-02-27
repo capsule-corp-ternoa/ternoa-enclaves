@@ -33,8 +33,8 @@ struct Args {
 
 #[tokio::main(worker_threads = 4)]
 async fn main() {
-	let subscriber = FmtSubscriber::builder().with_max_level(Level::INFO).finish();
-	tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+	let subscriber = FmtSubscriber::builder().with_max_level(Level::TRACE).finish();
+	tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed"); // TODO: manage expect()
 
 	let args = Args::parse();
 

@@ -1,3 +1,9 @@
+AUTHTOKEN=
+if [ "$1" ]; then
+AUTHTOKEN=$1
+else
+read -p "Please enter your github authentication-token to access private repository : " AUTHTOKEN
+fi
 
 CURL="curl -H 'Authorization: token $1' \
       https://api.github.com/repos/capsule-corp-ternoa/sgx_server/releases"; \

@@ -8,7 +8,7 @@ ARCH_LIBDIR ?= /lib/x86_64-linux-gnu
 SELF_EXE = bin/sgx_server
 
 SGX ?= 1
-DEBUG ?= 0
+DEBUG ?= 1
 
 .PHONY: all
 all: sgx_server.manifest
@@ -17,7 +17,7 @@ all: sgx_server.manifest.sgx sgx_server.sig sgx_server.token
 endif
 
 ifeq ($(DEBUG),1)
-GRAMINE_LOG_LEVEL = debug
+GRAMINE_LOG_LEVEL = trace
 else
 GRAMINE_LOG_LEVEL = error
 endif
