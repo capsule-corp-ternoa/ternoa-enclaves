@@ -18,8 +18,6 @@ NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
 #TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} 
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
 
-
-
 # OVERWRITE WITH PRODUCTION VALUES
 ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
 SGX_SERVER_ENV_FILE=?
@@ -69,7 +67,7 @@ while :; do
 		die 'ERROR: "--identity" requires a non-empty option argument.'
 	    fi
 	    ;;
-	-b|--build)
+	-d|--dev)
 	# Compiling the source code
 	    if [ -z "$(which cargo)" ]
 	    then
@@ -89,6 +87,18 @@ while :; do
 	    cosign sign-blob --key $BASEDIR/credentials/keys/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
 		tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
 		mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
+	;;
+	-r|--release)
+		mkdir -p $GRAMINE_PATH/bin/
+		
+		echo "Downloading binary and signature from Ternoa github repository"
+		$SCRIPTS_PATH/fetch-release.sh
+		mv ./sgx_server $GRAMINE_PATH/bin/
+		mv ./sgx_server.sig $GRAMINE_PATH/bin/
+
+		echo "creating binary checksum ..."
+	    cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
+	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
 	;;
 	-h|--help)
 	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n -b | --build \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
@@ -149,20 +159,38 @@ while ! (test -f "$GRAMINE_PATH/make.log") || ! (grep -q "enclave.log" "$GRAMINE
     fi
 done
 
-echo -e "\n${NC}View ${IBlue}gramine/make.log${NC} for enclave details."
+if [ $COUNTER -ge 10 ]; then
+	cat $GRAMINE_PATH/make.log
+	exit
+else
+	echo -e "\n${NC}View ${IBlue}$GRAMINE_PATH/make.log${NC} for enclave details."
+fi 
 
-COUNTER=0
-echo -n -e "\n${BIWhite}Initializing Enclave "
-while ! (test -f "$GRAMINE_PATH/enclave.log") || ! (grep -q "443" "$GRAMINE_PATH/enclave.log"); do
-    echo -n "."
+COUNTER=30
+echo -n -e "\n${BIWhite}Initializing Enclave : "
+tput sc
+while ! (test -f "$GRAMINE_PATH/enclave.log") || ! (grep -q "$PORT" "$GRAMINE_PATH/enclave.log"); do
+    tput sc
+	tput rev
+	echo -n "$COUNTER seconds"
+	tput sgr0
+	tput rc
     sleep 1
-    let COUNTER=$COUNTER+1
-    if [ $COUNTER -ge 20 ]; then
+    let COUNTER=$COUNTER-1
+    if [ $COUNTER -le 0 ]; then
 	break
     fi
 done
 
-echo -e "\n${NC}View ${IBlue}gramine/enclave.log${NC} for server details."
+if [ $COUNTER -le 0 ]; then
+	cat $GRAMINE_PATH/enclave.log
+	exit
+else
+	echo -e "\n${NC}View ${IBlue}$GRAMINE_PATH/make.log${NC} for enclave details."
+	
+	echo -e "\nTesting the server health with this command : curl -s https://$DOMAIN:$PORT/api/health | jq ."
+	curl -s https://$DOMAIN:$PORT/api/health | jq .
+fi
 
 #echo -e "\n${BIWhite}Getting Report from IAS${NC}"
 
