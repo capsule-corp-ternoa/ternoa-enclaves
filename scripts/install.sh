@@ -8,8 +8,11 @@
 
 # ----- Ubuntu
 sudo apt update
-sudo apt-get install build-essential python2 ocaml ocamlbuild automake autoconf libtool wget python-is-python3 libssl-dev git cmake perl dkms linux-headers-$(uname -r) -y
-sudo apt-get install libssl-dev libcurl4-openssl-dev protobuf-compiler libprotobuf-dev debhelper cmake reprepro unzip pkgconf libboost-dev libboost-system-dev libboost-thread-dev protobuf-c-compiler libprotobuf-c-dev lsb-release libsystemd0 -y
+
+sudo apt install build-essential python2 ocaml ocamlbuild automake autoconf libtool wget python-is-python3 libssl-dev git cmake perl dkms linux-headers-$(uname -r) -y
+sudo apt install libssl-dev libcurl4-openssl-dev protobuf-compiler libprotobuf-dev debhelper cmake reprepro unzip pkgconf libboost-dev libboost-system-dev libboost-thread-dev protobuf-c-compiler libprotobuf-c-dev lsb-release libsystemd0 -y
+
+sudo apt install jq -y
 
 # ----- Node.JS for PCCS
 #sudo apt install dkms -y
@@ -25,6 +28,17 @@ sudo apt-get install libssl-dev libcurl4-openssl-dev protobuf-compiler libprotob
 sudo apt install clang llvm pkg-config nettle-dev -y
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
+rustup update
+ 
+ # Rust for sudo
+sudo su
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+rustup update
+exit
+
+# ----- Subxt
+cargo install subxt-cli
 
 # ----- Linux-sgx
 git clone https://github.com/intel/linux-sgx.git
@@ -133,24 +147,33 @@ pip install substrate-interface
 pip install base58
 
 # ----- cosign
-sudo apt install golang-go -y
-go install github.com/sigstore/cosign/cmd/cosign@latest
-
-echo '# set go path
-if [ -d "$HOME/go/bin" ] ; then
-    PATH="$PATH:$HOME/go/bin"
-fi
-' >> ~/.profile
-
-source ~/.profile
+wget "https://github.com/sigstore/cosign/releases/download/v1.6.0/cosign_1.6.0_amd64.deb"
+sudo dpkg -i cosign_1.6.0_amd64.deb
 
 # ----- Ternoa
 git clone https://github.com/capsule-corp-ternoa/sgx_server.git
 cd sgx_server
-./start-server.sh \
---account ./ternoa_account.json \
---secrets /opt/sgx_server_nft/ \
---identity C1N2E1 \
---port 8100 \
+
+# NOTE: On new DOMAIN, credentials/certificates will be invalid, you'll need to remove them before start
+# NOTE: For production, please be careful about certs, never delete them, because every domain has 5 times quota every week.
+# NOTE: It takes 20 seconds for sgx_server to start, that's because of fetch new certificates.
+
+# --dev         builds and signs the binary everytime, so you need to provide password for signing with cosign private-key.
+# --release     downloads binary and signature from Ternoa github repository
+# --domain      is critical for certificates of tls/https 
+# --port        different enclaves on the same machine need to have different ports
+
+sudo ./scripts/start-server.sh \
+--dev \
+--domain dev-c1n1.ternoa.network \
+--port 8101 \
+--identity dev-c1n1-enclave1
+
+
+# You can test the server on the specific DOMAIN and PORT with
+curl -s https://dev-c1n1.ternoa.network:8101/api/health | jq .
+
+# You can stop the server on the specific PORT and clean intermediate files with :
+sudo scripts/stop-server.sh -p 8101
 
 
