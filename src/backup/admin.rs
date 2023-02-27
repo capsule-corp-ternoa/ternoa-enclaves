@@ -20,8 +20,8 @@ use crate::{
 use super::zipdir::{add_dir_zip, zip_extract};
 
 const BACKUP_WHITELIST: [&str; 2] = [
-	"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
-	"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
+	"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy", // Dave
+	"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs", // Test
 ];
 
 // Validity time of Keyshare Data
@@ -118,7 +118,7 @@ impl StoreRequest {
 		 BULK DATA STRUCTURES
 **************************************** */
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct FetchBulkPacket {
 	admin_address: String,
 	auth_token: AuthenticationToken,
@@ -147,10 +147,10 @@ pub struct StoreBulkPacket {
 /* *************************************
  BULK RETRIEVE THEKEYSHARES FROM ENCLAVE
 **************************************** */
-
-pub async fn fetch_bulk(
+#[axum::debug_handler]
+pub async fn backup_fetch_bulk(
 	State(state): State<StateConfig>,
-	backup_request: FetchBulkPacket,
+	Json(backup_request): Json<FetchBulkPacket>,
 ) -> impl IntoResponse {
 	if !verify_account_id(&backup_request.admin_address) {
 		info!("Error backup keyshares : Invalid admin : {}", backup_request.admin_address);
@@ -198,10 +198,10 @@ pub async fn fetch_bulk(
 /* ******************************
  BULK PUSH KEYSHARES TO THIS ENCLAVE
 ********************************* */
-
-pub async fn push_bulk(
+#[axum::debug_handler]
+pub async fn backup_push_bulk(
 	State(state): State<StateConfig>,
-	store_request: StoreBulkPacket,
+	Json(store_request): Json<StoreBulkPacket>,
 ) -> impl IntoResponse {
 	if !verify_account_id(&store_request.admin_address.clone()) {
 		info!("Error restore backup keyshares : Invalid admin : {}", store_request.admin_address);
@@ -607,5 +607,28 @@ mod test {
 		info!("rc_backup_packet_data : {:#?}\n", rc_backup_packet_data);
 		info!("backup_sign: {:#?}\n", backup_sign);
 		*/
+	}
+
+	#[tokio::test]
+	async fn fetch_bulk_test() {
+		let admin = sr25519::Pair::from_phrase(
+			"steel announce garden guilt direct give morning gadget milk census poem faith",
+			None,
+		)
+		.unwrap()
+		.0;
+
+		let admin_address = admin.public().to_ss58check();
+		let auth = AuthenticationToken { block_number: 1000, block_validation: 10000000 };
+		let auth_str = serde_json::to_string(&auth).unwrap();
+		let signature = admin.sign(auth_str.as_bytes());
+
+		let packet = FetchBulkPacket {
+			admin_address: admin_address.to_string(),
+			auth_token: auth,
+			signature: format!("{}{:?}", "0x", signature),
+		};
+
+		println!("FetchBulkPacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
 	}
 }
