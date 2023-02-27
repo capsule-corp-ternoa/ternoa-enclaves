@@ -33,6 +33,7 @@ serde = { version = "1.0.152", features = ["derive"] }
 josekit = "0.8.1"
 hex = "0.4.3"
 base64 = "0.21.0"
+zip = "0.6.4"
 
 log = "0.4.17"
 chrono = "0.4.23"
@@ -43,6 +44,7 @@ rand = "0.8.5"
 clap = { version = "4.0.29", features = ["derive"] }
 sysinfo = "0.27.0"
 anyhow = "1.0.68"
+walkdir = "2.3.2"
 
 # IPFS
 futures = "0.3.25"
