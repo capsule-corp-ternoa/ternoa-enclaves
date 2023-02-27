@@ -45,9 +45,8 @@ impl AuthenticationToken {
 	}
 }
 
-
 /* *************************************
- 		VERIFICATIONFUNCTIONS
+		 VERIFICATIONFUNCTIONS
 **************************************** */
 
 fn verify_account_id(account_id: &str) -> bool {
@@ -116,7 +115,7 @@ impl StoreRequest {
 }
 
 /* *************************************
- 		BULK DATA STRUCTURES
+		 BULK DATA STRUCTURES
 **************************************** */
 
 #[derive(Deserialize)]
@@ -132,13 +131,13 @@ pub struct FetchBulkResponse {
 	signature: String,
 }
 
-#[derive(Serialize,Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct StoreBulkData {
 	auth_token: AuthenticationToken,
 	data: Vec<u8>,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct StoreBulkPacket {
 	admin_address: String,
 	data: StoreBulkData,
@@ -174,7 +173,7 @@ pub async fn fetch_bulk(
 			let mut file = std::fs::File::open(backup_file.clone()).unwrap(); // TODO : manage unwrap
 			let mut data = Vec::<u8>::new();
 			file.read_to_end(&mut data).unwrap(); // TODO : manage unwrap
-			
+
 			std::fs::remove_file(backup_file).unwrap();
 
 			// TODO : manage big packet transfer
@@ -215,14 +214,11 @@ pub async fn push_bulk(
 	let data = store_request.data.clone();
 	let data_bytes = serde_json::to_vec(&data).unwrap();
 
-	if verify_signature(
-		&store_request.admin_address,
-		store_request.signature.clone(),
-		&data_bytes,
-	) {
+	if verify_signature(&store_request.admin_address, store_request.signature.clone(), &data_bytes)
+	{
 		if store_request.data.auth_token.is_valid().await {
 			let backup_file = state.seal_path.to_owned() + "backup.zip";
-			
+
 			let mut zipfile = std::fs::File::open(backup_file.clone()).unwrap();
 			zipfile.write_all(&data_bytes).unwrap();
 
@@ -515,13 +511,13 @@ mod test {
 		)
 		.unwrap()
 		.0;
-		
-		let auth = AuthenticationToken {block_number: 300000, block_validation: 1000000};
+
+		let auth = AuthenticationToken { block_number: 300000, block_validation: 1000000 };
 		let auth_bytes = serde_json::to_vec(&auth).unwrap();
 		let sig = admin_keypair.sign(&auth_bytes);
 		let sig_str = serde_json::to_string(&sig).unwrap();
 
-		let request = FetchBulkPacket{
+		let request = FetchBulkPacket {
 			admin_address: admin_keypair.public().to_string(),
 			auth_token: auth,
 			signature: sig_str,
@@ -536,17 +532,17 @@ mod test {
 		)
 		.unwrap()
 		.0;
-		
+
 		let zipdata = "fake_zip_data".as_bytes();
-		let auth = AuthenticationToken {block_number: 300000, block_validation: 1000000};
-		let data = StoreBulkData {auth_token: auth.clone(), data: zipdata.to_vec()};
+		let auth = AuthenticationToken { block_number: 300000, block_validation: 1000000 };
+		let data = StoreBulkData { auth_token: auth.clone(), data: zipdata.to_vec() };
 		let auth_str = serde_json::to_vec(&auth).unwrap();
 		let sig = admin_keypair.sign(&auth_str);
 		let sig_str = serde_json::to_string(&sig).unwrap();
 
-		let request = StoreBulkPacket{
+		let request = StoreBulkPacket {
 			admin_address: admin_keypair.public().to_string(),
-			data: data,
+			data,
 			signature: sig_str,
 		};
 	}
