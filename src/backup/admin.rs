@@ -1,6 +1,7 @@
 use axum::{debug_handler, extract::State, http::StatusCode, response::IntoResponse, Json};
 
 use hex::FromHex;
+use serde_json::json;
 use sp_core::{crypto::Ss58Codec, sr25519, Pair};
 use std::{
 	collections::BTreeMap,
@@ -11,67 +12,50 @@ use tracing::info;
 
 use serde::{Deserialize, Serialize};
 
-use crate::servers::http_server::StateConfig;
+use crate::{
+	chain::{chain::get_current_block_number, log::*},
+	servers::http_server::StateConfig,
+};
+
+use super::zipdir::{add_dir_zip, zip_extract};
 
 const BACKUP_WHITELIST: [&str; 2] = [
 	"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
 	"5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6",
 ];
 
-/* ******************************
-		 DATA STRUCTURES
-****************************** */
-
-#[derive(Debug)]
-pub enum BackupError {
-	UnAuthorizedSigner,
-	InvalidSignature,
+// Validity time of Keyshare Data
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AuthenticationToken {
+	pub block_number: u32,
+	pub block_validation: u32,
 }
 
-// -------- Backup -------
-#[derive(Serialize, Deserialize, Clone)]
-pub struct BackupRequestData {
-	nfts: Vec<u32>,
-	signer_address: String,
+/* ----------------------------------
+AUTHENTICATION TOKEN IMPLEMENTATION
+----------------------------------*/
+
+// Retrieving the stored Keyshare
+
+impl AuthenticationToken {
+	pub async fn is_valid(self) -> bool {
+		let last_block_number = get_current_block_number().await;
+		(last_block_number > self.block_number - 3) // for finalization delay
+			&& (last_block_number < self.block_number + self.block_validation + 3)
+	}
 }
 
-#[derive(Deserialize, Clone)]
-pub struct BackupRequest {
-	data: BackupRequestData,
-	signature: String,
-}
 
-#[derive(Serialize)]
-pub struct BackupResponse {
-	status: String,
-	data: BTreeMap<String, String>,
-}
-
-// -------- Store -------
-
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct StoreRequestData {
-	nfts: BTreeMap<String, String>,
-	signer_address: String,
-}
-
-#[derive(Deserialize, Clone, PartialEq)]
-pub struct StoreRequest {
-	data: StoreRequestData,
-	signature: String,
-}
-
-#[derive(Serialize)]
-pub struct StoreResponse {
-	status: String,
-}
+/* *************************************
+ 		VERIFICATIONFUNCTIONS
+**************************************** */
 
 fn verify_account_id(account_id: &str) -> bool {
 	BACKUP_WHITELIST.contains(&account_id)
 }
 
 fn get_public_key(account_id: &str) -> sr25519::Public {
-	let pk = sr25519::Public::from_ss58check(account_id).expect("Invalid AccountID");
+	let pk = sr25519::Public::from_ss58check(account_id).expect("Invalid AccountID"); // TODO: manage expect()
 	log::debug!("Public Key = {}", pk);
 	pk
 }
@@ -82,7 +66,7 @@ fn get_signature(signature: String) -> sr25519::Signature {
 		None => signature.as_str(),
 	};
 
-	let sig_bytes = <[u8; 64]>::from_hex(stripped).unwrap();
+	let sig_bytes = <[u8; 64]>::from_hex(stripped).unwrap(); // TODO: manage unwrap()
 	let sig = sr25519::Signature::from_raw(sig_bytes);
 	log::debug!("sig = {:#?}", sig);
 	sig
@@ -103,7 +87,7 @@ impl BackupRequest {
 		if verify_signature(
 			&self.data.signer_address,
 			self.signature.clone(),
-			&serde_json::to_string(&self.data).unwrap().as_bytes(),
+			&serde_json::to_vec(&self.data).unwrap(),
 		) {
 			Ok(true)
 		} else {
@@ -131,8 +115,189 @@ impl StoreRequest {
 	}
 }
 
+/* *************************************
+ 		BULK DATA STRUCTURES
+**************************************** */
+
+#[derive(Deserialize)]
+pub struct FetchBulkPacket {
+	admin_address: String,
+	auth_token: AuthenticationToken,
+	signature: String,
+}
+
+#[derive(Serialize)]
+pub struct FetchBulkResponse {
+	data: String,
+	signature: String,
+}
+
+#[derive(Serialize,Deserialize, Clone)]
+pub struct StoreBulkData {
+	auth_token: AuthenticationToken,
+	data: Vec<u8>,
+}
+
+#[derive(Serialize,Deserialize)]
+pub struct StoreBulkPacket {
+	admin_address: String,
+	data: StoreBulkData,
+	signature: String,
+}
+
+/* *************************************
+ BULK RETRIEVE THEKEYSHARES FROM ENCLAVE
+**************************************** */
+
+pub async fn fetch_bulk(
+	State(state): State<StateConfig>,
+	backup_request: FetchBulkPacket,
+) -> impl IntoResponse {
+	if !verify_account_id(&backup_request.admin_address) {
+		info!("Error backup keyshares : Invalid admin : {}", backup_request.admin_address);
+
+		return Json(json! ({
+			"status": "Error backup keyshares : Invalid admin",
+			"data": [],
+		}))
+	}
+
+	if verify_signature(
+		&backup_request.admin_address,
+		backup_request.signature.clone(),
+		&serde_json::to_vec(&backup_request.auth_token).unwrap(),
+	) {
+		if backup_request.auth_token.is_valid().await {
+			let backup_file = state.seal_path.to_owned() + "backup.zip";
+			add_dir_zip(&state.seal_path.clone(), &backup_file);
+
+			let mut file = std::fs::File::open(backup_file.clone()).unwrap(); // TODO : manage unwrap
+			let mut data = Vec::<u8>::new();
+			file.read_to_end(&mut data).unwrap(); // TODO : manage unwrap
+			
+			std::fs::remove_file(backup_file).unwrap();
+
+			// TODO : manage big packet transfer
+			return Json(json! ({
+				"status": "Successfull request",
+				"data": data,
+			}))
+		} else {
+			return Json(json! ({
+				"status": "Authentication Token Expired",
+				"data": [],
+			}))
+		}
+	} else {
+		return Json(json! ({
+			"status": "Invalid signature",
+			"data": [],
+		}))
+	}
+}
+
 /* ******************************
- RETRIEVE KEYSHARES FROM ENCLAVE
+ BULK PUSH KEYSHARES TO THIS ENCLAVE
+********************************* */
+
+pub async fn push_bulk(
+	State(state): State<StateConfig>,
+	store_request: StoreBulkPacket,
+) -> impl IntoResponse {
+	if !verify_account_id(&store_request.admin_address.clone()) {
+		info!("Error restore backup keyshares : Invalid admin : {}", store_request.admin_address);
+
+		return Json(json! ({
+			"status": "Error restore backup keyshares : Invalid admin",
+		}))
+	}
+
+	let data = store_request.data.clone();
+	let data_bytes = serde_json::to_vec(&data).unwrap();
+
+	if verify_signature(
+		&store_request.admin_address,
+		store_request.signature.clone(),
+		&data_bytes,
+	) {
+		if store_request.data.auth_token.is_valid().await {
+			let backup_file = state.seal_path.to_owned() + "backup.zip";
+			
+			let mut zipfile = std::fs::File::open(backup_file.clone()).unwrap();
+			zipfile.write_all(&data_bytes).unwrap();
+
+			zip_extract(&backup_file, &state.seal_path);
+
+			std::fs::remove_file(backup_file).unwrap();
+
+			// TODO : manage big packet transfer
+			return Json(json! ({
+				"status": "Successfull request",
+			}))
+		} else {
+			return Json(json! ({
+				"status": "Authentication Token Expired",
+				"data": [],
+			}))
+		}
+	} else {
+		return Json(json! ({
+			"status": "Invalid signature",
+			"data": [],
+		}))
+	}
+}
+
+/* ******************************
+	REQUEST DATA STRUCTURES
+****************************** */
+
+#[derive(Debug)]
+pub enum BackupError {
+	UnAuthorizedSigner,
+	InvalidSignature,
+}
+
+// -------- Backup -------
+#[derive(Serialize, Deserialize, Clone)]
+pub struct BackupRequestData {
+	nfts: Vec<String>,
+	signer_address: String,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct BackupRequest {
+	data: BackupRequestData,
+	signature: String,
+}
+
+#[derive(Serialize)]
+pub struct BackupResponse {
+	status: String,
+	data: BTreeMap<String, [String; 2]>,
+}
+
+// -------- Store -------
+
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct StoreRequestData {
+	nfts: BTreeMap<String, [String; 2]>,
+	signer_address: String,
+}
+
+#[derive(Deserialize, Clone, PartialEq)]
+pub struct StoreRequest {
+	data: StoreRequestData,
+	signature: String,
+}
+
+#[derive(Serialize)]
+pub struct StoreResponse {
+	status: String,
+}
+
+/* ******************************
+ RETRIEVE KEYSHARES FROM THIS ENCLAVE
 ****************************** */
 
 #[debug_handler]
@@ -162,10 +327,13 @@ pub async fn backup_fetch_keyshares(
 
 	match verified_req {
 		Ok(_) => {
-			let mut backup_response_data: BTreeMap<String, String> = BTreeMap::new();
+			let mut backup_response_data: BTreeMap<String, [String; 2]> = BTreeMap::new();
 
 			for nft_id in parsed_request.data.nfts {
-				let file_path = state.seal_path.to_owned() + &nft_id.to_string() + ".keyshare";
+				let file_path = state.seal_path.to_owned() + &nft_id + ".keyshare";
+				let log_path = state.seal_path.to_owned() +
+					nft_id.split("_").collect::<Vec<&str>>()[1] +
+					".log";
 
 				if !std::path::Path::new(&file_path).is_file() {
 					info!(
@@ -184,7 +352,9 @@ pub async fn backup_fetch_keyshares(
 					)
 				}
 
-				let mut file = match std::fs::File::open(file_path) {
+				let mut logfile = std::fs::File::open(log_path).expect("can not open log file"); // TODO: manage expect()
+
+				let mut secfile = match std::fs::File::open(file_path) {
 					Ok(file) => file,
 					Err(_) => {
 						info!(
@@ -203,15 +373,16 @@ pub async fn backup_fetch_keyshares(
 				};
 
 				let mut nft_keyshare = String::new();
+				let mut nft_log = String::new();
 
-				file.read_to_string(&mut nft_keyshare).unwrap();
+				secfile.read_to_string(&mut nft_keyshare).unwrap(); // TODO: manage unwrap()
+				logfile.read_to_string(&mut nft_log).unwrap(); // TODO: manage unwrap()
 
-				backup_response_data.insert(nft_id.to_string(), nft_keyshare);
+				backup_response_data.insert(nft_id.clone(), [nft_keyshare, nft_log]);
 
-				log::debug!(
+				info!(
 					"Key-shares of {} retrieved by {}",
-					nft_id,
-					parsed_request.data.signer_address
+					nft_id, parsed_request.data.signer_address
 				);
 			}
 
@@ -266,9 +437,12 @@ pub async fn backup_push_keyshares(
 
 	match verified_req {
 		Ok(_) => {
-			for (nft_id, keyshare) in parsed_request.data.nfts {
-				std::fs::create_dir_all(state.seal_path.clone()).unwrap();
-				let file_path = state.seal_path.to_owned() + &nft_id.to_string() + ".keyshare";
+			for (nft_id, [keyshare, viewlog]) in parsed_request.data.nfts {
+				std::fs::create_dir_all(state.seal_path.clone()).unwrap(); // TODO: manage unwrap()
+				let file_path = state.seal_path.to_owned() + &nft_id + ".keyshare"; // nft or capsule?
+				let log_path = state.seal_path.to_owned() +
+					&nft_id.split("_").collect::<Vec<&str>>()[1] +
+					".log";
 
 				if std::path::Path::new(file_path.as_str()).exists() {
 					let message = format!(
@@ -281,6 +455,7 @@ pub async fn backup_push_keyshares(
 					return (StatusCode::OK, Json(StoreResponse { status: message }))
 				}
 
+				let mut g = std::fs::File::create(log_path).unwrap(); // TODO: manage unwrap()
 				let mut f = match std::fs::File::create(file_path) {
 					Ok(file) => file,
 					Err(err) => {
@@ -292,7 +467,8 @@ pub async fn backup_push_keyshares(
 					},
 				};
 
-				f.write_all(keyshare.as_bytes()).unwrap();
+				g.write_all(viewlog.as_bytes()).unwrap(); // TODO: manage unwrap()
+				f.write_all(keyshare.as_bytes()).unwrap(); // TODO: manage unwrap()
 
 				log::debug!(
 					"Key-share is successfully stored to TEE, nft_id = {} by admin = {}",
@@ -332,14 +508,58 @@ mod test {
 	use super::*;
 
 	#[tokio::test]
+	async fn bulk_fetch_test() {
+		let admin_keypair = sr25519::Pair::from_phrase(
+			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
+			None,
+		)
+		.unwrap()
+		.0;
+		
+		let auth = AuthenticationToken {block_number: 300000, block_validation: 1000000};
+		let auth_bytes = serde_json::to_vec(&auth).unwrap();
+		let sig = admin_keypair.sign(&auth_bytes);
+		let sig_str = serde_json::to_string(&sig).unwrap();
+
+		let request = FetchBulkPacket{
+			admin_address: admin_keypair.public().to_string(),
+			auth_token: auth,
+			signature: sig_str,
+		};
+	}
+
+	#[tokio::test]
+	async fn bulk_restore_test() {
+		let admin_keypair = sr25519::Pair::from_phrase(
+			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
+			None,
+		)
+		.unwrap()
+		.0;
+		
+		let zipdata = "fake_zip_data".as_bytes();
+		let auth = AuthenticationToken {block_number: 300000, block_validation: 1000000};
+		let data = StoreBulkData {auth_token: auth.clone(), data: zipdata.to_vec()};
+		let auth_str = serde_json::to_vec(&auth).unwrap();
+		let sig = admin_keypair.sign(&auth_str);
+		let sig_str = serde_json::to_string(&sig).unwrap();
+
+		let request = StoreBulkPacket{
+			admin_address: admin_keypair.public().to_string(),
+			data: data,
+			signature: sig_str,
+		};
+	}
+
+	#[tokio::test]
 	async fn verification_test() {
 		let store_body = r#"
         {
 			"data": {
 				"nfts": {
-					"247": "SecretShareNum1ForNFTID247",
-					"258": "SecretShareNum1ForNFTID258",
-					"274": "SecretShareNum1ForNFTID274"
+					"nft_247": 		["SecretShareNum1ForNFTID247","5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6 Viewed the key-share on 2023-02-21 12:53:38\n"],
+					"nft_258":		["SecretShareNum1ForNFTID258","5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6 Viewed the key-share on 2023-02-21 12:53:38\n"],
+					"capsule_274":	["SecretShareNum1ForNFTID274","5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6 Viewed the key-share on 2023-02-21 12:53:38\n"]
 				},
 				"signer_address": "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy"
 			},
@@ -360,7 +580,7 @@ mod test {
 		let backup_body = r#"
         {
 			"data": {
-				"nfts": [247,258,274],            
+				"nfts": ["247","258","274"],            
 				"signer_address": "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy"
 			},
 			"signature": "ae2490d6b3bef0811aaab582c7f87026948af3d1b94e839bf37986b78171846229a04ed28de862bea4ebc088117e7a388bae67fc7f738b88a7e09166fb660d88"
@@ -381,13 +601,13 @@ mod test {
 		/*
 		let key_pair = sp_keyring::AccountKeyring::Dave.pair();
 
-		let rc_store_packet_data = serde_json::to_string(&store_packet.data).unwrap();
-		let store_sign = key_pair.sign(rc_store_packet_data.as_bytes());
+		let rc_store_packet_data = serde_json::to_vec::<u8>(&store_packet.data).unwrap();
+		let store_sign = key_pair.sign(&rc_store_packet_data);
 		info!("rc_store_packet_data : {:#?}\n", rc_store_packet_data);
 		info!("store_sign : {:#?}\n", store_sign);
 
-		let rc_backup_packet_data = serde_json::to_string(&backup_packet.data).unwrap();
-		let backup_sign = key_pair.sign(rc_backup_packet_data.as_bytes());
+		let rc_backup_packet_data = serde_json::to_vec::<u8>(&backup_packet.data).unwrap();
+		let backup_sign = key_pair.sign(&rc_backup_packet_data);
 		info!("rc_backup_packet_data : {:#?}\n", rc_backup_packet_data);
 		info!("backup_sign: {:#?}\n", backup_sign);
 		*/
