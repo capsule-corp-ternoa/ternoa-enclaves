@@ -8,7 +8,7 @@ use std::{
 	io::{Read, Write},
 };
 
-use tracing::info;
+use tracing::{info, debug};
 
 use serde::{Deserialize, Serialize};
 
@@ -115,7 +115,7 @@ pub async fn backup_fetch_bulk(
 	State(state): State<StateConfig>,
 	Json(backup_request): Json<FetchBulkPacket>,
 ) -> impl IntoResponse {
-	info!("3-15 API : backup fetch bulk");
+	debug!("3-15 API : backup fetch bulk");
 
 	if !verify_account_id(&backup_request.admin_address) {
 		info!("Error backup keyshares : Invalid admin : {}", backup_request.admin_address);
@@ -168,7 +168,7 @@ pub async fn backup_push_bulk(
 	State(state): State<StateConfig>,
 	Json(store_request): Json<StoreBulkPacket>,
 ) -> impl IntoResponse {
-	info!("3-16 API : backup push bulk");
+	debug!("3-16 API : backup push bulk");
 
 	if !verify_account_id(&store_request.admin_address.clone()) {
 		info!("Error restore backup keyshares : Invalid admin : {}", store_request.admin_address);

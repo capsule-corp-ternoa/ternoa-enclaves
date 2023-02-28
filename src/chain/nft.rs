@@ -6,7 +6,7 @@ use std::{
 	fs::OpenOptions,
 	io::{Read, Seek, Write},
 };
-use tracing::{info, warn};
+use tracing::{info, warn, debug};
 
 use axum::extract::Path as PathExtract;
 
@@ -34,7 +34,7 @@ pub async fn is_nft_available(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> impl IntoResponse {
-	info!("3-6 API : is nft available");
+	debug!("3-6 API : is nft available");
 	let file_path = state.seal_path + "nft_" + &nft_id.to_string() + ".keyshare";
 
 	if std::path::Path::new(&file_path.clone()).exists() {
@@ -72,7 +72,7 @@ pub async fn nft_get_views(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> impl IntoResponse {
-	info!("3-7 API : nft get views");
+	debug!("3-7 API : nft get views");
 
 	let nft_state = match get_onchain_nft_data(nft_id).await {
 		Some(data) => data.state,
@@ -181,7 +181,7 @@ pub async fn nft_store_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<StoreKeysharePacket>,
 ) -> impl IntoResponse {
-	info!("3-8 API nft store keyshare");
+	debug!("3-8 API nft store keyshare");
 
 	match request.verify_store_request("secret-nft").await {
 		Ok(verified_data) => {
@@ -373,7 +373,7 @@ pub async fn nft_retrieve_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RetrieveKeysharePacket>,
 ) -> impl IntoResponse {
-	info!("3-9 API : nft retrieve keyshare");
+	debug!("3-9 API : nft retrieve keyshare");
 	match request.verify_retrieve_request("secret-nft").await {
 		Ok(verified_data) => {
 			let file_path =
@@ -527,7 +527,7 @@ pub async fn nft_remove_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RemoveKeysharePacket>,
 ) -> impl IntoResponse {
-	info!("3-10 API : nft remove keyshare");
+	debug!("3-10 API : nft remove keyshare");
 
 	let nft_status = match get_onchain_nft_data(request.nft_id).await {
 		Some(x) => true,
