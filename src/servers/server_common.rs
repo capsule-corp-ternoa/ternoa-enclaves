@@ -12,10 +12,10 @@ use tokio_stream::StreamExt;
 use axum::Router;
 use axum_server::{tls_rustls::RustlsConfig, Handle};
 
-use tracing::{error, info};
+use tracing::{error, info, debug};
 
 pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::Error> {
-	info!("3-5-1 Startng server with app, domain, port.");
+	debug!("3-5-1 Startng server with app, domain, port.");
 
 	let socket_addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 443));
 
@@ -31,7 +31,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 		.directory_lets_encrypt(true)
 		.state();
 
-	info!("3-5-2 Startng server : define rust-TLS config.");
+	debug!("3-5-2 Startng server : define rust-TLS config.");
 	let rustls_config = ServerConfig::builder()
 		.with_safe_defaults()
 		.with_no_client_auth()
@@ -39,7 +39,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 	let acceptor = state.axum_acceptor(Arc::new(rustls_config.clone()));
 
-	info!("3-5-3 Startng server : spawn cert state");
+	debug!("3-5-3 Startng server : spawn cert state");
 	tokio::spawn(async move {
 		loop {
 			match state.next().await.unwrap() {
@@ -58,7 +58,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	let handle = Handle::new();
 	//tokio::spawn(cert_shutdown(handle));
 
-	info!("3-5-4 Startng server : start cert server");
+	debug!("3-5-4 Startng server : start cert server");
 	let cert_server = axum_server::bind_rustls(socket_addr, config.clone())
 		.acceptor(acceptor.clone())
 		.handle(handle.clone())
@@ -70,7 +70,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	);
 
 	cert_shutdown(handle).await;
-	info!("3-5-5 Startng server : cert server shutdown");
+	debug!("3-5-5 Startng server : cert server shutdown");
 
 	match cert_server {
 		Ok(_) => {
@@ -84,7 +84,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	}
 
 	let socket_addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, *port));
-	info!("3-5-6 Startng server : starting server \n");
+	debug!("3-5-6 Startng server : starting server \n");
 	info!("SGX Server is listening {}'\n", socket_addr);
 
 	let sgx_server = axum_server::bind_rustls(socket_addr, config)
@@ -92,7 +92,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 		.serve(app.into_make_service())
 		.await;
 
-	info!("3-5-7 Startng server : server exit\n");
+	debug!("3-5-7 Startng server : server exit\n");
 	match sgx_server {
 		Ok(_) => {
 			info!("SGX Server finished successfully");
