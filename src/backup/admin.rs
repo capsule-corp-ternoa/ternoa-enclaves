@@ -7,7 +7,7 @@ use axum::{
 };
 use tokio_util::io::ReaderStream;
 
-use hex::FromHex;
+use hex::{FromHex, FromHexError};
 use serde_json::json;
 use sp_core::{crypto::Ss58Codec, sr25519, Pair};
 use std::io::{Read, Write};
@@ -15,6 +15,9 @@ use std::io::{Read, Write};
 use tracing::{debug, info};
 
 use serde::{Deserialize, Serialize};
+use sp_core::crypto::PublicError;
+use sp_core::ecdsa::Public;
+use sp_core::sr25519::Signature;
 
 use crate::{chain::chain::get_current_block_number, servers::http_server::StateConfig};
 
@@ -55,24 +58,33 @@ fn verify_account_id(account_id: &str) -> bool {
 	BACKUP_WHITELIST.contains(&account_id)
 }
 
-fn get_public_key(account_id: &str) -> sr25519::Public {
-	let pk = sr25519::Public::from_ss58check(account_id).expect("Invalid AccountID"); // TODO: manage expect()
-	log::debug!("Public Key = {}", pk);
+fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
+	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id).or_else(|err: PublicError| {
+		log::debug!("Error constructing public key {:?}", err);
+		Err(err)
+	});
+
 	pk
 }
 
-fn get_signature(signature: String) -> sr25519::Signature {
+/// Returns Signature or else a HexError
+fn get_signature(signature: String) -> Result<Signature, FromHexError> {
 	let stripped = match signature.strip_prefix("0x") {
 		Some(sig) => sig,
 		None => signature.as_str(),
 	};
 
-	let sig_bytes = <[u8; 64]>::from_hex(stripped).unwrap(); // TODO: manage unwrap()
-	let sig = sr25519::Signature::from_raw(sig_bytes);
-	log::debug!("sig = {:#?}", sig);
-	sig
+	let sb = match <[u8; 64]>::from_hex(stripped) {
+		Ok(s) => {
+			let sig = sr25519::Signature::from_raw(s);
+			Ok(sig)
+		}
+		Err(err) => Err(err),
+	};
+	sb
 }
 
+/// Verify Signature generated for a payload
 fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool {
 	let account_pubkey = get_public_key(account_id);
 
@@ -229,6 +241,8 @@ pub async fn backup_push_bulk(
 
 #[cfg(test)]
 mod test {
+	use hex::FromHexError;
+	use tokio_test::assert_err;
 	use super::*;
 
 	#[tokio::test]
@@ -296,5 +310,20 @@ mod test {
 		};
 
 		println!("FetchBulkPacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
+	}
+
+	#[test]
+	fn test_get_signature_valid() {
+		let input  = "0xb7255023814e304b72bc880cc993d5c654ce060db0c3f0772b453714c760521962943747af605a90d0503812c6a62c5c1080cbf377095551af0c168a8c724da8".to_string();
+		let expected = Signature(<[u8; 64]>::from_hex(input.strip_prefix("0x").unwrap()).unwrap());
+		let results = get_signature(input).unwrap();
+		assert_eq!(results, expected);
+	}
+
+	#[test]
+	fn test_get_public_key_valid() {
+		let account = "5DAENKLsmj9FbfxgKuWn81smhKz9dZg75fveUFSUtqrr4CPn";
+		let results = get_public_key(account).unwrap();
+		assert_eq!(results, sp_core::sr25519::Public::from_ss58check(&account).unwrap());
 	}
 }
