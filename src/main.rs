@@ -1,5 +1,5 @@
 use clap::Parser;
-use tracing::Level;
+use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 mod attestation;
@@ -33,8 +33,11 @@ struct Args {
 
 #[tokio::main(worker_threads = 4)]
 async fn main() {
+	info!("1-1 Main function started.");
 	let subscriber = FmtSubscriber::builder().with_max_level(Level::TRACE).finish();
 	tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed"); // TODO: manage expect()
+
+	info!("1-2 Tracing started");
 
 	let _guard = sentry::init((
 		"https://089e5c79239442bfb6af6e5d7676644c@error.ternoa.dev/22",
@@ -46,7 +49,13 @@ async fn main() {
 		},
 	));
 
+	info!("1-3 Sentry started.");
+
 	let args = Args::parse();
 
+	info!("1-4 Staring http-server");
+
 	http_server::http_server(&args.domain, &args.port, &args.identity, &args.sealpath).await;
+
+	info!("1-5 http-server exited");
 }

@@ -5,6 +5,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use super::verify::RequesterType;
 
@@ -85,6 +86,8 @@ pub fn update_log_file_view(
 	log_type: LogType,
 	nft_type: &str,
 ) {
+	info!("4-7 update log file view");
+
 	let mut log_file = OpenOptions::new()
 		.read(true)
 		.write(true)
