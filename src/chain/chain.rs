@@ -10,7 +10,7 @@ use subxt::{
 	utils::AccountId32,
 	OnlineClient, PolkadotConfig,
 };
-use tracing::info;
+use tracing::{info, debug};
 
 use self::ternoa::runtime_types::{
 	ternoa_pallets_primitives::nfts::NFTData, ternoa_rent::types::RentContractData,
