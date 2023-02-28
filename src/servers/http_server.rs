@@ -1,8 +1,8 @@
 use axum::{
 	extract::State,
-	http::{Method, StatusCode},
+	http::{Method, StatusCode, Uri},
 	routing::{get, get_service, post},
-	Json, Router,
+	BoxError, Json, Router,
 };
 
 use reqwest;
@@ -11,16 +11,19 @@ use sp_core::Pair;
 use tower_http::{
 	cors::{Any, CorsLayer},
 	services::ServeDir,
+	timeout::TimeoutLayer,
 };
 
-use tower::ServiceBuilder;
-
 use anyhow::{anyhow, Error};
+use tower::ServiceBuilder;
 
 use serde_json::{json, Value};
 use tracing::{error, info};
 
-use std::{path::PathBuf, time::SystemTime};
+use std::{
+	path::PathBuf,
+	time::{Duration, SystemTime},
+};
 
 use crate::chain::{
 	capsule::{
@@ -34,7 +37,9 @@ use crate::chain::{
 };
 
 use crate::{
-	backup::admin::{backup_fetch_keyshares, backup_push_keyshares,backup_fetch_bulk, backup_push_bulk},
+	backup::admin::{
+		backup_fetch_bulk, backup_fetch_keyshares, backup_push_bulk, backup_push_keyshares,
+	},
 	pgp::cosign,
 };
 
@@ -78,13 +83,6 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		keypair
 	};
 
-	/*
-			let mut entropy = [0u8; 32];
-			rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut entropy);
-			let enclave_pair = sp_core::sr25519::Pair::from_entropy(&entropy, None);
-			let enclave_keypair = enclave_pair.0;
-	*/
-
 	let state_config = StateConfig {
 		enclave_key: enclave_keypair,
 		seal_path: seal_path.to_owned(),
@@ -106,15 +104,6 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.layer(SentryHttpLayer::with_transaction());
 
 	let http_app = Router::new()
-		.fallback_service(
-			get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true))
-				.handle_error(|error: std::io::Error| async move {
-					(
-						StatusCode::INTERNAL_SERVER_ERROR,
-						format!("Unhandled internal error: {}", error),
-					)
-				}),
-		)
 		// STATE API
 		.route("/api/health", get(get_health_status))
 		// CENTRALIZED BACKUP API
@@ -134,6 +123,8 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.route("/api/capsule-nft/set-keyshare", post(capsule_set_keyshare))
 		.route("/api/capsule-nft/retrieve-keyshare", post(capsule_retrieve_keyshare))
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
+		.fallback(fallback)
+		.layer(TimeoutLayer::new(Duration::from_secs(10)))
 		.layer(monitor_layer)
 		.layer(CorsLayer::permissive())
 		.with_state(state_config);
@@ -141,18 +132,59 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 	server_common::serve(http_app, domain, port).await.unwrap(); // TODO: manage unwrap()
 }
 
+/*  ------------------------------
+		ERROR HANDLING
+------------------------------ */
+
+async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> (StatusCode, String) {
+	if err.is::<tower::timeout::error::Elapsed>() {
+		(StatusCode::REQUEST_TIMEOUT, "Request took too long".to_string())
+	} else {
+		(StatusCode::INTERNAL_SERVER_ERROR, format!("Unhandled internal error: {}", err))
+	}
+}
+
+async fn fallback(
+    uri: axum::http::Uri
+) -> impl axum::response::IntoResponse {
+    (
+        axum::http::StatusCode::NOT_FOUND,
+        format!("No route {}", uri)
+    )
+}
+
+/*  ------------------------------
+	HEALTH CHECK
+------------------------------ */
 async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 	evalueate_health_status(&state).unwrap()
 }
 
-#[once(time = 1000, option = true, sync_writes = true)]
+#[once(time = 86400, option = true, sync_writes = true)]
 fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 
 	//let quote_vec = attestation::ra::generate_quote();
 
-	let checksum = self_checksum();
+	//let checksum = self_checksum();
 
+	//let signature = self_checksig();
+
+	let pubkey: [u8; 32] = state.enclave_key.as_ref().to_bytes()[64..].try_into().unwrap(); // TODO: manage unwrap()
+
+	let enclave_address = sp_core::sr25519::Public::from_raw(pubkey);
+
+	Some(Json(json!({
+		"status": 200,
+		"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
+		"description": "SGX server is running!".to_string(),
+		"enclave_address": enclave_address,
+		//"binary_signature": signature,
+		//"quote": quote_vec,
+	})))
+}
+
+fn self_checksig() -> String {
 	let binary_path = match sysinfo::get_current_pid() {
 		Ok(pid) => {
 			let path_string = "/proc/".to_owned() + &pid.to_string() + "/exe";
@@ -176,26 +208,16 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 
 	let signature = match cosign::verify(&signed_data, &signature_data) {
 		Ok(b) => match b {
-			true => "Successful".to_string(),
-			false => "Failed".to_string(),
+			true => return "Successful".to_string(),
+			false => return "Failed".to_string(),
 		},
-		Err(e) => format!("Binary verification Error, {}", e),
+		Err(e) => return format!("Binary verification Error, {}", e),
 	};
-
-	let pubkey: [u8; 32] = state.enclave_key.as_ref().to_bytes()[64..].try_into().unwrap(); // TODO: manage unwrap()
-
-	let enclave_address = sp_core::sr25519::Public::from_raw(pubkey);
-
-	Some(Json(json!({
-		"status": 200,
-		"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
-		"description": "SGX server is running!".to_string(),
-		"enclave_address": enclave_address,
-		"binary_hash" : checksum,
-		"binary_signature": signature,
-		//"quote": quote_vec,
-	})))
 }
+
+/*  ------------------------------
+		CHECKSUM
+------------------------------ */
 
 fn self_checksum() -> Result<String, String> {
 	// Get binary address on disk
@@ -238,6 +260,10 @@ fn self_checksum() -> Result<String, String> {
 		return Ok(hash)
 	}
 }
+
+/*  ------------------------------
+	DOWNLOADER
+------------------------------ */
 
 pub fn downloader(url: &str) -> Result<String, Error> {
 	let response = match reqwest::blocking::get(url) {
