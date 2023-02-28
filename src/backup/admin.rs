@@ -1,4 +1,4 @@
-use axum::{debug_handler, extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, response::IntoResponse, Json};
 
 use hex::FromHex;
 use serde_json::json;
@@ -77,43 +77,6 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 	check
 }
 
-impl BackupRequest {
-	fn verify_request(&self) -> Result<bool, BackupError> {
-		if !verify_account_id(&self.data.signer_address) {
-			return Err(BackupError::UnAuthorizedSigner)
-		}
-
-		if verify_signature(
-			&self.data.signer_address,
-			self.signature.clone(),
-			&serde_json::to_vec(&self.data).unwrap(),
-		) {
-			Ok(true)
-		} else {
-			Err(BackupError::InvalidSignature)
-		}
-	}
-}
-
-impl StoreRequest {
-	fn verify_request(&self) -> Result<bool, BackupError> {
-		if !verify_account_id(&self.data.signer_address) {
-			return Err(BackupError::UnAuthorizedSigner)
-		}
-
-		let message_str = serde_json::to_string(&self.data).unwrap();
-		let message_bytes = message_str.as_bytes();
-
-		if verify_signature(&self.data.signer_address, self.signature.clone(), &message_bytes) {
-			info!("OK -> message = {:#?}\n", message_str);
-			Ok(true)
-		} else {
-			info!("ERR -> message = {:#?}\n", message_str);
-			Err(BackupError::InvalidSignature)
-		}
-	}
-}
-
 /* *************************************
 		 BULK DATA STRUCTURES
 **************************************** */
@@ -152,6 +115,8 @@ pub async fn backup_fetch_bulk(
 	State(state): State<StateConfig>,
 	Json(backup_request): Json<FetchBulkPacket>,
 ) -> impl IntoResponse {
+	info!("3-15 API : backup fetch bulk");
+
 	if !verify_account_id(&backup_request.admin_address) {
 		info!("Error backup keyshares : Invalid admin : {}", backup_request.admin_address);
 
@@ -203,6 +168,8 @@ pub async fn backup_push_bulk(
 	State(state): State<StateConfig>,
 	Json(store_request): Json<StoreBulkPacket>,
 ) -> impl IntoResponse {
+	info!("3-16 API : backup push bulk");
+
 	if !verify_account_id(&store_request.admin_address.clone()) {
 		info!("Error restore backup keyshares : Invalid admin : {}", store_request.admin_address);
 
@@ -241,257 +208,6 @@ pub async fn backup_push_bulk(
 			"status": "Invalid signature",
 			"data": [],
 		}))
-	}
-}
-
-/* ******************************
-	REQUEST DATA STRUCTURES
-****************************** */
-
-#[derive(Debug)]
-pub enum BackupError {
-	UnAuthorizedSigner,
-	InvalidSignature,
-}
-
-// -------- Backup -------
-#[derive(Serialize, Deserialize, Clone)]
-pub struct BackupRequestData {
-	nfts: Vec<String>,
-	signer_address: String,
-}
-
-#[derive(Deserialize, Clone)]
-pub struct BackupRequest {
-	data: BackupRequestData,
-	signature: String,
-}
-
-#[derive(Serialize)]
-pub struct BackupResponse {
-	status: String,
-	data: BTreeMap<String, [String; 2]>,
-}
-
-// -------- Store -------
-
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct StoreRequestData {
-	nfts: BTreeMap<String, [String; 2]>,
-	signer_address: String,
-}
-
-#[derive(Deserialize, Clone, PartialEq)]
-pub struct StoreRequest {
-	data: StoreRequestData,
-	signature: String,
-}
-
-#[derive(Serialize)]
-pub struct StoreResponse {
-	status: String,
-}
-
-/* ******************************
- RETRIEVE KEYSHARES FROM THIS ENCLAVE
-****************************** */
-
-#[debug_handler]
-pub async fn backup_fetch_keyshares(
-	State(state): State<StateConfig>,
-	backup_request: String,
-) -> impl IntoResponse {
-	let parsed_request: BackupRequest = match serde_json::from_str(&backup_request) {
-		Ok(preq) => preq,
-		Err(e) => {
-			info!(
-				"Error backup keyshares : Can not deserialize the backup request : {}",
-				backup_request
-			);
-
-			return (
-				StatusCode::OK,
-				Json(BackupResponse {
-					status: "Error can not deserialize the request : ".to_string() + &e.to_string(),
-					data: BTreeMap::new(),
-				}),
-			)
-		},
-	};
-
-	let verified_req = parsed_request.verify_request();
-
-	match verified_req {
-		Ok(_) => {
-			let mut backup_response_data: BTreeMap<String, [String; 2]> = BTreeMap::new();
-
-			for nft_id in parsed_request.data.nfts {
-				let file_path = state.seal_path.to_owned() + &nft_id + ".keyshare";
-				let log_path = state.seal_path.to_owned() +
-					nft_id.split("_").collect::<Vec<&str>>()[1] +
-					".log";
-
-				if !std::path::Path::new(&file_path).is_file() {
-					info!(
-						"Error backup keyshares from TEE : file path does not exist, file_path : {}",
-						file_path
-					);
-					return (
-						StatusCode::UNPROCESSABLE_ENTITY,
-						Json(BackupResponse {
-							status: format!(
-								"NFT_ID number {} does not exist on this enclave",
-								nft_id
-							),
-							data: BTreeMap::new(),
-						}),
-					)
-				}
-
-				let mut logfile = std::fs::File::open(log_path).expect("can not open log file"); // TODO: manage expect()
-
-				let mut secfile = match std::fs::File::open(file_path) {
-					Ok(file) => file,
-					Err(_) => {
-						info!(
-							"Error backup keyshares from TEE : nft_id does not exist, nft_id : {}",
-							nft_id
-						);
-
-						return (
-							StatusCode::UNPROCESSABLE_ENTITY,
-							Json(BackupResponse {
-								status: format!("Error retrieving keyshares from TEE : nft_id does not exist, nft_id : {}", nft_id ), 
-								data: BTreeMap::new(),
-							}),
-						);
-					},
-				};
-
-				let mut nft_keyshare = String::new();
-				let mut nft_log = String::new();
-
-				secfile.read_to_string(&mut nft_keyshare).unwrap(); // TODO: manage unwrap()
-				logfile.read_to_string(&mut nft_log).unwrap(); // TODO: manage unwrap()
-
-				backup_response_data.insert(nft_id.clone(), [nft_keyshare, nft_log]);
-
-				info!(
-					"Key-shares of {} retrieved by {}",
-					nft_id, parsed_request.data.signer_address
-				);
-			}
-
-			return (
-				StatusCode::OK,
-				Json(BackupResponse {
-					status: "Successful".to_string(),
-					data: backup_response_data,
-				}),
-			)
-		},
-
-		Err(err) =>
-			return (
-				StatusCode::OK,
-				Json(BackupResponse {
-					status: format!("Error Backup Request : {:?}", err),
-					data: BTreeMap::new(),
-				}),
-			),
-	}
-}
-
-/* *************************
- STORE SECRET TO ENCLAVE
-************************* */
-
-//pub async fn backup_push_keyshares(Json(received_data): Json<SecretPacket>) -> impl IntoResponse
-#[debug_handler]
-pub async fn backup_push_keyshares(
-	State(state): State<StateConfig>,
-	store_request: String,
-) -> impl IntoResponse {
-	let parsed_request: StoreRequest = match serde_json::from_str(&store_request) {
-		Ok(preq) => preq,
-		Err(e) => {
-			info!(
-				"Error restore keyshares : Can not deserialize the store request : {}",
-				store_request
-			);
-
-			return (
-				StatusCode::OK,
-				Json(StoreResponse {
-					status: "Error can not deserialize the request : ".to_string() + &e.to_string(),
-				}),
-			)
-		},
-	};
-
-	let verified_req = parsed_request.verify_request();
-
-	match verified_req {
-		Ok(_) => {
-			for (nft_id, [keyshare, viewlog]) in parsed_request.data.nfts {
-				std::fs::create_dir_all(state.seal_path.clone()).unwrap(); // TODO: manage unwrap()
-				let file_path = state.seal_path.to_owned() + &nft_id + ".keyshare"; // nft or capsule?
-				let log_path = state.seal_path.to_owned() +
-					&nft_id.split("_").collect::<Vec<&str>>()[1] +
-					".log";
-
-				if std::path::Path::new(file_path.as_str()).exists() {
-					let message = format!(
-						"Error storing keyshares to TEE : nft_id already exists, nft_id = {}",
-						nft_id
-					);
-
-					log::warn!("{}", message);
-
-					return (StatusCode::OK, Json(StoreResponse { status: message }))
-				}
-
-				let mut g = std::fs::File::create(log_path).unwrap(); // TODO: manage unwrap()
-				let mut f = match std::fs::File::create(file_path) {
-					Ok(file) => file,
-					Err(err) => {
-						let message = format!("Error storing keyshares to TEE : error in creating file on disk, nft_id = {}, Error = {:?}", nft_id, err);
-
-						log::warn!("{}", message);
-
-						return (StatusCode::OK, Json(StoreResponse { status: message }))
-					},
-				};
-
-				g.write_all(viewlog.as_bytes()).unwrap(); // TODO: manage unwrap()
-				f.write_all(keyshare.as_bytes()).unwrap(); // TODO: manage unwrap()
-
-				log::debug!(
-					"Key-share is successfully stored to TEE, nft_id = {} by admin = {}",
-					nft_id,
-					parsed_request.data.signer_address
-				);
-			}
-
-			log::info!(
-				"All keyshares are successfully stored to TEE by admin = {}",
-				parsed_request.data.signer_address
-			);
-
-			return (
-				StatusCode::OK,
-				Json(StoreResponse {
-					status: "All keyshares are successfully stored to TEE".to_string(),
-				}),
-			)
-		},
-
-		Err(err) => {
-			let message = format!("Error storing keyshares to TEE : {:?}", err);
-			log::warn!("{}", message);
-
-			return (StatusCode::OK, Json(StoreResponse { status: message }))
-		},
 	}
 }
 
@@ -545,68 +261,6 @@ mod test {
 			data,
 			signature: sig_str,
 		};
-	}
-
-	#[tokio::test]
-	async fn verification_test() {
-		let store_body = r#"
-        {
-			"data": {
-				"nfts": {
-					"nft_247": 		["SecretShareNum1ForNFTID247","5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6 Viewed the key-share on 2023-02-21 12:53:38\n"],
-					"nft_258":		["SecretShareNum1ForNFTID258","5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6 Viewed the key-share on 2023-02-21 12:53:38\n"],
-					"capsule_274":	["SecretShareNum1ForNFTID274","5Cf8PBw7QiRFNPBTnUoks9Hvkzn8av1qfcgMtSppJvjYcxp6 Viewed the key-share on 2023-02-21 12:53:38\n"]
-				},
-				"signer_address": "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy"
-			},
-			"signature":  "6e45e4bf575d8490f94c3d4b7153032735e377354bb7937a8fc538474c2357076f7722005c601c000b109fb4c6a5b41caedf43775267026041dd6d736290db84"
-        }"#;
-
-		let store_packet: StoreRequest =
-			serde_json::from_str(&store_body.clone()).expect("error in store request json-body");
-
-		match store_packet.verify_request() {
-			Ok(_) => info!("Store Request : Key-shares is Valid!"),
-			Err(err) => match err {
-				BackupError::InvalidSignature => info!("Store Request : Signature Error!"),
-				BackupError::UnAuthorizedSigner => info!("Store Request : Unauthorized Admin!"),
-			},
-		}
-
-		let backup_body = r#"
-        {
-			"data": {
-				"nfts": ["247","258","274"],            
-				"signer_address": "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy"
-			},
-			"signature": "ae2490d6b3bef0811aaab582c7f87026948af3d1b94e839bf37986b78171846229a04ed28de862bea4ebc088117e7a388bae67fc7f738b88a7e09166fb660d88"
-        }"#;
-
-		let backup_packet: BackupRequest =
-			serde_json::from_str(&backup_body.clone()).expect("error in backup request json-body");
-
-		match backup_packet.verify_request() {
-			Ok(_) => info!("Backup Request : Key-share is Valid!"),
-
-			Err(err) => match err {
-				BackupError::InvalidSignature => info!("Backup Request : Signature Error!"),
-				BackupError::UnAuthorizedSigner => info!("Backup Request : Unauthorized Admin!"),
-			},
-		}
-
-		/*
-		let key_pair = sp_keyring::AccountKeyring::Dave.pair();
-
-		let rc_store_packet_data = serde_json::to_vec::<u8>(&store_packet.data).unwrap();
-		let store_sign = key_pair.sign(&rc_store_packet_data);
-		info!("rc_store_packet_data : {:#?}\n", rc_store_packet_data);
-		info!("store_sign : {:#?}\n", store_sign);
-
-		let rc_backup_packet_data = serde_json::to_vec::<u8>(&backup_packet.data).unwrap();
-		let backup_sign = key_pair.sign(&rc_backup_packet_data);
-		info!("rc_backup_packet_data : {:#?}\n", rc_backup_packet_data);
-		info!("backup_sign: {:#?}\n", backup_sign);
-		*/
 	}
 
 	#[tokio::test]
