@@ -60,7 +60,8 @@ fn verify_account_id(account_id: &str) -> bool {
 
 fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
 	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id).or_else(|err: PublicError| {
-		log::debug!("Error constructing public key {:?}", err);
+
+		debug!("Error constructing public key {:?}", err);
 		Err(err)
 	});
 
@@ -77,6 +78,7 @@ fn get_signature(signature: String) -> Result<Signature, FromHexError> {
 	let sb = match <[u8; 64]>::from_hex(stripped) {
 		Ok(s) => {
 			let sig = sr25519::Signature::from_raw(s);
+			debug!("Signature :- {:?}", sig);
 			Ok(sig)
 		}
 		Err(err) => Err(err),
