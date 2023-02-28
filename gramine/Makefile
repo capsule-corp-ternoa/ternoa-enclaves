@@ -17,7 +17,7 @@ all: sgx_server.manifest.sgx sgx_server.sig sgx_server.token
 endif
 
 ifeq ($(DEBUG),1)
-GRAMINE_LOG_LEVEL = trace
+GRAMINE_LOG_LEVEL = debug
 else
 GRAMINE_LOG_LEVEL = error
 endif
