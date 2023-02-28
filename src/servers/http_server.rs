@@ -66,16 +66,55 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 
 		let mut ekfile = File::open(&encalve_account_file.clone()).unwrap();
 		let mut phrase = String::new();
-		ekfile.read_to_string(&mut phrase).unwrap();
-		let (keypair, _seed) = sp_core::sr25519::Pair::from_phrase(&phrase, None).unwrap();
+
+		match ekfile.read_to_string(&mut phrase) {
+			Ok(_) => {
+				debug!("2-1-1 read sealed encalve key file successfully");
+			},
+			Err(e) => {
+				debug!("2-1-1 failed to read sealed encalve key file, error : {:?}",e);
+				return
+			},
+		}
+
+		let (keypair, _seed) = match sp_core::sr25519::Pair::from_phrase(&phrase, None){
+			Ok(pair_seed_tuple) => {
+				debug!("2-1-2 get pair from phrase successfully");
+				pair_seed_tuple
+
+			},
+			Err(e) => {
+				debug!("2-1-2 failed get pair from phrase, error : {:?}",e);
+				return
+			},
+		};
 
 		keypair
 	} else {
 		info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
 
 		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
-		let mut ekfile = File::create(&encalve_account_file.clone()).unwrap();
-		ekfile.write_all(phrase.as_bytes()).unwrap();
+		let mut ekfile = match File::create(&encalve_account_file.clone()) {
+			Ok(file_handle) => {
+				debug!("2-1-3 created encalve keypair file successfully");
+				file_handle
+
+			},
+			Err(e) => {
+				debug!("2-1-3 failed to creat encalve keypair file, error : {:?}",e);
+				return
+			},
+		};
+
+		match ekfile.write_all(phrase.as_bytes()) {
+			Ok(_) => {
+				debug!("2-1-4 write encalve keypair to file successfully");
+			},
+			Err(e) => {
+				debug!("2-1-4 write encalve keypair to file failed, error : {:?}",e);
+				return
+			},
+		}
 
 		keypair
 	};
@@ -160,7 +199,20 @@ async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
 ------------------------------ */
 async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 	debug!("3-3 Healthchek handler.");
-	evalueate_health_status(&state).unwrap()
+	match evalueate_health_status(&state) {
+    Some(json_val) => {
+		debug!("3-3-1 Healthchek exit successfully .");
+		json_val
+	},
+
+    _ => {
+		debug!("3-3-1 Healthchek exited with None.");
+		Json(json!({
+			"status": 433,
+			"description": "Healthcheck returned NONE".to_string()
+		})) 
+	},
+}
 }
 
 //#[once(time = 60, option = true, sync_writes = true)]
@@ -195,6 +247,11 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 		//"quote": quote_vec,
 	})))
 }
+
+
+/*  ------------------------------
+		SIGNATURE
+------------------------------ */
 
 fn self_checksig() -> String {
 	debug!("3-4 healthcheck : checksig.");
