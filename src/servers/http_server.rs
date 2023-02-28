@@ -1,7 +1,8 @@
 use axum::{
+	error_handling::HandleErrorLayer,
 	extract::State,
 	http::{Method, StatusCode, Uri},
-	routing::{get, get_service, post},
+	routing::{get, post},
 	BoxError, Json, Router,
 };
 
@@ -10,7 +11,6 @@ use reqwest;
 use sp_core::Pair;
 use tower_http::{
 	cors::{Any, CorsLayer},
-	services::ServeDir,
 	timeout::TimeoutLayer,
 };
 
@@ -20,10 +20,7 @@ use tower::ServiceBuilder;
 use serde_json::{json, Value};
 use tracing::{error, info};
 
-use std::{
-	path::PathBuf,
-	time::{Duration, SystemTime},
-};
+use std::time::{Duration, SystemTime};
 
 use crate::chain::{
 	capsule::{
@@ -37,9 +34,7 @@ use crate::chain::{
 };
 
 use crate::{
-	backup::admin::{
-		backup_fetch_bulk, backup_fetch_keyshares, backup_push_bulk, backup_push_keyshares,
-	},
+	backup::admin::{backup_fetch_bulk, backup_push_bulk},
 	pgp::cosign,
 };
 
@@ -65,6 +60,8 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
 	let encalve_account_file = "/nft/enclave_account.key";
 
+	info!("2-1 Generate/Import Encalve Keypair");
+
 	let enclave_keypair = if std::path::Path::new(&encalve_account_file.clone()).exists() {
 		info!("Enclave Account Exists, Importing it! :, path: {}", encalve_account_file);
 
@@ -76,6 +73,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		keypair
 	} else {
 		info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
+
 		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
 		let mut ekfile = File::create(&encalve_account_file.clone()).unwrap();
 		ekfile.write_all(phrase.as_bytes()).unwrap();
@@ -89,8 +87,6 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		identity: identity.to_string(),
 	};
 
-	let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
-
 	let _cors = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
 		.allow_methods([Method::GET, Method::POST])
@@ -103,12 +99,12 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.layer(NewSentryLayer::new_from_top())
 		.layer(SentryHttpLayer::with_transaction());
 
+	info!("2-2 Defining Routes");
 	let http_app = Router::new()
+		.fallback(fallback)
 		// STATE API
 		.route("/api/health", get(get_health_status))
 		// CENTRALIZED BACKUP API
-		.route("/api/backup/fetch-keyshares", post(backup_fetch_keyshares))
-		.route("/api/backup/push-keyshares", post(backup_push_keyshares))
 		.route("/api/backup/fetch-bulk", post(backup_fetch_bulk))
 		.route("/api/backup/push-bulk", post(backup_push_bulk))
 		// NFT SECRET-SHARING API
@@ -123,13 +119,20 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.route("/api/capsule-nft/set-keyshare", post(capsule_set_keyshare))
 		.route("/api/capsule-nft/retrieve-keyshare", post(capsule_retrieve_keyshare))
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
-		.fallback(fallback)
-		.layer(TimeoutLayer::new(Duration::from_secs(10)))
+		.layer(
+			ServiceBuilder::new()
+				.layer(HandleErrorLayer::new(handle_timeout_error))
+				.timeout(Duration::from_secs(10)),
+		)
 		.layer(monitor_layer)
 		.layer(CorsLayer::permissive())
 		.with_state(state_config);
 
-	server_common::serve(http_app, domain, port).await.unwrap(); // TODO: manage unwrap()
+	info!("2-3 Starting Server with routes");
+	match server_common::serve(http_app, domain, port).await {
+		Ok(_) => info!("2-4 server exited successfully"),
+		Err(e) => error!("2-4 server exited with error : {:?}", e),
+	}
 }
 
 /*  ------------------------------
@@ -137,40 +140,50 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 ------------------------------ */
 
 async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> (StatusCode, String) {
+	info!("3-1 Timeout Handler start");
 	if err.is::<tower::timeout::error::Elapsed>() {
+		info!("3-1-1 Timeout Handler : Request took too long.");
 		(StatusCode::REQUEST_TIMEOUT, "Request took too long".to_string())
 	} else {
+		info!("3-1-1 Timeout Handler : unhandled internal error.");
 		(StatusCode::INTERNAL_SERVER_ERROR, format!("Unhandled internal error: {}", err))
 	}
 }
 
-async fn fallback(
-    uri: axum::http::Uri
-) -> impl axum::response::IntoResponse {
-    (
-        axum::http::StatusCode::NOT_FOUND,
-        format!("No route {}", uri)
-    )
+async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
+	info!("3-2 Fallback handler.");
+
+	(axum::http::StatusCode::NOT_FOUND, format!("No route {}", uri))
 }
 
 /*  ------------------------------
 	HEALTH CHECK
 ------------------------------ */
 async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
+	info!("3-3 Healthchek handler.");
 	evalueate_health_status(&state).unwrap()
 }
 
-#[once(time = 86400, option = true, sync_writes = true)]
+//#[once(time = 60, option = true, sync_writes = true)]
 fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
-
+	//info!("3-3-1 get quote.");
 	//let quote_vec = attestation::ra::generate_quote();
-
+	//info!("3-3-2 checksum.");
 	//let checksum = self_checksum();
-
+	//info!("3-3-3 binary signature.");
 	//let signature = self_checksig();
-
-	let pubkey: [u8; 32] = state.enclave_key.as_ref().to_bytes()[64..].try_into().unwrap(); // TODO: manage unwrap()
+	info!("3-3-4 healthcheck : get public key.");
+	let pubkey: [u8; 32] = match state.enclave_key.as_ref().to_bytes()[64..].try_into() {
+		Ok(pk) => pk,
+		Err(e) =>
+			return Some(Json(json!({
+				"status": 434,
+				"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
+				"description": "Error getting encalve public key".to_string(),
+				"enclave_address": "Error",
+			}))),
+	};
 
 	let enclave_address = sp_core::sr25519::Public::from_raw(pubkey);
 
@@ -185,27 +198,50 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 }
 
 fn self_checksig() -> String {
+	info!("3-4 healthcheck : checksig.");
+
 	let binary_path = match sysinfo::get_current_pid() {
 		Ok(pid) => {
+			info!("3-4-1 healthcheck : checksig : binary path detected.");
 			let path_string = "/proc/".to_owned() + &pid.to_string() + "/exe";
 			let binpath = std::path::Path::new(&path_string).read_link().unwrap(); // TODO: manage unwrap()
 			binpath
 		},
 		Err(e) => {
 			info!("failed to get current pid: {}", e);
-			std::path::PathBuf::new()
+			return "Error get binary path".to_string()
 		},
 	};
 
-	let signed_data = std::fs::read(binary_path.clone()).unwrap(); // TODO: manage unwrap()
+	let signed_data = match std::fs::read(binary_path.clone()) {
+		Ok(data) => {
+			info!("3-4-2 healthcheck : checksig : binary read successfully.");
+			data
+		},
+		Err(e) => {
+			info!("3-4-2 healthcheck : error reading binary file.");
+			return "Error reading binary file".to_string()
+		},
+	};
 
 	// TODO: Read from github release path
 	let sigfile = binary_path.to_string_lossy().to_string() + ".sig";
 
-	let mut signature_data = std::fs::read_to_string(sigfile).unwrap(); // TODO: manage unwrap()
+	info!("3-4-3 healthcheck : reading signature file.");
+	let mut signature_data = match std::fs::read_to_string(sigfile) {
+		Ok(sigdata) => {
+			info!("3-4-4 healthcheck : sig file read successfully.");
+			sigdata
+		},
+		Err(_) => {
+			info!("3-4-4 healthcheck : fail reading sig file.");
+			return "Error reading signature file".to_string()
+		},
+	};
 
 	signature_data = signature_data.replace("\n", "");
 
+	info!("3-4-5 healthcheck : verification of binary signature.");
 	let signature = match cosign::verify(&signed_data, &signature_data) {
 		Ok(b) => match b {
 			true => return "Successful".to_string(),
