@@ -45,6 +45,8 @@ use std::{
 	fs::File,
 	io::{Read, Write},
 };
+use std::path::Prefix::Verbatim;
+use futures::TryStreamExt;
 
 use super::server_common;
 
@@ -58,6 +60,44 @@ pub struct StateConfig {
 /* HTTP Server */
 pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &str) {
 	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
+	// **************************************************************************
+
+	let enclave_account_file = "/nft/enclave_account.key";
+
+	// let enclave_keypair = if std::path::Path::new(enclave_account_file).exists() {
+	// 	info!("Enclave Account Exists, Importing it! :, path: {}", enclave_account_file);
+	//
+	// 	let phrase = match std::fs::read_to_string(enclave_account_file) {
+	// 		Ok(phrase) => phrase,
+	// 		Err(err) => {
+	// 			error!("Error reading enclave account file: {:?}", err);
+	// 			return;
+	// 		}
+	// 	};
+	//
+	// 	match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
+	// 		Ok((keypair, _seed)) => keypair,
+	// 		Err(err) => {
+	// 			error!("Error creating keypair from phrase: {:?}", err);
+	// 			return;
+	// 		}
+	// 	}
+	// } else {
+	// 	info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
+	// 	let (keypair, phrase, _) = sp_core::sr25519::Pair::generate_with_phrase(None);
+	// 	match std::fs::write(enclave_account_file, phrase) {
+	// 		Ok(_) => keypair,
+	// 		Err(err) => {
+	// 			error!("Error writing to enclave account file: {:?}", err);
+	// 			return;
+	// 		}
+	// 	}
+	// };
+
+
+
+
+	// ************************************************************************
 	let encalve_account_file = "/nft/enclave_account.key";
 
 	debug!("2-1 Generate/Import Encalve Keypair");
