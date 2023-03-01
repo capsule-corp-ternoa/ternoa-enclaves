@@ -209,9 +209,8 @@ impl VerificationError {
 			// DATA SIGNATURE FORMAT
 			VerificationError::INVALIDDATASIG(e) => {
 				let status = ReturnStatus::INVALIDDATASIGNATURE;
-				let description = format!(
-					"TEE Key-share {call:?}: Invalid request data signature format, {e:?}"
-				);
+				let description =
+					format!("TEE Key-share {call:?}: Invalid request data signature format, {e:?}");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -239,8 +238,7 @@ impl VerificationError {
 			// SIGNER ADDRESS FORMAT
 			VerificationError::INVALIDSIGNERADDRESS => {
 				let status = ReturnStatus::INVALIDSIGNERADDRESS;
-				let description =
-					format!("TEE Key-share {call:?}: Invalid signer address format");
+				let description = format!("TEE Key-share {call:?}: Invalid signer address format");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -431,8 +429,7 @@ impl VerificationError {
 			// PARSE SIGNER PACKET FAILED
 			VerificationError::MALFORMATEDSIGNER => {
 				let status = ReturnStatus::INVALIDSIGNERFORMAT;
-				let description =
-					format!("TEE Key-share {call:?}: Failed to parse Signer field.");
+				let description = format!("TEE Key-share {call:?}: Failed to parse Signer field.");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -454,8 +451,6 @@ impl VerificationError {
 pub async fn get_onchain_delegatee_account(nft_id: u32) -> KeyshareHolder {
 	let delegatee_data = get_onchain_delegatee(nft_id).await;
 
-	
-
 	match delegatee_data {
 		Some(account) => KeyshareHolder::Delegatee(account),
 		None => KeyshareHolder::NotFound,
@@ -465,8 +460,6 @@ pub async fn get_onchain_delegatee_account(nft_id: u32) -> KeyshareHolder {
 // Fetch onchain owenrship of nft/capsule id
 pub async fn get_onchain_rentee_account(nft_id: u32) -> KeyshareHolder {
 	let rentee_data = get_onchain_rent_contract(nft_id).await;
-
-	
 
 	match rentee_data {
 		Some(account) => KeyshareHolder::Rentee(account),
