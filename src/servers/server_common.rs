@@ -12,7 +12,7 @@ use tokio_stream::StreamExt;
 use axum::Router;
 use axum_server::{tls_rustls::RustlsConfig, Handle};
 
-use tracing::{error, info, debug};
+use tracing::{debug, error, info};
 
 pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::Error> {
 	debug!("3-5-1 Startng server with app, domain, port.");
