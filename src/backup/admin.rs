@@ -15,9 +15,7 @@ use std::io::{Read, Write};
 use tracing::{debug, info};
 
 use serde::{Deserialize, Serialize};
-use sp_core::crypto::PublicError;
-use sp_core::ecdsa::Public;
-use sp_core::sr25519::Signature;
+use sp_core::{crypto::PublicError, ecdsa::Public, sr25519::Signature};
 
 use crate::{chain::chain::get_current_block_number, servers::http_server::StateConfig};
 
@@ -41,7 +39,6 @@ AUTHENTICATION TOKEN IMPLEMENTATION
 ----------------------------------*/
 
 // Retrieving the stored Keyshare
-
 impl AuthenticationToken {
 	pub async fn is_valid(&self) -> bool {
 		let last_block_number = get_current_block_number().await;
@@ -59,11 +56,11 @@ fn verify_account_id(account_id: &str) -> bool {
 }
 
 fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
-	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id).or_else(|err: PublicError| {
-
-		debug!("Error constructing public key {:?}", err);
-		Err(err)
-	});
+	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id)
+		.or_else(|err: PublicError| {
+			debug!("Error constructing public key {:?}", err);
+			Err(err)
+		});
 
 	pk
 }
@@ -80,7 +77,7 @@ fn get_signature(signature: String) -> Result<Signature, FromHexError> {
 			let sig = sr25519::Signature::from_raw(s);
 			debug!("Signature :- {:?}", sig);
 			Ok(sig)
-		}
+		},
 		Err(err) => Err(err),
 	};
 	sb
@@ -243,9 +240,9 @@ pub async fn backup_push_bulk(
 
 #[cfg(test)]
 mod test {
+	use super::*;
 	use hex::FromHexError;
 	use tokio_test::assert_err;
-	use super::*;
 
 	#[tokio::test]
 	async fn bulk_fetch_test() {

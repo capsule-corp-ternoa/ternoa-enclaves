@@ -41,12 +41,12 @@ use crate::{
 use cached::proc_macro::once;
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 
+use futures::TryStreamExt;
 use std::{
 	fs::File,
 	io::{Read, Write},
+	path::Prefix::Verbatim,
 };
-use std::path::Prefix::Verbatim;
-use futures::TryStreamExt;
 
 use super::server_common;
 
@@ -69,8 +69,8 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 			Ok(phrase) => phrase,
 			Err(err) => {
 				error!("Error reading enclave account file: {:?}", err);
-				return;
-			}
+				return
+			},
 		};
 
 
@@ -339,7 +339,7 @@ fn self_checksum() -> Result<String, String> {
 				Err(err) => {
 					info!("Error in binpath {:?}", err);
 					PathBuf::new()
-				}
+				},
 			};
 
 			binpath
@@ -356,7 +356,7 @@ fn self_checksum() -> Result<String, String> {
 		Err(e) => {
 			error!("failed to get current pid: {}", e);
 			Vec::new()
-		}
+		},
 	};
 
 	let hash = sha256::digest(bytes.as_slice());
@@ -370,7 +370,7 @@ fn self_checksum() -> Result<String, String> {
 		Err(err) => {
 			eprintln!("Error readinf binary path: {}", err);
 			String::new()
-		}
+		},
 	};
 
 	let binary_hash = binary_hash
