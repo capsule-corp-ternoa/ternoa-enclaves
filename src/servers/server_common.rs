@@ -13,6 +13,13 @@ use axum_server::{tls_rustls::RustlsConfig, Handle};
 
 use tracing::{debug, error, info};
 
+/// Servers the server
+/// # Arguments
+/// * `app` - The app to serve
+/// * `domain` - The domain to serve
+/// * `port` - The port to serve
+/// # Returns
+/// * `Result<(), anyhow::Error>` - The result of the server
 pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::Error> {
 	debug!("3-5-1 Startng server with app, domain, port.");
 
@@ -105,6 +112,9 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	}
 }
 
+/// Shutdown the server
+/// # Arguments
+/// * `handle` - The handle to shutdown the server
 async fn cert_shutdown(handle: Handle) {
 	// Wait 20 seconds.
 	//sleep(Duration::from_secs(20)).await;
