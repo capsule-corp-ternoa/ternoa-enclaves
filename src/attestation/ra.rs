@@ -14,7 +14,9 @@ pub fn generate_quote(
 
 	let default_enclave_path = "/quote/enclave.quote";
 
-	let content = get_quote_content(attestation_quote_path).and_then(|result| {
+	
+
+	get_quote_content(attestation_quote_path).and_then(|result| {
 		File::create(enclave_file_path.unwrap_or(String::from(default_enclave_path)))
 			.and_then(|mut file| {
 				file.write_all(&result).map_err(|err| {
@@ -30,9 +32,7 @@ pub fn generate_quote(
 				info!("content  {:?}", result);
 				result
 			})
-	});
-
-	content
+	})
 }
 
 fn get_quote_content(file_path: Option<String>) -> Result<Vec<u8>, Error> {
