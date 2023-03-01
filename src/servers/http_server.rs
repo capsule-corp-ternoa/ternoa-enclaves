@@ -45,6 +45,8 @@ use std::{
 	fs::File,
 	io::{Read, Write},
 };
+use std::path::Prefix::Verbatim;
+use futures::TryStreamExt;
 
 use super::server_common;
 
@@ -58,6 +60,44 @@ pub struct StateConfig {
 /* HTTP Server */
 pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &str) {
 	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
+	// **************************************************************************
+
+	let enclave_account_file = "/nft/enclave_account.key";
+
+	// let enclave_keypair = if std::path::Path::new(enclave_account_file).exists() {
+	// 	info!("Enclave Account Exists, Importing it! :, path: {}", enclave_account_file);
+	//
+	// 	let phrase = match std::fs::read_to_string(enclave_account_file) {
+	// 		Ok(phrase) => phrase,
+	// 		Err(err) => {
+	// 			error!("Error reading enclave account file: {:?}", err);
+	// 			return;
+	// 		}
+	// 	};
+	//
+	// 	match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
+	// 		Ok((keypair, _seed)) => keypair,
+	// 		Err(err) => {
+	// 			error!("Error creating keypair from phrase: {:?}", err);
+	// 			return;
+	// 		}
+	// 	}
+	// } else {
+	// 	info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
+	// 	let (keypair, phrase, _) = sp_core::sr25519::Pair::generate_with_phrase(None);
+	// 	match std::fs::write(enclave_account_file, phrase) {
+	// 		Ok(_) => keypair,
+	// 		Err(err) => {
+	// 			error!("Error writing to enclave account file: {:?}", err);
+	// 			return;
+	// 		}
+	// 	}
+	// };
+
+
+
+
+	// ************************************************************************
 	let encalve_account_file = "/nft/enclave_account.key";
 
 	let enclave_keypair = if std::path::Path::new(&encalve_account_file.clone()).exists() {
@@ -149,28 +189,45 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 
-	//let quote_vec = attestation::ra::generate_quote();
-
 	let checksum = self_checksum();
 
 	let binary_path = match sysinfo::get_current_pid() {
 		Ok(pid) => {
 			let path_string = "/proc/".to_owned() + &pid.to_string() + "/exe";
-			let binpath = std::path::Path::new(&path_string).read_link().unwrap(); // TODO: manage unwrap()
+
+			let binpath = match std::path::Path::new(&path_string).read_link() {
+				Ok(val) => val,
+				Err(err) => {
+					error!("Error constructing binpath {:?}", err);
+					std::path::PathBuf::new()
+				}
+			};
+
 			binpath
 		},
-		Err(e) => {
-			info!("failed to get current pid: {}", e);
+		Err(err) => {
+			info!("failed to get current pid: {}", err);
 			std::path::PathBuf::new()
 		},
 	};
 
-	let signed_data = std::fs::read(binary_path.clone()).unwrap(); // TODO: manage unwrap()
+	let signed_data = match std::fs::read(binary_path.clone()) {
+		Ok(val) => val,
+		Err(err) => {
+			info!("Error reading signed data: {}", err);
+			Vec::new()
+		}
+	};
 
-	// TODO: Read from github release path
 	let sigfile = binary_path.to_string_lossy().to_string() + ".sig";
 
-	let mut signature_data = std::fs::read_to_string(sigfile).unwrap(); // TODO: manage unwrap()
+	let mut signature_data = match std::fs::read_to_string(sigfile) {
+		Ok(val) => val,
+		Err(err) => {
+			info!("Error reading signature: {}", err);
+			String::new()
+		}
+	};
 
 	signature_data = signature_data.replace("\n", "");
 
@@ -182,8 +239,13 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 		Err(e) => format!("Binary verification Error, {}", e),
 	};
 
-	let pubkey: [u8; 32] = state.enclave_key.as_ref().to_bytes()[64..].try_into().unwrap(); // TODO: manage unwrap()
-
+	let pubkey: [u8; 32] = match state.enclave_key.as_ref().to_bytes()[64..].try_into() {
+		Ok(val) => val,
+		Err(err) => {
+			info!("Error converting Vec to [u8; 32]: {}", err);
+			[0u8; 32]
+		}
+	};
 	let enclave_address = sp_core::sr25519::Public::from_raw(pubkey);
 
 	Some(Json(json!({
