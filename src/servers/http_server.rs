@@ -306,7 +306,7 @@ fn self_checksig() -> String {
 			true => return "Successful".to_string(),
 			false => return "Failed".to_string(),
 		},
-		Err(e) => return format!("Binary verification Error, {}", e),
+		Err(e) => return format!("Binary verification Error, {e}"),
 	};
 }
 
@@ -355,7 +355,7 @@ fn self_checksum() -> Result<String, String> {
 	let binary_hash = match std::fs::read_to_string(binary_path.clone()) {
 		Ok(val) => val,
 		Err(err) => {
-			eprintln!("Error readinf binary path: {}", err);
+			error!("Error readinf binary path: {err}");
 			String::new()
 		},
 	};
