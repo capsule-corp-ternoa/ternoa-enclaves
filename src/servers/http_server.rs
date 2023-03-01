@@ -368,7 +368,7 @@ fn self_checksum() -> Result<String, String> {
 	let binary_hash = match std::fs::read_to_string(binary_path.clone()) {
 		Ok(val) => val,
 		Err(err) => {
-			eprintln!("Error readinf binary path: {}", err);
+			error!("Error readinf binary path: {err}");
 			String::new()
 		},
 	};
