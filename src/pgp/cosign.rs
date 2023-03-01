@@ -23,9 +23,9 @@ fn _import_skey(path: &str, pass: &str) -> SigStoreSigner {
 			.unwrap();
 
 	// Converted ECDSAKeys to SigStoreSigner.
-	let ecdsa_signer_pair = ecdsa_key_pair.to_sigstore_signer().unwrap();
+	
 
-	ecdsa_signer_pair
+	ecdsa_key_pair.to_sigstore_signer().unwrap()
 }
 
 fn import_vkey() -> CosignVerificationKey {
@@ -37,11 +37,10 @@ fn import_vkey() -> CosignVerificationKey {
 	// Imported PEM encoded public key as CosignVerificationKey using ECDSA_P256_ASN1_PUBLIC_PEM as
 	// verification algorithm. let ecdsa_p256_asn1_public_pem =
 	// std::fs::read("/keys/cosign.pub").unwrap();
-	let verification_key =
-		CosignVerificationKey::from_pem(&ecdsa_p256_asn1_public_pem, &SigningScheme::default())
-			.unwrap();
+	
 
-	verification_key
+	CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default())
+			.unwrap()
 }
 
 pub fn verify(signed_data: &[u8], signature_data: &str) -> Result<bool, anyhow::Error> {
@@ -50,7 +49,7 @@ pub fn verify(signed_data: &[u8], signature_data: &str) -> Result<bool, anyhow::
 
 	//Verifying the signature of the binary file
 	match verification_key
-		.verify_signature(Signature::Base64Encoded(signature_data.as_bytes()), &signed_data)
+		.verify_signature(Signature::Base64Encoded(signature_data.as_bytes()), signed_data)
 	{
 		Ok(_) => {
 			tracing::info!("Binary file Verification Succeeded.");
@@ -78,7 +77,7 @@ mod test {
 
 		let signature = signing_key.sign(DATA.as_bytes()).unwrap();
 
-		let encoded_sig = general_purpose::STANDARD.encode(&signature);
+		let encoded_sig = general_purpose::STANDARD.encode(signature);
 
 		assert_eq!(encoded_sig, "MEYCIQCXvIjmJLmMNuMfWcFLDuseXhBgK+j68ZNJWRkmrIrZ0gIhAK7yFn9pUHOa5W1tQuU34snv4kmCMN0uTQAXwvnAz7Ld");
 	}
@@ -112,7 +111,7 @@ mod test {
 				std::path::PathBuf::new()
 			},
 		};
-		let data = std::fs::read(binary_path.clone()).unwrap();
+		let data = std::fs::read(binary_path).unwrap();
 
 		let signing_key = _import_skey("credentials/keys/cosign.key", "Test123456");
 
