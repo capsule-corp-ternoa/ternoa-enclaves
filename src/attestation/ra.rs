@@ -14,8 +14,6 @@ pub fn generate_quote(
 
 	let default_enclave_path = "/quote/enclave.quote";
 
-	
-
 	get_quote_content(attestation_quote_path).and_then(|result| {
 		File::create(enclave_file_path.unwrap_or(String::from(default_enclave_path)))
 			.and_then(|mut file| {
