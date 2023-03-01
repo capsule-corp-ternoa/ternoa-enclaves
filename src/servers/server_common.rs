@@ -79,7 +79,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 		Err(e) => {
 			info!("Error in certificate server : {}", e);
-			return Err(anyhow::anyhow!(format!("Error in certificate server : {}", e)))
+			return Err(anyhow::anyhow!(format!("Error in certificate server : {e}")))
 		},
 	}
 
@@ -101,7 +101,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 		Err(e) => {
 			info!("Error in SGX server : {}", e);
-			Err(anyhow::anyhow!(format!("Error in sgx server : {}", e)))
+			Err(anyhow::anyhow!(format!("Error in sgx server : {e}")))
 		},
 	}
 }
