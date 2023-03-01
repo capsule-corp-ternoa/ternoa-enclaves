@@ -9,9 +9,7 @@ use axum::{
 use reqwest;
 
 use sp_core::Pair;
-use tower_http::{
-	cors::{Any, CorsLayer},
-};
+use tower_http::cors::{Any, CorsLayer};
 
 use anyhow::{anyhow, Error};
 use tower::ServiceBuilder;
@@ -40,14 +38,9 @@ use crate::{
 	pgp::cosign,
 };
 
-
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 
-
-use std::{
-	fs::File,
-	io::{Write},
-};
+use std::{fs::File, io::Write};
 
 use super::server_common;
 
