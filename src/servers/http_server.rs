@@ -1,8 +1,9 @@
 use axum::{
+	error_handling::HandleErrorLayer,
 	extract::State,
 	http::{Method, StatusCode, Uri},
 	routing::{get, post},
-	BoxError, Json, Router, error_handling::HandleErrorLayer,
+	BoxError, Json, Router,
 };
 
 use reqwest;
@@ -17,9 +18,12 @@ use anyhow::{anyhow, Error};
 use tower::ServiceBuilder;
 
 use serde_json::{json, Value};
-use tracing::{error, info, debug};
+use tracing::{debug, error, info};
 
-use std::{time::{Duration, SystemTime}, path::PathBuf};
+use std::{
+	path::PathBuf,
+	time::{Duration, SystemTime},
+};
 
 use crate::chain::{
 	capsule::{
@@ -40,12 +44,12 @@ use crate::{
 use cached::proc_macro::once;
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 
+use futures::TryStreamExt;
 use std::{
 	fs::File,
 	io::{Read, Write},
+	path::Prefix::Verbatim,
 };
-use std::path::Prefix::Verbatim;
-use futures::TryStreamExt;
 
 use super::server_common;
 
@@ -70,16 +74,16 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 			Ok(phrase) => phrase,
 			Err(err) => {
 				error!("Error reading enclave account file: {:?}", err);
-				return;
-			}
+				return
+			},
 		};
 
 		match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
 			Ok((keypair, _seed)) => keypair,
 			Err(err) => {
 				error!("Error creating keypair from phrase: {:?}", err);
-				return;
-			}
+				return
+			},
 		}
 	} else {
 		info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
@@ -89,10 +93,9 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 			Ok(file_handle) => {
 				debug!("2-1-3 created encalve keypair file successfully");
 				file_handle
-
 			},
 			Err(e) => {
-				debug!("2-1-3 failed to creat encalve keypair file, error : {:?}",e);
+				debug!("2-1-3 failed to creat encalve keypair file, error : {:?}", e);
 				return
 			},
 		};
@@ -102,7 +105,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 				debug!("2-1-4 write encalve keypair to file successfully");
 			},
 			Err(e) => {
-				debug!("2-1-4 write encalve keypair to file failed, error : {:?}",e);
+				debug!("2-1-4 write encalve keypair to file failed, error : {:?}", e);
 				return
 			},
 		}
@@ -191,19 +194,19 @@ async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
 async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 	debug!("3-3 Healthchek handler.");
 	match evalueate_health_status(&state) {
-    Some(json_val) => {
-		debug!("3-3-1 Healthchek exit successfully .");
-		json_val
-	},
+		Some(json_val) => {
+			debug!("3-3-1 Healthchek exit successfully .");
+			json_val
+		},
 
-    _ => {
-		debug!("3-3-1 Healthchek exited with None.");
-		Json(json!({
-			"status": 433,
-			"description": "Healthcheck returned NONE".to_string()
-		})) 
-	},
-}
+		_ => {
+			debug!("3-3-1 Healthchek exited with None.");
+			Json(json!({
+				"status": 433,
+				"description": "Healthcheck returned NONE".to_string()
+			}))
+		},
+	}
 }
 
 //#[once(time = 60, option = true, sync_writes = true)]
@@ -239,7 +242,6 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	})))
 }
 
-
 /*  ------------------------------
 		SIGNATURE
 ------------------------------ */
@@ -256,7 +258,7 @@ fn self_checksig() -> String {
 				Err(e) => {
 					error!("failed to read link for binary path: {}", e);
 					Err("Error get binary path".to_string())
-				}
+				},
 			}
 		},
 		Err(e) => {
@@ -264,10 +266,10 @@ fn self_checksig() -> String {
 			Err("Error get binary path".to_string())
 		},
 	};
-	
+
 	let binary_path = match binary_path {
 		Ok(path) => path,
-		Err(msg) => return msg
+		Err(msg) => return msg,
 	};
 
 	let signed_data = match std::fs::read(binary_path.clone()) {
@@ -324,7 +326,7 @@ fn self_checksum() -> Result<String, String> {
 				Err(err) => {
 					info!("Error in binpath {:?}", err);
 					PathBuf::new()
-				}
+				},
 			};
 
 			binpath
@@ -341,7 +343,7 @@ fn self_checksum() -> Result<String, String> {
 		Err(e) => {
 			error!("failed to get current pid: {}", e);
 			Vec::new()
-		}
+		},
 	};
 
 	let hash = sha256::digest(bytes.as_slice());
@@ -355,7 +357,7 @@ fn self_checksum() -> Result<String, String> {
 		Err(err) => {
 			eprintln!("Error readinf binary path: {}", err);
 			String::new()
-		}
+		},
 	};
 
 	let binary_hash = binary_hash
