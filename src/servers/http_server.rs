@@ -182,7 +182,21 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 }
 
 async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
-	evalueate_health_status(&state).unwrap()
+	let val =  match evalueate_health_status(&state) {
+		None => {
+				let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
+				Json(json!({
+					"status": 400,
+					"date":  time.format("%Y-%m-%d %H:%M:%S").to_string(),
+					"description": "SGX server is running!".to_string(),
+					"enclave_address": "",
+					"binary_hash" : "",
+					"binary_signature": "",
+				}))
+		}
+		Some(val) => val
+	};
+	val
 }
 
 #[once(time = 1000, option = true, sync_writes = true)]
