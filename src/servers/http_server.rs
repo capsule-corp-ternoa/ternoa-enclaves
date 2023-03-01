@@ -60,62 +60,36 @@ pub struct StateConfig {
 /* HTTP Server */
 pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &str) {
 	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
-	// **************************************************************************
-
 	let enclave_account_file = "/nft/enclave_account.key";
 
-	// let enclave_keypair = if std::path::Path::new(enclave_account_file).exists() {
-	// 	info!("Enclave Account Exists, Importing it! :, path: {}", enclave_account_file);
-	//
-	// 	let phrase = match std::fs::read_to_string(enclave_account_file) {
-	// 		Ok(phrase) => phrase,
-	// 		Err(err) => {
-	// 			error!("Error reading enclave account file: {:?}", err);
-	// 			return;
-	// 		}
-	// 	};
-	//
-	// 	match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
-	// 		Ok((keypair, _seed)) => keypair,
-	// 		Err(err) => {
-	// 			error!("Error creating keypair from phrase: {:?}", err);
-	// 			return;
-	// 		}
-	// 	}
-	// } else {
-	// 	info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
-	// 	let (keypair, phrase, _) = sp_core::sr25519::Pair::generate_with_phrase(None);
-	// 	match std::fs::write(enclave_account_file, phrase) {
-	// 		Ok(_) => keypair,
-	// 		Err(err) => {
-	// 			error!("Error writing to enclave account file: {:?}", err);
-	// 			return;
-	// 		}
-	// 	}
-	// };
+	let enclave_keypair = if std::path::Path::new(enclave_account_file).exists() {
+		info!("Enclave Account Exists, Importing it! :, path: {}", enclave_account_file);
 
+		let phrase = match std::fs::read_to_string(enclave_account_file) {
+			Ok(phrase) => phrase,
+			Err(err) => {
+				error!("Error reading enclave account file: {:?}", err);
+				return;
+			}
+		};
 
-
-
-	// ************************************************************************
-	let encalve_account_file = "/nft/enclave_account.key";
-
-	let enclave_keypair = if std::path::Path::new(&encalve_account_file.clone()).exists() {
-		info!("Enclave Account Exists, Importing it! :, path: {}", encalve_account_file);
-
-		let mut ekfile = File::open(&encalve_account_file.clone()).unwrap();
-		let mut phrase = String::new();
-		ekfile.read_to_string(&mut phrase).unwrap();
-		let (keypair, _seed) = sp_core::sr25519::Pair::from_phrase(&phrase, None).unwrap();
-
-		keypair
+		match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
+			Ok((keypair, _seed)) => keypair,
+			Err(err) => {
+				error!("Error creating keypair from phrase: {:?}", err);
+				return;
+			}
+		}
 	} else {
 		info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
-		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
-		let mut ekfile = File::create(&encalve_account_file.clone()).unwrap();
-		ekfile.write_all(phrase.as_bytes()).unwrap();
-
-		keypair
+		let (keypair, phrase, _) = sp_core::sr25519::Pair::generate_with_phrase(None);
+		match std::fs::write(enclave_account_file, phrase) {
+			Ok(_) => keypair,
+			Err(err) => {
+				error!("Error writing to enclave account file: {:?}", err);
+				return;
+			}
+		}
 	};
 
 	/*
@@ -178,7 +152,14 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.layer(CorsLayer::permissive())
 		.with_state(state_config);
 
-	server_common::serve(http_app, domain, port).await.unwrap(); // TODO: manage unwrap()
+	match server_common::serve(http_app, domain, port).await {
+		Ok(()) => {
+			info!("SGX server operational");
+		}
+		Err(err) => {
+			error!("Error serving routes {:?}", err)
+		}
+	}
 }
 
 async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
