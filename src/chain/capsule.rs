@@ -8,7 +8,7 @@ use std::{
 	io::{Read, Seek, Write},
 };
 
-use tracing::{info, warn};
+use tracing::{info, warn, debug};
 
 use axum::extract::Path as PathExtract;
 
@@ -36,6 +36,7 @@ pub async fn is_capsule_available(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> impl IntoResponse {
+	debug!("3-11 API : is capsule available");
 	let file_path = state.seal_path + "capsule_" + &nft_id.to_string() + ".keyshare";
 
 	if std::path::Path::new(&file_path.clone()).exists() {
@@ -69,6 +70,8 @@ pub async fn capsule_get_views(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> impl IntoResponse {
+	debug!("3-12 API : get capsule views");
+
 	let capsule_state = match get_onchain_nft_data(nft_id).await {
 		Some(data) => data.state,
 		_ => {
@@ -172,6 +175,8 @@ pub async fn capsule_set_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<StoreKeysharePacket>,
 ) -> impl IntoResponse {
+	debug!("3-13 API : capsule set keyshare");
+
 	match request.verify_store_request("capsule").await {
 		// DATA-FILED IS VALID
 		Ok(verified_data) => {
@@ -345,6 +350,8 @@ pub async fn capsule_retrieve_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RetrieveKeysharePacket>,
 ) -> impl IntoResponse {
+	debug!("3-14 API : capsule retrieve keyshare");
+
 	match request.verify_retrieve_request("capsule").await {
 		Ok(verified_data) => {
 			// DOES KEY-SHARE EXIST?
@@ -495,6 +502,7 @@ pub async fn capsule_remove_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RemoveKeysharePacket>,
 ) -> impl IntoResponse {
+	debug!("3-11 API : capsule remove keyshare");
 	// Check if CAPSULE is burnt
 	let capsule_status = match get_onchain_nft_data(request.nft_id).await {
 		Some(_) => true,
