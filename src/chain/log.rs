@@ -5,7 +5,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use tracing::{debug};
 
 use super::verify::RequesterType;
 
@@ -168,7 +168,7 @@ mod test {
         }"#;
 
 		let mut log_file: LogFile =
-			serde_json::from_str(&store_body.clone()).expect("error deserailizing json body");
+			serde_json::from_str(store_body.clone()).expect("error deserailizing json body");
 
 		let nft_second_account_role = if let Some(event) = log_file.secret_nft.get(&1) {
 			event.account.role
@@ -189,7 +189,7 @@ mod test {
         }"#;
 
 		let new_log: LogStruct =
-			serde_json::from_str(&new_log_body.clone()).expect("error deserailizing json body");
+			serde_json::from_str(new_log_body.clone()).expect("error deserailizing json body");
 		log_file.insert_new_capsule_log(new_log);
 
 		let correct_log = r#"
@@ -247,7 +247,7 @@ mod test {
 
 		assert_eq!(
 			log_file,
-			serde_json::from_str(&correct_log.clone()).expect("error deserailizing json body")
+			serde_json::from_str(correct_log.clone()).expect("error deserailizing json body")
 		);
 	}
 
@@ -291,6 +291,6 @@ mod test {
 		let mut content = String::new();
 		file.read_to_string(&mut content).unwrap();
 
-		println!("{}", content);
+		println!("{content}");
 	}
 }
