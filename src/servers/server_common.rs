@@ -4,9 +4,8 @@ use std::{
 	net::{Ipv4Addr, SocketAddr},
 	path::PathBuf,
 	sync::Arc,
-	time::Duration,
 };
-use tokio::time::sleep;
+
 use tokio_stream::StreamExt;
 
 use axum::Router;

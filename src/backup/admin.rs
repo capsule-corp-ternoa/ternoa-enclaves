@@ -15,7 +15,7 @@ use std::io::{Read, Write};
 use tracing::{debug, info};
 
 use serde::{Deserialize, Serialize};
-use sp_core::{crypto::PublicError, ecdsa::Public, sr25519::Signature};
+use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{chain::chain::get_current_block_number, servers::http_server::StateConfig};
 
@@ -57,9 +57,9 @@ fn verify_account_id(account_id: &str) -> bool {
 
 fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
 	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id)
-		.or_else(|err: PublicError| {
+		.map_err(|err: PublicError| {
 			debug!("Error constructing public key {:?}", err);
-			Err(err)
+			err
 		});
 
 	pk
@@ -72,15 +72,15 @@ fn get_signature(signature: String) -> Result<Signature, FromHexError> {
 		None => signature.as_str(),
 	};
 
-	let sb = match <[u8; 64]>::from_hex(stripped) {
+	
+	match <[u8; 64]>::from_hex(stripped) {
 		Ok(s) => {
 			let sig = sr25519::Signature::from_raw(s);
 			debug!("Signature :- {:?}", sig);
 			Ok(sig)
 		},
 		Err(err) => Err(err),
-	};
-	sb
+	}
 }
 
 /// Verify Signature generated for a payload
@@ -241,8 +241,8 @@ pub async fn backup_push_bulk(
 #[cfg(test)]
 mod test {
 	use super::*;
-	use hex::FromHexError;
-	use tokio_test::assert_err;
+	
+	
 
 	#[tokio::test]
 	async fn bulk_fetch_test() {
@@ -258,7 +258,7 @@ mod test {
 		let sig = admin_keypair.sign(&auth_bytes);
 		let sig_str = serde_json::to_string(&sig).unwrap();
 
-		let request = FetchBulkPacket {
+		let _request = FetchBulkPacket {
 			admin_address: admin_keypair.public().to_string(),
 			auth_token: auth,
 			signature: sig_str,
@@ -281,7 +281,7 @@ mod test {
 		let sig = admin_keypair.sign(&auth_str);
 		let sig_str = serde_json::to_string(&sig).unwrap();
 
-		let request = StoreBulkPacket {
+		let _request = StoreBulkPacket {
 			admin_address: admin_keypair.public().to_string(),
 			data,
 			signature: sig_str,
@@ -323,6 +323,6 @@ mod test {
 	fn test_get_public_key_valid() {
 		let account = "5DAENKLsmj9FbfxgKuWn81smhKz9dZg75fveUFSUtqrr4CPn";
 		let results = get_public_key(account).unwrap();
-		assert_eq!(results, sp_core::sr25519::Public::from_ss58check(&account).unwrap());
+		assert_eq!(results, sp_core::sr25519::Public::from_ss58check(account).unwrap());
 	}
 }
