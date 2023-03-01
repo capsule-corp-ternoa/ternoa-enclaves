@@ -8,7 +8,7 @@ use std::{
 	io::{Read, Seek, Write},
 };
 
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 use axum::extract::Path as PathExtract;
 
