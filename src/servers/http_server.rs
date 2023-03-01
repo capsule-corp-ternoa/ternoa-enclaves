@@ -44,6 +44,7 @@ use std::{fs::File, io::Write};
 
 use super::server_common;
 
+/// StateConfig shared by all routes
 #[derive(Clone)]
 pub struct StateConfig {
 	pub enclave_key: sp_core::sr25519::Pair,
@@ -51,7 +52,16 @@ pub struct StateConfig {
 	pub identity: String,
 }
 
-/* HTTP Server */
+/// http server
+/// # Arguments
+/// * `domain` - domain name
+/// * `port` - port number
+/// * `identity` - identity
+/// * `seal_path` - seal path
+/// # Example
+/// ```
+/// http_server("localhost", 8080, "identity", "seal_path");
+/// ```
 pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &str) {
 	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
 	let enclave_account_file = "/nft/enclave_account.key";
@@ -110,7 +120,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		identity: identity.to_string(),
 	};
 
-	let _cors = CorsLayer::new()
+	let _ = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
 		.allow_methods([Method::GET, Method::POST])
 		// allow requests from any origin
@@ -161,7 +171,8 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 /*  ------------------------------
 		ERROR HANDLING
 ------------------------------ */
-
+/// Handle errors from the router.
+/// This is a catch-all handler that will be called for any error that isn't handled by a route.
 async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> (StatusCode, String) {
 	debug!("3-1 Timeout Handler start");
 	if err.is::<tower::timeout::error::Elapsed>() {
@@ -173,15 +184,16 @@ async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> (Sta
 	}
 }
 
+/// Handle errors from the router.
 async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
 	debug!("3-2 Fallback handler.");
-
-	(axum::http::StatusCode::NOT_FOUND, format!("No route {uri}"))
+	(StatusCode::NOT_FOUND, format!("No route {uri}"))
 }
 
 /*  ------------------------------
 	HEALTH CHECK
 ------------------------------ */
+/// Health check endpoint
 async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 	debug!("3-3 Healthchek handler.");
 	match evalueate_health_status(&state) {
@@ -200,15 +212,12 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 	}
 }
 
-//#[once(time = 60, option = true, sync_writes = true)]
+/// Health check endpoint
+/// This function is called by the health check endpoint
+/// It returns a JSON object with the following fields :
 fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
-	//debug!("3-3-1 get quote.");
-	//let quote_vec = attestation::ra::generate_quote();
-	//debug!("3-3-2 checksum.");
-	//let checksum = self_checksum();
-	//debug!("3-3-3 binary signature.");
-	//let signature = self_checksig();
+
 	debug!("3-3-4 healthcheck : get public key.");
 	let pubkey: [u8; 32] = match state.enclave_key.as_ref().to_bytes()[64..].try_into() {
 		Ok(pk) => pk,
@@ -236,7 +245,7 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 /*  ------------------------------
 		SIGNATURE
 ------------------------------ */
-
+/// This function is called by the health check endpoint
 fn self_checksig() -> String {
 	debug!("3-4 healthcheck : checksig.");
 
@@ -304,7 +313,7 @@ fn self_checksig() -> String {
 /*  ------------------------------
 		CHECKSUM
 ------------------------------ */
-
+/// This function is called by the health check endpoint
 fn self_checksum() -> Result<String, String> {
 	// Get binary address on disk
 	// BUT in gramine, the binary is simply at root directory!
@@ -368,7 +377,8 @@ fn self_checksum() -> Result<String, String> {
 /*  ------------------------------
 	DOWNLOADER
 ------------------------------ */
-
+/// This function is called by the health check endpoint
+/// It downloads the binary from github release
 pub fn downloader(url: &str) -> Result<String, Error> {
 	let response = match reqwest::blocking::get(url) {
 		Ok(resp) => resp,
