@@ -6,6 +6,11 @@ use std::{
 
 use tracing::info;
 
+/// get the attestation type
+/// # Arguments
+/// * `attestation_type_path` - The path to the attestation type
+/// # Returns
+/// * `Result<String, Error>` - The result of the attestation type
 pub fn generate_quote(
 	attestation_quote_path: Option<String>,
 	enclave_file_path: Option<String>,
@@ -33,6 +38,11 @@ pub fn generate_quote(
 	})
 }
 
+/// Reads the quote or else returns an error
+/// # Arguments
+/// * `file_path` - The path to the quote
+/// # Returns
+/// * `Result<Vec<u8>, Error>` - The result of the quote
 fn get_quote_content(file_path: Option<String>) -> Result<Vec<u8>, Error> {
 	info!("Reading The Quote ...");
 	let default_path = "/dev/attestation/quote";
@@ -51,7 +61,11 @@ fn get_quote_content(file_path: Option<String>) -> Result<Vec<u8>, Error> {
 		})
 }
 
-/// Reads attestation type or else returns an error
+/// Reads the attestation type or else returns an error
+/// # Arguments
+/// * `file_path` - The path to the attestation type
+/// # Returns
+/// * `Result<String, Error>` - The result of the attestation type
 fn read_attestation_type(file_path: Option<String>) -> Result<String, Error> {
 	let default_path = "/dev/attestation/attestation.attestation_type";
 	let mut attest_type = String::new();
@@ -70,6 +84,10 @@ fn read_attestation_type(file_path: Option<String>) -> Result<String, Error> {
 }
 
 ///  Writes user report data or else throws an Error
+/// # Arguments
+/// * `file_path` - The path to the user report data
+/// # Returns
+/// * `Result<(), Error>` - The result of the user report data
 fn write_user_report_data(file_path: Option<String>) -> Result<(), Error> {
 	let default_path = "/dev/attestation/user_report_data";
 	let write_zero = [0u8; 64];
@@ -90,7 +108,11 @@ fn write_user_report_data(file_path: Option<String>) -> Result<(), Error> {
 		.map(|_| ())
 }
 
-// Check if file exists with correct permissions or else returns false
+/// Check if file exists with correct permissions or else returns false
+/// # Arguments
+/// * `file_path` - The path to the user report data
+/// # Returns
+/// * `bool` - The result of the user report data
 fn is_user_report_data_exist(file_path: Option<String>) -> bool {
 	return match file_path {
 		None => Path::new("/dev/attestation/user_report_data").exists(),
