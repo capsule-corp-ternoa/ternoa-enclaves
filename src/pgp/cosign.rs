@@ -23,7 +23,6 @@ fn _import_skey(path: &str, pass: &str) -> SigStoreSigner {
 			.unwrap();
 
 	// Converted ECDSAKeys to SigStoreSigner.
-	
 
 	ecdsa_key_pair.to_sigstore_signer().unwrap()
 }
@@ -37,10 +36,8 @@ fn import_vkey() -> CosignVerificationKey {
 	// Imported PEM encoded public key as CosignVerificationKey using ECDSA_P256_ASN1_PUBLIC_PEM as
 	// verification algorithm. let ecdsa_p256_asn1_public_pem =
 	// std::fs::read("/keys/cosign.pub").unwrap();
-	
 
-	CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default())
-			.unwrap()
+	CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default()).unwrap()
 }
 
 pub fn verify(signed_data: &[u8], signature_data: &str) -> Result<bool, anyhow::Error> {

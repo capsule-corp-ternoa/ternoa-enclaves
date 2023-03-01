@@ -5,7 +5,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use tracing::{debug};
+use tracing::debug;
 
 use super::verify::RequesterType;
 
