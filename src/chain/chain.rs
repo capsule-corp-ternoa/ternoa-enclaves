@@ -13,12 +13,12 @@ use subxt::{
 use tracing::{debug, info};
 
 use self::ternoa::runtime_types::{
-	ternoa_pallets_primitives::nfts::NFTData, ternoa_rent::types::RentContractData,
+	ternoa_pallets_primitives::nfts::NFTData,
 };
 
 //const TERNOA_RPC: &'static str = "wss://alphanet.ternoa.com:443";
 //const TERNOA_RPC: &'static str = "wss://dev-1.ternoa.network:443";
-const TERNOA_RPC: &'static str = "wss://dev-0.ternoa.network:443";
+const TERNOA_RPC: &str = "wss://dev-0.ternoa.network:443";
 
 //#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale")]
 #[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev0.scale")]
@@ -43,9 +43,9 @@ pub async fn get_chain_api(url: String) -> DefaultApi {
 		url
 	};
 	// Create a client to use:
-	let api = DefaultApi::from_url(TERNOA_RPC).await.unwrap();
+	
 
-	api
+	DefaultApi::from_url(TERNOA_RPC).await.unwrap()
 }
 
 // -------------- RPC QUERY --------------
@@ -141,18 +141,18 @@ pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 	debug!("4-1 get chain NFT DATA");
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
-	let result = api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
+	
 
-	result
+	api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap()
 }
 
 pub async fn get_onchain_delegatee(nft_id: u32) -> Option<AccountId32> {
 	debug!("4-2 get chain API");
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 	let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
-	let result = api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
+	
 
-	result
+	api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap()
 }
 
 /*
@@ -232,8 +232,8 @@ pub async fn _get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<Accoun
 	let join_result: Vec<Result<Option<NFTData<AccountId32>>, subxt::Error>> =
 		join_all(fetches).await;
 
-	let result = join_result.into_iter().map(|jr| jr.unwrap()).collect();
-	result
+	
+	join_result.into_iter().map(|jr| jr.unwrap()).collect()
 }
 
 // -------------- GET NFT DATA --------------
