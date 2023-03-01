@@ -11,7 +11,6 @@ use reqwest;
 use sp_core::Pair;
 use tower_http::{
 	cors::{Any, CorsLayer},
-	timeout::TimeoutLayer,
 };
 
 use anyhow::{anyhow, Error};
@@ -38,14 +37,13 @@ use crate::{
 	pgp::cosign,
 };
 
-use cached::proc_macro::once;
+
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 
-use futures::TryStreamExt;
+
 use std::{
 	fs::File,
-	io::{Read, Write},
-	path::Prefix::Verbatim,
+	io::{Write},
 };
 
 use super::server_common;
@@ -201,14 +199,14 @@ async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> (Sta
 		(StatusCode::REQUEST_TIMEOUT, "Request took too long".to_string())
 	} else {
 		debug!("3-1-1 Timeout Handler : unhandled internal error.");
-		(StatusCode::INTERNAL_SERVER_ERROR, format!("Unhandled internal error: {}", err))
+		(StatusCode::INTERNAL_SERVER_ERROR, format!("Unhandled internal error: {err}"))
 	}
 }
 
 async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
 	debug!("3-2 Fallback handler.");
 
-	(axum::http::StatusCode::NOT_FOUND, format!("No route {}", uri))
+	(axum::http::StatusCode::NOT_FOUND, format!("No route {uri}"))
 }
 
 /*  ------------------------------
@@ -244,7 +242,7 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	debug!("3-3-4 healthcheck : get public key.");
 	let pubkey: [u8; 32] = match state.enclave_key.as_ref().to_bytes()[64..].try_into() {
 		Ok(pk) => pk,
-		Err(e) =>
+		Err(_e) =>
 			return Some(Json(json!({
 				"status": 434,
 				"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
@@ -290,7 +288,7 @@ pub fn self_checksig() -> Result<String, String> {
 			debug!("3-4-2 healthcheck : checksig : binary read successfully.");
 			data
 		},
-		Err(e) => {
+		Err(_e) => {
 			debug!("3-4-2 healthcheck : error reading binary file.");
 			return Err("Error reading binary file".to_string())
 		},
@@ -311,7 +309,7 @@ pub fn self_checksig() -> Result<String, String> {
 		},
 	};
 
-	signature_data = signature_data.replace("\n", "");
+	signature_data = signature_data.replace('\n', "");
 
 	debug!("3-4-5 healthcheck : verification of binary signature.");
 	match cosign::verify(&signed_data, &signature_data) {
@@ -375,15 +373,15 @@ fn self_checksum() -> Result<String, String> {
 
 	let binary_hash = binary_hash
 		.strip_suffix("\r\n")
-		.or(binary_hash.strip_suffix("\n"))
+		.or(binary_hash.strip_suffix('\n'))
 		.unwrap_or(&binary_hash);
 
 	if binary_hash != hash {
 		info!("Binary hash doesn't match!");
-		return Err(hash)
+		Err(hash)
 	} else {
 		info!("Binary hash match : {}", hash);
-		return Ok(hash)
+		Ok(hash)
 	}
 }
 

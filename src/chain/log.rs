@@ -5,7 +5,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use tracing::{debug};
 
 use super::verify::RequesterType;
 
@@ -291,6 +291,6 @@ mod test {
 		let mut content = String::new();
 		file.read_to_string(&mut content).unwrap();
 
-		println!("{}", content);
+		println!("{content}");
 	}
 }
