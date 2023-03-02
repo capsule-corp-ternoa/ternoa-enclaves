@@ -1,8 +1,9 @@
 use axum::{
+	error_handling::HandleErrorLayer,
 	extract::State,
 	http::{Method, StatusCode, Uri},
 	routing::{get, post},
-	BoxError, Json, Router, error_handling::HandleErrorLayer,
+	BoxError, Json, Router,
 };
 
 use reqwest;
@@ -17,7 +18,7 @@ use anyhow::{anyhow, Error};
 use tower::ServiceBuilder;
 
 use serde_json::{json, Value};
-use tracing::{error, info, debug};
+use tracing::{debug, error, info};
 
 use std::time::{Duration, SystemTime};
 
@@ -64,7 +65,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 	let enclave_keypair = if std::path::Path::new(&encalve_account_file.clone()).exists() {
 		info!("Enclave Account Exists, Importing it! :, path: {}", encalve_account_file);
 
-		let mut ekfile = File::open(&encalve_account_file.clone()).unwrap();
+		let mut ekfile = File::open(encalve_account_file.clone()).unwrap();
 		let mut phrase = String::new();
 
 		match ekfile.read_to_string(&mut phrase) {
@@ -72,19 +73,18 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 				debug!("2-1-1 read sealed encalve key file successfully");
 			},
 			Err(e) => {
-				debug!("2-1-1 failed to read sealed encalve key file, error : {:?}",e);
+				debug!("2-1-1 failed to read sealed encalve key file, error : {:?}", e);
 				return
 			},
 		}
 
-		let (keypair, _seed) = match sp_core::sr25519::Pair::from_phrase(&phrase, None){
+		let (keypair, _seed) = match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
 			Ok(pair_seed_tuple) => {
 				debug!("2-1-2 get pair from phrase successfully");
 				pair_seed_tuple
-
 			},
 			Err(e) => {
-				debug!("2-1-2 failed get pair from phrase, error : {:?}",e);
+				debug!("2-1-2 failed get pair from phrase, error : {:?}", e);
 				return
 			},
 		};
@@ -94,14 +94,13 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
 
 		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
-		let mut ekfile = match File::create(&encalve_account_file.clone()) {
+		let mut ekfile = match File::create(&encalve_account_file) {
 			Ok(file_handle) => {
 				debug!("2-1-3 created encalve keypair file successfully");
 				file_handle
-
 			},
 			Err(e) => {
-				debug!("2-1-3 failed to creat encalve keypair file, error : {:?}",e);
+				debug!("2-1-3 failed to creat encalve keypair file, error : {:?}", e);
 				return
 			},
 		};
@@ -111,7 +110,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 				debug!("2-1-4 write encalve keypair to file successfully");
 			},
 			Err(e) => {
-				debug!("2-1-4 write encalve keypair to file failed, error : {:?}",e);
+				debug!("2-1-4 write encalve keypair to file failed, error : {:?}", e);
 				return
 			},
 		}
@@ -200,22 +199,22 @@ async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
 async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 	debug!("3-3 Healthchek handler.");
 	match evalueate_health_status(&state) {
-    Some(json_val) => {
-		debug!("3-3-1 Healthchek exit successfully .");
-		json_val
-	},
+		Some(json_val) => {
+			debug!("3-3-1 Healthchek exit successfully .");
+			json_val
+		},
 
-    _ => {
-		debug!("3-3-1 Healthchek exited with None.");
-		Json(json!({
-			"status": 433,
-			"description": "Healthcheck returned NONE".to_string()
-		})) 
-	},
-}
+		_ => {
+			debug!("3-3-1 Healthchek exited with None.");
+			Json(json!({
+				"status": 433,
+				"description": "Healthcheck returned NONE".to_string()
+			}))
+		},
+	}
 }
 
-//#[once(time = 60, option = true, sync_writes = true)]
+//#[once(time = 10, sync_writes = true)]
 fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 	//debug!("3-3-1 get quote.");
@@ -232,7 +231,7 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 				"status": 434,
 				"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
 				"description": "Error getting encalve public key".to_string(),
-				"enclave_address": "Error",
+				"enclave_address": format!("Error : {}",e),
 			}))),
 	};
 
@@ -248,12 +247,11 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	})))
 }
 
-
 /*  ------------------------------
 		SIGNATURE
 ------------------------------ */
 
-fn self_checksig() -> String {
+pub fn self_checksig() -> Result<String, String> {
 	debug!("3-4 healthcheck : checksig.");
 
 	let binary_path = match sysinfo::get_current_pid() {
@@ -265,7 +263,7 @@ fn self_checksig() -> String {
 		},
 		Err(e) => {
 			info!("failed to get current pid: {}", e);
-			return "Error get binary path".to_string()
+			return Err("Error get binary path".to_string())
 		},
 	};
 
@@ -276,7 +274,7 @@ fn self_checksig() -> String {
 		},
 		Err(e) => {
 			debug!("3-4-2 healthcheck : error reading binary file.");
-			return "Error reading binary file".to_string()
+			return Err("Error reading binary file".to_string())
 		},
 	};
 
@@ -291,20 +289,20 @@ fn self_checksig() -> String {
 		},
 		Err(_) => {
 			debug!("3-4-4 healthcheck : fail reading sig file.");
-			return "Error reading signature file".to_string()
+			return Err("Error reading signature file".to_string())
 		},
 	};
 
 	signature_data = signature_data.replace("\n", "");
 
 	debug!("3-4-5 healthcheck : verification of binary signature.");
-	let signature = match cosign::verify(&signed_data, &signature_data) {
+	match cosign::verify(&signed_data, &signature_data) {
 		Ok(b) => match b {
-			true => return "Successful".to_string(),
-			false => return "Failed".to_string(),
+			true => Ok("Successful".to_string()),
+			false => Ok("Failed".to_string()),
 		},
-		Err(e) => return format!("Binary verification Error, {}", e),
-	};
+		Err(e) => Err(format!("Binary verification Error, {}", e)),
+	}
 }
 
 /*  ------------------------------

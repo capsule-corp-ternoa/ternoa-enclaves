@@ -10,7 +10,7 @@ use subxt::{
 	utils::AccountId32,
 	OnlineClient, PolkadotConfig,
 };
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 use self::ternoa::runtime_types::{
 	ternoa_pallets_primitives::nfts::NFTData, ternoa_rent::types::RentContractData,
@@ -48,7 +48,7 @@ pub async fn get_chain_api(url: String) -> DefaultApi {
 	api
 }
 
-// -------------- RPC QUERY --------------
+// -------------- TEST RPC QUERY --------------
 
 #[derive(Serialize)]
 struct JsonRPC {
@@ -87,7 +87,7 @@ pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl Into
 	}
 }
 
-// -------------- TRANSACTION --------------
+// -------------- TEST TRANSACTION --------------
 
 #[derive(Serialize)]
 struct JsonTX {
@@ -146,6 +146,7 @@ pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 	result
 }
 
+// -------------- GET DELGATEE --------------
 pub async fn get_onchain_delegatee(nft_id: u32) -> Option<AccountId32> {
 	debug!("4-2 get chain API");
 	let api = get_chain_api(TERNOA_RPC.into()).await;
@@ -156,12 +157,7 @@ pub async fn get_onchain_delegatee(nft_id: u32) -> Option<AccountId32> {
 }
 
 /*
-pub struct RentContractData<AccountId, BlockNumber, Balance, AccountSizeLimit>
-where
-	AccountId: Clone + PartialEq + Debug,
-	Balance: Clone + PartialEq + Debug + sp_std::cmp::PartialOrd,
-	BlockNumber: Clone + PartialEq + Debug + sp_std::cmp::PartialOrd + AtLeast32BitUnsigned + Copy,
-	AccountSizeLimit: Get<u32>,
+RENT PALLET
 {
 	/// Start block of the contract.
 	pub start_block: Option<BlockNumber>,
@@ -183,6 +179,7 @@ where
 	pub rentee_cancellation_fee: CancellationFee<Balance>,
 }
 */
+
 pub async fn get_onchain_rent_contract(nft_id: u32) -> Option<AccountId32> {
 	debug!("4-3 get chain API");
 	let api = get_chain_api(TERNOA_RPC.into()).await;
@@ -191,7 +188,7 @@ pub async fn get_onchain_rent_contract(nft_id: u32) -> Option<AccountId32> {
 		api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
 
 	match rent_contract_data {
-		Some(data) => Some(data.renter),
+		Some(data) => data.rentee,
 		_ => None,
 	}
 }
