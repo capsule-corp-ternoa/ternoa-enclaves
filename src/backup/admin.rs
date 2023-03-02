@@ -1,27 +1,29 @@
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{
+	body::StreamBody,
+	extract::{Multipart, State},
+	http::header,
+	response::IntoResponse,
+	Json,
+};
+use tokio_util::io::ReaderStream;
 
 use hex::FromHex;
 use serde_json::json;
 use sp_core::{crypto::Ss58Codec, sr25519, Pair};
-use std::{
-	collections::BTreeMap,
-	io::{Read, Write},
-};
+use std::io::{Read, Write};
 
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-	chain::{chain::get_current_block_number, log::*},
-	servers::http_server::StateConfig,
-};
+use crate::{chain::chain::get_current_block_number, servers::http_server::StateConfig};
 
 use super::zipdir::{add_dir_zip, zip_extract};
 
-const BACKUP_WHITELIST: [&str; 2] = [
-	"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy", // Dave
-	"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs", // Test
+const BACKUP_WHITELIST: [&str; 3] = [
+	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ", // Mohsin
+	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW", // Prabhu
+	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Amin
 ];
 
 // Validity time of Keyshare Data
@@ -38,7 +40,7 @@ AUTHENTICATION TOKEN IMPLEMENTATION
 // Retrieving the stored Keyshare
 
 impl AuthenticationToken {
-	pub async fn is_valid(self) -> bool {
+	pub async fn is_valid(&self) -> bool {
 		let last_block_number = get_current_block_number().await;
 		(last_block_number > self.block_number - 3) // for finalization delay
 			&& (last_block_number < self.block_number + self.block_validation + 3)
@@ -73,8 +75,8 @@ fn get_signature(signature: String) -> sr25519::Signature {
 
 fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool {
 	let account_pubkey = get_public_key(account_id);
-	let check = sr25519::Pair::verify(&get_signature(signature), message.clone(), &account_pubkey);
-	check
+
+	sr25519::Pair::verify(&get_signature(signature), message, &account_pubkey)
 }
 
 /* *************************************
@@ -120,10 +122,7 @@ pub async fn backup_fetch_bulk(
 	if !verify_account_id(&backup_request.admin_address) {
 		info!("Error backup keyshares : Invalid admin : {}", backup_request.admin_address);
 
-		return Json(json! ({
-			"status": "Error backup keyshares : Invalid admin",
-			"data": [],
-		}))
+		return "Error backup keyshares : Invalid admin".into_response()
 	}
 
 	if verify_signature(
@@ -133,30 +132,34 @@ pub async fn backup_fetch_bulk(
 	) {
 		if backup_request.auth_token.is_valid().await {
 			let backup_file = state.seal_path.to_owned() + "backup.zip";
+			// remove previously generated backup
+			if std::path::Path::new(&backup_file).exists() {
+				std::fs::remove_file(backup_file.clone()).unwrap();
+			}
+			// create new backup
 			add_dir_zip(&state.seal_path.clone(), &backup_file);
 
-			let mut file = std::fs::File::open(backup_file.clone()).unwrap(); // TODO : manage unwrap
-			let mut data = Vec::<u8>::new();
-			file.read_to_end(&mut data).unwrap(); // TODO : manage unwrap
+			// `File` implements `AsyncRead`
+			let file = match tokio::fs::File::open(backup_file).await {
+				Ok(file) => file,
+				Err(err) => return format!("Backup File not found: {}", err).into_response(),
+			};
+			// convert the `AsyncRead` into a `Stream`
+			let stream = ReaderStream::new(file);
+			// convert the `Stream` into an `axum::body::HttpBody`
+			let body = StreamBody::new(stream);
 
-			std::fs::remove_file(backup_file).unwrap();
+			let headers = [
+				(header::CONTENT_TYPE, "text/toml; charset=utf-8"),
+				(header::CONTENT_DISPOSITION, "attachment; filename=\"Backup.zip\""),
+			];
 
-			// TODO : manage big packet transfer
-			return Json(json! ({
-				"status": "Successfull request",
-				"data": data,
-			}))
+			(headers, body).into_response()
 		} else {
-			return Json(json! ({
-				"status": "Authentication Token Expired",
-				"data": [],
-			}))
+			"Authentication Token Expired".to_string().into_response()
 		}
 	} else {
-		return Json(json! ({
-			"status": "Invalid signature",
-			"data": [],
-		}))
+		"Invalid Signature".to_string().into_response()
 	}
 }
 
@@ -194,17 +197,17 @@ pub async fn backup_push_bulk(
 			std::fs::remove_file(backup_file).unwrap();
 
 			// TODO : manage big packet transfer
-			return Json(json! ({
+			Json(json! ({
 				"status": "Successfull request",
 			}))
 		} else {
-			return Json(json! ({
+			Json(json! ({
 				"status": "Authentication Token Expired",
 				"data": [],
 			}))
 		}
 	} else {
-		return Json(json! ({
+		Json(json! ({
 			"status": "Invalid signature",
 			"data": [],
 		}))
@@ -266,7 +269,7 @@ mod test {
 	#[tokio::test]
 	async fn fetch_bulk_test() {
 		let admin = sr25519::Pair::from_phrase(
-			"steel announce garden guilt direct give morning gadget milk census poem faith",
+			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
 			None,
 		)
 		.unwrap()
@@ -278,7 +281,7 @@ mod test {
 		let signature = admin.sign(auth_str.as_bytes());
 
 		let packet = FetchBulkPacket {
-			admin_address: admin_address.to_string(),
+			admin_address,
 			auth_token: auth,
 			signature: format!("{}{:?}", "0x", signature),
 		};
