@@ -17,6 +17,7 @@ NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
 # PASSWORD = Test123456
 #TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} 
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
+VERBOSITY_LEVLE=2
 
 # OVERWRITE WITH PRODUCTION VALUES
 ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
@@ -100,8 +101,16 @@ while :; do
 	    cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
 	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
 	;;
+	-v|--verbose)
+	if [ "$2" ]; then
+		VERBOSITY_LEVLE=$2
+		shift
+	    else
+		die 'ERROR: "--verbosity" requires a non-empty option argument.'
+	    fi
+	;;
 	-h|--help)
-	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n -b | --build \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
+	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n [-d | --dev] [-r | --release] \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
 	    exit 0
 	    ;;
         *) break
@@ -145,6 +154,7 @@ make 	SGX=1 \
 	SGX_CREDENTIALS_PATH=$CREDENTIALS_PATH \
 	SGX_CERT_PATH=$CERT_PATH \
 	SGX_IDENTITY=$ENCLAVE_IDENTITY \
+	SGX_VERBOSITY=$VERBOSITY_LEVLE\
 	start-gramine-server >> $GRAMINE_PATH/make.log 2>&1 &
 
 cd $BASEDIR
