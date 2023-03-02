@@ -67,8 +67,16 @@ while :; do
 		die 'ERROR: "--identity" requires a non-empty option argument.'
 	    fi
 	    ;;
+	-v|--verbose)
+		if [ "$2" ]; then
+		VERBOSITY_LEVLE=$2
+		shift
+		else
+		die 'ERROR: "--verbosity" requires a non-empty option argument.'
+		fi
+	;;
 	-h|--help)
-	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n -b | --build \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
+	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
 	    exit 0
 	    ;;
         *) break
