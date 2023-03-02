@@ -1,4 +1,4 @@
-#[allow(dead_code)]
+#![allow(dead_code)]
 use hex::FromHex;
 use std::str::FromStr;
 
