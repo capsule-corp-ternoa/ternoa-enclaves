@@ -11,13 +11,14 @@ path = "src/main.rs"
 async-trait = "0.1.61"
 
 # Server
-axum = {version = "0.6.2", features = ["ws", "headers", "macros"]}
+axum = {version = "0.6.9", features = ["ws", "headers", "macros", "multipart"]}
 axum-jrpc = "0.3.2"
 axum-server = { version = "0.4.4", features = ["tls-rustls"] }
 rustls = "0.20.6"
 reqwest = "0.11.14"
 
 tokio = { version = "1.25", features = ["full"] }
+tokio-util = "0.7.7"
 tokio-stream = { version="0.1.9", features = ["net"] }
 
 tower-http = { version = "0.3.5", features = ["cors","fs", "trace", "timeout"] }

@@ -8,7 +8,7 @@ use std::{
 	io::{Read, Seek, Write},
 };
 
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 use axum::extract::Path as PathExtract;
 
@@ -505,11 +505,11 @@ pub async fn capsule_remove_keyshare(
 	debug!("3-11 API : capsule remove keyshare");
 	// Check if CAPSULE is burnt
 	let capsule_status = match get_onchain_nft_data(request.nft_id).await {
-		Some(_) => true,
-		_ => false,
+		Some(_) => true, // not burnt
+		_ => false,      // burnt
 	};
 
-	if !capsule_status {
+	if capsule_status {
 		return Json(RemoveKeyshareResponse {
 			status: ReturnStatus::NOTBURNT,
 			nft_id: request.nft_id,
