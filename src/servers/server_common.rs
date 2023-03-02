@@ -12,7 +12,7 @@ use tokio_stream::StreamExt;
 use axum::Router;
 use axum_server::{tls_rustls::RustlsConfig, Handle};
 
-use tracing::{error, info, debug};
+use tracing::{debug, error, info};
 
 pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::Error> {
 	debug!("3-5-1 Startng server with app, domain, port.");
@@ -56,12 +56,12 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 	// Spawn a task to shutdown server.
 	let handle = Handle::new();
-	//tokio::spawn(cert_shutdown(handle));
+	tokio::spawn(cert_shutdown(handle.clone()));
 
 	debug!("3-5-4 Startng server : start cert server");
 	let cert_server = axum_server::bind_rustls(socket_addr, config.clone())
 		.acceptor(acceptor.clone())
-		.handle(handle.clone())
+		.handle(handle)
 		.serve(dummy_app.into_make_service())
 		.await;
 	info!(
@@ -69,7 +69,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 		socket_addr.ip()
 	);
 
-	cert_shutdown(handle).await;
+	//cert_shutdown(handle).await;
 	debug!("3-5-5 Startng server : cert server shutdown");
 
 	match cert_server {
@@ -108,7 +108,8 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 async fn cert_shutdown(handle: Handle) {
 	// Wait 20 seconds.
-	//sleep(Duration::from_secs(20)).await;
+	info!("wait 20 seconds before shutdown cert server");
+	sleep(Duration::from_secs(20)).await;
 
 	info!("sending shutdown signal to Certificate server");
 

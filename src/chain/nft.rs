@@ -6,7 +6,7 @@ use std::{
 	fs::OpenOptions,
 	io::{Read, Seek, Write},
 };
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 use axum::extract::Path as PathExtract;
 
@@ -530,8 +530,8 @@ pub async fn nft_remove_keyshare(
 	debug!("3-10 API : nft remove keyshare");
 
 	let nft_status = match get_onchain_nft_data(request.nft_id).await {
-		Some(x) => true,
-		_ => false,
+		Some(_) => true, // not burnt
+		_ => false,      // burntd
 	};
 
 	if nft_status {
