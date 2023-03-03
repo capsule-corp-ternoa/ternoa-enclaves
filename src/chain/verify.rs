@@ -692,11 +692,6 @@ impl StoreKeysharePacket {
 			Err(e) => return Err(VerificationError::INVALIDDATASIG(e)),
 		};
 
-		let data = match self.parse_store_data() {
-			Ok(sec) => sec,
-			Err(e) => return Err(e),
-		};
-
 		let result = sr25519::Pair::verify(&packetsig, self.data.clone(), &signer.account);
 
 		Ok(result)
@@ -741,9 +736,9 @@ impl StoreKeysharePacket {
 					)
 					.await
 					{
-						return Ok(parsed_data)
+						Ok(parsed_data)
 					} else {
-						return Err(VerificationError::OWNERSHIPVERIFICATIONFAILED)
+						Err(VerificationError::OWNERSHIPVERIFICATIONFAILED)
 					}
 				},
 				Ok(false) => Err(VerificationError::DATAVERIFICATIONFAILED),
@@ -816,8 +811,8 @@ impl RetrieveKeysharePacket {
 				.to_string();
 		}
 
-		let parsed_data: Vec<&str> = if data.contains("_") {
-			data.split("_").collect()
+		let parsed_data: Vec<&str> = if data.contains('_') {
+			data.split('_').collect()
 		} else {
 			return Err(VerificationError::MALFORMATEDDATA)
 		};
@@ -907,9 +902,9 @@ impl RetrieveKeysharePacket {
 				)
 				.await
 				{
-					return Ok(parsed_data)
+					Ok(parsed_data)
 				} else {
-					return Err(VerificationError::REQUESTERVERIFICATIONFAILED)
+					Err(VerificationError::REQUESTERVERIFICATIONFAILED)
 				}
 			},
 			// INVALID DATA SIGNATURE
@@ -945,6 +940,88 @@ impl RetrieveKeysharePacket {
 mod test {
 
 	use super::*;
+	/* ----------------------
+		   HELPER FUNCTIONS
+	   ---------------------- */
+	
+	async fn generate_store_request(nftid: u32) -> StoreKeysharePacket {
+		let current_block_number = get_current_block_number().await;
+
+		let owner = sr25519::Pair::from_phrase(
+			"theme affair risk blue world review hazard social arrow usage unveil surge",
+			None,
+		)
+		.unwrap()
+		.0;
+		let signer = sr25519::Pair::from_phrase(
+			"cover fossil blouse ignore embark elbow blush awful mushroom wood deny common",
+			None,
+		)
+		.unwrap()
+		.0;
+
+		let signer_address = format!("{}_{}_10",signer.public().to_ss58check(),current_block_number);
+		let signersig = owner.sign(signer_address.as_bytes());
+		let data = format!("{}_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10",nftid,current_block_number);
+		let signature = signer.sign(data.as_bytes());
+
+		let packet = StoreKeysharePacket {
+			owner_address: owner.public(),
+			signer_address,
+			signersig: format!("{}{:?}", "0x", signersig),
+			data,
+			signature: format!("{}{:?}", "0x", signature),
+		};
+
+		println!("StoreKeysharePacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
+		
+		packet 
+	}
+
+	async fn generate_retrieve_request(nftid: u32) -> RetrieveKeysharePacket {
+		let current_block_number = get_current_block_number().await;
+
+		let owner = sr25519::Pair::from_phrase(
+			"theme affair risk blue world review hazard social arrow usage unveil surge",
+			None,
+		)
+		.unwrap()
+		.0;
+		
+		let data = format!("{}_{}_10",nftid,current_block_number);
+		let signature = owner.sign(data.as_bytes());
+		let packet = RetrieveKeysharePacket {
+			requester_address: owner.public(),
+			requester_type: RequesterType::OWNER,
+			data,
+			signature: format!("{}{:?}", "0x", signature),
+		};
+
+		println!("RetrieveKeysharePacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
+
+		packet
+	}
+
+	async fn generate_remove_request(nftid: u32) -> RemoveKeysharePacket{
+
+		let signer = sr25519::Pair::from_phrase(
+			"steel announce garden guilt direct give morning gadget milk census poem faith",
+			None,
+		)
+		.unwrap()
+		.0;
+
+		let requester_address = signer.public();
+
+		let packet = RemoveKeysharePacket {
+			requester_address, // Because anybody can ask to remove burnt data
+			nft_id: nftid,
+		};
+
+		println!("RemoveKeysharePacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
+		
+		packet
+	}
 
 	/* ----------------------
 		 PARSING
@@ -1042,45 +1119,40 @@ mod test {
 
 	#[tokio::test]
 	async fn verify_data_test() {
-		let mut packet = StoreKeysharePacket {
-			owner_address:sr25519::Public::from_ss58check("5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET").unwrap(),
-			signer_address:"5GxffGgHzTFu8mmHCRbw9YZkkcwTZreL2FVLQHVb4FVgEPcE_214188_1000000".to_string(),
-			signersig:"0xa4f331ec6c6197a95122f171fbbb561f528085b2ca5176d676596eea03669718a7047cd29db3da4f5c48d3eb9df5648c8b90851fe9781dfaa11aef0eb1e6b88a".to_string(),
-			data:"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_1000000".to_string(),
-			signature:"0x64bc35276740fe6b196c7f18b22be553088555a1a282269d8b85546fcd7e68635392b0fc16e535a6e9187d5e6cbc02fd2c3b62546e848754942023176152f488".to_string(),
-		};
+		let current_block_number = get_current_block_number().await;
+		let mut packet = generate_store_request(1300).await;
 
 		// correct
-		assert_eq!(packet.verify_data().await.unwrap(), true);
+		assert!(packet.verify_data().await.unwrap());
 
 		// changed data error
-		packet.data =
-			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-O)_214188_1000000".to_string();
-		assert_eq!(packet.verify_data().await.unwrap(), false);
+		packet.data = format!(
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-O)_{}_10",current_block_number);
+		assert!(!packet.verify_data().await.unwrap());
 
 		// changed signer error
-		packet.signer_address =
-			"5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET_214188_1000000".to_string();
-		packet.data = "324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214188_10000000"
-			.to_string();
-		assert_eq!(packet.verify_data().await.unwrap(), false);
+		packet.signer_address =format!(
+			"5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET_{}_10",current_block_number);
+		packet.data = format!("324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10",current_block_number);
+		assert!(!packet.verify_data().await.unwrap());
 
 		// changed signature error
 		packet.owner_address =
 			sr25519::Public::from_ss58check("5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy")
 				.unwrap();
 		packet.signature = "0xa64400b64bed9b77a59e5a5f1d2e82489fcf20fcc5ff563d755432ffd2ef5c57021478051f9f93e8448fa4cb4c4900d406c263588898963d3d7960a3a5c16485".to_string();
-		assert_eq!(packet.verify_data().await.unwrap(), false);
+		assert!(!packet.verify_data().await.unwrap());
 	}
 
 	#[tokio::test]
 	async fn verify_polkadotjs_request_test() {
+		let current_block_number = get_current_block_number().await;
+
 		let owner = sr25519::Pair::generate().0;
 		let signer = sr25519::Pair::generate().0;
-		let signer_address =
-			"<Bytes>".to_string() + &signer.public().to_ss58check() + "_214299_1000000</Bytes>";
+		let signer_address =format!("<Bytes>{}_{}_10</Bytes>",&signer.public().to_ss58check(),current_block_number);
 		let signersig = owner.sign(signer_address.as_bytes());
-		let data = "<Bytes>324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000</Bytes>";
+		let data = format!("<Bytes>324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10</Bytes>",current_block_number);
 		let signature = signer.sign(data.as_bytes());
 
 		let packet = StoreKeysharePacket {
@@ -1094,7 +1166,7 @@ mod test {
 		let correct_data = StoreKeyshareData {
 			nft_id: 324,
 			keyshare: "thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)".as_bytes().to_vec(),
-			auth_token: AuthenticationToken { block_number: 214299, block_validation: 1000000 },
+			auth_token: AuthenticationToken { block_number: current_block_number, block_validation: 10 },
 		};
 
 		// correct
@@ -1103,13 +1175,14 @@ mod test {
 
 	#[tokio::test]
 	async fn verify_signer_request_test() {
+		let current_block_number = get_current_block_number().await;
 		// Test
 		let owner = sr25519::Pair::generate().0;
 		let signer = sr25519::Pair::generate().0;
 
-		let signer_address = signer.public().to_ss58check() + "_214299_1000000";
+		let signer_address = format!("{}_{}_10",signer.public().to_ss58check(),current_block_number);
 		let signersig = owner.sign(signer_address.as_bytes());
-		let data = "494_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000";
+		let data = format!("494_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10",current_block_number);
 		let signature = signer.sign(data.as_bytes());
 
 		let mut packet = StoreKeysharePacket {
@@ -1123,7 +1196,7 @@ mod test {
 		let correct_data = StoreKeyshareData {
 			nft_id: 494,
 			keyshare: "thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)".as_bytes().to_vec(),
-			auth_token: AuthenticationToken { block_number: 214299, block_validation: 1000000 },
+			auth_token: AuthenticationToken { block_number: current_block_number, block_validation: 10 },
 		};
 
 		// correct
@@ -1140,15 +1213,14 @@ mod test {
 
 		// changed signer error
 		packet.owner_address = owner.public();
-		packet.signer_address =
-			sr25519::Pair::generate().0.public().to_ss58check() + "_214299_1000000";
+		packet.signer_address =format!("{}_{}_10",sr25519::Pair::generate().0.public().to_ss58check(),current_block_number);
 		assert_eq!(
 			packet.verify_free_store_request().await.unwrap_err(),
 			VerificationError::SIGNERVERIFICATIONFAILED
 		);
 
 		// changed signer signature error
-		packet.signer_address = signer.public().to_ss58check() + "_214299_1000000";
+		packet.signer_address = format!("{}_{}_10",signer.public().to_ss58check(),current_block_number);
 		packet.signersig = "0xa4f331ec6c6197a95122f171fbbb561f528085b2ca5176d676596eea03669718a7047cd29db3da4f5c48d3eb9df5648c8b90851fe9781dfaa11aef0eb1e6b88a".to_string();
 		assert_eq!(
 			packet.verify_free_store_request().await.unwrap_err(),
@@ -1156,7 +1228,7 @@ mod test {
 		);
 
 		// expired signer error
-		let expired_signer_address = signer.public().to_ss58check() + "_214299_10";
+		let expired_signer_address = format!("{}_{}_10",signer.public().to_ss58check(),current_block_number-13);
 		let expired_signersig = owner.sign(signer_address.as_bytes());
 
 		packet.signer_address = expired_signer_address;
@@ -1168,52 +1240,4 @@ mod test {
 		);
 	}
 
-	#[tokio::test]
-	async fn generate_request_test() {
-		let owner = sr25519::Pair::from_phrase(
-			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
-			None,
-		)
-		.unwrap()
-		.0;
-		let signer = sr25519::Pair::from_phrase(
-			"steel announce garden guilt direct give morning gadget milk census poem faith",
-			None,
-		)
-		.unwrap()
-		.0;
-
-		let signer_address = signer.public().to_ss58check() + "_214299_1000000";
-		let signersig = owner.sign(signer_address.as_bytes());
-		let data = "1337_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000";
-		let signature = signer.sign(data.as_bytes());
-
-		let packet = StoreKeysharePacket {
-			owner_address: owner.public(),
-			signer_address: signer_address.to_string(),
-			signersig: format!("{}{:?}", "0x", signersig),
-			data: data.to_string(),
-			signature: format!("{}{:?}", "0x", signature),
-		};
-
-		println!("StoreKeysharePacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
-
-		let data = "1336_214299_1000000";
-		let signature = owner.sign(data.as_bytes());
-		let packet = RetrieveKeysharePacket {
-			requester_address: owner.public(),
-			requester_type: RequesterType::OWNER,
-			data: data.to_string(),
-			signature: format!("{}{:?}", "0x", signature),
-		};
-
-		println!("RetrieveKeysharePacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
-
-		let packet = RemoveKeysharePacket {
-			requester_address: signer.public(), // Because anybody can ask to remove burnt data
-			nft_id: 1336,
-		};
-
-		println!("RemoveKeysharePacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
-	}
 }
