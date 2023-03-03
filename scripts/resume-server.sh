@@ -17,7 +17,6 @@ NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
 # PASSWORD = Test123456
 #TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} 
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
-VERBOSITY_LEVLE=2
 
 # OVERWRITE WITH PRODUCTION VALUES
 ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
@@ -68,49 +67,16 @@ while :; do
 		die 'ERROR: "--identity" requires a non-empty option argument.'
 	    fi
 	    ;;
-	-d|--dev)
-	# Compiling the source code
-	    if [ -z "$(which cargo)" ]
-	    then
-		/home/ubuntu/.cargo/bin/cargo build --release
-	    else
-		cargo build --release
-	    fi
-		
-		mkdir -p $GRAMINE_PATH/bin/
-		cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
-
-		echo "creating binary checksum ..."
-	    cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
-	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
-	    
-		echo "signing the binary ..."
-	    cosign sign-blob --key $BASEDIR/credentials/keys/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
-		tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
-		mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
-	;;
-	-r|--release)
-		mkdir -p $GRAMINE_PATH/bin/
-		
-		echo "Downloading binary and signature from Ternoa github repository"
-		$SCRIPTS_PATH/fetch-release.sh
-		mv ./sgx_server $GRAMINE_PATH/bin/
-		mv ./sgx_server.sig $GRAMINE_PATH/bin/
-
-		echo "creating binary checksum ..."
-	    cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
-	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
-	;;
 	-v|--verbose)
-	if [ "$2" ]; then
+		if [ "$2" ]; then
 		VERBOSITY_LEVLE=$2
 		shift
-	    else
+		else
 		die 'ERROR: "--verbosity" requires a non-empty option argument.'
-	    fi
+		fi
 	;;
 	-h|--help)
-	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n [-d | --dev] [-r | --release] \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
+	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
 	    exit 0
 	    ;;
         *) break
@@ -154,7 +120,6 @@ make 	SGX=1 \
 	SGX_CREDENTIALS_PATH=$CREDENTIALS_PATH \
 	SGX_CERT_PATH=$CERT_PATH \
 	SGX_IDENTITY=$ENCLAVE_IDENTITY \
-	SGX_VERBOSITY=$VERBOSITY_LEVLE\
 	start-gramine-server >> $GRAMINE_PATH/make.log 2>&1 &
 
 cd $BASEDIR

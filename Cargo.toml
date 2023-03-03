@@ -11,21 +11,19 @@ path = "src/main.rs"
 async-trait = "0.1.61"
 
 # Server
-axum = {version = "0.6.2", features = ["ws", "headers", "macros"]}
+axum = {version = "0.6.9", features = ["ws", "headers", "macros", "multipart"]}
 axum-jrpc = "0.3.2"
 axum-server = { version = "0.4.4", features = ["tls-rustls"] }
 rustls = "0.20.6"
 reqwest = "0.11.14"
 
 tokio = { version = "1.25", features = ["full"] }
+tokio-util = "0.7.7"
 tokio-stream = { version="0.1.9", features = ["net"] }
 
-tower-http = { version = "0.3.5", features = ["cors","fs", "trace"] }
-
+tower-http = { version = "0.3.5", features = ["cors","fs", "trace", "timeout"] }
+tower = {version = "0.4.13", features = ["timeout"]}
 urlencoding = "2.1.2"
-
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.11", features = ["env-filter", "fmt"] }
 
 # codec
 serde_json = "1.0.91"
@@ -33,16 +31,21 @@ serde = { version = "1.0.152", features = ["derive"] }
 josekit = "0.8.1"
 hex = "0.4.3"
 base64 = "0.21.0"
+zip = "0.6.4"
 
 log = "0.4.17"
 chrono = "0.4.23"
 tokio-cron-scheduler = "0.9.4"
 cached = "0.42.0"
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.11", features = ["env-filter", "fmt"] }
+sentry = { version = "0.30.0", features = ["anyhow", "debug-images", "tracing", "tower", "tower-http"] }
 
 rand = "0.8.5"
 clap = { version = "4.0.29", features = ["derive"] }
 sysinfo = "0.27.0"
 anyhow = "1.0.68"
+walkdir = "2.3.2"
 
 # IPFS
 futures = "0.3.25"
