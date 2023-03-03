@@ -16,12 +16,12 @@ use self::ternoa::runtime_types::{
 	ternoa_pallets_primitives::nfts::NFTData, ternoa_rent::types::RentContractData,
 };
 
-//const TERNOA_RPC: &'static str = "wss://alphanet.ternoa.com:443";
+const TERNOA_RPC: &'static str = "wss://alphanet.ternoa.com:443";
 //const TERNOA_RPC: &'static str = "wss://dev-1.ternoa.network:443";
-const TERNOA_RPC: &'static str = "wss://dev-0.ternoa.network:443";
+//const TERNOA_RPC: &'static str = "wss://dev-0.ternoa.network:443";
 
-//#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale")]
-#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev0.scale")]
+#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale")]
+//#[subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev0.scale")]
 pub mod ternoa {}
 
 type DefaultApi = OnlineClient<PolkadotConfig>;
