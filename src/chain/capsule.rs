@@ -8,15 +8,18 @@ use std::{
 	io::{Read, Seek, Write},
 };
 
-use tracing::{error, info, warn};
+use tracing::{debug, info, warn};
 
 use axum::extract::Path as PathExtract;
 
 use crate::chain::{
 	chain::{capsule_keyshare_oracle, get_current_block_number},
+	log::*,
 	verify::*,
 };
 use serde::Serialize;
+
+use super::chain::get_onchain_nft_data;
 
 /* **********************
    KEY-SHARE AVAILABLE API
@@ -33,6 +36,7 @@ pub async fn is_capsule_available(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> impl IntoResponse {
+	debug!("3-11 API : is capsule available");
 	let file_path = state.seal_path + "capsule_" + &nft_id.to_string() + ".keyshare";
 
 	if std::path::Path::new(&file_path.clone()).exists() {
@@ -57,7 +61,8 @@ pub async fn is_capsule_available(
 pub struct CapsuleViewResponse {
 	enclave_id: String,
 	nft_id: u32,
-	log: String,
+	log: LogFile,
+	description: String,
 }
 
 // TODO: check the request for signed data and prevent flooding requests.
@@ -65,7 +70,39 @@ pub async fn capsule_get_views(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> impl IntoResponse {
-	let file_path = state.seal_path + "capsule_" + &nft_id.to_string() + ".log";
+	debug!("3-12 API : get capsule views");
+
+	let capsule_state = match get_onchain_nft_data(nft_id).await {
+		Some(data) => data.state,
+		_ => {
+			info!(
+				"Error retrieving capsule-nft shares access-log : nft_id.{} does not exist",
+				nft_id
+			);
+			return Json(CapsuleViewResponse {
+				enclave_id: state.identity,
+				nft_id,
+				log: LogFile::new(),
+				description: "nft_id does not exist.".to_string(),
+			})
+		},
+	};
+
+	if !capsule_state.is_capsule {
+		info!(
+			"Error retrieving capsule-nft shares access-log : nft_id.{} is not a capsule-nft",
+			nft_id
+		);
+
+		return Json(CapsuleViewResponse {
+			enclave_id: state.identity,
+			nft_id,
+			log: LogFile::new(),
+			description: "nft_id is not a capsule-nft".to_string(),
+		})
+	}
+
+	let file_path = state.seal_path + &nft_id.to_string() + ".log";
 
 	// CHECK LOG-FILE PATH
 	if !std::path::Path::new(&file_path.clone()).exists() {
@@ -77,7 +114,8 @@ pub async fn capsule_get_views(
 		return Json(CapsuleViewResponse {
 			enclave_id: state.identity,
 			nft_id,
-			log: "Capsule nft_id does not exist on this enclave".to_string(),
+			log: LogFile::new(),
+			description: "Capsule nft_id does not exist on this enclave".to_string(),
 		})
 	};
 
@@ -93,7 +131,8 @@ pub async fn capsule_get_views(
 			return Json(CapsuleViewResponse {
 				enclave_id: state.identity,
 				nft_id,
-				log: "can not retrieve the log of capsule views".to_string(),
+				log: LogFile::new(),
+				description: "can not retrieve the log of capsule views".to_string(),
 			})
 		},
 	};
@@ -104,7 +143,12 @@ pub async fn capsule_get_views(
 		Ok(_) => {
 			info!("successfully retrieved log file for nft_id : {}", nft_id);
 
-			return Json(CapsuleViewResponse { enclave_id: state.identity, nft_id, log: log_data })
+			return Json(CapsuleViewResponse {
+				enclave_id: state.identity,
+				nft_id,
+				log: serde_json::from_str(&log_data).expect("error deserailizing json body"), /* TODO: manage expect() */
+				description: "successful".to_string(),
+			})
 		},
 
 		Err(_) => {
@@ -116,7 +160,8 @@ pub async fn capsule_get_views(
 			return Json(CapsuleViewResponse {
 				enclave_id: state.identity,
 				nft_id,
-				log: "Error reading the log of capsule views".to_string(),
+				log: LogFile::new(),
+				description: "Error reading the log of capsule views".to_string(),
 			})
 		},
 	};
@@ -130,59 +175,18 @@ pub async fn capsule_set_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<StoreKeysharePacket>,
 ) -> impl IntoResponse {
-	let verified_data = request.verify_store_request().await;
+	debug!("3-13 API : capsule set keyshare");
 
-	match verified_data {
+	match request.verify_store_request("capsule").await {
 		// DATA-FILED IS VALID
-		Ok(data) => {
-			// GET CAPSULE ON-CHAIN STATE
-			let status = get_onchain_status(data.nft_id).await;
-
-			// IS IT A CAPSULE?
-			if !status.is_capsule {
-				let status = ReturnStatus::IDISNOTASECRETNFT;
-				let description = format!(
-					"TEE Key-share {:?}: nft-id.{} is not a capsule",
-					APICALL::CAPSULESET,
-					data.nft_id
-				);
-
-				info!("{}, requester : {}", description, request.owner_address);
-
-				return Json(json!({
-					"status": status,
-					"nft_id": data.nft_id,
-					"enclave_id": state.identity,
-					"description": description,
-				}))
-			}
-
-			// IS THE CAPSULE WAITING FOR KEY-SHARES?
-			if !status.is_syncing_capsule {
-				let status = ReturnStatus::NOTSYNCING;
-				let description = format!(
-					"TEE Key-share {:?}: nft-id.{} is not in syncing mode",
-					APICALL::CAPSULESET,
-					data.nft_id
-				);
-
-				info!("{}, requester : {}", description, request.owner_address);
-
-				return Json(json!({
-					"status": status,
-					"nft_id": data.nft_id,
-					"enclave_id": state.identity,
-					"description": description,
-				}))
-			}
-
+		Ok(verified_data) => {
 			// IS ENCALVE SEAL-PATH READY?
 			if !std::path::Path::new(&state.clone().seal_path).exists() {
 				let status = ReturnStatus::DATABASEFAILURE;
 				let description = format!(
 					"TEE Key-share {:?}: seal path doe not exist, nft_id : {}, Seal-Path : {}",
 					APICALL::CAPSULESET,
-					data.nft_id,
+					verified_data.nft_id,
 					state.seal_path
 				);
 
@@ -190,14 +194,15 @@ pub async fn capsule_set_keyshare(
 
 				return Json(json!({
 					"status": status,
-					"nft_id": data.nft_id,
+					"nft_id": verified_data.nft_id,
 					"enclave_id": state.identity,
 					"description": description,
 				}))
 			};
 
-			let file_path =
-				state.seal_path.clone() + "capsule_" + &data.nft_id.to_string() + ".keyshare";
+			let file_path = state.seal_path.clone() +
+				"capsule_" + &verified_data.nft_id.to_string() +
+				".keyshare";
 
 			// CREATE KEY-SHARE FILE ON ENCLAVE DISK
 			let mut f = match std::fs::File::create(file_path.clone()) {
@@ -207,14 +212,17 @@ pub async fn capsule_set_keyshare(
 					let description = format!(
 						"TEE Key-share {:?}: error in setting the new Keyshare for nft_id.{} on enclave disk (creation).",
 						APICALL::CAPSULESET,
-						data.nft_id,
+						verified_data.nft_id,
 					);
 
-					info!("{}, Error : {}, requester : {}", description, err, request.owner_address);
+					info!(
+						"{}, Error : {}, requester : {}",
+						description, err, request.owner_address
+					);
 
 					return Json(json!({
 						"status": status,
-						"nft_id": data.nft_id,
+						"nft_id": verified_data.nft_id,
 						"enclave_id": state.identity,
 						"description": description,
 					}))
@@ -222,24 +230,24 @@ pub async fn capsule_set_keyshare(
 			};
 
 			// WRITE KEY-SHARE DATA TO FILE
-			match f.write_all(&data.data) {
+			match f.write_all(&verified_data.keyshare) {
 				Ok(_) => info!(
 					"Capsule key-share is successfully stored to TEE, nft_id = {}  Owner = {}",
-					data.nft_id, request.owner_address
+					verified_data.nft_id, request.owner_address
 				),
 				Err(err) => {
 					let status = ReturnStatus::DATABASEFAILURE;
 					let description = format!(
 						"TEE Key-share {:?}: error in setting the new Keyshare for nft_id.{} on enclave disk (write).",
 						APICALL::CAPSULESET,
-						data.nft_id,
+						verified_data.nft_id,
 					);
 
 					info!("{}, Error :{}, requester : {}", description, err, request.owner_address);
 
 					return Json(json!({
 						"status": status,
-						"nft_id": data.nft_id,
+						"nft_id": verified_data.nft_id,
 						"enclave_id": state.identity,
 						"description": description,
 					}))
@@ -247,21 +255,43 @@ pub async fn capsule_set_keyshare(
 			};
 
 			// Send extrinsic to Capsule-Pallet as Storage-Oracle
-			match capsule_keyshare_oracle(state.enclave_key.clone(), data.nft_id).await {
+			match capsule_keyshare_oracle(state.enclave_key.clone(), verified_data.nft_id).await {
 				Ok(txh) => {
 					info!(
 						"Proof of storage has been sent to blockchain nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
-						data.nft_id, request.owner_address, txh
+						verified_data.nft_id, request.owner_address, txh
 					);
 
 					// Log file for tracing the capsule key-share VIEW history in Marketplace.
-					let file_path =
-						state.seal_path + "capsule_" + &data.nft_id.to_string() + ".log";
-					std::fs::File::create(file_path.clone()).unwrap();
+					let file_path = state.seal_path + &verified_data.nft_id.to_string() + ".log";
+
+					if !std::path::Path::new(&file_path).exists() {
+						let mut file = std::fs::File::create(file_path.clone()).unwrap(); // TODO: manage unwrap()
+
+						let mut log_file_struct = LogFile::new();
+						let log_account = LogAccount::new(
+							request.owner_address.to_string(),
+							RequesterType::OWNER,
+						);
+						let new_log = LogStruct::new(log_account, LogType::STORE);
+						log_file_struct.insert_new_capsule_log(new_log);
+
+						let log_buf = serde_json::to_vec(&log_file_struct).unwrap(); // TODO: manage unwrap()
+						file.write_all(&log_buf).unwrap(); // TODO: manage unwrap()
+					} else {
+						// Log file exists : Secret-NFT is converted to Capsule
+						update_log_file_view(
+							file_path.to_string(),
+							request.owner_address.to_string(),
+							RequesterType::OWNER,
+							LogType::STORE,
+							"capsule",
+						);
+					}
 
 					return Json(json!({
 						"status": ReturnStatus::STORESUCCESS,
-						"nft_id": data.nft_id,
+						"nft_id": verified_data.nft_id,
 						"enclave_id": state.identity,
 						"description":"Capsule key-share is successfully stored to TEE".to_string(),
 					}))
@@ -271,17 +301,17 @@ pub async fn capsule_set_keyshare(
 					let err_str = err.to_string();
 					let message = format!(
 						"Error sending proof of storage to chain, Capsule nft_id : {}, Error : {}",
-						data.nft_id, err_str
+						verified_data.nft_id, err_str
 					);
 
 					info!("{}, owner = {}", message, request.owner_address);
 
-					info!("Removing the capsule key-share from TEE due to previous error, nft_id : {}", data.nft_id);
-					std::fs::remove_file(file_path.clone()).expect("Can not remove key-share file");
+					info!("Removing the capsule key-share from TEE due to previous error, nft_id : {}", verified_data.nft_id);
+					std::fs::remove_file(file_path.clone()).expect("Can not remove key-share file"); // TODO: manage expect()
 
 					return Json(json!({
 						"status": ReturnStatus::ORACLEFAILURE,
-						"nft_id": data.nft_id,
+						"nft_id": verified_data.nft_id,
 						"enclave_id": state.identity,
 						"description": message,
 					}))
@@ -290,12 +320,25 @@ pub async fn capsule_set_keyshare(
 		},
 
 		// REQUEST DATA-FIELD IS NOT VALID
-		Err(err) => err.express_verification_error(
-			APICALL::CAPSULESET,
-			request.owner_address.to_string(),
-			request.parse_store_data().unwrap().nft_id,
-			state.identity,
-		),
+		Err(err) => {
+			let parsed_data = match request.parse_store_data() {
+				Ok(parsed_data) => parsed_data,
+				Err(e) =>
+					return e.express_verification_error(
+						APICALL::CAPSULESET,
+						request.owner_address.to_string(),
+						0,
+						state.identity,
+					),
+			};
+
+			err.express_verification_error(
+				APICALL::CAPSULESET,
+				request.owner_address.to_string(),
+				parsed_data.nft_id,
+				state.identity,
+			)
+		},
 	}
 }
 
@@ -307,47 +350,27 @@ pub async fn capsule_retrieve_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RetrieveKeysharePacket>,
 ) -> impl IntoResponse {
-	let verified_req = request.verify_retrieve_request().await;
+	debug!("3-14 API : capsule retrieve keyshare");
 
-	match verified_req {
-		Ok(data) => {
-			let capsule_status = get_onchain_status(data.nft_id).await;
-
-			// IS CAPSULE ?
-			if !capsule_status.is_capsule {
-				let status = ReturnStatus::IDISNOTACAPSULE;
-				let description = format!(
-					"TEE Key-share {:?}: error nft_id.{} is not a capsule.",
-					APICALL::CAPSULERETRIEVE,
-					data.nft_id,
-				);
-
-				info!("{}, requester : {}", description, request.owner_address);
-
-				return Json(json!({
-					"status": status,
-					"nft_id": data.nft_id,
-					"enclave_id": state.identity,
-					"description": description,
-				}))
-			}
-
+	match request.verify_retrieve_request("capsule").await {
+		Ok(verified_data) => {
 			// DOES KEY-SHARE EXIST?
-			let file_path =
-				state.seal_path.clone() + "capsule_" + &data.nft_id.to_string() + ".keyshare";
+			let file_path = state.seal_path.clone() +
+				"capsule_" + &verified_data.nft_id.to_string() +
+				".keyshare";
 			if !std::path::Path::new(&file_path).is_file() {
 				let status = ReturnStatus::KEYNOTEXIST;
 				let description = format!(
 					"TEE Key-share {:?}: error nft_id.{} key-share does not exist on enclave.",
 					APICALL::CAPSULERETRIEVE,
-					data.nft_id,
+					verified_data.nft_id,
 				);
 
-				info!("{}, requester : {}", description, request.owner_address);
+				info!("{}, requester : {}", description, request.requester_address);
 
 				return Json(json!({
 					"status": status,
-					"nft_id": data.nft_id,
+					"nft_id": verified_data.nft_id,
 					"enclave_id": state.identity,
 					"description": description,
 				}))
@@ -361,17 +384,17 @@ pub async fn capsule_retrieve_keyshare(
 					let description = format!(
 						"TEE Key-share {:?}: error can not read nft_id.{} key-share on enclave.",
 						APICALL::CAPSULERETRIEVE,
-						data.nft_id,
+						verified_data.nft_id,
 					);
 
 					info!(
 						"{}, Error : {}, requester : {}",
-						description, err, request.owner_address
+						description, err, request.requester_address
 					);
 
 					return Json(json!({
 						"status": status,
-						"nft_id": data.nft_id,
+						"nft_id": verified_data.nft_id,
 						"enclave_id": state.identity,
 						"description": description,
 					}))
@@ -382,7 +405,10 @@ pub async fn capsule_retrieve_keyshare(
 			let mut capsule_keyshare = Vec::<u8>::new();
 			match file.read_to_end(&mut capsule_keyshare) {
 				Ok(_) => {
-					info!("key-shares of {} retrieved by {}", data.nft_id, request.owner_address)
+					info!(
+						"key-shares of {} retrieved by {}",
+						verified_data.nft_id, request.requester_address
+					)
 				},
 
 				Err(err) => {
@@ -390,17 +416,17 @@ pub async fn capsule_retrieve_keyshare(
 					let description = format!(
 						"TEE Key-share {:?}: error can not read nft_id.{} key-share from enclave.",
 						APICALL::CAPSULERETRIEVE,
-						data.nft_id,
+						verified_data.nft_id,
 					);
 
 					info!(
 						"{} , Error : {} , requester : {}",
-						description, err, request.owner_address
+						description, err, request.requester_address
 					);
 
 					return Json(json!({
 						"status": status,
-						"nft_id": data.nft_id,
+						"nft_id": verified_data.nft_id,
 						"enclave_id": state.identity,
 						"description": description,
 					}))
@@ -408,25 +434,18 @@ pub async fn capsule_retrieve_keyshare(
 			};
 
 			// Put a VIEWING history log
-			let file_path = state.seal_path + "capsule_" + &data.nft_id.to_string() + ".log";
-			let mut log_file = OpenOptions::new()
-				.append(true)
-				.open(file_path)
-				.expect("Unable to open log file");
+			let file_path = state.seal_path + &verified_data.nft_id.to_string() + ".log";
+			update_log_file_view(
+				file_path,
+				request.requester_address.to_string(),
+				request.requester_type,
+				LogType::VIEW,
+				"capsule",
+			);
 
-			log_file.seek(std::io::SeekFrom::End(0)).unwrap();
-
-			let time: chrono::DateTime<chrono::offset::Utc> = std::time::SystemTime::now().into();
-			let log_data = request.owner_address.to_string() +
-				" Viewed the key-share on " +
-				time.format("%Y-%m-%d %H:%M:%S").to_string().as_str() +
-				"\n";
-
-			log_file.write(log_data.as_bytes()).expect("write to log failed");
-
-			let serialized_secret = StoreKeyshareData {
-				nft_id: data.nft_id,
-				data: capsule_keyshare,
+			let serialized_keyshare = StoreKeyshareData {
+				nft_id: verified_data.nft_id,
+				keyshare: capsule_keyshare,
 				auth_token: AuthenticationToken {
 					block_number: get_current_block_number().await,
 					block_validation: 100,
@@ -434,25 +453,37 @@ pub async fn capsule_retrieve_keyshare(
 			}
 			.serialize();
 
-			//			let sig = state.enclave_key.sign(serialized_secret.as_bytes());
+			//			let sig = state.enclave_key.sign(serialized_keyshare.as_bytes());
 			//			let sig_str = "0x".to_owned() + &sig).unwrap();
 
 			return Json(json!({
 				"status": ReturnStatus::RETRIEVESUCCESS,
-				"nft_id": data.nft_id,
+				"nft_id": verified_data.nft_id,
 				"enclave_id": state.identity,
-				"secret_data": serialized_secret,
+				"keyshare_data": serialized_keyshare,
 				"description": "Success retrieving Capsule key-share.".to_string(),
 			}))
 		},
 
-		Err(err) =>
-			return err.express_verification_error(
+		Err(err) => {
+			let parsed_data = match request.parse_retrieve_data() {
+				Ok(parsed_data) => parsed_data,
+				Err(e) =>
+					return e.express_verification_error(
+						APICALL::CAPSULERETRIEVE,
+						request.requester_address.to_string(),
+						0,
+						state.identity,
+					),
+			};
+
+			err.express_verification_error(
 				APICALL::CAPSULERETRIEVE,
-				request.owner_address.to_string(),
-				request.parse_retrieve_data().unwrap().nft_id,
+				request.requester_address.to_string(),
+				parsed_data.nft_id,
 				state.identity,
-			),
+			)
+		},
 	}
 }
 
@@ -471,11 +502,14 @@ pub async fn capsule_remove_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RemoveKeysharePacket>,
 ) -> impl IntoResponse {
-	// No verification
-
+	debug!("3-11 API : capsule remove keyshare");
 	// Check if CAPSULE is burnt
-	let status = get_onchain_status(request.nft_id).await;
-	if !status.is_burnt {
+	let capsule_status = match get_onchain_nft_data(request.nft_id).await {
+		Some(_) => true, // not burnt
+		_ => false,      // burnt
+	};
+
+	if capsule_status {
 		return Json(RemoveKeyshareResponse {
 			status: ReturnStatus::NOTBURNT,
 			nft_id: request.nft_id,
@@ -520,9 +554,8 @@ pub async fn capsule_remove_keyshare(
 
 	match std::fs::remove_file(file_path) {
 		Ok(_) => {
-			let file_path =
-				state.seal_path.clone() + "capsule_" + &request.nft_id.to_string() + ".log";
-			std::fs::remove_file(file_path.clone()).expect("Error removing capsule log-file.");
+			let file_path = state.seal_path.clone() + &request.nft_id.to_string() + ".log";
+			std::fs::remove_file(file_path.clone()).expect("Error removing capsule log-file."); // TODO: manage expect()
 
 			info!(
 				"Successfully removed capsule key-share from TEE, Capsule nft_id : {}",
@@ -532,14 +565,13 @@ pub async fn capsule_remove_keyshare(
 				status: ReturnStatus::REMOVESUCCESS,
 				nft_id: request.nft_id,
 				enclave_id: state.identity,
-				description: "Secret ia successfully removed from enclave.".to_string(),
+				description: "Keyshare ia successfully removed from enclave.".to_string(),
 			})
 		},
 
 		Err(err) => {
 			info!("Error removing Capsule key-share from TEE : error in removing file on disk, nft_id : {}, Error : {}", request.nft_id, err);
-			return 
-				Json(RemoveKeyshareResponse {
+			return Json(RemoveKeyshareResponse {
 					status: ReturnStatus::DATABASEFAILURE,
 					nft_id: request.nft_id,
 					enclave_id: state.identity,
