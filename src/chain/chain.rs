@@ -10,9 +10,11 @@ use subxt::{
 	utils::AccountId32,
 	OnlineClient, PolkadotConfig,
 };
-use tracing::info;
+use tracing::{debug, info};
 
-use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
+use self::ternoa::runtime_types::{
+	ternoa_pallets_primitives::nfts::NFTData, ternoa_rent::types::RentContractData,
+};
 
 //const TERNOA_RPC: &'static str = "wss://alphanet.ternoa.com:443";
 //const TERNOA_RPC: &'static str = "wss://dev-1.ternoa.network:443";
@@ -34,6 +36,7 @@ pub enum ReturnStatus {
 // -------------- CHAIN API --------------
 
 pub async fn get_chain_api(url: String) -> DefaultApi {
+	debug!("5-1 get chain API");
 	if url.is_empty() {
 		TERNOA_RPC.to_string()
 	} else {
@@ -45,7 +48,7 @@ pub async fn get_chain_api(url: String) -> DefaultApi {
 	api
 }
 
-// -------------- RPC QUERY --------------
+// -------------- TEST RPC QUERY --------------
 
 #[derive(Serialize)]
 struct JsonRPC {
@@ -84,7 +87,7 @@ pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl Into
 	}
 }
 
-// -------------- TRANSACTION --------------
+// -------------- TEST TRANSACTION --------------
 
 #[derive(Serialize)]
 struct JsonTX {
@@ -134,12 +137,60 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 }
 
 // -------------- GET NFT/CAPSULE DATA --------------
-pub async fn get_onchain_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
+pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
+	debug!("4-1 get chain NFT DATA");
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
 	let result = api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
 
 	result
+}
+
+// -------------- GET DELGATEE --------------
+pub async fn get_onchain_delegatee(nft_id: u32) -> Option<AccountId32> {
+	debug!("4-2 get chain API");
+	let api = get_chain_api(TERNOA_RPC.into()).await;
+	let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
+	let result = api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
+
+	result
+}
+
+/*
+RENT PALLET
+{
+	/// Start block of the contract.
+	pub start_block: Option<BlockNumber>,
+	/// Renter of the NFT.
+	pub renter: AccountId,
+	/// Rentee of the NFT.
+	pub rentee: Option<AccountId>,
+	/// Duration of the renting contract.
+	pub duration: Duration<BlockNumber>,
+	/// Acceptance type of the renting contract.
+	pub acceptance_type: AcceptanceType<AccountList<AccountId, AccountSizeLimit>>,
+	/// Renter can cancel.
+	pub renter_can_revoke: bool,
+	/// Rent fee paid by rentee.
+	pub rent_fee: RentFee<Balance>,
+	/// Optional cancellation fee for renter.
+	pub renter_cancellation_fee: CancellationFee<Balance>,
+	/// Optional cancellation fee for rentee.
+	pub rentee_cancellation_fee: CancellationFee<Balance>,
+}
+*/
+
+pub async fn get_onchain_rent_contract(nft_id: u32) -> Option<AccountId32> {
+	debug!("4-3 get chain API");
+	let api = get_chain_api(TERNOA_RPC.into()).await;
+	let storage_address = ternoa::storage().rent().contracts(nft_id);
+	let rent_contract_data =
+		api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
+
+	match rent_contract_data {
+		Some(data) => data.rentee,
+		_ => None,
+	}
 }
 
 // Concurrent NFT Data
@@ -160,6 +211,7 @@ impl IntoFuture for AddressType {
 */
 
 pub async fn _get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
+	debug!("4-4 get nft data batch");
 	type AddressType = StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
 
 	let api = get_chain_api(TERNOA_RPC.into()).await;
@@ -192,8 +244,8 @@ struct JsonNFTData {
 	offchain_data: String,
 }
 
-pub async fn get_nft_data(PathExtract(nft_id): PathExtract<u32>) -> impl IntoResponse {
-	let data = get_onchain_data(nft_id).await;
+pub async fn get_parse_nft_data(PathExtract(nft_id): PathExtract<u32>) -> impl IntoResponse {
+	let data = get_onchain_nft_data(nft_id).await;
 	match data {
 		Some(nft_data) => {
 			info!("NFT DATA of Num.{} : \n {}", nft_id, nft_data);
@@ -244,6 +296,7 @@ pub async fn nft_keyshare_oracle(
 	keypair: sp_core::sr25519::Pair,
 	nft_id: u32,
 ) -> Result<sp_core::H256, subxt::Error> {
+	debug!("4-5 NFT ORACLE");
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 
 	// Submit Extrinsic
@@ -265,15 +318,16 @@ pub async fn nft_keyshare_oracle(
 
 pub async fn capsule_keyshare_oracle(
 	keypair: sp_core::sr25519::Pair,
-	capsule_id: u32,
+	nft_id: u32,
 ) -> Result<sp_core::H256, subxt::Error> {
+	debug!("4-6 CAPSULE ORACLE");
 	let api = get_chain_api(TERNOA_RPC.into()).await;
 
 	// Submit Extrinsic
 	let signer = PairSigner::new(keypair);
 
 	// Create a transaction to submit:
-	let tx = ternoa::tx().nft().add_capsule_shard(capsule_id);
+	let tx = ternoa::tx().nft().add_capsule_shard(nft_id);
 
 	// submit the transaction with default params:
 	api.tx().sign_and_submit_default(&tx, &signer).await
@@ -339,10 +393,10 @@ mod test {
 		let nft_ids = (200u32..250).collect::<Vec<u32>>();
 
 		// Single (Avg. 48 ms/request)
-		let mut nft_data = vec![get_onchain_data(10).await];
+		let mut nft_data = vec![get_onchain_nft_data(10).await];
 		let start = Instant::now();
 		for id in nft_ids.clone() {
-			nft_data.push(get_onchain_data(id).await);
+			nft_data.push(get_onchain_nft_data(id).await);
 		}
 		let elapsed_time = start.elapsed().as_micros();
 		info!("\nSingle time is {} microseconds", elapsed_time);
