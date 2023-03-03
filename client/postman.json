@@ -12,14 +12,14 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/health",
+					"raw": "https://dev-c1n1.ternoa.network:8111/api/health",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
 						"ternoa",
 						"network"
 					],
-					"port": "8101",
+					"port": "8111",
 					"path": [
 						"api",
 						"health"
@@ -34,19 +34,19 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/secret-nft/is-keyshare-available/444",
+					"raw": "https://dev-c1n1.ternoa.network:8111/api/secret-nft/is-keyshare-available/494",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
 						"ternoa",
 						"network"
 					],
-					"port": "8101",
+					"port": "8111",
 					"path": [
 						"api",
 						"secret-nft",
 						"is-keyshare-available",
-						"444"
+						"494"
 					]
 				}
 			},
@@ -58,19 +58,19 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/secret-nft/get-views-log/444",
+					"raw": "https://dev-c1n1.ternoa.network:8111/api/secret-nft/get-views-log/1476",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
 						"ternoa",
 						"network"
 					],
-					"port": "8101",
+					"port": "8111",
 					"path": [
 						"api",
 						"secret-nft",
 						"get-views-log",
-						"444"
+						"1476"
 					]
 				}
 			},
@@ -83,7 +83,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{  \n    \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",  \n    \"signer_address\": \"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs_214299_1000000\",  \n    \"signersig\": \"0xa6f4b9fcb96291c3b9a628449ace134e161f0aa7f7b6b1c7bfb42a3398919038dfa104362fdda1cb5954838909cd7dff08f8bd2d49b097d11fd3b7d14b6c9682\",  \n    \"secret_data\": \"494_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000\",  \n    \"signature\": \"0xd2ae8f5d20214212a94bb55bfd88d748eaabbbffeec0b372811f78b60279de512c44ca87720703b20de52a50595f4551b8b13e538dffd3ac18968d8412dba98d\"\n}",
+					"raw": "{\n  \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n  \"signer_address\": \"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs_214299_1000000\",\n  \"signersig\": \"0x329fbd9b15d57dede0856987662dca280f6a7829ff9a4606b7acd1a0712f6e03e48aef70c65ce07bf95fc1a260591f0cec7db9bc3c05103c09d7811a3c98b082\",\n  \"data\": \"1337_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000\",\n  \"signature\": \"0xee2129d7d52fb3b7ec0a5fd641bf6a657c75186461ce8982688cbaaf8cf22447d8bfebf276001855b0ee75537237fbc23c12ec3d373298368edbd3a6f77f8a82\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -110,15 +110,12 @@
 		},
 		{
 			"name": "NFT-Retrieve-Keyshare",
-			"protocolProfileBehavior": {
-				"disabledSystemHeaders": {}
-			},
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{  \n    \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",  \n    \"data\": \"494_214299_1000000\",  \n    \"signature\": \"0x22d8812c669c67b98bcba386528fe80e17452d9a1c55871305d61f1c85a1210648860309ce280225dec32eb3b9f82382df30f581328a32f2a7d6f44ae422e48c\"\n}",
+					"raw": "{\n  \"requester_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n  \"requester_type\": \"OWNER\",\n  \"data\": \"1335_214299_1000000\",\n  \"signature\": \"0x8ebd2a889c0e3ca3f00e0211c94531a1c862a1d01c9620dccd97753b584ff55ef372240455d410581e86e4098b90a32f2acbf08e900dce44cd933e006dc08f82\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -140,7 +137,7 @@
 						"retrieve-keyshare"
 					]
 				},
-				"description": "Retrieve Secret Share"
+				"description": "Store Secret"
 			},
 			"response": []
 		},
@@ -151,7 +148,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{  \n    \"owner_address\": \"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs\",  \n    \"nft_id\": 494\n}",
+					"raw": "{\n  \"requester_address\": \"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs\",\n  \"nft_id\": 1336\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -183,7 +180,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule-nft/is-keyshare-available/444",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule-nft/is-keyshare-available/494",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -195,7 +192,7 @@
 						"api",
 						"capsule-nft",
 						"is-keyshare-available",
-						"444"
+						"494"
 					]
 				}
 			},
@@ -207,19 +204,19 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/capsule-nft/get-views-log/324",
+					"raw": "https://dev-c1n1.ternoa.network:8111/api/capsule-nft/get-views-log/1978",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
 						"ternoa",
 						"network"
 					],
-					"port": "8101",
+					"port": "8111",
 					"path": [
 						"api",
 						"capsule-nft",
 						"get-views-log",
-						"324"
+						"1978"
 					]
 				}
 			},
@@ -232,7 +229,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n  \"signer_address\": \"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs_214299_1000000\",\n  \"signersig\": \"0x0eca1ac1c4639b608add0c309153c9881bd2f76cfafc12864fd3dcfe1c131c7499c0d28af4bce73adb77eeb3510d7c9bebe3216f04c915b6fda4a4f74b6cf589\",\n  \"secret_data\": \"494_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000\",\n  \"signature\": \"0x1e124c01e9448b279bcfc706c6b39d674e47bab0da68778dac1537488e8d401a8d6815aaca9771ad455ea8b876e21092272f8483d29239a36f65d4c9f14a5787\"\n}",
+					"raw": "{\n  \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n  \"signer_address\": \"5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs_214299_1000000\",\n  \"signersig\": \"0x329fbd9b15d57dede0856987662dca280f6a7829ff9a4606b7acd1a0712f6e03e48aef70c65ce07bf95fc1a260591f0cec7db9bc3c05103c09d7811a3c98b082\",\n  \"data\": \"1337_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000\",\n  \"signature\": \"0xee2129d7d52fb3b7ec0a5fd641bf6a657c75186461ce8982688cbaaf8cf22447d8bfebf276001855b0ee75537237fbc23c12ec3d373298368edbd3a6f77f8a82\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -265,7 +262,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{  \n    \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",  \n    \"data\": \"494_214299_1000000\",  \n    \"signature\": \"0x22d8812c669c67b98bcba386528fe80e17452d9a1c55871305d61f1c85a1210648860309ce280225dec32eb3b9f82382df30f581328a32f2a7d6f44ae422e48c\"\n}",
+					"raw": "{\n  \"requester_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n  \"requester_type\": \"OWNER\",\n  \"data\": \"1336_214299_1000000\",\n  \"signature\": \"0x1a56d99d4596a4fa6cd6d5ad308be28d965b2ccc2788eee9bb26fc6236630d5f67f739808e678cd956b70a47e59f91abed3b5e983619224d6de7ef79742c5689\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -325,13 +322,13 @@
 			"response": []
 		},
 		{
-			"name": "Admin-Push-Keyshares",
+			"name": "Admin-Push-Bulk",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"data\": {\n        \"nfts\": {\n            \"247\": \"SecretShareNum1ForNFTID247\",\n            \"258\": \"SecretShareNum1ForNFTID258\",\n            \"274\": \"SecretShareNum1ForNFTID274\"\n        },\n        \"signer_address\": \"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\"\n    },\n    \"signature\":  \"6e45e4bf575d8490f94c3d4b7153032735e377354bb7937a8fc538474c2357076f7722005c601c000b109fb4c6a5b41caedf43775267026041dd6d736290db84\"\n}",
+					"raw": "{\n\t\"signer_address\": \"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\",\n    \n    \"data\": {},\n    \n\t\"signature\":  \"6e45e4bf575d8490f94c3d4b7153032735e377354bb7937a8fc538474c2357076f7722005c601c000b109fb4c6a5b41caedf43775267026041dd6d736290db84\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -339,7 +336,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/push-keyshares",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/push-bulk",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -350,20 +347,20 @@
 					"path": [
 						"api",
 						"backup",
-						"push-keyshares"
+						"push-bulk"
 					]
 				}
 			},
 			"response": []
 		},
 		{
-			"name": "Admin-Fetch-Keyshares",
+			"name": "Admin-Fetch-Bulk",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"data\": {\n        \"nfts\": [247,258,274],            \n        \"signer_address\": \"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\"\n    },\n    \"signature\": \"ae2490d6b3bef0811aaab582c7f87026948af3d1b94e839bf37986b78171846229a04ed28de862bea4ebc088117e7a388bae67fc7f738b88a7e09166fb660d88\"\n}\n",
+					"raw": "{\n  \"admin_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n  \"auth_token\": {\n    \"block_number\": 1000,\n    \"block_validation\": 10000000\n  },\n  \"signature\": \"0x421293360377247a82be0dc2bf90aded67298ca681649a13a01cfdfa8d6f6f476298a45afcabef573abe1f2b81b39649b20458cd2f7011a4b416c0cc1c804481\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -371,7 +368,7 @@
 					}
 				},
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/fetch-keyshares",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/fetch-bulk",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
@@ -382,7 +379,7 @@
 					"path": [
 						"api",
 						"backup",
-						"fetch-keyshares"
+						"fetch-bulk"
 					]
 				}
 			},

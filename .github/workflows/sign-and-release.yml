@@ -39,7 +39,7 @@ jobs:
       env:
        PRIVATE_KEY: ${{secrets.COSIGN_KEY}}
        PASSWORD: ${{secrets.COSIGN_PASSWORD}}
-      run: COSIGN_PASSWORD="$PASSWORD" cosign sign-blob --key env://PRIVATE_KEY target/release/sgx_server --output-file target/release/sgx_server.sig
+      run: echo "y" | COSIGN_PASSWORD="$PASSWORD" cosign sign-blob --key env://PRIVATE_KEY target/release/sgx_server --output-file target/release/sgx_server.sig
 
     - name: Upload binary to release
       if: github.event_name != 'pull_request'
