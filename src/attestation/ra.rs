@@ -23,7 +23,7 @@ pub fn _generate_quote() -> Vec<u8> {
 	info!("attestation type is : {}", attest_type);
 
 	let write_zero = [0u8; 64];
-	f1.write(&write_zero)
+	f1.write_all(&write_zero)
 		.expect("Error writing to /dev/attestation/user_report_data"); // TODO: manage expect()
 
 	info!("Reading The Quote ...");
@@ -36,5 +36,5 @@ pub fn _generate_quote() -> Vec<u8> {
 	let mut f4 = File::create("/quote/enclave.quote").unwrap(); // TODO: manage unwrap()
 	f4.write_all(&contents).unwrap(); // TODO: manage unwrap()
 
-	return contents
+	contents
 }
