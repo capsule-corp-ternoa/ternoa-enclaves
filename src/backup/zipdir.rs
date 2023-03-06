@@ -10,10 +10,10 @@ use walkdir::{DirEntry, WalkDir};
 
 const METHOD_DEFLATED: Option<zip::CompressionMethod> = Some(zip::CompressionMethod::Deflated);
 
-
 pub fn add_dir_zip(src_dir: &str, dst_file: &str) -> i32 {
 	match doit(src_dir, dst_file, METHOD_DEFLATED.unwrap()) {
-		Ok(_) => tracing::info!("bulk backup compression done: {} written to {}", src_dir, dst_file),
+		Ok(_) =>
+			tracing::info!("bulk backup compression done: {} written to {}", src_dir, dst_file),
 		Err(e) => tracing::info!("Error bulk backup : {:?}", e),
 	}
 

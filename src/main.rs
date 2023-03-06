@@ -5,9 +5,9 @@ use tracing_subscriber::FmtSubscriber;
 mod attestation;
 mod backup;
 mod chain;
-mod pgp;
 mod servers;
-use crate::servers::http_server;
+mod sign;
+use servers::http_server;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -40,15 +40,13 @@ async fn main() {
 	info!("1-1 Main function started self-check.");
 
 	match http_server::self_checksig() {
-		Ok(str) => {
+		Ok(str) =>
 			if str == "Successful" {
 				info!("Binary verification successful.");
-			}else
-			{
-				tracing::error!("ERROR: Binary verfification Failed :  {}", str);	
+			} else {
+				tracing::error!("ERROR: Binary verfification Failed :  {}", str);
 				return
-			}
-		},
+			},
 		Err(str) => {
 			tracing::error!("ERROR: Binary verfification Failed :  {}", str);
 			return

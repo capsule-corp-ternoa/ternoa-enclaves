@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
 use openpgp::{
 	cert::prelude::*,
 	crypto::{Password, SessionKey},
@@ -15,7 +19,7 @@ use sequoia_openpgp as openpgp;
 
 use std::{io::Write, sync::Arc};
 
-pub fn _generate_key() {
+pub fn pgp_generate_key() {
 	let password = "123456";
 
 	let _p = &StandardPolicy::new();
@@ -41,13 +45,13 @@ pub fn _generate_key() {
 	let _private_key = String::from_utf8(ecc.as_tsk().armored().to_vec().unwrap()).unwrap();
 }
 
-pub fn _get_public_key(key_stream: std::fs::File) -> Vec<u8> {
+pub fn pgp_get_public_key(key_stream: std::fs::File) -> Vec<u8> {
 	let cert = Cert::from_reader(key_stream).unwrap();
 	let buf = cert.armored().export_to_vec().unwrap();
 	buf
 }
 
-pub fn _cert_from_privatekey(key_stream: std::fs::File) -> Cert {
+pub fn pgp_cert_from_privatekey(key_stream: std::fs::File) -> Cert {
 	let password = "123456";
 
 	//let cert = Cert::from_str(String::from_utf8(key_contents).unwrap().as_str()).unwrap();
@@ -70,7 +74,7 @@ pub fn _cert_from_privatekey(key_stream: std::fs::File) -> Cert {
 /* ******** ASYNCHRONOUS ENCRYPTION/DECRYPTION ******** */
 
 /// Generates an encryption-capable key.
-fn _generate() -> Cert {
+fn pgp_generate() -> Cert {
 	let (cert, _revocation) = CertBuilder::new()
 		.add_userid("alice@ternoa.com")
 		.add_transport_encryption_subkey()
@@ -84,7 +88,11 @@ fn _generate() -> Cert {
 }
 
 /// Encrypts the given message.
-pub fn _encrypt(sink: &mut (dyn Write + Send + Sync), plaintext: &str, recipient: &openpgp::Cert) {
+pub fn pgp_encrypt(
+	sink: &mut (dyn Write + Send + Sync),
+	plaintext: &str,
+	recipient: &openpgp::Cert,
+) {
 	let p = &StandardPolicy::new();
 	let recipients = recipient
 		.keys()
@@ -112,7 +120,7 @@ pub fn _encrypt(sink: &mut (dyn Write + Send + Sync), plaintext: &str, recipient
 }
 
 /// Decrypts the given message.
-pub fn _decrypt(sink: &mut dyn Write, ciphertext: &[u8], recipient: &openpgp::Cert) {
+pub fn pgp_decrypt(sink: &mut dyn Write, ciphertext: &[u8], recipient: &openpgp::Cert) {
 	// Make a helper that that feeds the recipient's secret key to the
 	// decryptor.
 	let p = &StandardPolicy::new();
@@ -223,7 +231,7 @@ impl<'a> VerificationHelper for SHelper<'a> {
 }
 
 /// Signs the given message.
-fn _sign(sink: &mut (dyn Write + Send + Sync), plaintext: &str, tsk: &openpgp::Cert) {
+fn pgp_sign(sink: &mut (dyn Write + Send + Sync), plaintext: &str, tsk: &openpgp::Cert) {
 	let p = &StandardPolicy::new();
 	// Get the keypair to do the signing from the Cert.
 	let keypair = tsk
@@ -259,7 +267,7 @@ fn _sign(sink: &mut (dyn Write + Send + Sync), plaintext: &str, tsk: &openpgp::C
 }
 
 /// Verifies the given message.
-fn _verify(sink: &mut dyn Write, signed_message: &[u8], sender: &openpgp::Cert) {
+fn pgp_verify(sink: &mut dyn Write, signed_message: &[u8], sender: &openpgp::Cert) {
 	let p = &StandardPolicy::new();
 	// Make a helper that that feeds the sender's public key to the
 	// verifier.
@@ -283,7 +291,7 @@ mod tests {
 
 	#[test]
 	fn test_generate_keys() {
-		_generate_key();
+		pgp_generate_key();
 	}
 	/* TODO : define test files.
 	#[test]
@@ -306,15 +314,15 @@ mod tests {
 		let _p = &StandardPolicy::new();
 
 		// Generate a key.
-		let key = _generate();
+		let key = pgp_generate();
 
 		// Encrypt the message.
 		let mut ciphertext = Vec::new();
-		_encrypt(&mut ciphertext, MESSAGE, &key);
+		pgp_encrypt(&mut ciphertext, MESSAGE, &key);
 
 		// Decrypt the message.
 		let mut plaintext = Vec::new();
-		_decrypt(&mut plaintext, &ciphertext, &key);
+		pgp_decrypt(&mut plaintext, &ciphertext, &key);
 
 		assert_eq!(MESSAGE.as_bytes(), &plaintext[..]);
 	}
@@ -325,17 +333,17 @@ mod tests {
 		println!("Message = {MESSAGE}");
 
 		// Generate a key.
-		let key = _generate();
+		let key = pgp_generate();
 		println!("Key = {key}");
 
 		// Sign the message.
 		let mut signed_message = Vec::new();
-		_sign(&mut signed_message, MESSAGE, &key);
+		pgp_sign(&mut signed_message, MESSAGE, &key);
 		println!("Signed Message = {signed_message:-?}");
 
 		// Verify the message.
 		let mut plaintext = Vec::new();
-		_verify(&mut plaintext, &signed_message, &key);
+		pgp_verify(&mut plaintext, &signed_message, &key);
 		println!("Verified Message = {}", String::from_utf8(plaintext.clone()).unwrap());
 
 		assert_eq!(MESSAGE.as_bytes(), &plaintext[..]);

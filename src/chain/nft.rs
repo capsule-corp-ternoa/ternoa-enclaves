@@ -3,8 +3,7 @@ use crate::servers::http_server::StateConfig;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 
 use std::{
-	fs::OpenOptions,
-	fs::File,
+	fs::{File, OpenOptions},
 	io::{Read, Write},
 };
 use tracing::{debug, info, warn};
@@ -12,14 +11,12 @@ use tracing::{debug, info, warn};
 use axum::extract::Path as PathExtract;
 
 use crate::chain::{
-	chain::{get_current_block_number, nft_keyshare_oracle},
+	core::{get_current_block_number, get_onchain_nft_data, nft_keyshare_oracle},
 	log::*,
 	verify::*,
 };
 use serde::Serialize;
 use serde_json::json;
-
-use super::chain::get_onchain_nft_data;
 
 /* **********************
    KEYSHARE AVAILABLE API

@@ -1,8 +1,11 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(clippy::upper_case_acronyms)]
+
 use hex::FromHex;
 use std::str::FromStr;
 
-#[allow(unused_imports)]
 use sp_core::{crypto::Ss58Codec, sr25519, ByteArray, Pair};
 use subxt::utils::AccountId32;
 
@@ -12,7 +15,7 @@ use axum::Json;
 use serde_json::{json, Value};
 use tracing::info;
 
-use crate::chain::chain::{
+use crate::chain::core::{
 	get_current_block_number, get_onchain_delegatee, get_onchain_nft_data,
 	get_onchain_rent_contract,
 };
@@ -503,7 +506,7 @@ impl AuthenticationToken {
 		self.block_number.to_string() + "_" + &self.block_validation.to_string()
 	}
 
-	pub async fn is_valid(self) -> bool {
+	pub async fn is_valid(&self) -> bool {
 		let last_block_number = get_current_block_number().await;
 		(last_block_number > self.block_number - 3) // for finalization delay
 			&& (last_block_number < self.block_number + self.block_validation + 3)
@@ -930,9 +933,9 @@ mod test {
 
 	use super::*;
 	/* ----------------------
-		   HELPER FUNCTIONS
-	   ---------------------- */
-	
+		HELPER FUNCTIONS
+	---------------------- */
+
 	async fn generate_store_request(nftid: u32) -> StoreKeysharePacket {
 		let current_block_number = get_current_block_number().await;
 
@@ -949,9 +952,13 @@ mod test {
 		.unwrap()
 		.0;
 
-		let signer_address = format!("{}_{}_10",signer.public().to_ss58check(),current_block_number);
+		let signer_address =
+			format!("{}_{}_10", signer.public().to_ss58check(), current_block_number);
 		let signersig = owner.sign(signer_address.as_bytes());
-		let data = format!("{}_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10",nftid,current_block_number);
+		let data = format!(
+			"{}_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10",
+			nftid, current_block_number
+		);
 		let signature = signer.sign(data.as_bytes());
 
 		let packet = StoreKeysharePacket {
@@ -963,8 +970,8 @@ mod test {
 		};
 
 		println!("StoreKeysharePacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
-		
-		packet 
+
+		packet
 	}
 
 	async fn generate_retrieve_request(nftid: u32) -> RetrieveKeysharePacket {
@@ -976,8 +983,8 @@ mod test {
 		)
 		.unwrap()
 		.0;
-		
-		let data = format!("{}_{}_10",nftid,current_block_number);
+
+		let data = format!("{}_{}_10", nftid, current_block_number);
 		let signature = owner.sign(data.as_bytes());
 		let packet = RetrieveKeysharePacket {
 			requester_address: owner.public(),
@@ -991,8 +998,7 @@ mod test {
 		packet
 	}
 
-	async fn generate_remove_request(nftid: u32) -> RemoveKeysharePacket{
-
+	async fn generate_remove_request(nftid: u32) -> RemoveKeysharePacket {
 		let signer = sr25519::Pair::from_phrase(
 			"steel announce garden guilt direct give morning gadget milk census poem faith",
 			None,
@@ -1008,7 +1014,7 @@ mod test {
 		};
 
 		println!("RemoveKeysharePacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
-		
+
 		packet
 	}
 
@@ -1116,13 +1122,18 @@ mod test {
 
 		// changed data error
 		packet.data = format!(
-			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-O)_{}_10",current_block_number);
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-O)_{}_10",
+			current_block_number
+		);
 		assert!(!packet.verify_data().await.unwrap());
 
 		// changed signer error
-		packet.signer_address =format!(
-			"5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET_{}_10",current_block_number);
-		packet.data = format!("324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10",current_block_number);
+		packet.signer_address =
+			format!("5ChoJxKns4yyHeZg38U2hc8WYQ691oHzPJZtnayZXFyXvXET_{}_10", current_block_number);
+		packet.data = format!(
+			"324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10",
+			current_block_number
+		);
 		assert!(!packet.verify_data().await.unwrap());
 
 		// changed signature error
@@ -1139,9 +1150,16 @@ mod test {
 
 		let owner = sr25519::Pair::generate().0;
 		let signer = sr25519::Pair::generate().0;
-		let signer_address =format!("<Bytes>{}_{}_10</Bytes>",&signer.public().to_ss58check(),current_block_number);
+		let signer_address = format!(
+			"<Bytes>{}_{}_10</Bytes>",
+			&signer.public().to_ss58check(),
+			current_block_number
+		);
 		let signersig = owner.sign(signer_address.as_bytes());
-		let data = format!("<Bytes>324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10</Bytes>",current_block_number);
+		let data = format!(
+			"<Bytes>324_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10</Bytes>",
+			current_block_number
+		);
 		let signature = signer.sign(data.as_bytes());
 
 		let packet = StoreKeysharePacket {
@@ -1155,7 +1173,10 @@ mod test {
 		let correct_data = StoreKeyshareData {
 			nft_id: 324,
 			keyshare: "thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)".as_bytes().to_vec(),
-			auth_token: AuthenticationToken { block_number: current_block_number, block_validation: 10 },
+			auth_token: AuthenticationToken {
+				block_number: current_block_number,
+				block_validation: 10,
+			},
 		};
 
 		// correct
@@ -1169,9 +1190,13 @@ mod test {
 		let owner = sr25519::Pair::generate().0;
 		let signer = sr25519::Pair::generate().0;
 
-		let signer_address = format!("{}_{}_10",signer.public().to_ss58check(),current_block_number);
+		let signer_address =
+			format!("{}_{}_10", signer.public().to_ss58check(), current_block_number);
 		let signersig = owner.sign(signer_address.as_bytes());
-		let data = format!("494_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10",current_block_number);
+		let data = format!(
+			"494_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10",
+			current_block_number
+		);
 		let signature = signer.sign(data.as_bytes());
 
 		let mut packet = StoreKeysharePacket {
@@ -1185,7 +1210,10 @@ mod test {
 		let correct_data = StoreKeyshareData {
 			nft_id: 494,
 			keyshare: "thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)".as_bytes().to_vec(),
-			auth_token: AuthenticationToken { block_number: current_block_number, block_validation: 10 },
+			auth_token: AuthenticationToken {
+				block_number: current_block_number,
+				block_validation: 10,
+			},
 		};
 
 		// correct
@@ -1202,14 +1230,19 @@ mod test {
 
 		// changed signer error
 		packet.owner_address = owner.public();
-		packet.signer_address =format!("{}_{}_10",sr25519::Pair::generate().0.public().to_ss58check(),current_block_number);
+		packet.signer_address = format!(
+			"{}_{}_10",
+			sr25519::Pair::generate().0.public().to_ss58check(),
+			current_block_number
+		);
 		assert_eq!(
 			packet.verify_free_store_request().await.unwrap_err(),
 			VerificationError::SIGNERVERIFICATIONFAILED
 		);
 
 		// changed signer signature error
-		packet.signer_address = format!("{}_{}_10",signer.public().to_ss58check(),current_block_number);
+		packet.signer_address =
+			format!("{}_{}_10", signer.public().to_ss58check(), current_block_number);
 		packet.signersig = "0xa4f331ec6c6197a95122f171fbbb561f528085b2ca5176d676596eea03669718a7047cd29db3da4f5c48d3eb9df5648c8b90851fe9781dfaa11aef0eb1e6b88a".to_string();
 		assert_eq!(
 			packet.verify_free_store_request().await.unwrap_err(),
@@ -1217,7 +1250,8 @@ mod test {
 		);
 
 		// expired signer error
-		let expired_signer_address = format!("{}_{}_10",signer.public().to_ss58check(),current_block_number-13);
+		let expired_signer_address =
+			format!("{}_{}_10", signer.public().to_ss58check(), current_block_number - 13);
 		let expired_signersig = owner.sign(signer_address.as_bytes());
 
 		packet.signer_address = expired_signer_address;
@@ -1228,5 +1262,4 @@ mod test {
 			VerificationError::EXPIREDSIGNER
 		);
 	}
-
 }

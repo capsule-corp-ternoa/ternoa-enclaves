@@ -51,7 +51,7 @@ while :; do
 done
 
 find . -name *~ | xargs rm
-rm $BASEDIR/credentials/quote/*
+rm $GRAMINEPATH/quote/*
 rm $GRAMINEPATH/bin/*
 rm $SEALPATH/*
 

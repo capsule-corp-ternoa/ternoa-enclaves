@@ -1,3 +1,8 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(clippy::upper_case_acronyms)]
+
 use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
 use serde::Serialize;
@@ -14,7 +19,7 @@ use tracing::{debug, info};
 
 use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
 
-const TERNOA_RPC: &'static str = "wss://alphanet.ternoa.com:443";
+const TERNOA_RPC: &str = "wss://alphanet.ternoa.com:443";
 //const TERNOA_RPC: &'static str = "wss://dev-1.ternoa.network:443";
 //const TERNOA_RPC: &'static str = "wss://dev-0.ternoa.network:443";
 
@@ -205,7 +210,7 @@ impl IntoFuture for AddressType {
 }
 */
 
-pub async fn _get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
+pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
 	debug!("4-4 get nft data batch");
 	type AddressType = StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
 
@@ -215,9 +220,9 @@ pub async fn _get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<Accoun
 		nft_ids.iter().map(|id| ternoa::storage().nft().nfts(id)).collect();
 
 	let mut fetches = Vec::new();
-	for i in 0..nft_ids.len() {
+	for nft_addr in nft_address.iter().take(nft_ids.len()) {
 		// Critical line with complex type
-		let nft_data_future = api.storage().at(None).await.unwrap().fetch(&nft_address[i]);
+		let nft_data_future = api.storage().at(None).await.unwrap().fetch(nft_addr);
 		fetches.push(nft_data_future);
 	}
 
@@ -376,7 +381,7 @@ mod test {
 
 		// Concurrent (Avg. 0.3 ms/request)
 		let start = Instant::now();
-		let nft_data_vec = _get_nft_data_batch(nft_ids.clone()).await;
+		let nft_data_vec = get_nft_data_batch(nft_ids.clone()).await;
 		let elapsed_time = start.elapsed().as_micros();
 		info!("\nConcurrent time is {} microseconds", elapsed_time);
 		info!("Concurrent NFT Data : {:#?}", nft_data_vec[9].as_ref().unwrap().owner);
