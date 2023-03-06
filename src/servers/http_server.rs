@@ -62,10 +62,10 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 
 	debug!("2-1 Generate/Import Encalve Keypair");
 
-	let enclave_keypair = if std::path::Path::new(&encalve_account_file.clone()).exists() {
+	let enclave_keypair = if std::path::Path::new(&(*encalve_account_file)).exists() {
 		info!("Enclave Account Exists, Importing it! :, path: {}", encalve_account_file);
 
-		let mut ekfile = File::open(encalve_account_file.clone()).unwrap();
+		let mut ekfile = File::open(&(*encalve_account_file)).unwrap();
 		let mut phrase = String::new();
 
 		match ekfile.read_to_string(&mut phrase) {
