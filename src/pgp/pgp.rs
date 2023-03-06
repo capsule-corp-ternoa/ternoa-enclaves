@@ -26,7 +26,7 @@ pub fn _generate_key() {
 			std::time::Duration::new(365 * 24 * 60 * 60, 0),
 			None,
 		)
-		.set_password(Some(password.clone().into()))
+		.set_password(Some((*password).into()))
 		.generate()
 		.unwrap();
 
