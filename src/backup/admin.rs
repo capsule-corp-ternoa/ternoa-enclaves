@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
 use axum::{
 	body::StreamBody,
 	extract::{Multipart, State},
@@ -15,11 +18,12 @@ use std::io::{Read, Write};
 use tracing::{debug, info};
 
 use std::fs::{remove_file, File};
+use tracing::{debug, error, info};
 
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::PublicError, sr25519::Signature};
 
-use crate::{chain::chain::get_current_block_number, servers::http_server::StateConfig};
+use crate::{chain::core::get_current_block_number, servers::http_server::StateConfig};
 
 use super::zipdir::{add_dir_zip, zip_extract};
 
@@ -334,20 +338,15 @@ pub async fn backup_push_bulk(
 	debug!("3-16 API : backup push bulk");
 	info!("{:?}", store_request);
 
-	while let Some(mut field) = store_request.next_field().await.unwrap() {
-        let name = field.name().unwrap().to_string();
-        let data = field.bytes().await.unwrap();
+	while let Some(field) = store_request.next_field().await.unwrap() {
+		let name = field.name().unwrap().to_string();
+		let data = field.bytes().await.unwrap();
 
-        println!("Length of `{}` is {:?}", name, data);
-    }
-/*
-	if !verify_account_id(&store_request.admin_address.clone()) {
-		info!("Error restore backup keyshares : Invalid admin : {}", store_request.admin_address);
-
-		return Json(json! ({
-			"status": "Error restore backup keyshares : Invalid admin",
-		}))
+		println!("Length of `{}` is {:?}", name, data);
 	}
+	/*
+		if !verify_account_id(&store_request.admin_address.clone()) {
+			info!("Error restore backup keyshares : Invalid admin : {}", store_request.admin_address);
 
 	let data = store_request.data.clone();
 
@@ -375,19 +374,47 @@ pub async fn backup_push_bulk(
 			Json(json! ({
 				"status": "Successfully request",
 			}))
+		}
+
+		let data = store_request.data.clone();
+
+		let data_bytes = match serde_json::to_vec(&data) {
+			Ok(bytes) => bytes,
+			Err(e) => {
+				debug!("Failed to serialize data: {:?}", e);
+				Vec::new()
+			},
+		};
+
+		if verify_signature(&store_request.admin_address, store_request.signature.clone(), &data_bytes)
+		{
+			if store_request.data.auth_token.is_valid().await {
+				let backup_file = state.seal_path.to_owned() + "backup.zip";
+
+				let mut zipfile = std::fs::File::open(backup_file.clone()).unwrap();
+				zipfile.write_all(&data_bytes).unwrap();
+
+				zip_extract(&backup_file, &state.seal_path);
+
+				remove_file(backup_file).unwrap();
+
+				// TODO : manage big packet transfer
+				Json(json! ({
+					"status": "Successfull request",
+				}))
+			} else {
+				Json(json! ({
+					"status": "Authentication Token Expired",
+					"data": [],
+				}))
+			}
 		} else {
 			Json(json! ({
-				"status": "Authentication Token Expired",
+				"status": "Invalid signature",
 				"data": [],
 			}))
 		}
-	} else {
-		Json(json! ({
-			"status": "Invalid signature",
-			"data": [],
-		}))
-	}
-*/
+	*/
 }
 
 /* **********************
