@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
 use axum::{
 	error_handling::HandleErrorLayer,
 	extract::State,
@@ -35,7 +39,7 @@ use crate::chain::{
 
 use crate::{
 	backup::admin::{backup_fetch_bulk, backup_push_bulk},
-	pgp::cosign,
+	sign::cosign,
 };
 
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
@@ -90,7 +94,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
 
 		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
-		let mut ekfile = match File::create(&enclave_account_file) {
+		let mut ekfile = match File::create(enclave_account_file) {
 			Ok(file_handle) => {
 				debug!("2-1-3 created encalve keypair file successfully");
 				file_handle
@@ -279,7 +283,7 @@ pub fn self_checksig() -> Result<String, String> {
 		},
 		Err(e) => {
 			debug!("3-4-2 healthcheck : error reading binary file.");
-			return Err(format!("Error reading binary file, {:?}",e))
+			return Err(format!("Error reading binary file, {:?}", e))
 		},
 	};
 
@@ -294,7 +298,7 @@ pub fn self_checksig() -> Result<String, String> {
 		},
 		Err(e) => {
 			debug!("3-4-4 healthcheck : fail reading sig file.");
-			return Err(format!("Error reading signature file, {}",e))
+			return Err(format!("Error reading signature file, {}", e))
 		},
 	};
 

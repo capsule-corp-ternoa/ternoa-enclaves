@@ -1,6 +1,6 @@
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )/
 API_KEY=8c24d40395704d3b825a4bbd695bab03
-QUOTEPATH=$BASEDIR/credentials/quote/
+QUOTEPATH=$BASEDIR/gramine/quote/
 
 gramine-sgx-ias-request report \
 			--api-key $API_KEY \
