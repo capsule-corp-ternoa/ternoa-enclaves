@@ -55,9 +55,9 @@ tokio-test = "0.4.2"
 parity-scale-codec = { version = "3.2.1", default-features = false, features = ["derive", "full", "bit-vec"] }
 
 subxt = { git = "https://github.com/paritytech/subxt.git" , features = ["substrate-compat"]}
-sp-keyring = "18.0.0"
-sp-runtime = { version = "18.0.0" }
-sp-core = { version = "16.0.0", default-features = false, features = ["full_crypto"] }
+sp-keyring = "20.0.0"
+sp-runtime = { version = "20.0.0" }
+sp-core = { version = "18.0.0", default-features = false, features = ["full_crypto"] }
 
 # Crypto / Keys
 schnorrkel = "0.10.2"

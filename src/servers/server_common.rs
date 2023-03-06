@@ -1,11 +1,12 @@
 use rustls::ServerConfig;
 use rustls_acme::{caches::DirCache, AcmeConfig};
-use tokio::time::sleep;
 use std::{
 	net::{Ipv4Addr, SocketAddr},
 	path::PathBuf,
-	sync::Arc, time::Duration,
+	sync::Arc,
+	time::Duration,
 };
+use tokio::time::sleep;
 
 use tokio_stream::StreamExt;
 
