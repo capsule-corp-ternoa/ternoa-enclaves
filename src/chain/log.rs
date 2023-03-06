@@ -1,3 +1,8 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(clippy::upper_case_acronyms)]
+
 use std::{
 	collections::BTreeMap,
 	fs::OpenOptions,
@@ -168,7 +173,7 @@ mod test {
         }"#;
 
 		let mut log_file: LogFile =
-			serde_json::from_str(&store_body).expect("error deserailizing json body");
+			serde_json::from_str(store_body).expect("error deserailizing json body");
 
 		let nft_second_account_role = if let Some(event) = log_file.secret_nft.get(&1) {
 			event.account.role
@@ -189,7 +194,7 @@ mod test {
         }"#;
 
 		let new_log: LogStruct =
-			serde_json::from_str(&new_log_body).expect("error deserailizing json body");
+			serde_json::from_str(new_log_body).expect("error deserailizing json body");
 		log_file.insert_new_capsule_log(new_log);
 
 		let correct_log = r#"
@@ -247,7 +252,7 @@ mod test {
 
 		assert_eq!(
 			log_file,
-			serde_json::from_str(&correct_log).expect("error deserailizing json body")
+			serde_json::from_str(correct_log).expect("error deserailizing json body")
 		);
 	}
 

@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
 use axum::{
 	error_handling::HandleErrorLayer,
 	extract::State,
@@ -32,7 +36,7 @@ use crate::chain::{
 
 use crate::{
 	backup::admin::{backup_fetch_bulk, backup_push_bulk},
-	pgp::cosign,
+	sign::cosign,
 };
 
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
