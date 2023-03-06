@@ -4,8 +4,7 @@ use axum::{extract::State, response::IntoResponse, Json};
 use serde_json::json;
 
 use std::{
-	fs::OpenOptions,
-	fs::File,
+	fs::{File, OpenOptions},
 	io::{Read, Write},
 };
 
@@ -14,13 +13,11 @@ use tracing::{debug, info, warn};
 use axum::extract::Path as PathExtract;
 
 use crate::chain::{
-	chain::{capsule_keyshare_oracle, get_current_block_number},
+	core::{capsule_keyshare_oracle, get_current_block_number, get_onchain_nft_data},
 	log::*,
 	verify::*,
 };
 use serde::Serialize;
-
-use super::chain::get_onchain_nft_data;
 
 /* **********************
    KEY-SHARE AVAILABLE API
