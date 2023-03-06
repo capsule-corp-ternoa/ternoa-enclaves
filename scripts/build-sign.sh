@@ -48,6 +48,6 @@ cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} s
 mv /tmp/checksum $GRAMINE_PATH/bin/checksum
 
 echo "signing the binary ..."
-cosign sign-blob --key $BASEDIR/credentials/keys/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
+COSIGN_PASSWORD="Test123456" cosign sign-blob --key $BASEDIR/credentials/keys/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
 tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
 mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
