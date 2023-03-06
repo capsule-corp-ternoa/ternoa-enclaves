@@ -70,7 +70,7 @@ fn doit(
 	}
 
 	let path = Path::new(dst_file);
-	let file = File::create(&path).unwrap();
+	let file = File::create(path).unwrap();
 
 	let walkdir = WalkDir::new(src_dir);
 	let it = walkdir.into_iter();
@@ -101,7 +101,7 @@ pub fn zip_extract(filename: &str, outdir: &str) {
 
 		// DIRECTORY
 		if (*file.name()).ends_with('/') {
-			fs::create_dir_all(&fullpath).unwrap();
+			fs::create_dir_all(fullpath).unwrap();
 		} else {
 			// FILE
 			if let Some(p) = fullpath.parent() {
@@ -109,7 +109,7 @@ pub fn zip_extract(filename: &str, outdir: &str) {
 					fs::create_dir_all(p).unwrap();
 				}
 			}
-			let mut outfile = fs::File::create(&fullpath).unwrap();
+			let mut outfile = fs::File::create(fullpath).unwrap();
 			io::copy(&mut file, &mut outfile).unwrap();
 		}
 
@@ -119,7 +119,7 @@ pub fn zip_extract(filename: &str, outdir: &str) {
 			use std::os::unix::fs::PermissionsExt;
 
 			if let Some(mode) = file.unix_mode() {
-				fs::set_permissions(&fullpath, fs::Permissions::from_mode(mode)).unwrap();
+				fs::set_permissions(fullpath, fs::Permissions::from_mode(mode)).unwrap();
 			}
 		}
 	}
@@ -135,7 +135,7 @@ mod test {
 	---------------------- */
 	#[tokio::test]
 	async fn zip_test() {
-		add_dir_zip("/tmp", &"/tmp/backup.zip");
+		add_dir_zip("/tmp", "/tmp/backup.zip");
 
 		zip_extract("/tmp/backup.zip", "/tmp/test/");
 	}

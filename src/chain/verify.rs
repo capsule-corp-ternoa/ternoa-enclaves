@@ -195,7 +195,7 @@ impl VerificationError {
 			VerificationError::INVALIDSIGNERSIG(e) => {
 				let status = ReturnStatus::INVALIDSIGNERSIGNATURE;
 				let description =
-					format!("TEE Key-share {:?}: Invalid request signature format, {:?} ", call, e);
+					format!("TEE Key-share {call:?}: Invalid request signature format, {e:?} ");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -209,10 +209,8 @@ impl VerificationError {
 			// DATA SIGNATURE FORMAT
 			VerificationError::INVALIDDATASIG(e) => {
 				let status = ReturnStatus::INVALIDDATASIGNATURE;
-				let description = format!(
-					"TEE Key-share {:?}: Invalid request data signature format, {:?}",
-					call, e
-				);
+				let description =
+					format!("TEE Key-share {call:?}: Invalid request data signature format, {e:?}");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -226,7 +224,7 @@ impl VerificationError {
 			// OWNER ADDRESS FORMAT
 			VerificationError::INVALIDOWNERADDRESS => {
 				let status = ReturnStatus::INVALIDOWNERADDRESS;
-				let description = format!("TEE Key-share {:?}: Invalid owner address format", call);
+				let description = format!("TEE Key-share {call:?}: Invalid owner address format");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -240,8 +238,7 @@ impl VerificationError {
 			// SIGNER ADDRESS FORMAT
 			VerificationError::INVALIDSIGNERADDRESS => {
 				let status = ReturnStatus::INVALIDSIGNERADDRESS;
-				let description =
-					format!("TEE Key-share {:?}: Invalid signer address format", call);
+				let description = format!("TEE Key-share {call:?}: Invalid signer address format");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -255,7 +252,7 @@ impl VerificationError {
 			// VERIFY SIGNER TO BE SIGNED BY THE OWNER
 			VerificationError::SIGNERVERIFICATIONFAILED => {
 				let status = ReturnStatus::SIGNERSIGVERIFICATIONFAILED;
-				let description = format!("TEE Key-share {:?}: Signer signature verification failed, Signer is not approved by NFT owner", call);
+				let description = format!("TEE Key-share {call:?}: Signer signature verification failed, Signer is not approved by NFT owner");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -270,7 +267,7 @@ impl VerificationError {
 			VerificationError::DATAVERIFICATIONFAILED => {
 				let status = ReturnStatus::DATASIGVERIFICATIONFAILED;
 				let description =
-					format!("TEE Key-share {:?}: Data signature verification failed.", call);
+					format!("TEE Key-share {call:?}: Data signature verification failed.");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -285,7 +282,7 @@ impl VerificationError {
 			VerificationError::INVALIDAUTHTOKEN => {
 				let status = ReturnStatus::INVALIDAUTHTOKEN;
 				let description =
-					format!("TEE Key-share {:?}: Invalid authentication-token format.", call);
+					format!("TEE Key-share {call:?}: Invalid authentication-token format.");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -300,8 +297,7 @@ impl VerificationError {
 			VerificationError::INVALIDNFTID => {
 				let status = ReturnStatus::INVALIDNFTID;
 				let description = format!(
-					"TEE Key-share {:?}: The nft-id is not a valid number or nft does not exist.",
-					call
+					"TEE Key-share {call:?}: The nft-id is not a valid number or nft does not exist."
 				);
 				info!("{}, requester : {}", description, caller);
 
@@ -317,8 +313,7 @@ impl VerificationError {
 			VerificationError::INVALIDKEYSHARE => {
 				let status = ReturnStatus::INVALIDKEYSHARE;
 				let description = format!(
-					"TEE Key-share {:?}: The key-share is empty or not a valid string.",
-					call
+					"TEE Key-share {call:?}: The key-share is empty or not a valid string."
 				);
 				info!("{}, requester : {}", description, caller);
 
@@ -334,7 +329,7 @@ impl VerificationError {
 			VerificationError::OWNERSHIPVERIFICATIONFAILED => {
 				let status = ReturnStatus::OWNERSHIPVERIFICATIONFAILED;
 				let description =
-					format!("TEE Key-share {:?}: The nft-id is not owned by this owner.", call);
+					format!("TEE Key-share {call:?}: The nft-id is not owned by this owner.");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -348,8 +343,7 @@ impl VerificationError {
 			VerificationError::REQUESTERVERIFICATIONFAILED => {
 				let status = ReturnStatus::REQUESTERVERIFICATIONFAILED;
 				let description = format!(
-					"TEE Key-share {:?}: The requester is not either owner, delegatee or rentee.",
-					call
+					"TEE Key-share {call:?}: The requester is not either owner, delegatee or rentee."
 				);
 				info!("{}, requester : {}", description, caller);
 
@@ -364,7 +358,7 @@ impl VerificationError {
 			// EPIRATION PERIOD OF SIGNER ACCOUNT  (AUTHENTICATION-TOKEN)
 			VerificationError::EXPIREDSIGNER => {
 				let status = ReturnStatus::EXPIREDSIGNER;
-				let description = format!("TEE Key-share {:?}: The signer account has been expired or is not in valid range.", call);
+				let description = format!("TEE Key-share {call:?}: The signer account has been expired or is not in valid range.");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -378,7 +372,7 @@ impl VerificationError {
 			// EPIRATION PERIOD OF REQUEST DATA  (AUTHENTICATION-TOKEN)
 			VerificationError::EXPIREDDATA => {
 				let status = ReturnStatus::EXPIREDREQUEST;
-				let description = format!("TEE Key-share {:?}: The request data field has been expired  or is not in valid range.", call);
+				let description = format!("TEE Key-share {call:?}: The request data field has been expired  or is not in valid range.");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -393,7 +387,7 @@ impl VerificationError {
 			VerificationError::IDISNOTSECRETNFT => {
 				let status = ReturnStatus::IDISNOTASECRETNFT;
 				let description =
-					format!("TEE Key-share {:?}: The nft-id is not a secret-nft.", call);
+					format!("TEE Key-share {call:?}: The nft-id is not a secret-nft.");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -407,7 +401,7 @@ impl VerificationError {
 			// IS NOT ENCRYPTED ENTITY
 			VerificationError::IDISNOTCAPSULE => {
 				let status = ReturnStatus::IDISNOTACAPSULE;
-				let description = format!("TEE Key-share {:?}: The nft-id is not a capsule.", call);
+				let description = format!("TEE Key-share {call:?}: The nft-id is not a capsule.");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -421,7 +415,7 @@ impl VerificationError {
 			// PARSE DATA PACKET FAILED
 			VerificationError::MALFORMATEDDATA => {
 				let status = ReturnStatus::INVALIDDATAFORMAT;
-				let description = format!("TEE Key-share {:?}: Failed to parse data field.", call);
+				let description = format!("TEE Key-share {call:?}: Failed to parse data field.");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -435,8 +429,7 @@ impl VerificationError {
 			// PARSE SIGNER PACKET FAILED
 			VerificationError::MALFORMATEDSIGNER => {
 				let status = ReturnStatus::INVALIDSIGNERFORMAT;
-				let description =
-					format!("TEE Key-share {:?}: Failed to parse Signer field.", call);
+				let description = format!("TEE Key-share {call:?}: Failed to parse Signer field.");
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -458,24 +451,20 @@ impl VerificationError {
 pub async fn get_onchain_delegatee_account(nft_id: u32) -> KeyshareHolder {
 	let delegatee_data = get_onchain_delegatee(nft_id).await;
 
-	let delegatee_address = match delegatee_data {
+	match delegatee_data {
 		Some(account) => KeyshareHolder::Delegatee(account),
 		None => KeyshareHolder::NotFound,
-	};
-
-	delegatee_address
+	}
 }
 
 // Fetch onchain owenrship of nft/capsule id
 pub async fn get_onchain_rentee_account(nft_id: u32) -> KeyshareHolder {
 	let rentee_data = get_onchain_rent_contract(nft_id).await;
 
-	let rentee_address = match rentee_data {
+	match rentee_data {
 		Some(account) => KeyshareHolder::Rentee(account),
 		None => KeyshareHolder::NotFound,
-	};
-
-	rentee_address
+	}
 }
 
 // Check nft/capsule owner/rentee/delegatee
@@ -553,8 +542,8 @@ impl StoreKeysharePacket {
 				.to_string();
 		}
 
-		let parsed_data: Vec<&str> = if signer.contains("_") {
-			signer.split("_").collect()
+		let parsed_data: Vec<&str> = if signer.contains('_') {
+			signer.split('_').collect()
 		} else {
 			return Err(VerificationError::MALFORMATEDSIGNER)
 		};
@@ -600,8 +589,8 @@ impl StoreKeysharePacket {
 				.to_string();
 		}
 
-		let parsed_data: Vec<&str> = if data.contains("_") {
-			data.split("_").collect()
+		let parsed_data: Vec<&str> = if data.contains('_') {
+			data.split('_').collect()
 		} else {
 			return Err(VerificationError::MALFORMATEDDATA)
 		};
