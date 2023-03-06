@@ -322,16 +322,16 @@ mod tests {
 	#[test]
 	fn test_sign_verify() {
 		const MESSAGE: &str = "дружба";
-		println!("Message = {}", MESSAGE);
+		println!("Message = {MESSAGE}");
 
 		// Generate a key.
 		let key = _generate();
-		println!("Key = {}", key);
+		println!("Key = {key}");
 
 		// Sign the message.
 		let mut signed_message = Vec::new();
 		_sign(&mut signed_message, MESSAGE, &key);
-		println!("Signed Message = {:-?}", signed_message);
+		println!("Signed Message = {signed_message:-?}");
 
 		// Verify the message.
 		let mut plaintext = Vec::new();
