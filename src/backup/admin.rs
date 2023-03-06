@@ -7,14 +7,16 @@ use axum::{
 };
 use tokio_util::io::ReaderStream;
 
-use hex::FromHex;
-use serde_json::json;
+use hex::{FromHex, FromHexError};
+use serde_json::{json, Value};
 use sp_core::{crypto::Ss58Codec, sr25519, Pair};
-use std::io::{Read, Write};
+use std::{io::{Read, Write}, collections::BTreeMap};
 
-use tracing::{debug, info};
+use tracing::{debug, info, error};
+use std::fs::{remove_file, File};
 
 use serde::{Deserialize, Serialize};
+use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{chain::chain::get_current_block_number, servers::http_server::StateConfig};
 
@@ -33,12 +35,96 @@ pub struct AuthenticationToken {
 	pub block_validation: u32,
 }
 
+/* *************************************
+		 BULK DATA STRUCTURES
+**************************************** */
+
+/// Fetch Bulk Data
+#[derive(Serialize, Deserialize)]
+pub struct FetchBulkPacket {
+	admin_address: String,
+	auth_token: AuthenticationToken,
+	signature: String,
+}
+
+/// Fetch Bulk Response
+#[derive(Serialize)]
+pub struct FetchBulkResponse {
+	data: String,
+	signature: String,
+}
+
+/// Store Bulk Data
+#[derive(Serialize, Deserialize, Clone)]
+pub struct StoreBulkData {
+	auth_token: AuthenticationToken,
+	data: Vec<u8>,
+}
+
+/// Store Bulk Packet
+#[derive(Serialize, Deserialize)]
+pub struct StoreBulkPacket {
+	admin_address: String,
+	data: StoreBulkData,
+	signature: String,
+}
+
+/* ******************************
+	REQUEST DATA STRUCTURES
+****************************** */
+
+/// Backup Error
+#[derive(Debug)]
+pub enum BackupError {
+	UnAuthorizedSigner,
+	InvalidSignature,
+}
+
+/// Backup Request Packet
+#[derive(Serialize, Deserialize, Clone)]
+pub struct BackupRequestData {
+	nfts: Vec<String>,
+	signer_address: String,
+}
+
+/// Backup Request Packet
+#[derive(Deserialize, Clone)]
+pub struct BackupRequest {
+	data: BackupRequestData,
+	signature: String,
+}
+
+/// Backup Response Packet
+#[derive(Serialize)]
+pub struct BackupResponse {
+	status: String,
+	data: BTreeMap<String, [String; 2]>,
+}
+
+/// Backup Bulk Packet
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct StoreRequestData {
+	nfts: BTreeMap<String, [String; 2]>,
+	signer_address: String,
+}
+
+/// Backup Bulk Packet
+#[derive(Deserialize, Clone, PartialEq)]
+pub struct StoreRequest {
+	data: StoreRequestData,
+	signature: String,
+}
+
+/// Backup Bulk Packet
+#[derive(Serialize)]
+pub struct StoreResponse {
+	status: String,
+}
 /* ----------------------------------
 AUTHENTICATION TOKEN IMPLEMENTATION
 ----------------------------------*/
 
-// Retrieving the stored Keyshare
-
+/// Retrieving the stored Keyshare
 impl AuthenticationToken {
 	pub async fn is_valid(&self) -> bool {
 		let last_block_number = get_current_block_number().await;
@@ -48,70 +134,113 @@ impl AuthenticationToken {
 }
 
 /* *************************************
-		 VERIFICATIONFUNCTIONS
+		 VERIFICATION FUNCTIONS
 **************************************** */
 
+/// Verifies the signature of the backup data
+/// # Arguments
+/// * `account_id` - Account ID
+/// * `signature` - Signature
+/// * `data` - Data
+/// # Returns
+/// * `Result<bool, PublicError>` - Result
+/// # Example
+/// ```
+/// verify_signature(account_id, signature, data)
+/// ```
+/// # Errors
+/// * `PublicError` - If the account ID is not a valid SS58 string
 fn verify_account_id(account_id: &str) -> bool {
 	BACKUP_WHITELIST.contains(&account_id)
 }
 
-fn get_public_key(account_id: &str) -> sr25519::Public {
-	let pk = sr25519::Public::from_ss58check(account_id).expect("Invalid AccountID"); // TODO: manage expect()
-	log::debug!("Public Key = {}", pk);
+/// Verifies the signature of the backup data
+/// # Arguments
+/// * `account_id` - Account ID
+/// * `signature` - Signature
+/// * `data` - Data
+/// # Returns
+/// * `Result<bool, PublicError>` - Result
+/// # Example
+/// ```
+/// verify_signature(account_id, signature, data)
+/// ```
+/// # Errors
+/// * `PublicError` - If the account ID is not a valid SS58 string
+/// * `FromHexError` - If the signature is not a valid hex string
+/// * `PublicError` - If the signature is not a valid signature
+fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
+	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id)
+		.map_err(|err: PublicError| {
+			debug!("Error constructing public key {:?}", err);
+			err
+		});
+
 	pk
 }
 
-fn get_signature(signature: String) -> sr25519::Signature {
+/// Converts the signature to a Signature type
+/// # Arguments
+/// * `signature` - Signature
+/// # Returns
+/// * `Result<Signature, FromHexError>` - Signature
+/// # Example
+/// ```
+/// get_signature(signature)
+/// ```
+/// # Errors
+/// * `FromHexError` - If the signature is not a valid hex string
+fn get_signature(signature: String) -> Result<Signature, FromHexError> {
 	let stripped = match signature.strip_prefix("0x") {
 		Some(sig) => sig,
 		None => signature.as_str(),
 	};
 
-	let sig_bytes = <[u8; 64]>::from_hex(stripped).unwrap(); // TODO: manage unwrap()
-	let sig = sr25519::Signature::from_raw(sig_bytes);
-	log::debug!("sig = {:#?}", sig);
-	sig
+	match <[u8; 64]>::from_hex(stripped) {
+		Ok(s) => {
+			let sig = sr25519::Signature::from_raw(s);
+			debug!("Signature :- {:?}", sig);
+			Ok(sig)
+		},
+		Err(err) => Err(err),
+	}
 }
 
+/// Verifies the signature of the message
+/// # Arguments
+/// * `account_id` - Account ID
+/// * `signature` - Signature
+/// * `message` - Message
+/// # Returns
+/// * `bool` - True if the signature is valid
+/// # Example
+/// ```
+/// verify_signature(account_id, signature, message)
+/// ```
 fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool {
-	let account_pubkey = get_public_key(account_id);
-
-	sr25519::Pair::verify(&get_signature(signature), message, &account_pubkey)
+	match get_public_key(account_id) {
+		Ok(pk) => match get_signature(signature) {
+			Ok(val) => sr25519::Pair::verify(&val, message, &pk),
+			Err(err) => {
+				debug!("Error generating pair {:?}", err);
+				false
+			},
+		},
+		Err(_) => false,
+	}
 }
 
-/* *************************************
-		 BULK DATA STRUCTURES
-**************************************** */
-
-#[derive(Serialize, Deserialize)]
-pub struct FetchBulkPacket {
-	admin_address: String,
-	auth_token: AuthenticationToken,
-	signature: String,
-}
-
-#[derive(Serialize)]
-pub struct FetchBulkResponse {
-	data: String,
-	signature: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct StoreBulkData {
-	auth_token: AuthenticationToken,
-	data: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct StoreBulkPacket {
-	admin_address: String,
-	data: StoreBulkData,
-	signature: String,
-}
-
-/* *************************************
- BULK RETRIEVE THEKEYSHARES FROM ENCLAVE
-**************************************** */
+/// Backup Key Shares
+/// This function is used to backup the key shares of the validators
+/// # Arguments
+/// * `state` - StateConfig
+/// * `backup_request` - BackupRequest
+/// # Returns
+/// * `Json` - BackupResponse
+/// # Example
+/// ```
+/// backup_key_shares(state, backup_request)
+/// ```
 #[axum::debug_handler]
 pub async fn backup_fetch_bulk(
 	State(state): State<StateConfig>,
@@ -120,15 +249,24 @@ pub async fn backup_fetch_bulk(
 	debug!("3-15 API : backup fetch bulk");
 
 	if !verify_account_id(&backup_request.admin_address) {
-		info!("Error backup keyshares : Invalid admin : {}", backup_request.admin_address);
+		info!("Error backup key shares : Invalid admin : {}", backup_request.admin_address);
 
-		return "Error backup keyshares : Invalid admin".into_response()
+		return "Error backup key shares : Invalid admin".to_string().into_response()
 	}
+
+	let message = match serde_json::to_vec(&backup_request.auth_token) {
+		Ok(token) => token,
+		Err(e) => {
+			error!("Error serializing auth token: {}", e);
+			// for now, return an empty Vec<u8>
+			Vec::new()
+		},
+	};
 
 	if verify_signature(
 		&backup_request.admin_address,
 		backup_request.signature.clone(),
-		&serde_json::to_vec(&backup_request.auth_token).unwrap(),
+		message.as_slice(),
 	) {
 		if backup_request.auth_token.is_valid().await {
 			let backup_file = state.seal_path.to_owned() + "backup.zip";
@@ -163,9 +301,37 @@ pub async fn backup_fetch_bulk(
 	}
 }
 
+/// Returns Json Response
+/// # Arguments
+/// * `status` - Status of the request
+/// * `data` - Data to be returned
+/// # Returns
+/// * `Json<Value>` - Json response
+/// # Example
+/// ```
+/// get_json_response("Successfull request".to_string(), data)
+/// ```
+fn get_json_response(status: String, data: Vec<u8>) -> Json<Value> {
+	Json(json!({
+		"status": status,
+		"data": data,
+	}))
+}
+
 /* ******************************
- BULK PUSH KEYSHARES TO THIS ENCLAVE
+ BULK PUSH KEY_SHARES TO THIS ENCLAVE
 ********************************* */
+/// Backup Key Shares
+/// This function is used to backup the key shares of the validators
+/// # Arguments
+/// * `state` - StateConfig
+/// * `store_request` - StoreBulkPacket
+/// # Returns
+/// * `Json` - BackupResponse
+/// # Example
+/// ```
+/// backup_key_shares(state, backup_request)
+/// ```
 #[axum::debug_handler]
 pub async fn backup_push_bulk(
 	State(state): State<StateConfig>,
@@ -190,7 +356,14 @@ pub async fn backup_push_bulk(
 	}
 
 	let data = store_request.data.clone();
-	let data_bytes = serde_json::to_vec(&data).unwrap();
+
+	let data_bytes = match serde_json::to_vec(&data) {
+		Ok(bytes) => bytes,
+		Err(e) => {
+			debug!("Failed to serialize data: {:?}", e);
+			Vec::new()
+		},
+	};
 
 	if verify_signature(&store_request.admin_address, store_request.signature.clone(), &data_bytes)
 	{
@@ -202,7 +375,7 @@ pub async fn backup_push_bulk(
 
 			zip_extract(&backup_file, &state.seal_path);
 
-			std::fs::remove_file(backup_file).unwrap();
+			remove_file(backup_file).unwrap();
 
 			// TODO : manage big packet transfer
 			Json(json! ({
@@ -245,7 +418,7 @@ mod test {
 		let sig = admin_keypair.sign(&auth_bytes);
 		let sig_str = serde_json::to_string(&sig).unwrap();
 
-		let request = FetchBulkPacket {
+		let _request = FetchBulkPacket {
 			admin_address: admin_keypair.public().to_string(),
 			auth_token: auth,
 			signature: sig_str,
@@ -268,7 +441,7 @@ mod test {
 		let sig = admin_keypair.sign(&auth_str);
 		let sig_str = serde_json::to_string(&sig).unwrap();
 
-		let request = StoreBulkPacket {
+		let _request = StoreBulkPacket {
 			admin_address: admin_keypair.public().to_string(),
 			data,
 			signature: sig_str,
@@ -296,5 +469,20 @@ mod test {
 		};
 
 		println!("FetchBulkPacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
+	}
+
+	#[test]
+	fn test_get_signature_valid() {
+		let input  = "0xb7255023814e304b72bc880cc993d5c654ce060db0c3f0772b453714c760521962943747af605a90d0503812c6a62c5c1080cbf377095551af0c168a8c724da8".to_string();
+		let expected = Signature(<[u8; 64]>::from_hex(input.strip_prefix("0x").unwrap()).unwrap());
+		let results = get_signature(input).unwrap();
+		assert_eq!(results, expected);
+	}
+
+	#[test]
+	fn test_get_public_key_valid() {
+		let account = "5DAENKLsmj9FbfxgKuWn81smhKz9dZg75fveUFSUtqrr4CPn";
+		let results = get_public_key(account).unwrap();
+		assert_eq!(results, sr25519::Public::from_ss58check(account).unwrap());
 	}
 }
