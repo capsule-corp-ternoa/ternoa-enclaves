@@ -169,10 +169,18 @@ pub async fn backup_fetch_bulk(
 #[axum::debug_handler]
 pub async fn backup_push_bulk(
 	State(state): State<StateConfig>,
-	Json(store_request): Json<StoreBulkPacket>,
+	mut store_request: Multipart,
 ) -> impl IntoResponse {
 	debug!("3-16 API : backup push bulk");
+	info!("{:?}", store_request);
 
+	while let Some(mut field) = store_request.next_field().await.unwrap() {
+        let name = field.name().unwrap().to_string();
+        let data = field.bytes().await.unwrap();
+
+        println!("Length of `{}` is {:?}", name, data);
+    }
+/*
 	if !verify_account_id(&store_request.admin_address.clone()) {
 		info!("Error restore backup keyshares : Invalid admin : {}", store_request.admin_address);
 
@@ -212,6 +220,7 @@ pub async fn backup_push_bulk(
 			"data": [],
 		}))
 	}
+*/
 }
 
 /* **********************
