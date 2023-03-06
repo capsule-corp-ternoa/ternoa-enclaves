@@ -87,10 +87,7 @@ mod test {
 		let signature = Signature::Base64Encoded(SIGNATURE.as_bytes());
 		let verification_key = import_vkey();
 
-		let result = match verification_key.verify_signature(signature, DATA.as_bytes()) {
-			Ok(_) => true,
-			_ => false,
-		};
+		let result = matches!(verification_key.verify_signature(signature, DATA.as_bytes()), Ok(_));
 
 		assert!(result);
 	}
@@ -117,10 +114,7 @@ mod test {
 
 		//std::fs::write(binary_path.to_string_lossy().to_string()+".sig", encoded_sig).unwrap();
 
-		let result = match verify(&data, &encoded_sig) {
-			Ok(_) => true,
-			_ => false,
-		};
+		let result = matches!(verify(&data, &encoded_sig), Ok(_));
 
 		assert!(result);
 	}
