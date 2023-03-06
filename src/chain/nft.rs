@@ -22,8 +22,6 @@ use crate::chain::chain::nft_secret_share_oracle;
 
 use serde::{Deserialize, Serialize};
 
-use super::chain::get_onchain_nft_data;
-
 /* **********************
    KEYSHARE AVAILABLE API
 ********************** */
