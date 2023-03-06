@@ -1,6 +1,7 @@
 use std::{
 	collections::BTreeMap,
 	fs::OpenOptions,
+	fs::File,
 	io::{Read, Seek, Write},
 };
 
@@ -254,7 +255,7 @@ mod test {
 	#[tokio::test]
 	async fn file_log_test() {
 		// Simulating the Store keyshare process
-		let mut file = std::fs::File::create("test.log").unwrap(); // TODO: manage unwrap()
+		let mut file = File::create("test.log").unwrap(); // TODO: manage unwrap()
 		let owner = "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5".to_string();
 
 		let mut log_file_struct = LogFile::new();
@@ -287,10 +288,10 @@ mod test {
 		);
 
 		// Simulate viewing the log
-		let mut file = std::fs::File::open("test.log").unwrap(); // TODO: manage unwrap()
+		let mut file = File::open("test.log").unwrap(); // TODO: manage unwrap()
 		let mut content = String::new();
 		file.read_to_string(&mut content).unwrap();
 
-		println!("{}", content);
+		println!("{content}");
 	}
 }

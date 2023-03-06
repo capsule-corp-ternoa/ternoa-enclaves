@@ -1,12 +1,12 @@
 use rustls::ServerConfig;
 use rustls_acme::{caches::DirCache, AcmeConfig};
+use tokio::time::sleep;
 use std::{
 	net::{Ipv4Addr, SocketAddr},
 	path::PathBuf,
-	sync::Arc,
-	time::Duration,
+	sync::Arc, time::Duration,
 };
-use tokio::time::sleep;
+
 use tokio_stream::StreamExt;
 
 use axum::Router;
@@ -14,6 +14,13 @@ use axum_server::{tls_rustls::RustlsConfig, Handle};
 
 use tracing::{debug, error, info};
 
+/// Servers the server
+/// # Arguments
+/// * `app` - The app to serve
+/// * `domain` - The domain to serve
+/// * `port` - The port to serve
+/// # Returns
+/// * `Result<(), anyhow::Error>` - The result of the server
 pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::Error> {
 	debug!("3-5-1 Startng server with app, domain, port.");
 
@@ -25,7 +32,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 		.contact(
 			["amin@capsule-corp.io", "soufiane@capsule-corp.io"]
 				.iter()
-				.map(|e| format!("mailto:{}", e.to_owned())),
+				.map(|e| format!("mailto:{}", e)),
 		)
 		.cache_option(Some(DirCache::new(PathBuf::from(r"/certificates/"))))
 		.directory_lets_encrypt(true)
@@ -79,7 +86,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 		Err(e) => {
 			info!("Error in certificate server : {}", e);
-			return Err(anyhow::anyhow!(format!("Error in certificate server : {}", e)))
+			return Err(anyhow::anyhow!(format!("Error in certificate server : {e}")))
 		},
 	}
 
@@ -101,11 +108,14 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 		Err(e) => {
 			info!("Error in SGX server : {}", e);
-			Err(anyhow::anyhow!(format!("Error in sgx server : {}", e)))
+			Err(anyhow::anyhow!(format!("Error in sgx server : {e}")))
 		},
 	}
 }
 
+/// Shutdown the server
+/// # Arguments
+/// * `handle` - The handle to shutdown the server
 async fn cert_shutdown(handle: Handle) {
 	// Wait 20 seconds.
 	info!("wait 20 seconds before shutdown cert server");
