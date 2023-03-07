@@ -95,13 +95,15 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	debug!("3-5-6 Startng server : starting server \n");
 	info!("SGX Server is listening {}'\n", socket_addr);
 
-	let sgx_server = axum_server::bind_rustls(socket_addr, config)
+	let sgx_server_handle = axum_server::bind_rustls(socket_addr, config)
 		//.acceptor(acceptor)
-		.serve(app.into_make_service())
-		.await;
+		.serve(app.into_make_service());
 
+	// TODO:  DOES IT MAKE SENSE? SINCE AXUM IS INSIDE TOKIO THREAD IN MAIN FUNCTION!
+	let sgx_server = tokio::spawn(sgx_server_handle);
+	
 	debug!("3-5-7 Startng server : server exit\n");
-	match sgx_server {
+	match tokio::try_join!(sgx_server) {
 		Ok(_) => {
 			info!("SGX Server finished successfully");
 			Ok(())
