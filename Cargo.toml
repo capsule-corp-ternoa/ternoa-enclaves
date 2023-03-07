@@ -69,7 +69,7 @@ rcgen = "0.10.0"
 rustls-acme = {version = "0.5.2", features = ["axum"]}
 
 [features]
-default = ["alphanet"]
+default = ["dev-0"]
 mainnet = []
 alphanet = []
 dev-1 = []
