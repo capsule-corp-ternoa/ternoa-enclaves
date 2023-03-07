@@ -22,7 +22,13 @@ else
 GRAMINE_LOG_LEVEL = error
 endif
 
-sgx_server.manifest: sgx_server.manifest.template
+ifeq ($(SGX_DEV_BUILD),1)
+MANIFEST_FILE = sgx_server_dev.manifest.template
+else
+MANIFEST_FILE = sgx_server.manifest.template
+endif
+
+sgx_server.manifest: $(MANIFEST_FILE)
 	gramine-manifest \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
 		-Darch_libdir=$(ARCH_LIBDIR) \
