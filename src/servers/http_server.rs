@@ -212,9 +212,12 @@ async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> (Sta
 }
 
 /// Handle errors from the router.
-async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
-	debug!("3-2 Fallback handler.");
-	(StatusCode::NOT_FOUND, format!("No route {uri}"))
+async fn fallback(uri: axum::http::Uri) ->  Json<Value> {
+	debug!("3-2 Fallback handler for {uri}");
+	Json(json!({
+		"status": 432,
+		"description": format!("No route to {}",uri),
+	}))
 }
 
 /*  ------------------------------
@@ -262,7 +265,6 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 		"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
 		"description": "SGX server is running!".to_string(),
 		"enclave_address": enclave_address,
-		//"binary_signature": signature,
 		//"quote": quote_vec,
 	})))
 }
