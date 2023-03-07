@@ -18,6 +18,7 @@ NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
 #TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} 
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
 VERBOSITY_LEVLE=2
+DEV_BUILD=1
 
 # OVERWRITE WITH PRODUCTION VALUES
 ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
@@ -77,6 +78,8 @@ while :; do
 		cargo build --release
 	    fi
 		
+		DEV_BUILD=1
+
 		mkdir -p $GRAMINE_PATH/bin/
 		cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
 
@@ -92,6 +95,8 @@ while :; do
 	-r|--release)
 		mkdir -p $GRAMINE_PATH/bin/
 		
+		DEV_BUILD=0
+
 		echo "Downloading binary and signature from Ternoa github repository"
 		$SCRIPTS_PATH/fetch-release.sh
 		mv ./sgx_server $GRAMINE_PATH/bin/
@@ -155,6 +160,7 @@ make 	SGX=1 \
 	SGX_CERT_PATH=$CERT_PATH \
 	SGX_IDENTITY=$ENCLAVE_IDENTITY \
 	SGX_VERBOSITY=$VERBOSITY_LEVLE\
+	SGX_DEV_BUILD=$DEV_BUILD\
 	start-gramine-server >> $GRAMINE_PATH/make.log 2>&1 &
 
 cd $BASEDIR
