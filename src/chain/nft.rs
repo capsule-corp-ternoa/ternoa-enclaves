@@ -32,6 +32,12 @@ pub struct NFTExistsResponse {
 	exists: bool,
 }
 
+/// if nft is available, return true
+/// # Arguments
+/// * `state` - StateConfig
+/// * `nft_id` - u32
+/// # Returns
+/// * `Json(NFTExistsResponse)` - NFTExistsResponse
 pub async fn is_nft_available(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
@@ -197,6 +203,12 @@ pub struct NFTViewResponse {
 }
 
 // TODO: check the request for signed data and prevent flooding requests.
+/// get views per nft
+/// # Arguments
+/// * `state` - StateConfig
+/// * `nft_id` - u32
+/// # Returns
+/// * `Json(NFTViewResponse)` - NFTViewResponse
 pub async fn nft_get_views(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
@@ -306,6 +318,12 @@ pub struct StoreKeyshareResponse {
 	description: String,
 }
 
+/// store keyshare
+/// # Arguments
+/// * `state` - StateConfig
+/// * `request` - StoreKeysharePacket
+/// # Returns
+/// * `Json(StoreKeyshareResponse)` - StoreKeyshareResponse
 pub async fn nft_store_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<StoreKeysharePacket>,
@@ -498,6 +516,12 @@ pub struct RetrieveKeyshareResponse {
 	description: String,
 }
 
+/// Retrieve Keyshare from TEE
+/// # Arguments
+/// * `state` - StateConfig
+/// * `request` - RetrieveKeysharePacket
+/// # Returns
+/// * `RetrieveKeyshareResponse`
 pub async fn nft_retrieve_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RetrieveKeysharePacket>,
@@ -652,6 +676,11 @@ pub struct RemoveKeyshareResponse {
 	description: String,
 }
 
+/// Remove keyshare from the enclave
+/// # Arguments
+/// * `request` - RemoveKeysharePacket
+/// # Returns
+/// * `RemoveKeyshareResponse` - Response of the remove keyshare request
 pub async fn nft_remove_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RemoveKeysharePacket>,

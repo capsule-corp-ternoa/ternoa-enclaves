@@ -46,7 +46,9 @@ pub enum ReturnStatus {
 }
 
 // -------------- CHAIN API --------------
-
+/// Get the chain API
+/// # Returns
+/// * `DefaultApi` - The chain API
 pub async fn get_chain_api() -> DefaultApi {
 	debug!("5-1 get chain API");
 
@@ -73,6 +75,9 @@ struct JsonRPC {
 	output: String,
 }
 
+/// Get the current block number
+/// # Returns
+/// * `u32` - The current block number
 pub async fn get_current_block_number() -> u32 {
 	let api = get_chain_api().await;
 
@@ -81,6 +86,11 @@ pub async fn get_current_block_number() -> u32 {
 	last_block.block.header.number
 }
 
+/// Get the block hash for a given block number
+/// # Arguments
+/// * `block_number` - The block number
+/// # Returns
+/// * `String` - The block hash
 pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl IntoResponse {
 	let api = get_chain_api().await;
 	// RPC : Get Block-Hash
@@ -116,6 +126,11 @@ struct JsonTX {
 
 use sp_keyring::AccountKeyring;
 
+/// Submit a transaction
+/// # Arguments
+/// * `amount` - The amount to transfer
+/// # Returns
+/// * `JsonTX` - The transaction status
 pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoResponse {
 	let api = get_chain_api().await;
 
@@ -153,6 +168,9 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 }
 
 // -------------- GET NFT/CAPSULE DATA --------------
+/// Get the NFT/Capsule data
+/// # Arguments
+/// * `nft_id` - The NFT/Capsule ID
 pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 	debug!("4-1 get chain NFT DATA");
 	let api = get_chain_api().await;
@@ -162,6 +180,9 @@ pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 }
 
 // -------------- GET DELGATEE --------------
+/// Get the NFT/Capsule delegatee
+/// # Arguments
+/// * `nft_id` - The NFT/Capsule ID
 pub async fn get_onchain_delegatee(nft_id: u32) -> Option<AccountId32> {
 	debug!("4-2 get chain API");
 	let api = get_chain_api().await;
@@ -194,6 +215,11 @@ RENT PALLET
 }
 */
 
+/// Get the NFT/Capsule rent contract
+/// # Arguments
+/// * `nft_id` - The NFT/Capsule ID
+/// # Returns
+/// * `Option<AccountId32>` - The rent contract
 pub async fn get_onchain_rent_contract(nft_id: u32) -> Option<AccountId32> {
 	debug!("4-3 get chain API");
 	let api = get_chain_api().await;
@@ -224,6 +250,9 @@ impl IntoFuture for AddressType {
 }
 */
 
+/// Get the NFT/Capsule data
+/// # Arguments
+/// * `nft_ids` - The NFT/Capsule IDs
 pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
 	debug!("4-4 get nft data batch");
 	type AddressType = StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
@@ -257,6 +286,11 @@ struct JsonNFTData {
 	offchain_data: String,
 }
 
+/// Get the NFT/Capsule data
+/// # Arguments
+/// * `nft_id` - The NFT/Capsule ID
+/// # Returns
+/// * `impl IntoResponse` - The NFT/Capsule data
 pub async fn get_parse_nft_data(PathExtract(nft_id): PathExtract<u32>) -> impl IntoResponse {
 	let data = get_onchain_nft_data(nft_id).await;
 	match data {
@@ -305,6 +339,12 @@ impl fmt::Display for NFTData<AccountId32> {
 // TODO: Proof of decryption (i.e This key-share belongs to the key for decrypting the corresponding
 // nft media file on IPFS)
 
+/// Add a secret shard to the NFT/Capsule
+/// # Arguments
+/// * `keypair` - The keypair of the oracle
+/// * `nft_id` - The NFT/Capsule ID
+/// # Returns
+/// * `Result<sp_core::H256, subxt::Error>` - The transaction hash
 pub async fn nft_keyshare_oracle(
 	keypair: sp_core::sr25519::Pair,
 	nft_id: u32,
@@ -329,6 +369,12 @@ pub async fn nft_keyshare_oracle(
 // TODO: Proof of decryption (i.e This key-share belongs to the key for decrypting the corresponding
 // nft media file on IPFS)
 
+/// Add a secret shard to the NFT/Capsule
+/// # Arguments
+/// * `keypair` - The keypair of the oracle
+/// * `nft_id` - The NFT/Capsule ID
+/// # Returns
+/// * `Result<sp_core::H256, subxt::Error>` - The transaction hash
 pub async fn capsule_keyshare_oracle(
 	keypair: sp_core::sr25519::Pair,
 	nft_id: u32,
