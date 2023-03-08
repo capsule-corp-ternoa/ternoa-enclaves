@@ -40,6 +40,12 @@ fn import_vkey() -> CosignVerificationKey {
 	CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default()).unwrap()
 }
 
+/// verify the signature of the binary file
+/// # Arguments
+/// * `signed_data` - The data to be signed
+/// * `signature_data` - The signature of the data
+/// # Returns
+/// * `Result<bool, anyhow::Error>` - The result of the verification
 pub fn verify(signed_data: &[u8], signature_data: &str) -> Result<bool, anyhow::Error> {
 	// TODO: from github release
 	let verification_key = import_vkey();
