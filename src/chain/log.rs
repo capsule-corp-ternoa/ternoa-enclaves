@@ -69,21 +69,31 @@ pub struct LogFile {
 }
 
 impl LogFile {
+	/// Create a new LogFile
 	pub fn new() -> LogFile {
 		LogFile { secret_nft: BTreeMap::new(), capsule: BTreeMap::new() }
 	}
 
+	/// Insert a new log in the log file
 	pub fn insert_new_nft_log(&mut self, log: LogStruct) {
 		let index = self.secret_nft.len() as u32;
 		self.secret_nft.insert(index, log);
 	}
 
+	/// Insert a new log in the log file
 	pub fn insert_new_capsule_log(&mut self, log: LogStruct) {
 		let index = self.capsule.len() as u32;
 		self.capsule.insert(index, log);
 	}
 }
 
+/// update log file view
+/// # Arguments
+/// * `file_path` - path of the log file
+/// * `requester_address` - address of the requester
+/// * `requester_type` - type of the requester
+/// * `log_type` - type of the log
+/// * `nft_type` - type of the nft
 pub fn update_log_file_view(
 	file_path: String,
 	requester_address: String,
