@@ -30,6 +30,12 @@ pub struct CapsuleExistsResponse {
 	exists: bool,
 }
 
+/// check if the capsule key-share is available
+/// # Arguments
+/// * `state` - The state of the enclave
+/// * `nft_id` - The nft_id of the capsule
+/// # Returns
+/// * `impl IntoResponse` - The result of the capsule key-share availability
 pub async fn is_capsule_available(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
@@ -64,6 +70,14 @@ pub struct CapsuleViewResponse {
 }
 
 // TODO: check the request for signed data and prevent flooding requests.
+/// get the capsule key-share
+/// # Arguments
+/// * `state` - The state of the enclave
+/// * `nft_id` - The nft_id of the capsule
+/// # Returns
+/// * `impl IntoResponse` - The result of the capsule key-share
+/// # Errors
+/// * `Json(CapsuleViewResponse)` - The capsule key-share is not available
 pub async fn capsule_get_views(
 	State(state): State<StateConfig>,
 	PathExtract(nft_id): PathExtract<u32>,
@@ -169,6 +183,12 @@ pub async fn capsule_get_views(
 	 STORE KEY-SHARE
 ********************** */
 
+/// store the capsule key-share
+/// # Arguments
+/// * `state` - The state of the enclave
+/// * `request` - The request to store the capsule key-share
+/// # Returns
+/// * `impl IntoResponse` - The result of the capsule key-share
 pub async fn capsule_set_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<StoreKeysharePacket>,
@@ -343,7 +363,12 @@ pub async fn capsule_set_keyshare(
 /* **********************
 	 RETRIEVE KEY-SHARE
 ********************** */
-
+/// Retrieve capsule key-share from TEE
+/// # Arguments
+/// * `state` - StateConfig
+/// * `request` - RetrieveKeysharePacket
+/// # Returns
+/// * `Json` - ReturnStatus
 pub async fn capsule_retrieve_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RetrieveKeysharePacket>,
@@ -496,6 +521,12 @@ pub struct RemoveKeyshareResponse {
 	description: String,
 }
 
+/// Remove key-share from enclave
+/// # Arguments
+/// * `state` - StateConfig
+/// * `request` - RemoveKeysharePacket
+/// # Returns
+/// * `RemoveKeyshareResponse`
 pub async fn capsule_remove_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RemoveKeysharePacket>,
