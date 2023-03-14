@@ -212,7 +212,7 @@ async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> (Sta
 }
 
 /// Handle errors from the router.
-async fn fallback(uri: axum::http::Uri) ->  Json<Value> {
+async fn fallback(uri: axum::http::Uri) -> Json<Value> {
 	debug!("3-2 Fallback handler for {uri}");
 	Json(json!({
 		"status": 432,

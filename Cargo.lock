@@ -4286,18 +4286,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rcgen"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffbe84efe2f38dea12e9bfc1f65377fdf03e53a18cb3b995faedf7934c7e785b"
-dependencies = [
- "pem",
- "ring",
- "time 0.3.20",
- "yasna",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4547,7 +4535,7 @@ dependencies = [
  "log",
  "pem",
  "pin-project",
- "rcgen 0.9.3",
+ "rcgen",
  "ring",
  "rustls",
  "serde",
@@ -5160,7 +5148,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
- "rcgen 0.10.0",
  "reqwest",
  "rustls",
  "rustls-acme",
