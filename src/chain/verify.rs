@@ -535,6 +535,7 @@ impl AuthenticationToken {
 		let last_block_number = get_current_block_number().await;
 		(last_block_number > self.block_number - 3) // for finalization delay
 			&& (last_block_number < self.block_number + self.block_validation + 3)
+				&&  (self.block_validation < 100) // A finite validity period
 	}
 }
 
