@@ -5,7 +5,24 @@ use std::{
 	path::Path,
 };
 
-use tracing::info;
+use axum::Json;
+use cached::proc_macro::once;
+use serde_json::{json, Value};
+use tracing::{info, error, debug};
+
+#[once(time = 60, sync_writes = false)]
+pub async fn ra_get_quote() -> Json<Value> {
+	match generate_quote(None, None) {
+		Ok(quote) => Json(json!({
+			"status": "Success",
+			"data": hex::encode(quote),
+		})),
+		Err(e) => Json(json!({
+			"status": "Failed",
+			"error": e.to_string(),
+		})),
+	}
+}
 
 /// get the attestation type
 /// # Arguments
@@ -24,16 +41,16 @@ pub fn generate_quote(
 		File::create(enclave_file_path.unwrap_or(String::from(default_enclave_path)))
 			.and_then(|mut file| {
 				file.write_all(&result).map_err(|err| {
-					info!("Error writing file_4 {:?}", err);
+					error!("Error writing to quote file {:?}", err);
 					err
 				})
 			})
 			.map_err(|err| {
-				info!("Error Writing content");
+				error!("Error Writing content");
 				err
 			})
 			.map(|_| {
-				info!("content  {:?}", result);
+				debug!("content  {:?}", result);
 				result
 			})
 	})
@@ -52,12 +69,12 @@ fn get_quote_content(file_path: Option<String>) -> Result<Vec<u8>, Error> {
 	File::open(file_path.unwrap_or(String::from(default_path)))
 		.and_then(|mut file| {
 			file.read_to_end(&mut content).map_err(|err| {
-				info!("Error opening file /dev/attestation/quote {:?}", err);
+				error!("Error opening file /dev/attestation/quote {:?}", err);
 				err
 			})
 		})
 		.map(|_| {
-			info!("content  {:?}", content);
+			debug!("content  {:?}", content);
 			content
 		})
 }
@@ -74,12 +91,12 @@ fn read_attestation_type(file_path: Option<String>) -> Result<String, Error> {
 	File::open(file_path.unwrap_or(String::from(default_path)))
 		.and_then(|mut file| {
 			file.read_to_string(&mut attest_type).map_err(|err| {
-				info!("Error reading file: {:?}", err);
+				error!("Error reading file: {:?}", err);
 				err
 			})
 		})
 		.map(|_| {
-			info!("attestation type is : {}", attest_type);
+			debug!("attestation type is : {}", attest_type);
 			attest_type
 		})
 }
@@ -98,12 +115,12 @@ fn write_user_report_data(file_path: Option<String>) -> Result<(), Error> {
 		.and_then(|mut file| {
 			info!("This is inside Enclave!");
 			file.write_all(&write_zero).map_err(|err| {
-				info!("Error writing to {} {:?}", default_path, err);
+				error!("Error writing to {} {:?}", default_path, err);
 				err
 			})
 		})
 		.map_err(|err| {
-			info!("Error writing file: {:?}", err);
+			error!("Error writing file: {:?}", err);
 			err
 		})
 		.map(|_| ())
