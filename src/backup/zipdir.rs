@@ -60,6 +60,7 @@ where
 	Result::Ok(())
 }
 
+/// Compresses a directory into a zip file
 fn doit(
 	src_dir: &str,
 	dst_file: &str,
@@ -68,7 +69,6 @@ fn doit(
 	if !Path::new(src_dir).is_dir() {
 		return Err(ZipError::FileNotFound)
 	}
-
 	let path = Path::new(dst_file);
 	let file = File::create(path).unwrap();
 
