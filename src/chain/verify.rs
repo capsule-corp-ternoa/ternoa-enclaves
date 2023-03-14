@@ -24,6 +24,7 @@ use crate::chain::core::{
   DATA STRUCTURES
 ********************** */
 
+/// API Call
 #[derive(Serialize, Debug)]
 pub enum APICALL {
 	NFTSTORE,
@@ -186,6 +187,14 @@ pub enum KeyshareHolder {
 }
 
 impl VerificationError {
+	/// Express the error in JSON format
+	/// # Arguments
+	/// * `call` - API call
+	/// * `caller` - Caller of the API
+	/// * `nft_id` - NFT ID
+	/// * `enclave_id` - Enclave ID
+	/// # Returns
+	/// * `Json<Value>` - JSON format of the error
 	pub fn express_verification_error(
 		self,
 		call: APICALL,
@@ -450,7 +459,11 @@ impl VerificationError {
 		GET ONCHAIN DATA
 ----------------------------------*/
 
-// Fetch onchain owenrship of nft/capsule id
+/// Fetch onchain owenrship of nft/capsule id
+/// # Arguments
+/// * `nft_id` - nft/capsule id
+/// # Returns
+/// * `KeyshareHolder` - KeyshareHolder enum
 pub async fn get_onchain_delegatee_account(nft_id: u32) -> KeyshareHolder {
 	let delegatee_data = get_onchain_delegatee(nft_id).await;
 
@@ -460,7 +473,11 @@ pub async fn get_onchain_delegatee_account(nft_id: u32) -> KeyshareHolder {
 	}
 }
 
-// Fetch onchain owenrship of nft/capsule id
+/// Fetch onchain owenrship of nft/capsule id
+/// # Arguments
+/// * `nft_id` - nft/capsule id
+/// # Returns
+/// * `KeyshareHolder` - KeyshareHolder enum
 pub async fn get_onchain_rentee_account(nft_id: u32) -> KeyshareHolder {
 	let rentee_data = get_onchain_rent_contract(nft_id).await;
 
@@ -470,7 +487,14 @@ pub async fn get_onchain_rentee_account(nft_id: u32) -> KeyshareHolder {
 	}
 }
 
-// Check nft/capsule owner/rentee/delegatee
+/// Check nft/capsule owner/rentee/delegatee
+/// # Arguments
+/// * `requester_address` - requester address
+/// * `nft_id` - nft/capsule id
+/// * `owner` - nft/capsule owner
+/// * `requester_type` - requester type
+/// # Returns
+/// * `bool` - true if requester is owner/rentee/delegatee
 pub async fn verify_requester_type(
 	requester_address: String,
 	nft_id: u32,
@@ -502,6 +526,7 @@ AUTHENTICATION TOKEN IMPLEMENTATION
 // Retrieving the stored Keyshare
 impl AuthenticationToken {
 	// TODO: use json canonicalization of JOSE/JWT encoder
+	/// Serialize AuthenticationToken
 	pub fn serialize(self) -> String {
 		self.block_number.to_string() + "_" + &self.block_validation.to_string()
 	}
@@ -519,7 +544,7 @@ impl AuthenticationToken {
 
 // Retrieving the stored Keyshare
 impl StoreKeyshareData {
-	// TODO: use json canonicalization of JOSE/JWT encoder
+	// TODO: use json canonicalization of JOSE/JWT encode
 	pub fn serialize(self) -> String {
 		self.nft_id.to_string() +
 			"_" + &String::from_utf8(self.keyshare).unwrap() + // TODO: manage unwrap()
@@ -689,6 +714,7 @@ impl StoreKeysharePacket {
 		Ok(result)
 	}
 
+	/// Verify store request
 	pub async fn verify_store_request(
 		&self,
 		nft_type: &str,
@@ -855,7 +881,7 @@ impl RetrieveKeysharePacket {
 		Ok(result)
 	}
 
-	// VERIFTY RETRIVE REQUEST : HOLDER TYPE & DATA
+	/// Verify the requester is the owner of the NFT
 	pub async fn verify_retrieve_request(
 		&self,
 		nft_type: &str,
@@ -935,7 +961,7 @@ mod test {
 	/* ----------------------
 		HELPER FUNCTIONS
 	---------------------- */
-
+	/// Generate a random string of a given length
 	async fn generate_store_request(nftid: u32) -> StoreKeysharePacket {
 		let current_block_number = get_current_block_number().await;
 
@@ -974,6 +1000,7 @@ mod test {
 		packet
 	}
 
+	/// Generate a random string of a given length
 	async fn generate_retrieve_request(nftid: u32) -> RetrieveKeysharePacket {
 		let current_block_number = get_current_block_number().await;
 
@@ -998,6 +1025,7 @@ mod test {
 		packet
 	}
 
+	/// Generate a random string of a given length
 	async fn generate_remove_request(nftid: u32) -> RemoveKeysharePacket {
 		let signer = sr25519::Pair::from_phrase(
 			"steel announce garden guilt direct give morning gadget milk census poem faith",
