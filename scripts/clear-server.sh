@@ -51,9 +51,9 @@ while :; do
 done
 
 find . -name *~ | xargs rm
-rm $GRAMINEPATH/quote/*
-rm $GRAMINEPATH/bin/*
-rm $SEALPATH/*
+rm -rf $GRAMINEPATH/quote/*
+rm 0rf $GRAMINEPATH/bin/*
+rm -rf $SEALPATH/*
 
 cd $GRAMINEPATH
 make clean
