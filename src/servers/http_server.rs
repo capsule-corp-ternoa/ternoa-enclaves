@@ -23,7 +23,7 @@ use tracing::{debug, error, info};
 
 use std::time::{Duration, SystemTime};
 
-use crate::chain::{
+use crate::{chain::{
 	capsule::{
 		capsule_get_views, capsule_remove_keyshare, capsule_retrieve_keyshare,
 		capsule_set_keyshare, is_capsule_available,
@@ -32,7 +32,7 @@ use crate::chain::{
 		is_nft_available, nft_get_views, nft_remove_keyshare, nft_retrieve_keyshare,
 		nft_store_keyshare,
 	},
-};
+}, attestation::ra::ra_get_quote};
 
 use crate::{
 	backup::admin::{backup_fetch_bulk, backup_push_bulk},
@@ -164,6 +164,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.fallback(fallback)
 		// STATE API
 		.route("/api/health", get(get_health_status))
+		.route("/api/quote", get(ra_get_quote))
 		// CENTRALIZED BACKUP API
 		.route("/api/backup/fetch-bulk", post(backup_fetch_bulk))
 		.route("/api/backup/push-bulk", post(backup_push_bulk))
