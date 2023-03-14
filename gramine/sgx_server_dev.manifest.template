@@ -19,6 +19,7 @@ fs.mounts = [
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
   { path = "/etc", uri = "file:/etc" },
   { path = "/quote", uri = "file:{{ quote_path }}", type = "chroot" },
+  { path = "/temporary", type = "tmpfs" },
   # TODO : sealed folder for certificates
   { path = "/certificates", uri = "file:{{ credentials_path }}/certificates", type = "chroot" },
   { path = "/keys", uri = "file:{{ credentials_path }}/keys", type = "chroot" },
