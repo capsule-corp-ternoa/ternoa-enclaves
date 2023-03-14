@@ -17,6 +17,15 @@ pub struct ChainInteract {
 }
 
 impl ChainInteract {
+
+    /// Creates a new ChainInteract
+    /// # Arguments
+    /// * `citype` - The type of chain interaction
+    /// * `module` - The module to interact with
+    /// * `call` - The call to make
+    /// * `args` - The arguments to pass to the call
+    /// # Returns
+    /// * `ChainInteract` - The new ChainInteract
     pub fn new(citype: CIType, module: &'static str, call: &'static str, args: Vec<Value>) -> Self {
         ChainInteract {
             interaction_type: citype,
@@ -26,6 +35,9 @@ impl ChainInteract {
         }
     }
 
+    /// Executes the chain interaction
+    /// # Returns
+    /// * `ChainResult` - The result of the chain interaction
     pub async fn exec(self) -> ChainResult {
         let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
         let signer = PairSigner::new(AccountKeyring::Alice.pair());
@@ -58,8 +70,9 @@ impl ChainInteract {
     }
 }
 
-
-
+/// Gets the chain api
+/// # Arguments
+/// * `url` - The url of the chain
 pub async fn dynamic_get_nft_data(nft_id: u32){
     let ci = ChainInteract::new(
         CIType::Storage,
@@ -76,7 +89,7 @@ pub async fn dynamic_get_nft_data(nft_id: u32){
 
 
     /* ---------------- Sample Dynamic Calls ----------------*/
-
+    /// Sample dynamic calls
     async fn dynamic_tx() {
         let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
 
