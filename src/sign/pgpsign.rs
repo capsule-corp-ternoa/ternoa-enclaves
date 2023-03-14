@@ -45,12 +45,14 @@ pub fn pgp_generate_key() {
 	let _private_key = String::from_utf8(ecc.as_tsk().armored().to_vec().unwrap()).unwrap();
 }
 
+/// Encrypts the given message.
 pub fn pgp_get_public_key(key_stream: std::fs::File) -> Vec<u8> {
 	let cert = Cert::from_reader(key_stream).unwrap();
 	let buf = cert.armored().export_to_vec().unwrap();
 	buf
 }
 
+/// Decrypts the given message.
 pub fn pgp_cert_from_privatekey(key_stream: std::fs::File) -> Cert {
 	let password = "123456";
 
@@ -141,6 +143,7 @@ struct CHelper<'a> {
 	policy: &'a dyn Policy,
 }
 
+/// A helper that provides the recipient's secret key.
 impl<'a> VerificationHelper for CHelper<'a> {
 	fn get_certs(&mut self, _ids: &[openpgp::KeyHandle]) -> openpgp::Result<Vec<openpgp::Cert>> {
 		// Return public keys for signature verification here.
@@ -153,6 +156,7 @@ impl<'a> VerificationHelper for CHelper<'a> {
 	}
 }
 
+/// A helper that provides the recipient's secret key.
 impl<'a> DecryptionHelper for CHelper<'a> {
 	fn decrypt<D>(
 		&mut self,
