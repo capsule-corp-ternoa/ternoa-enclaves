@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+
 use axum::{
 	body::StreamBody,
 	extract::{Multipart, State},
@@ -33,22 +34,22 @@ const BACKUP_WHITELIST: [&str; 3] = [
 	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Amin
 ];
 
+/* *************************************
+		FETCH  BULK DATA STRUCTURES
+**************************************** */
+
 // Validity time of Keyshare Data
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct AuthenticationToken {
+pub struct FetchAuthenticationToken {
 	pub block_number: u32,
 	pub block_validation: u32,
 }
-
-/* *************************************
-		 BULK DATA STRUCTURES
-**************************************** */
 
 /// Fetch Bulk Data
 #[derive(Serialize, Deserialize)]
 pub struct FetchBulkPacket {
 	admin_address: String,
-	auth_token: AuthenticationToken,
+	auth_token: FetchAuthenticationToken,
 	signature: String,
 }
 
@@ -59,82 +60,49 @@ pub struct FetchBulkResponse {
 	signature: String,
 }
 
-/// Store Bulk Data
-#[derive(Serialize, Deserialize, Clone)]
-pub struct StoreBulkData {
-	auth_token: AuthenticationToken,
-	data: Vec<u8>,
+/* *************************************
+		STORE  BULK DATA STRUCTURES
+**************************************** */
+
+// Validity time of Keyshare Data
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct StoreAuthenticationToken {
+	pub block_number: u32,
+	pub block_validation: u32,
+	pub data_hash: String,
 }
 
 /// Store Bulk Packet
 #[derive(Serialize, Deserialize)]
 pub struct StoreBulkPacket {
 	admin_address: String,
-	data: StoreBulkData,
+	restore_file: Vec<u8>,
+	auth_token: StoreAuthenticationToken,
 	signature: String,
 }
 
-/* ******************************
-	REQUEST DATA STRUCTURES
-****************************** */
-
-/// Backup Error
-#[derive(Debug)]
-pub enum BackupError {
-	UnAuthorizedSigner,
-	InvalidSignature,
-}
-
-/// Backup Request Packet
-#[derive(Serialize, Deserialize, Clone)]
-pub struct BackupRequestData {
-	nfts: Vec<String>,
-	signer_address: String,
-}
-
-/// Backup Request Packet
-#[derive(Deserialize, Clone)]
-pub struct BackupRequest {
-	data: BackupRequestData,
-	signature: String,
-}
-
-/// Backup Response Packet
-#[derive(Serialize)]
-pub struct BackupResponse {
-	status: String,
-	data: BTreeMap<String, [String; 2]>,
-}
-
-/// Backup Bulk Packet
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct StoreRequestData {
-	nfts: BTreeMap<String, [String; 2]>,
-	signer_address: String,
-}
-
-/// Backup Bulk Packet
-#[derive(Deserialize, Clone, PartialEq)]
-pub struct StoreRequest {
-	data: StoreRequestData,
-	signature: String,
-}
-
-/// Backup Bulk Packet
-#[derive(Serialize)]
-pub struct StoreResponse {
-	status: String,
-}
 /* ----------------------------------
 AUTHENTICATION TOKEN IMPLEMENTATION
 ----------------------------------*/
 
 /// Retrieving the stored Keyshare
-impl AuthenticationToken {
+impl FetchAuthenticationToken {
 	pub async fn is_valid(&self) -> bool {
 		let last_block_number = get_current_block_number().await;
+
 		(last_block_number > self.block_number - 3) // for finalization delay
-			&& (last_block_number < self.block_number + self.block_validation + 3)
+			&& (last_block_number < self.block_number + self.block_validation + 3) // validity period
+				&&  (self.block_validation < 20) // A finite validity period
+	}
+}
+
+impl StoreAuthenticationToken {
+	pub async fn is_valid(&self) -> bool {
+		let last_block_number = get_current_block_number().await;
+
+		(last_block_number > self.block_number - 3) // for finalization delay
+			&& (last_block_number < self.block_number + self.block_validation + 3) // validity period
+				&&  (self.block_validation < 20) // A finite validity period
 	}
 }
 
@@ -267,13 +235,13 @@ pub async fn backup_fetch_bulk(
 		message.as_slice(),
 	) {
 		if backup_request.auth_token.is_valid().await {
-			let backup_file = state.seal_path.to_owned() + "backup.zip";
+			let backup_file = "/temporary/backup.zip";
 			// remove previously generated backup
 			if std::path::Path::new(&backup_file).exists() {
-				std::fs::remove_file(backup_file.clone()).unwrap();
+				std::fs::remove_file(backup_file).unwrap();
 			}
 			// create new backup
-			add_dir_zip(&state.seal_path.clone(), &backup_file);
+			add_dir_zip(&state.seal_path.clone(), backup_file);
 
 			// `File` implements `AsyncRead`
 			let file = match tokio::fs::File::open(backup_file).await {
@@ -330,17 +298,24 @@ fn get_json_response(status: String, data: Vec<u8>) -> Json<Value> {
 /// ```
 /// backup_key_shares(state, backup_request)
 /// ```
-#[axum::debug_handler]
+
 pub async fn backup_push_bulk(
 	State(state): State<StateConfig>,
 	mut store_request: Multipart,
-) -> impl IntoResponse {
+) -> Json<Value> {
 	debug!("3-16 API : backup push bulk");
-	info!("{:?}", store_request);
+	debug!("received request = {:?}", store_request);
+
+	let mut admin_address = String::new();
+	let mut restore_file = Vec::<u8>::new();
+	let mut auth_token = String::new();
+	let mut signature = String::new();
 
 	while let Some(field) = store_request.next_field().await.unwrap() {
-		let name = field.name().unwrap().to_string();
-		let data = field.bytes().await.unwrap();
+		let name = match field.name() {
+			Some(name) => name.to_string(),
+			_ => {
+				info!("Error restore backup keyshares : field name : {:?}", field);
 
 		println!("Length of `{}` is {:?}", name, data);
 	}
@@ -386,35 +361,129 @@ pub async fn backup_push_bulk(
 			},
 		};
 
-		if verify_signature(&store_request.admin_address, store_request.signature.clone(), &data_bytes)
-		{
-			if store_request.data.auth_token.is_valid().await {
-				let backup_file = state.seal_path.to_owned() + "backup.zip";
+		match name.as_str() {
+			"admin_address" =>
+				admin_address = match field.text().await {
+					Ok(bytes) => bytes,
+					Err(e) => {
+						info!(
+							"Error restore backup keyshares : Error request admin_address {:?}",
+							e
+						);
 
-				let mut zipfile = std::fs::File::open(backup_file.clone()).unwrap();
-				zipfile.write_all(&data_bytes).unwrap();
+						return Json(json!({
+								"error": format!("Error request admin_address {:?}", e),
+						}))
+					},
+				},
 
-				zip_extract(&backup_file, &state.seal_path);
+			"restore_file" =>
+				restore_file = match field.bytes().await {
+					Ok(bytes) => bytes.to_vec(),
+					Err(e) => {
+						info!(
+							"Error restore backup keyshares : Error request restore_file {:?}",
+							e
+						);
 
-				remove_file(backup_file).unwrap();
+						return Json(json!({
+								"error": format!("Error request restore_file {:?}", e),
+						}))
+					},
+				},
 
-				// TODO : manage big packet transfer
-				Json(json! ({
-					"status": "Successfull request",
+			"auth_token" =>
+				auth_token = match field.text().await {
+					Ok(bytes) => bytes,
+					Err(e) => {
+						info!("Error restore backup keyshares : Error request auth_token {:?}", e);
+
+						return Json(json!({
+							"error": format!("Error request auth_token {:?}", e),
+						}))
+					},
+				},
+
+			"signature" =>
+				signature = match field.text().await {
+					Ok(sig) => match sig.strip_prefix("0x") {
+						Some(hexsig) => hexsig.to_owned(),
+						_ => {
+							info!("Error restore backup keyshares : Error request signature format, expectex 0x prefix, {sig}");
+
+							return Json(json!({
+									"error": format!("Error request signature format, expectex 0x prefix"),
+							}))
+						},
+					},
+
+					Err(e) => {
+						info!("Error restore backup keyshares : Error request signature {:?}", e);
+
+						return Json(json!({
+								"error": format!("Error request signature {:?}", e),
+						}))
+					},
+				},
+
+			_ => {
+				info!("Error restore backup keyshares : Error request field name {:?}", field);
+				return Json(json!({
+						"error": format!("Error request field name {:?}", field),
 				}))
-			} else {
-				Json(json! ({
-					"status": "Authentication Token Expired",
-					"data": [],
-				}))
-			}
-		} else {
-			Json(json! ({
-				"status": "Invalid signature",
-				"data": [],
-			}))
+			},
 		}
-	*/
+	}
+
+	if !verify_account_id(&admin_address.clone()) {
+		info!("Error restore backup keyshares : Invalid admin : {}", admin_address);
+
+		return Json(json! ({
+			"status": "Error restore backup keyshares : Invalid admin",
+		}))
+	}
+
+	if !verify_signature(&admin_address, signature.clone(), auth_token.clone().as_bytes()) {
+		info!("Error restore backup keyshares : Invalid signature : admin = {}", admin_address);
+
+		return Json(json! ({
+			"status": "Invalid signature",
+		}))
+	}
+
+	let token: StoreAuthenticationToken = serde_json::from_str(auth_token.as_str()).unwrap();
+
+	if !token.is_valid().await {
+		info!("Error restore backup keyshares : token expired : admin = {}", admin_address);
+
+		return Json(json! ({
+			"status": "Authentication Token Expired",
+		}))
+	}
+
+	let hash = sha256::digest(restore_file.as_slice());
+
+	if token.data_hash != hash {
+		info!("Error restore backup keyshares : mismatch data hash : admin = {}", admin_address);
+
+		return Json(json! ({
+			"status": " Mismatch Data Hash",
+		}))
+	}
+
+	let backup_file = state.seal_path.to_owned() + "backup.zip";
+
+	let mut zipfile = std::fs::File::create(backup_file.clone()).unwrap();
+	zipfile.write_all(&restore_file).unwrap();
+
+	zip_extract(&backup_file, &state.seal_path);
+
+	remove_file(backup_file).unwrap();
+
+	// TODO : self-check extracted data
+	Json(json!({
+		"status": format!("Success restoring backups"),
+	}))
 }
 
 /* **********************
@@ -433,8 +502,10 @@ mod test {
 		)
 		.unwrap()
 		.0;
+		let last_block_number = get_current_block_number().await;
 
-		let auth = AuthenticationToken { block_number: 300000, block_validation: 1000000 };
+		let auth =
+			FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
 		let auth_bytes = serde_json::to_vec(&auth).unwrap();
 		let sig = admin_keypair.sign(&auth_bytes);
 		let sig_str = serde_json::to_string(&sig).unwrap();
@@ -455,22 +526,33 @@ mod test {
 		.unwrap()
 		.0;
 
-		let zipdata = "fake_zip_data".as_bytes();
-		let auth = AuthenticationToken { block_number: 300000, block_validation: 1000000 };
-		let data = StoreBulkData { auth_token: auth.clone(), data: zipdata.to_vec() };
-		let auth_str = serde_json::to_vec(&auth).unwrap();
-		let sig = admin_keypair.sign(&auth_str);
-		let sig_str = serde_json::to_string(&sig).unwrap();
+		let mut zipdata = Vec::new();
+		let mut zipfile = std::fs::File::open("./test.zip").unwrap();
+		let _ = zipfile.read_to_end(&mut zipdata).unwrap();
 
-		let _request = StoreBulkPacket {
-			admin_address: admin_keypair.public().to_string(),
-			data,
-			signature: sig_str,
+		let last_block_number = get_current_block_number().await;
+
+		let hash = sha256::digest(zipdata.as_slice());
+
+		let auth = StoreAuthenticationToken {
+			block_number: last_block_number,
+			block_validation: 10,
+			data_hash: hash,
 		};
+		let auth_vec = serde_json::to_string(&auth).unwrap();
+		let sig = admin_keypair.sign(auth_vec.as_bytes());
+		let sig_str = format!("{}{:?}", "0x", sig);
+
+		println!(
+			" Admin:\t\t {} \n Auth_Token:\t {} \n Signature:\t {} \n ",
+			admin_keypair.public(),
+			serde_json::to_string(&auth).unwrap(),
+			sig_str
+		);
 	}
 
 	#[tokio::test]
-	async fn fetch_bulk_test() {
+	async fn generate_fetch_bulk_test() {
 		let admin = sr25519::Pair::from_phrase(
 			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
 			None,
@@ -478,8 +560,11 @@ mod test {
 		.unwrap()
 		.0;
 
+		let last_block_number = get_current_block_number().await;
+
 		let admin_address = admin.public().to_ss58check();
-		let auth = AuthenticationToken { block_number: 1000, block_validation: 10000000 };
+		let auth =
+			FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
 		let auth_str = serde_json::to_string(&auth).unwrap();
 		let signature = admin.sign(auth_str.as_bytes());
 

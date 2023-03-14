@@ -17,15 +17,22 @@ use subxt::{
 };
 use tracing::{debug, info};
 
-
-#[cfg_attr(feature = "mainnet", subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_mainnet.scale"))]
-
-#[cfg_attr(feature = "alphanet", subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale"))]
-
-#[cfg_attr(feature = "dev-1", subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev1.scale"))]
-
-#[cfg_attr(feature = "dev-0", subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev0.scale"))]
-
+#[cfg_attr(
+	feature = "mainnet",
+	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_mainnet.scale")
+)]
+#[cfg_attr(
+	feature = "alphanet",
+	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale")
+)]
+#[cfg_attr(
+	feature = "dev-1",
+	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev1.scale")
+)]
+#[cfg_attr(
+	feature = "dev-0",
+	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev0.scale")
+)]
 
 pub mod ternoa {}
 use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
@@ -42,20 +49,16 @@ pub enum ReturnStatus {
 
 pub async fn get_chain_api() -> DefaultApi {
 	debug!("5-1 get chain API");
-	
-	let rpc_endoint = 	
-		if cfg!(feature = "mainnet"){
-			"wss://mainnet.ternoa.network:443".to_string()
-		}
-		else if cfg!(feature = "alphanetnet") {
-			"wss://alphanet.ternoa.com:443".to_string()
-		}
-		else if cfg!(feature = "dev-1") {
-			"wss://dev-1.ternoa.network:443".to_string()
-		}
-		else {
-			"wss://dev-0.ternoa.network:443".to_string()
-		};
+
+	let rpc_endoint = if cfg!(feature = "mainnet") {
+		"wss://mainnet.ternoa.network:443".to_string()
+	} else if cfg!(feature = "alphanetnet") {
+		"wss://alphanet.ternoa.com:443".to_string()
+	} else if cfg!(feature = "dev-1") {
+		"wss://dev-1.ternoa.network:443".to_string()
+	} else {
+		"wss://dev-0.ternoa.network:443".to_string()
+	};
 	// Create a client to use:
 
 	DefaultApi::from_url(rpc_endoint).await.unwrap()
@@ -338,7 +341,7 @@ pub async fn capsule_keyshare_oracle(
 
 	// Create a transaction to submit:
 	let tx = ternoa::tx().nft().add_capsule_shard(nft_id);
-	
+
 	// submit the transaction with default params:
 	api.tx().sign_and_submit_default(&tx, &signer).await
 }
