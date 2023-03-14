@@ -100,10 +100,11 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 		.serve(app.into_make_service());
 
 	// TODO:  DOES IT MAKE SENSE? SINCE AXUM IS INSIDE TOKIO THREAD IN MAIN FUNCTION!
-	let sgx_server = tokio::spawn(sgx_server_handle);
-	
+	//let sgx_server = tokio::spawn(sgx_server_handle);
+
 	debug!("3-5-7 Startng server : server exit\n");
-	match tokio::try_join!(sgx_server) {
+	//match tokio::try_join!(sgx_server) {
+	match sgx_server_handle.await {
 		Ok(_) => {
 			info!("SGX Server finished successfully");
 			Ok(())
