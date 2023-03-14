@@ -64,7 +64,6 @@ schnorrkel = "0.10.2"
 sha256 = "1.1.1"
 sequoia-openpgp = "1.13.0"
 sigstore = {git = "https://github.com/sigstore/sigstore-rs.git"}
-rcgen = "0.10.0"
 
 rustls-acme = {version = "0.5.2", features = ["axum"]}
 
