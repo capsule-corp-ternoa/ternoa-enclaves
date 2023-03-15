@@ -296,6 +296,8 @@ pub async fn capsule_set_keyshare(
 								let new_log = LogStruct::new(log_account, LogType::STORE);
 								log_file_struct.insert_new_capsule_log(new_log);
 
+								// match
+
 								let log_buf = serde_json::to_vec(&log_file_struct).expect("error serializing json body"); /* TODO: manage expect() */
 
 								match File::create(file_path.clone()).and_then(|mut file| {
@@ -322,21 +324,6 @@ pub async fn capsule_set_keyshare(
 								);
 							}
 						}
-
-
-
-						// let mut file = File::create(file_path).unwrap(); // TODO: manage unwrap()
-						//
-						// let mut log_file_struct = LogFile::new();
-						// let log_account = LogAccount::new(
-						// 	request.owner_address.to_string(),
-						// 	RequesterType::OWNER,
-						// );
-						// let new_log = LogStruct::new(log_account, LogType::STORE);
-						// log_file_struct.insert_new_capsule_log(new_log);
-						//
-						// let log_buf = serde_json::to_vec(&log_file_struct).unwrap(); // TODO: manage unwrap()
-						// file.write_all(&log_buf).unwrap(); // TODO: manage unwrap()
 					} else {
 						// Log file exists : Secret-NFT is converted to Capsule
 						update_log_file_view(
@@ -366,7 +353,11 @@ pub async fn capsule_set_keyshare(
 					info!("{}, owner = {}", message, request.owner_address);
 
 					info!("Removing the capsule key-share from TEE due to previous error, nft_id : {}", verified_data.nft_id);
-					std::fs::remove_file(file_path.clone()).expect("Can not remove key-share file"); // TODO: manage expect()
+
+					match std::fs::remove_file(file_path.clone()) {
+						Ok(_) => info!("Capsule key-share is successfully removed from TEE, nft_id : {}", verified_data.nft_id),
+						Err(err) => error!("Error in removing capsule key-share from TEE, nft_id : {}, Error : {}", verified_data.nft_id, err),
+					}
 
 					Json(json!({
 						"status": ReturnStatus::ORACLEFAILURE,
@@ -517,9 +508,6 @@ pub async fn capsule_retrieve_keyshare(
 			}
 			.serialize();
 
-			//			let sig = state.enclave_key.sign(serialized_keyshare.as_bytes());
-			//			let sig_str = "0x".to_owned() + &sig).unwrap();
-
 			Json(json!({
 				"status": ReturnStatus::RETRIEVESUCCESS,
 				"nft_id": verified_data.nft_id,
@@ -625,7 +613,11 @@ pub async fn capsule_remove_keyshare(
 	match std::fs::remove_file(file_path) {
 		Ok(_) => {
 			let file_path = state.seal_path.clone() + &request.nft_id.to_string() + ".log";
-			std::fs::remove_file(file_path).expect("Error removing capsule log-file."); // TODO: manage expect()
+
+			match std::fs::remove_file(file_path) {
+				Ok(_) => info!("Successfully removed capsule log-file."),
+				Err(err) => warn!("Error removing capsule log-file : {}", err),
+			}
 
 			info!(
 				"Successfully removed capsule key-share from TEE, Capsule nft_id : {}",
