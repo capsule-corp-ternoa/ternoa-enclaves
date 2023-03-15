@@ -12,17 +12,39 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "https://dev-c1n1.ternoa.network:8111/api/health",
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/health",
 					"protocol": "https",
 					"host": [
 						"dev-c1n1",
 						"ternoa",
 						"network"
 					],
-					"port": "8111",
+					"port": "8101",
 					"path": [
 						"api",
 						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Quote",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/quote",
+					"protocol": "https",
+					"host": [
+						"dev-c1n1",
+						"ternoa",
+						"network"
+					],
+					"port": "8101",
+					"path": [
+						"api",
+						"quote"
 					]
 				}
 			},
@@ -327,13 +349,29 @@
 				"method": "POST",
 				"header": [],
 				"body": {
-					"mode": "raw",
-					"raw": "{\n\t\"signer_address\": \"5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy\",\n    \n    \"data\": {},\n    \n\t\"signature\":  \"6e45e4bf575d8490f94c3d4b7153032735e377354bb7937a8fc538474c2357076f7722005c601c000b109fb4c6a5b41caedf43775267026041dd6d736290db84\"\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "admin_address",
+							"value": "5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC",
+							"type": "text"
+						},
+						{
+							"key": "auth_token",
+							"value": "{\"block_number\":634443,\"block_validation\":10,\"data_hash\":\"aec93fde9a1383911565b6034c51db16d7ce50e867e6a7cb8dbc6b213ed83d91\"}",
+							"type": "text"
+						},
+						{
+							"key": "restore_file",
+							"type": "file",
+							"src": "/home/zorvan/test.zip"
+						},
+						{
+							"key": "signature",
+							"value": "0xf8e865b05eba768feb19df6f496a57cbb9c6acfd362961f31e6f0648d837302547725adf6fe35d3b5027169d99f349fd36e7ebe0372f67d5a37b7ccd1d46f984",
+							"type": "text"
 						}
-					}
+					]
 				},
 				"url": {
 					"raw": "https://dev-c1n1.ternoa.network:8101/api/backup/push-bulk",
@@ -360,7 +398,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"admin_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n  \"auth_token\": {\n    \"block_number\": 1000,\n    \"block_validation\": 10000000\n  },\n  \"signature\": \"0x421293360377247a82be0dc2bf90aded67298ca681649a13a01cfdfa8d6f6f476298a45afcabef573abe1f2b81b39649b20458cd2f7011a4b416c0cc1c804481\"\n}",
+					"raw": "{\n  \"admin_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n  \"auth_token\": \"{\\\"block_number\\\":634522,\\\"block_validation\\\":10}\",\n  \"signature\": \"0x3430118f189bd161919440fc180381308be37b3755dc8d381ae7558d8f6951020cdcc014cffd5591fd9b0838bf4dae895992a40dc582727090298c7bae858e85\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -380,6 +418,70 @@
 						"api",
 						"backup",
 						"fetch-bulk"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Hackathon_fibo",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"code\": \"let target = parse_int(TARGET);let repeat = parse_int(REPEAT);fn fib(n) {if n < 2 {n} else {fib(n-1) + fib(n-2)}} let result; for n in 0..repeat {result = fib(target);} return result;\",\n    \"data\": {\"TARGET\": \"8\",\"REPEAT\": \"5\"}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/computation/direct-run",
+					"protocol": "https",
+					"host": [
+						"dev-c1n1",
+						"ternoa",
+						"network"
+					],
+					"port": "8101",
+					"path": [
+						"api",
+						"computation",
+						"direct-run"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Hackathon_matmul",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"code\": \"const SIZE = parse_int(TARGET);\\n\\nfn new_mat(x, y) {\\n    let row = [];\\n    row.pad(y, 0.0);\\n\\n    let matrix = [];\\n    matrix.pad(x, row);\\n\\n    matrix\\n}\\n\\nfn mat_gen() {\\n    const n = global::SIZE;\\n    const tmp = 1.0 / n / n;\\n    let m = new_mat(n, n);\\n\\n    for i in 0..n {\\n        for j in 0..n {\\n            m[i][j] = tmp * (i - j) * (i + j);\\n        }\\n    }\\n\\n    m\\n}\\n\\nfn mat_mul(a, b) {\\n    let b2 = new_mat(a[0].len, b[0].len);\\n\\n    for i in 0..a[0].len {\\n        for j in 0..b[0].len {\\n            b2[j][i] = b[i][j];\\n        }\\n    }\\n\\n    let c = new_mat(a.len, b[0].len);\\n\\n    for i in 0..c.len {\\n        for j in 0..c[i].len {\\n            c[i][j] = 0.0;\\n\\n            for z in 0..a[i].len {\\n                c[i][j] += a[i][z] * b2[j][z];\\n            }\\n        }\\n    }\\n\\n    c\\n}\\n\\nconst now = timestamp();\\n\\nconst a = mat_gen();\\nconst b = mat_gen();\\nlet result = 0; let c = mat_mul(a, b);\\n\\n/*\\nfor i in 0..SIZE) {\\n    print(c[i]);\\n}\\n*/\\n\\nprint(`Finished. Run time = ${now.elapsed} seconds.`);\\nreturn result;\",\n    \"data\": {\"TARGET\": \"150\"}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://dev-c1n1.ternoa.network:8101/api/computation/direct-run",
+					"protocol": "https",
+					"host": [
+						"dev-c1n1",
+						"ternoa",
+						"network"
+					],
+					"port": "8101",
+					"path": [
+						"api",
+						"computation",
+						"direct-run"
 					]
 				}
 			},
