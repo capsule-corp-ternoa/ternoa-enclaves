@@ -3,8 +3,8 @@
 #![allow(unused_variables)]
 
 use axum::{
-	body::StreamBody,
-	extract::{Multipart, State},
+	body::{StreamBody, Bytes},
+	extract::{Multipart, State, FromRequest},
 	http::header,
 	response::IntoResponse,
 	Json,
@@ -50,7 +50,7 @@ pub struct FetchAuthenticationToken {
 #[derive(Serialize, Deserialize)]
 pub struct FetchBulkPacket {
 	admin_address: String,
-	auth_token: FetchAuthenticationToken,
+	auth_token: String, //FetchAuthenticationToken,
 	signature: String,
 }
 
@@ -215,7 +215,7 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 /// ```
 /// backup_key_shares(state, backup_request)
 /// ```
-#[axum::debug_handler]
+
 pub async fn backup_fetch_bulk(
 	State(state): State<StateConfig>,
 	Json(backup_request): Json<FetchBulkPacket>,
@@ -227,52 +227,58 @@ pub async fn backup_fetch_bulk(
 
 		return "Error backup key shares : Invalid admin".to_string().into_response()
 	}
+	
+	let mut auth = backup_request.auth_token.clone();
 
-	let message = match serde_json::to_vec(&backup_request.auth_token) {
-		Ok(token) => token,
-		Err(e) => {
-			error!("Error serializing auth token: {}", e);
-			// for now, return an empty Vec<u8>
-			Vec::new()
-		},
-	};
+	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
+		auth = auth
+			.strip_prefix("<Bytes>")
+			.unwrap()
+			.strip_suffix("</Bytes>")
+			.unwrap()
+			.to_string();
+	}
 
-	if verify_signature(
+	let auth_token: FetchAuthenticationToken = serde_json::from_str(&auth).unwrap();
+	
+	if !verify_signature(
 		&backup_request.admin_address,
 		backup_request.signature.clone(),
-		message.as_slice(),
+		backup_request.auth_token.clone().as_bytes(),
 	) {
-		if backup_request.auth_token.is_valid().await {
-			let backup_file = "/temporary/backup.zip";
-			// remove previously generated backup
-			if std::path::Path::new(&backup_file).exists() {
-				std::fs::remove_file(backup_file).unwrap();
-			}
-			// create new backup
-			add_dir_zip(&state.seal_path.clone(), backup_file);
+		return "Invalid Signature".to_string().into_response();
+	} 
+	
 
-			// `File` implements `AsyncRead`
-			let file = match tokio::fs::File::open(backup_file).await {
-				Ok(file) => file,
-				Err(err) => return format!("Backup File not found: {}", err).into_response(),
-			};
-			// convert the `AsyncRead` into a `Stream`
-			let stream = ReaderStream::new(file);
-			// convert the `Stream` into an `axum::body::HttpBody`
-			let body = StreamBody::new(stream);
-
-			let headers = [
-				(header::CONTENT_TYPE, "text/toml; charset=utf-8"),
-				(header::CONTENT_DISPOSITION, "attachment; filename=\"Backup.zip\""),
-			];
-
-			(headers, body).into_response()
-		} else {
-			"Authentication Token Expired".to_string().into_response()
-		}
-	} else {
-		"Invalid Signature".to_string().into_response()
+	if !auth_token.is_valid().await {
+		return "Authentication Token Expired".to_string().into_response();
 	}
+
+	let backup_file = "/temporary/backup.zip";
+	// remove previously generated backup
+	if std::path::Path::new(&backup_file).exists() {
+		std::fs::remove_file(backup_file).unwrap();
+	}
+	// create new backup
+	add_dir_zip(&state.seal_path.clone(), backup_file);
+
+	// `File` implements `AsyncRead`
+	let file = match tokio::fs::File::open(backup_file).await {
+		Ok(file) => file,
+		Err(err) => return format!("Backup File not found: {}", err).into_response(),
+	};
+	// convert the `AsyncRead` into a `Stream`
+	let stream = ReaderStream::new(file);
+	// convert the `Stream` into an `axum::body::HttpBody`
+	let body = StreamBody::new(stream);
+
+	let headers = [
+		(header::CONTENT_TYPE, "text/toml; charset=utf-8"),
+		(header::CONTENT_DISPOSITION, "attachment; filename=\"Backup.zip\""),
+	];
+
+	(headers, body).into_response()
+	
 }
 
 /// Returns Json Response
@@ -421,6 +427,15 @@ pub async fn backup_push_bulk(
 		}))
 	}
 
+	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
+		auth_token = auth_token
+			.strip_prefix("<Bytes>")
+			.unwrap()
+			.strip_suffix("</Bytes>")
+			.unwrap()
+			.to_string();
+	}
+
 	let token: StoreAuthenticationToken = serde_json::from_str(auth_token.as_str()).unwrap();
 
 	if !token.is_valid().await {
@@ -482,7 +497,7 @@ mod test {
 
 		let _request = FetchBulkPacket {
 			admin_address: admin_keypair.public().to_string(),
-			auth_token: auth,
+			auth_token: serde_json::to_string(&auth).unwrap(),
 			signature: sig_str,
 		};
 	}
@@ -509,14 +524,15 @@ mod test {
 			block_validation: 10,
 			data_hash: hash,
 		};
-		let auth_vec = serde_json::to_string(&auth).unwrap();
-		let sig = admin_keypair.sign(auth_vec.as_bytes());
+
+		let auth_str = serde_json::to_string(&auth).unwrap();
+		let sig = admin_keypair.sign(auth_str.as_bytes());
 		let sig_str = format!("{}{:?}", "0x", sig);
 
 		println!(
 			" Admin:\t\t {} \n Auth_Token:\t {} \n Signature:\t {} \n ",
 			admin_keypair.public(),
-			serde_json::to_string(&auth).unwrap(),
+			auth_str,
 			sig_str
 		);
 	}
@@ -540,7 +556,7 @@ mod test {
 
 		let packet = FetchBulkPacket {
 			admin_address,
-			auth_token: auth,
+			auth_token: auth_str,
 			signature: format!("{}{:?}", "0x", signature),
 		};
 
