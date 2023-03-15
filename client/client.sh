@@ -1,14 +1,18 @@
 
 ### ENCLAVE HEALTH-CHECK
 echo "Health check"
-curl  https://dev-c1n1.ternoa.network:8101/api//health
+curl  https://dev-c1n1.ternoa.network:8101/api/health
+
+### ENCLAVE QUOTE
+echo "Attestation Quote"
+curl  https://dev-c1n1.ternoa.network:8101/api/quote
 
 ### SECRET-NFT
 echo "Get NFT views log"
-curl  https://dev-c1n1.ternoa.network:8101/api//secret-nft/get-views-log/494
+curl  https://dev-c1n1.ternoa.network:8101/api/secret-nft/get-views-log/1476
 
 echo "Get NFT key-share availability on enclave"
-curl  https://dev-c1n1.ternoa.network:8101/api//secret-nft/is-keyshare-available/494
+curl  https://dev-c1n1.ternoa.network:8101/api/secret-nft/is-keyshare-available/494
 
 echo "Store NFT key-hares to TEE"
 curl -X POST https://dev-c1n1.ternoa.network:8101/api//secret-nft/store-keyshare -H 'Content-Type: application/json' -d '{  "owner_address": "5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC",  "signer_address": "5G1AGcU2D8832LcRefKrPm8Zrob63vf6uQSzKGmhyV9DrzFs_214299_1000000",  "signersig": "0xa6f4b9fcb96291c3b9a628449ace134e161f0aa7f7b6b1c7bfb42a3398919038dfa104362fdda1cb5954838909cd7dff08f8bd2d49b097d11fd3b7d14b6c9682",  "secret_data": "494_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_214299_1000000",  "signature": "0xd2ae8f5d20214212a94bb55bfd88d748eaabbbffeec0b372811f78b60279de512c44ca87720703b20de52a50595f4551b8b13e538dffd3ac18968d8412dba98d"}'
