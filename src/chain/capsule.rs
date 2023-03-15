@@ -8,7 +8,7 @@ use std::{
 	io::{Read, Write},
 };
 
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn, error};
 
 use axum::extract::Path as PathExtract;
 
@@ -286,16 +286,57 @@ pub async fn capsule_set_keyshare(
 					if !std::path::Path::new(&file_path).exists() {
 						let mut file = std::fs::File::create(file_path).unwrap(); // TODO: manage unwrap()
 
-						let mut log_file_struct = LogFile::new();
-						let log_account = LogAccount::new(
-							request.owner_address.to_string(),
-							RequesterType::OWNER,
-						);
-						let new_log = LogStruct::new(log_account, LogType::STORE);
-						log_file_struct.insert_new_capsule_log(new_log);
+						match File::create(file_path.clone()) {
+							Ok(_) => {
+								let mut log_file_struct = LogFile::new();
+								let log_account = LogAccount::new(
+									request.owner_address.to_string(),
+									RequesterType::OWNER,
+								);
+								let new_log = LogStruct::new(log_account, LogType::STORE);
+								log_file_struct.insert_new_capsule_log(new_log);
 
-						let log_buf = serde_json::to_vec(&log_file_struct).unwrap(); // TODO: manage unwrap()
-						file.write_all(&log_buf).unwrap(); // TODO: manage unwrap()
+								let log_buf = serde_json::to_vec(&log_file_struct).expect("error serializing json body"); /* TODO: manage expect() */
+
+								match File::create(file_path.clone()).and_then(|mut file| {
+									file.write_all(&log_buf)
+								}) {
+									Ok(_) => {
+										info!(
+											"Log file for nft_id : {} is successfully created, path : {}",
+											verified_data.nft_id, file_path
+										);
+									}
+									Err(err) => {
+										error!(
+											"Error in creating log file for nft_id : {}, path : {}, Error : {}",
+											verified_data.nft_id, file_path, err
+										);
+									}
+								}
+							}
+							Err(err) => {
+								error!(
+									"Error in creating log file for nft_id : {}, path : {} error : {}",
+									verified_data.nft_id, file_path, err
+								);
+							}
+						}
+
+
+
+						// let mut file = File::create(file_path).unwrap(); // TODO: manage unwrap()
+						//
+						// let mut log_file_struct = LogFile::new();
+						// let log_account = LogAccount::new(
+						// 	request.owner_address.to_string(),
+						// 	RequesterType::OWNER,
+						// );
+						// let new_log = LogStruct::new(log_account, LogType::STORE);
+						// log_file_struct.insert_new_capsule_log(new_log);
+						//
+						// let log_buf = serde_json::to_vec(&log_file_struct).unwrap(); // TODO: manage unwrap()
+						// file.write_all(&log_buf).unwrap(); // TODO: manage unwrap()
 					} else {
 						// Log file exists : Secret-NFT is converted to Capsule
 						update_log_file_view(
