@@ -21,7 +21,7 @@ fs.mounts = [
   { path = "/temporary", type = "tmpfs" },
   { path = "/quote", uri = "file:{{ quote_path }}", type = "chroot" },
   { path = "/keys", uri = "file:{{ credentials_path }}/keys", type = "chroot" },
-  { path = "/certificates", uri = "file:{{ credentials_path }}/certificates", type = "_sgx_mrenclave" },
+  { path = "/certificates", uri = "file:{{ certificates_path }}/", type = "_sgx_mrenclave" },
   { path = "/nft" , uri = "file:{{ seal_path }}",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
 ]
 
@@ -71,11 +71,11 @@ sgx.require_avx    = true
 #sgx.require_amx    = true
 #sgx.require_exinfo = true
 
-#sgx.file_check_policy = "allow_all_but_log" #"strict"
+sgx.file_check_policy = "strict"
 
 # TODO: PRODUCTION SPID
 sgx.remote_attestation = "epid"
-sgx.ra_client_spid = "15AD86B4CFA46B327A8BFB79AA0D67B7"
+sgx.ra_client_spid = "B6941ED89BCD7301A08739845B3B865A"
 sgx.ra_client_linkable = true
 
 sgx.isvprodid = 11

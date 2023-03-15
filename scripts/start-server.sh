@@ -105,6 +105,9 @@ while :; do
 		echo "creating binary checksum ..."
 	    cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
 	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
+
+		CERT_PATH=$GRAMINE_PATH/certificates
+
 	;;
 	-v|--verbose)
 	if [ "$2" ]; then
