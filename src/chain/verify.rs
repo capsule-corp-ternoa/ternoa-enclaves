@@ -533,7 +533,6 @@ pub async fn verify_requester_type(
 	owner: AccountId32,
 	requester_type: RequesterType,
 ) -> bool {
-
 	match AccountId32::from_str(&requester_address) {
 		Ok(converted_requester_address) => {
 			match requester_type {
