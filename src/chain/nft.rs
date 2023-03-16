@@ -317,6 +317,7 @@ pub async fn nft_store_keyshare(
 					log_file_struct.insert_new_nft_log(new_log);
 
 					let log_buf = serde_json::to_vec(&log_file_struct).unwrap(); // TODO: manage unwrap()
+
 					file.write_all(&log_buf).unwrap(); // TODO: manage unwrap()
 
 					Json(json!({
