@@ -216,7 +216,7 @@ pub async fn capsule_set_keyshare(
 	match request.verify_store_request("capsule").await {
 		// DATA-FILED IS VALID
 		Ok(verified_data) => {
-			// IS ENCALVE SEAL-PATH READY?
+			// IS ENCLAVE SEAL-PATH READY?
 			if !std::path::Path::new(&state.clone().seal_path).exists() {
 				let status = ReturnStatus::DATABASEFAILURE;
 				let description = format!(
