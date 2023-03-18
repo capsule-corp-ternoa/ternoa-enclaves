@@ -61,7 +61,6 @@ pub async fn get_chain_api() -> DefaultApi {
 	} else {
 		"wss://dev-0.ternoa.network:443".to_string()
 	};
-	// Create a client to use:
 
 	DefaultApi::from_url(rpc_endoint).await.unwrap()
 }
