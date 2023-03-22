@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use axum::Json;
 use serde_json::{json, Value};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::chain::core::{
 	get_current_block_number, get_onchain_delegatee, get_onchain_nft_data,
@@ -78,6 +78,8 @@ pub enum ReturnStatus {
 
 	NOTBURNT,
 	NOTSYNCING,
+
+	InvalidBlockNumber,
 }
 
 // Errors when parsing signature
@@ -569,7 +571,13 @@ impl AuthenticationToken {
 	}
 
 	pub async fn is_valid(&self) -> bool {
-		let last_block_number = get_current_block_number().await;
+		let last_block_number = match get_current_block_number().await {
+			Ok(number) => number,
+			Err(err) => {
+				error!("Failed to get current block number: {}", err);
+				return false;
+			}
+		};
 		(last_block_number > self.block_number - 3) // for finalization delay
 			&& (last_block_number < self.block_number + self.block_validation + 3)
 				&&  (self.block_validation < 100) // A finite validity period
@@ -1007,7 +1015,7 @@ mod test {
 	---------------------- */
 	/// Generate a random string of a given length
 	async fn generate_store_request(nftid: u32) -> StoreKeysharePacket {
-		let current_block_number = get_current_block_number().await;
+		let current_block_number = get_current_block_number().await.unwrap();
 
 		let owner = sr25519::Pair::from_phrase(
 			"theme affair risk blue world review hazard social arrow usage unveil surge",
@@ -1046,7 +1054,7 @@ mod test {
 
 	/// Generate a random string of a given length
 	async fn generate_retrieve_request(nftid: u32) -> RetrieveKeysharePacket {
-		let current_block_number = get_current_block_number().await;
+		let current_block_number = get_current_block_number().await.unwrap();
 
 		let owner = sr25519::Pair::from_phrase(
 			"theme affair risk blue world review hazard social arrow usage unveil surge",
@@ -1161,7 +1169,7 @@ mod test {
 		let mut packet_sdk  = StoreKeysharePacket {
 			owner_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
 			signer_address: sr25519::Public::from_slice(&[1u8;32]).unwrap().to_string(),
-			data: "xxx".to_string(), 
+			data: "xxx".to_string(),
 			signature: "0x42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b".to_string(),
 			signersig: "xxx".to_string(),
 		};
@@ -1186,7 +1194,7 @@ mod test {
 
 	#[tokio::test]
 	async fn verify_data_test() {
-		let current_block_number = get_current_block_number().await;
+		let current_block_number = get_current_block_number().await.unwrap();
 		let mut packet = generate_store_request(1300).await;
 
 		// correct
@@ -1218,7 +1226,7 @@ mod test {
 
 	#[tokio::test]
 	async fn verify_polkadotjs_request_test() {
-		let current_block_number = get_current_block_number().await;
+		let current_block_number = get_current_block_number().await.unwrap();
 
 		let owner = sr25519::Pair::generate().0;
 		let signer = sr25519::Pair::generate().0;
@@ -1257,7 +1265,7 @@ mod test {
 
 	#[tokio::test]
 	async fn verify_signer_request_test() {
-		let current_block_number = get_current_block_number().await;
+		let current_block_number = get_current_block_number().await.unwrap();
 		// Test
 		let owner = sr25519::Pair::generate().0;
 		let signer = sr25519::Pair::generate().0;
