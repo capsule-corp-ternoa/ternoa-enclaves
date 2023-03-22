@@ -88,17 +88,31 @@ AUTHENTICATION TOKEN IMPLEMENTATION
 /// Retrieving the stored Keyshare
 impl FetchAuthenticationToken {
 	pub async fn is_valid(&self) -> bool {
-		let last_block_number = get_current_block_number().await;
+		let last_block_number = match get_current_block_number().await {
+			Ok(number) => number,
+			Err(err) => {
+				error!("Failed to get current block number: {}", err);
+				return false;
+			}
+		};
 
 		(last_block_number > self.block_number - 3) // for finalization delay
 			&& (last_block_number < self.block_number + self.block_validation + 3) // validity period
-				&&  (self.block_validation < 20) // A finite validity period
+			&&  (self.block_validation < 20) // A finite validity period
 	}
 }
 
 impl StoreAuthenticationToken {
 	pub async fn is_valid(&self) -> bool {
-		let last_block_number = get_current_block_number().await;
+
+		let last_block_number = match get_current_block_number().await {
+			Ok(number) => number,
+			Err(err) => {
+				error!("Failed to get current block number: {}", err);
+				return false;
+			}
+		};
+
 
 		(last_block_number > self.block_number - 3) // for finalization delay
 			&& (last_block_number < self.block_number + self.block_validation + 3) // validity period
@@ -524,7 +538,7 @@ mod test {
 		)
 		.unwrap()
 		.0;
-		let last_block_number = get_current_block_number().await;
+		let last_block_number = get_current_block_number().await.unwrap();
 
 		let auth =
 			FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
@@ -552,7 +566,7 @@ mod test {
 		let mut zipfile = std::fs::File::open("./test.zip").unwrap();
 		let _ = zipfile.read_to_end(&mut zipdata).unwrap();
 
-		let last_block_number = get_current_block_number().await;
+		let last_block_number = get_current_block_number().await.unwrap();
 
 		let hash = sha256::digest(zipdata.as_slice());
 
@@ -583,7 +597,7 @@ mod test {
 		.unwrap()
 		.0;
 
-		let last_block_number = get_current_block_number().await;
+		let last_block_number = get_current_block_number().await.unwrap();
 
 		let admin_address = admin.public().to_ss58check();
 		let auth =
