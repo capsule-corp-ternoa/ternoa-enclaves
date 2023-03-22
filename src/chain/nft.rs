@@ -6,6 +6,7 @@ use std::{
 	fs::{File, OpenOptions},
 	io::{Read, Write},
 };
+
 use tracing::{debug, error, info, warn};
 
 use axum::extract::Path as PathExtract;
@@ -300,11 +301,11 @@ pub async fn nft_store_keyshare(
 			};
 
 			// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
-			match nft_keyshare_oracle(state.enclave_key.clone(), verified_data.nft_id).await {
+			return match nft_keyshare_oracle(state.enclave_key.clone(), verified_data.nft_id).await {
 				Ok(txh) => {
 					let result = nft_keyshare_oracle_results(&state, &request, &verified_data, txh);
 
-					if result {
+					return if result {
 						Json(json!({
 							"status": ReturnStatus::STORESUCCESS,
 							"nft_id": verified_data.nft_id,
@@ -313,11 +314,11 @@ pub async fn nft_store_keyshare(
 						}))
 					} else {
 						Json(json!({
-							"status": ReturnStatus::DATABASEFAILURE,
+							"status": ReturnStatus::ORACLEFAILURE,
 							"nft_id": verified_data.nft_id,
 							"enclave_id": state.identity,
-							"description": "Error storing NFT key-share to TEE, use another enclave please."
-							.to_string(),
+							"description":  "Error storing NFT key-share to TEE, use another encl ave please."
+								.to_string()
 						}))
 					}
 				},
@@ -515,32 +516,43 @@ pub async fn nft_retrieve_keyshare(
 				"secret-nft",
 			);
 
-			//
-			let serialized_keyshare = StoreKeyshareData {
-				nft_id: verified_data.nft_id,
-				keyshare: nft_keyshare,
-				auth_token: AuthenticationToken {
-					block_number: get_current_block_number().await,
-					block_validation: 100,
-				},
+			match get_current_block_number().await {
+				Ok(block_number) => {
+					let serialized_keyshare = StoreKeyshareData {
+						nft_id: verified_data.nft_id,
+						keyshare: nft_keyshare,
+						auth_token: AuthenticationToken {
+							block_number,
+							block_validation: 100,
+						},
+					}
+					.serialize();
+					let status = ReturnStatus::RETRIEVESUCCESS;
+					let description = format!(
+						"TEE Key-share {:?}: Success retrieving nft_id key-share.",
+						APICALL::NFTRETRIEVE
+					);
+
+					info!("{}, requester : {}", description, request.requester_address);
+
+					return Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": state.identity,
+						"keyshare_data": serialized_keyshare,
+						"description": description,
+					}));
+				}
+				Err(e)=> {
+					return Json(json!({
+						"status": ReturnStatus::InvalidBlockNumber,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": state.identity,
+						"keyshare_data": "Error in data",
+						"description": format!("Error getting current block number: {}", e)
+					}))
+				}
 			}
-			.serialize();
-
-			let status = ReturnStatus::RETRIEVESUCCESS;
-			let description = format!(
-				"TEE Key-share {:?}: Success retrieving nft_id key-share.",
-				APICALL::NFTRETRIEVE
-			);
-
-			info!("{}, requester : {}", description, request.requester_address);
-
-			Json(json!({
-				"status": status,
-				"nft_id": verified_data.nft_id,
-				"enclave_id": state.identity,
-				"keyshare_data": serialized_keyshare,
-				"description": description,
-			}))
 		},
 
 		Err(err) => {
