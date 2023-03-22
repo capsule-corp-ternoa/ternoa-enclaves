@@ -510,23 +510,35 @@ pub async fn capsule_retrieve_keyshare(
 				"capsule",
 			);
 
-			let serialized_keyshare = StoreKeyshareData {
-				nft_id: verified_data.nft_id,
-				keyshare: capsule_keyshare,
-				auth_token: AuthenticationToken {
-					block_number: get_current_block_number().await,
-					block_validation: 100,
-				},
-			}
-			.serialize();
+			match get_current_block_number().await {
+				Ok(block_number) => {
+					let serialized_keyshare = StoreKeyshareData {
+						nft_id: verified_data.nft_id,
+						keyshare: capsule_keyshare,
+						auth_token: AuthenticationToken {
+							block_number,
+							block_validation: 100,
+						},
+					}
+						.serialize();
 
-			Json(json!({
-				"status": ReturnStatus::RETRIEVESUCCESS,
-				"nft_id": verified_data.nft_id,
-				"enclave_id": state.identity,
-				"keyshare_data": serialized_keyshare,
-				"description": "Success retrieving Capsule key-share.".to_string(),
-			}))
+					Json(json!({
+						"status": ReturnStatus::RETRIEVESUCCESS,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": state.identity,
+						"keyshare_data": serialized_keyshare,
+						"description": "Success retrieving Capsule key-share.".to_string(),
+					}))
+				},
+				Err(err) => {
+					Json(json!({
+						"status": ReturnStatus::InvalidBlockNumber,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": state.identity,
+						"description": format!("Fail retrieving Capsule key-share. {}", err),
+					}))
+				}
+			}
 		},
 
 		Err(err) => {
