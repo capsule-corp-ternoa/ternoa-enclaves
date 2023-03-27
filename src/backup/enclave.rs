@@ -14,9 +14,10 @@ use tokio_util::io::ReaderStream;
 use hex::{FromHex, FromHexError};
 use serde_json::{json, Value};
 use sp_core::{crypto::Ss58Codec, sr25519, Pair};
-use std::io::{Read, Write};
-
-use tracing::{debug, info};
+use std::{
+	collections::BTreeMap,
+	io::{Read, Write},
+};
 
 use std::fs::{remove_file, File};
 use tracing::{debug, error, info};
@@ -191,9 +192,16 @@ fn get_signature(signature: String) -> Result<Signature, FromHexError> {
 /// verify_signature(account_id, signature, message)
 /// ```
 fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool {
-	let account_pubkey = get_public_key(account_id);
-
-	sr25519::Pair::verify(&get_signature(signature), message, &account_pubkey)
+	match get_public_key(account_id) {
+		Ok(pk) => match get_signature(signature) {
+			Ok(val) => sr25519::Pair::verify(&val, message, &pk),
+			Err(err) => {
+				debug!("Error generating pair {:?}", err);
+				false
+			},
+		},
+		Err(_) => false,
+	}
 }
 
 /// Backup Key Shares
@@ -208,7 +216,7 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 /// backup_key_shares(state, backup_request)
 /// ```
 
-pub async fn admin_backup_fetch_bulk(
+pub async fn enclave_backup_fetch_bulk(
 	State(state): State<StateConfig>,
 	Json(backup_request): Json<FetchBulkPacket>,
 ) -> impl IntoResponse {
@@ -217,7 +225,7 @@ pub async fn admin_backup_fetch_bulk(
 	if !verify_account_id(&backup_request.admin_address) {
 		info!("Error backup key shares : Invalid admin : {}", backup_request.admin_address);
 
-		return "Error backup keyshares : Invalid admin".into_response()
+		return "Error backup key shares : Invalid admin".to_string().into_response()
 	}
 	
 	let mut auth = backup_request.auth_token.clone();
@@ -305,7 +313,7 @@ fn get_json_response(status: String, data: Vec<u8>) -> Json<Value> {
 /// backup_key_shares(state, backup_request)
 /// ```
 
-pub async fn admin_backup_push_bulk(
+pub async fn enclave_backup_push_bulk(
 	State(state): State<StateConfig>,
 	mut store_request: Multipart,
 ) -> Json<Value> {
@@ -323,47 +331,9 @@ pub async fn admin_backup_push_bulk(
 			_ => {
 				info!("Error restore backup keyshares : field name : {:?}", field);
 
-		println!("Length of `{}` is {:?}", name, data);
-	}
-	/*
-		if !verify_account_id(&store_request.admin_address.clone()) {
-			info!("Error restore backup keyshares : Invalid admin : {}", store_request.admin_address);
-
-	let data = store_request.data.clone();
-
-	let data_bytes = match serde_json::to_vec(&data) {
-		Ok(bytes) => bytes,
-		Err(e) => {
-			debug!("Failed to serialize data: {:?}", e);
-			Vec::new()
-		},
-	};
-
-	if verify_signature(&store_request.admin_address, store_request.signature.clone(), &data_bytes)
-	{
-		if store_request.data.auth_token.is_valid().await {
-			let backup_file = state.seal_path.to_owned() + "backup.zip";
-
-			let mut zipfile = std::fs::File::open(backup_file.clone()).unwrap();
-			zipfile.write_all(&data_bytes).unwrap();
-
-			zip_extract(&backup_file, &state.seal_path);
-
-			remove_file(backup_file).unwrap();
-
-			// TODO : manage big packet transfer
-			Json(json! ({
-				"status": "Successfully request",
-			}))
-		}
-
-		let data = store_request.data.clone();
-
-		let data_bytes = match serde_json::to_vec(&data) {
-			Ok(bytes) => bytes,
-			Err(e) => {
-				debug!("Failed to serialize data: {:?}", e);
-				Vec::new()
+				return Json(json!({
+						"error": format!("Error request field name {:?}", field),
+				}))
 			},
 		};
 
@@ -501,110 +471,3 @@ pub async fn admin_backup_push_bulk(
 	}))
 }
 
-/* **********************
-		 TEST
-********************** */
-
-#[cfg(test)]
-mod test {
-	use super::*;
-
-	#[tokio::test]
-	async fn bulk_fetch_test() {
-		let admin_keypair = sr25519::Pair::from_phrase(
-			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
-			None,
-		)
-		.unwrap()
-		.0;
-		let last_block_number = get_current_block_number().await;
-
-		let auth =
-			FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
-		let auth_bytes = serde_json::to_vec(&auth).unwrap();
-		let sig = admin_keypair.sign(&auth_bytes);
-		let sig_str = serde_json::to_string(&sig).unwrap();
-
-		let _request = FetchBulkPacket {
-			admin_address: admin_keypair.public().to_string(),
-			auth_token: serde_json::to_string(&auth).unwrap(),
-			signature: sig_str,
-		};
-	}
-
-	#[tokio::test]
-	async fn bulk_restore_test() {
-		let admin_keypair = sr25519::Pair::from_phrase(
-			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
-			None,
-		)
-		.unwrap()
-		.0;
-
-		let mut zipdata = Vec::new();
-		let mut zipfile = std::fs::File::open("./test.zip").unwrap();
-		let _ = zipfile.read_to_end(&mut zipdata).unwrap();
-
-		let last_block_number = get_current_block_number().await;
-
-		let hash = sha256::digest(zipdata.as_slice());
-
-		let auth = StoreAuthenticationToken {
-			block_number: last_block_number,
-			block_validation: 10,
-			data_hash: hash,
-		};
-
-		let auth_str = serde_json::to_string(&auth).unwrap();
-		let sig = admin_keypair.sign(auth_str.as_bytes());
-		let sig_str = format!("{}{:?}", "0x", sig);
-
-		println!(
-			" Admin:\t\t {} \n Auth_Token:\t {} \n Signature:\t {} \n ",
-			admin_keypair.public(),
-			auth_str,
-			sig_str
-		);
-	}
-
-	#[tokio::test]
-	async fn generate_fetch_bulk_test() {
-		let admin = sr25519::Pair::from_phrase(
-			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
-			None,
-		)
-		.unwrap()
-		.0;
-
-		let last_block_number = get_current_block_number().await;
-
-		let admin_address = admin.public().to_ss58check();
-		let auth =
-			FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
-		let auth_str = serde_json::to_string(&auth).unwrap();
-		let signature = admin.sign(auth_str.as_bytes());
-
-		let packet = FetchBulkPacket {
-			admin_address,
-			auth_token: auth_str, 
-			signature: format!("{}{:?}", "0x", signature),
-		};
-
-		println!("FetchBulkPacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
-	}
-
-	#[test]
-	fn test_get_signature_valid() {
-		let input  = "0xb7255023814e304b72bc880cc993d5c654ce060db0c3f0772b453714c760521962943747af605a90d0503812c6a62c5c1080cbf377095551af0c168a8c724da8".to_string();
-		let expected = Signature(<[u8; 64]>::from_hex(input.strip_prefix("0x").unwrap()).unwrap());
-		let results = get_signature(input).unwrap();
-		assert_eq!(results, expected);
-	}
-
-	#[test]
-	fn test_get_public_key_valid() {
-		let account = "5DAENKLsmj9FbfxgKuWn81smhKz9dZg75fveUFSUtqrr4CPn";
-		let results = get_public_key(account).unwrap();
-		assert_eq!(results, sr25519::Public::from_ss58check(account).unwrap());
-	}
-}
