@@ -207,6 +207,7 @@ pub async fn capsule_get_views(
 /// * `request` - The request to store the capsule key-share
 /// # Returns
 /// * `impl IntoResponse` - The result of the capsule key-share
+#[axum::debug_handler]
 pub async fn capsule_set_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<StoreKeysharePacket>,
@@ -413,6 +414,7 @@ pub async fn capsule_set_keyshare(
 /// * `request` - RetrieveKeysharePacket
 /// # Returns
 /// * `Json` - ReturnStatus
+#[axum::debug_handler]
 pub async fn capsule_retrieve_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RetrieveKeysharePacket>,
