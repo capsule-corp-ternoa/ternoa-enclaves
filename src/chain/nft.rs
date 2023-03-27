@@ -6,7 +6,7 @@ use std::{
 	fs::{File, OpenOptions},
 	io::{Read, Write},
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use axum::extract::Path as PathExtract;
 
@@ -17,6 +17,7 @@ use crate::chain::{
 };
 use serde::Serialize;
 use serde_json::json;
+use sp_core::H256;
 
 /* **********************
    KEYSHARE AVAILABLE API
@@ -301,33 +302,24 @@ pub async fn nft_store_keyshare(
 			// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
 			match nft_keyshare_oracle(state.enclave_key.clone(), verified_data.nft_id).await {
 				Ok(txh) => {
-					info!(
-						"Proof of storage has been sent to blockchain nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
-						verified_data.nft_id, request.owner_address, txh
-					);
+					let result = nft_keyshare_oracle_results(&state, &request, &verified_data, txh);
 
-					// Log file for tracing the NFT key-share VIEW history in Marketplace.
-					let file_path = state.seal_path + &verified_data.nft_id.to_string() + ".log";
-
-					//if !std::path::Path::new(&file_path).exists() {
-					let mut file = File::create(file_path).unwrap(); // TODO: manage unwrap()
-
-					let mut log_file_struct = LogFile::new();
-					let log_account =
-						LogAccount::new(request.owner_address.to_string(), RequesterType::OWNER);
-					let new_log = LogStruct::new(log_account, LogType::STORE);
-					log_file_struct.insert_new_nft_log(new_log);
-
-					let log_buf = serde_json::to_vec(&log_file_struct).unwrap(); // TODO: manage unwrap()
-
-					file.write_all(&log_buf).unwrap(); // TODO: manage unwrap()
-
-					Json(json!({
-						"status": ReturnStatus::STORESUCCESS,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": state.identity,
-						"description": "Keyshare is successfully stored to TEE".to_string(),
-					}))
+					if result {
+						Json(json!({
+							"status": ReturnStatus::STORESUCCESS,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": state.identity,
+							"description": "Keyshare is successfully stored to TEE".to_string(),
+						}))
+					} else {
+						Json(json!({
+							"status": ReturnStatus::DATABASEFAILURE,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": state.identity,
+							"description": "Error storing NFT key-share to TEE, use another enclave please."
+							.to_string(),
+						}))
+					}
 				},
 
 				Err(err) => {
@@ -377,6 +369,45 @@ pub async fn nft_store_keyshare(
 	}
 }
 
+/// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
+fn nft_keyshare_oracle_results(state: &StateConfig, request: &StoreKeysharePacket, verified_data: &StoreKeyshareData, txh: H256) -> bool {
+	info!(
+        "Proof of storage has been sent to blockchain nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
+        verified_data.nft_id, request.owner_address, txh
+    );
+
+	// Log file for tracing the NFT key-share VIEW history in Marketplace.
+	let file_path = state.clone().seal_path + &verified_data.nft_id.to_string() + ".log";
+
+	let mut file = match File::create(file_path) {
+		Ok(file) => file,
+		Err(e) => {
+			error!("Failed to create log file: {}", e);
+			return false;
+		}
+	};
+
+	let mut log_file_struct = LogFile::new();
+	let log_account = LogAccount::new(request.owner_address.to_string(), RequesterType::OWNER);
+	let new_log = LogStruct::new(log_account, LogType::STORE);
+	log_file_struct.insert_new_nft_log(new_log);
+
+	let log_buf = match serde_json::to_vec(&log_file_struct) {
+		Ok(buf) => buf,
+		Err(e) => {
+			error!("Failed to serialize log file: {}", e);
+			return false;
+		}
+	};
+
+	if let Err(e) = file.write_all(&log_buf) {
+		error!("Failed to write to log file: {}", e);
+		return false;
+	}
+
+	true
+}
+
 /* **********************
 	 RETRIEVE KEYSHARE
 ********************** */
@@ -388,12 +419,12 @@ pub struct RetrieveKeyshareResponse {
 	description: String,
 }
 
-/// Retrieve Keyshare from TEE
+/// Retrieve Key share from TEE
 /// # Arguments
 /// * `state` - StateConfig
-/// * `request` - RetrieveKeysharePacket
+/// * `request` - Retrieve Key share Packet
 /// # Returns
-/// * `RetrieveKeyshareResponse`
+/// * `Retrieve Key share Response`
 pub async fn nft_retrieve_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RetrieveKeysharePacket>,
@@ -494,9 +525,6 @@ pub async fn nft_retrieve_keyshare(
 				},
 			}
 			.serialize();
-
-			//			let sig = state.enclave_key.sign(serialized_keyshare.as_bytes());
-			//			let sig_str = "0x".to_owned() + &&sig).unwrap();
 
 			let status = ReturnStatus::RETRIEVESUCCESS;
 			let description = format!(
