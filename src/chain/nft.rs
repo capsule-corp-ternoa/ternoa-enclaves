@@ -306,7 +306,7 @@ pub async fn nft_store_keyshare(
 				Ok(txh) => {
 					let result = nft_keyshare_oracle_results(&state, &request, &verified_data, txh);
 
-					return if result {
+					if result {
 						Json(json!({
 							"status": ReturnStatus::STORESUCCESS,
 							"nft_id": verified_data.nft_id,
