@@ -2739,24 +2739,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "josekit"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ef871a7a5f162afa718c416e9cbdd54241a58c922e07870e898ebad2425d8d8"
-dependencies = [
- "anyhow",
- "base64 0.13.1",
- "flate2",
- "once_cell",
- "openssl",
- "regex",
- "serde",
- "serde_json",
- "thiserror",
- "time 0.3.20",
-]
-
-[[package]]
 name = "js-sys"
 version = "0.3.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5078,7 +5060,6 @@ version = "1.0.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c533a59c9d8a93a09c6ab31f0fd5e5f4dd1b8fc9434804029839884765d04ea"
 dependencies = [
- "indexmap",
  "itoa",
  "ryu",
  "serde",
@@ -5162,7 +5143,6 @@ dependencies = [
  "clap",
  "futures",
  "hex",
- "josekit",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
