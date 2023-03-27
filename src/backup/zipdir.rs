@@ -3,6 +3,7 @@ use std::{
 	io::{self, prelude::*, Seek, Write},
 	iter::Iterator,
 };
+use tracing::{info, error};
 use zip::{result::ZipError, write::FileOptions};
 
 use std::{fs::File, path::Path};
@@ -83,14 +84,34 @@ fn doit(
 /* ----------------------------
 		EXTRACT ARCHIVE
 -------------------------------*/
-pub fn zip_extract(filename: &str, outdir: &str) {
+pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 	let fname = std::path::Path::new(filename);
-	let infile = fs::File::open(fname).unwrap();
 
-	let mut archive = zip::ZipArchive::new(infile).unwrap();
+	let infile = match fs::File::open(fname) {
+		Ok(file) => file,
+		Err(e) => {
+			error!("Backup extract error opening zip file : {:?}",e);
+			return Err(ZipError::Io(e))
+		},
+	};
+
+	let mut archive = match zip::ZipArchive::new(infile) {
+		Ok(archive) => archive,
+		Err(e) => {
+			error!("Backup extract error opening file as zip-archive: {:?}",e);
+			return Err(e)
+		},
+	};
 
 	for i in 0..archive.len() {
-		let mut file = archive.by_index(i).unwrap();
+		let mut file = match archive.by_index(i) {
+			Ok(file) => file,
+			Err(e) => {
+				error!("Backup extract error opening internal file at index {} : {:?}",i, e);
+				return Err(e).into()
+			},
+		};
+
 		let outpath = match file.enclosed_name() {
 			Some(path) => path.to_owned(),
 			None => continue,
@@ -101,16 +122,41 @@ pub fn zip_extract(filename: &str, outdir: &str) {
 
 		// DIRECTORY
 		if (*file.name()).ends_with('/') {
-			fs::create_dir_all(fullpath).unwrap();
+			match fs::create_dir_all(fullpath) {
+				Ok(file) => info!("create {:?}",fullpath),
+				Err(e) => {
+					error!("Backup extract error create internal directory : {:?}",e);
+					return Err(zip::result::ZipError::Io(e))
+				},
+			}
 		} else {
 			// FILE
 			if let Some(p) = fullpath.parent() {
 				if !p.exists() {
-					fs::create_dir_all(p).unwrap();
+					match fs::create_dir_all(p) {
+						Ok(file) => info!("create {:?}",p),
+						Err(e) => {
+							error!("Backup extract error create internal file : {:?}",e);
+							return Err(zip::result::ZipError::Io(e))
+						},
+					}
 				}
 			}
-			let mut outfile = fs::File::create(fullpath).unwrap();
-			io::copy(&mut file, &mut outfile).unwrap();
+			let mut outfile = match fs::File::create(fullpath) {
+				Ok(file) => file,
+				Err(e) => {
+					error!("Backup extract error : {:?}",e);
+					return Err(zip::result::ZipError::Io(e)) 
+				},
+			};
+
+			match io::copy(&mut file, &mut outfile) {
+				Ok(n) => info!("successfuly copied {} bytes", n),
+				Err(e) => {
+					error!("BAckup extract error : {:?}",e);
+					return Err(zip::result::ZipError::Io(e))
+				},
+			}
 		}
 
 		// Get and Set permissions
@@ -123,6 +169,8 @@ pub fn zip_extract(filename: &str, outdir: &str) {
 			}
 		}
 	}
+
+	Ok(())
 }
 
 #[cfg(test)]

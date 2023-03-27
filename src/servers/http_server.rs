@@ -38,7 +38,7 @@ use crate::{chain::{
 }, attestation::ra::ra_get_quote};
 
 use crate::{
-	backup::admin::{backup_fetch_bulk, backup_push_bulk},
+	backup::admin::{admin_backup_fetch_bulk, admin_backup_push_bulk},
 	sign::cosign,
 };
 
@@ -143,8 +143,8 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.route("/api/health", get(get_health_status))
 		.route("/api/quote", get(ra_get_quote))
 		// CENTRALIZED BACKUP API
-		.route("/api/backup/fetch-bulk", post(backup_fetch_bulk))
-		.route("/api/backup/push-bulk", post(backup_push_bulk))
+		.route("/api/backup/fetch-bulk", post(admin_backup_fetch_bulk))
+		.route("/api/backup/push-bulk", post(admin_backup_push_bulk))
 		// NFT SECRET-SHARING API
 		.route("/api/secret-nft/get-views-log/:nft_id", get(nft_get_views))
 		.route("/api/secret-nft/is-keyshare-available/:nft_id", get(is_nft_available))
