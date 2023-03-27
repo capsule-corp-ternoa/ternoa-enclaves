@@ -195,6 +195,7 @@ pub struct StoreKeyshareResponse {
 /// * `request` - StoreKeysharePacket
 /// # Returns
 /// * `Json(StoreKeyshareResponse)` - StoreKeyshareResponse
+#[axum::debug_handler]
 pub async fn nft_store_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<StoreKeysharePacket>,
@@ -301,7 +302,7 @@ pub async fn nft_store_keyshare(
 			};
 
 			// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
-			return match nft_keyshare_oracle(state.enclave_key.clone(), verified_data.nft_id).await {
+			match nft_keyshare_oracle(state.enclave_key.clone(), verified_data.nft_id).await {
 				Ok(txh) => {
 					let result = nft_keyshare_oracle_results(&state, &request, &verified_data, txh);
 
@@ -426,6 +427,7 @@ pub struct RetrieveKeyshareResponse {
 /// * `request` - Retrieve Key share Packet
 /// # Returns
 /// * `Retrieve Key share Response`
+#[axum::debug_handler]
 pub async fn nft_retrieve_keyshare(
 	State(state): State<StateConfig>,
 	Json(request): Json<RetrieveKeysharePacket>,
@@ -535,16 +537,17 @@ pub async fn nft_retrieve_keyshare(
 
 					info!("{}, requester : {}", description, request.requester_address);
 
-					return Json(json!({
+					Json(json!({
 						"status": status,
 						"nft_id": verified_data.nft_id,
 						"enclave_id": state.identity,
 						"keyshare_data": serialized_keyshare,
 						"description": description,
-					}));
-				}
+					}))
+				},
+
 				Err(e)=> {
-					return Json(json!({
+					Json(json!({
 						"status": ReturnStatus::InvalidBlockNumber,
 						"nft_id": verified_data.nft_id,
 						"enclave_id": state.identity,

@@ -9,7 +9,9 @@ use serde::Serialize;
 
 use std::fmt;
 use sp_core::H256;
-use subxt::{metadata::DecodeStaticType, storage::{address::Yes, StaticStorageAddress}, tx::PairSigner, utils::AccountId32, OnlineClient, PolkadotConfig, Error};
+use subxt::{tx::PairSigner, utils::AccountId32, OnlineClient, PolkadotConfig, Error};
+//use subxt::{metadata::DecodeStaticType, storage::{address::Yes, StaticStorageAddress}};
+
 use tracing::{debug, error, info};
 
 #[cfg_attr(
@@ -44,7 +46,7 @@ pub enum ReturnStatus {
 /// Get the chain API
 /// # Returns
 /// * `DefaultApi` - The chain API
-pub async fn get_chain_api() -> Result<DefaultApi, Box<dyn std::error::Error>> {
+pub async fn get_chain_api() -> Result<DefaultApi, Error> {
 	debug!("5-1 get chain API");
 
 	let rpc_endoint = if cfg!(feature = "mainnet") {
@@ -57,9 +59,7 @@ pub async fn get_chain_api() -> Result<DefaultApi, Box<dyn std::error::Error>> {
 		"wss://dev-0.ternoa.network:443".to_string()
 	};
 
-	DefaultApi::from_url(rpc_endoint)
-		.await
-		.map_err(|err| Box::new(err) as Box<dyn std::error::Error>)
+	DefaultApi::from_url(rpc_endoint).await
 }
 
 // -------------- TEST RPC QUERY --------------
@@ -74,7 +74,7 @@ struct JsonRPC {
 /// Get the current block number
 /// # Returns
 /// * `u32` - The current block number
-pub async fn get_current_block_number() -> Result<u32, Box<dyn std::error::Error>> {
+pub async fn get_current_block_number() -> Result<u32, Error> {
 	let api = match get_chain_api().await {
 		Ok(api) => api,
 		Err(err) => return Err(err),
@@ -82,13 +82,13 @@ pub async fn get_current_block_number() -> Result<u32, Box<dyn std::error::Error
 
 	let hash = match api.rpc().finalized_head().await {
 		Ok(hash) => hash,
-		Err(err) => return Err(Box::new(err)),
+		Err(err) => return Err(err),
 	};
 
 	let last_block = match api.rpc().block(Some(hash)).await {
 		Ok(Some(last_block)) => last_block,
-		Ok(None) => return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Block not found"))),
-		Err(err) => return Err(Box::new(err)),
+		Ok(None) => return Err(subxt::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, "Block not found"))),
+		Err(err) => return Err(err),
 	};
 
 	Ok(last_block.block.header.number)
@@ -445,6 +445,7 @@ impl IntoFuture for AddressType {
 /// Get the NFT/Capsule data
 /// # Arguments
 /// * `nft_ids` - The NFT/Capsule IDs
+/*
 pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
 	debug!("4-4 get nft data batch");
 	type AddressType = StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
@@ -472,6 +473,7 @@ pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<Account
 
 	join_result.into_iter().map(|jr| jr.unwrap()).collect()
 }
+*/
 
 // -------------- GET NFT DATA --------------
 
@@ -649,8 +651,9 @@ mod test {
 		storage_query().await;
 		submit_tx(axum::extract::Path(12_345)).await;
 	}
-
+/*
 	#[tokio::test]
+
 	async fn concurrent_nft_test() {
 		let mut rng = thread_rng();
 		let nft_ids: Vec<u32> = (1..220).map(|_| rng.gen_range(100..11000)).collect();
@@ -662,6 +665,7 @@ mod test {
 		info!("\nConcurrent time is {} microseconds", elapsed_time);
 		info!("Concurrent NFT Data : {:#?}", nft_data_vec[9].as_ref().unwrap().owner);
 	}
+*/
 
 	#[tokio::test]
 	async fn multiple_nft_test() {
