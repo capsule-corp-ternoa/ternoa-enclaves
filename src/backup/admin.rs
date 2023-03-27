@@ -19,7 +19,7 @@ use std::io::{Read, Write};
 use tracing::{debug, info};
 
 use std::fs::{remove_file, File};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::PublicError, sr25519::Signature};
@@ -229,7 +229,8 @@ pub async fn admin_backup_fetch_bulk(
 	debug!("3-15 API : backup fetch bulk");
 
 	if !verify_account_id(&backup_request.admin_address) {
-		info!("Error backup key shares : Invalid admin : {}", backup_request.admin_address);
+		let message = format!("Error backup key shares : Requester is not whitelisted : {}", backup_request.admin_address);
+		warn!(message);
 
 		return "Error backup keyshares : Invalid admin".into_response()
 	}
@@ -237,15 +238,29 @@ pub async fn admin_backup_fetch_bulk(
 	let mut auth = backup_request.auth_token.clone();
 
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
-		auth = auth
-			.strip_prefix("<Bytes>")
-			.unwrap()
-			.strip_suffix("</Bytes>")
-			.unwrap()
-			.to_string();
+		auth = match auth.strip_prefix("<Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				return "Strip Token prefix error".into_response()
+			}
+		};
+			
+		auth = match auth.strip_suffix("</Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				return "Strip Token suffix error".into_response()
+			}
+		}
 	}
 
-	let auth_token: FetchAuthenticationToken = serde_json::from_str(&auth).unwrap();
+	let auth_token: FetchAuthenticationToken = match serde_json::from_str(&auth) {
+		Ok(token) => token,
+		Err(e) => {
+			let message = format!("Error backup key shares : Authentication token is not parsable : {}", e);
+			warn!(message);
+			return message.into_response()
+		},
+	};
 	
 	if !verify_signature(
 		&backup_request.admin_address,
@@ -257,14 +272,22 @@ pub async fn admin_backup_fetch_bulk(
 	
 
 	if !auth_token.is_valid().await {
-		return "Authentication Token Expired".to_string().into_response();
+		return "Authentication Token is not valid, or expired".to_string().into_response();
 	}
 
 	let backup_file = "/temporary/backup.zip";
 	// remove previously generated backup
 	if std::path::Path::new(&backup_file).exists() {
-		std::fs::remove_file(backup_file).unwrap();
+		match std::fs::remove_file(backup_file) {
+			Ok(_) => { debug!("Successfully removed previous zip file")},
+			Err(e) => {
+				let message = format!("Error backup key shares : Can not remove previous backup file : {}", e);
+				warn!(message);
+				return message.into_response()
+			},
+		}
 	}
+
 	// create new backup
 	add_dir_zip(&state.seal_path.clone(), backup_file);
 
@@ -331,7 +354,17 @@ pub async fn admin_backup_push_bulk(
 	let mut auth_token = String::new();
 	let mut signature = String::new();
 
-	while let Some(field) = store_request.next_field().await.unwrap() {
+	while let Some(field) = match store_request
+		.next_field()
+		.await {
+			Ok(field) => field,
+			Err(e) => {
+				let message = format!("Error backup key shares : Can not parse request form-data : {}", e);
+				warn!(message);
+				return Json(json!({"error": message}))
+			},
+		} 
+	{
 		let name = match field.name() {
 			Some(name) => name.to_string(),
 			_ => {
@@ -456,65 +489,107 @@ pub async fn admin_backup_push_bulk(
 	}
 
 	if !verify_account_id(&admin_address.clone()) {
-		info!("Error restore backup keyshares : Invalid admin : {}", admin_address);
+		let message = format!("Error backup key shares : Requester is not whitelisted : {}", admin_address);
+
+		warn!(message);
 
 		return Json(json! ({
-			"status": "Error restore backup keyshares : Invalid admin",
+			"error": message,
 		}))
 	}
 
 	if !verify_signature(&admin_address, signature.clone(), auth_token.clone().as_bytes()) {
-		info!("Error restore backup keyshares : Invalid signature : admin = {}", admin_address);
+		warn!("Error restore backup keyshares : Invalid signature : admin = {}", admin_address);
 
 		return Json(json! ({
-			"status": "Invalid signature",
+			"error": "Invalid token signature",
 		}))
 	}
 
 	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
-		auth_token = auth_token
-			.strip_prefix("<Bytes>")
-			.unwrap()
-			.strip_suffix("</Bytes>")
-			.unwrap()
-			.to_string();
+		auth_token = match auth_token.strip_prefix("<Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				return Json(json! ({"error": "Strip Token prefix error"}))
+			}
+		};
+			
+		auth_token = match auth_token.strip_suffix("</Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				return Json(json! ({"error": "Strip Token suffix error"}))
+			}
+		}
 	}
 
-	let token: StoreAuthenticationToken = serde_json::from_str(auth_token.as_str()).unwrap();
+	let token: StoreAuthenticationToken = match serde_json::from_str(auth_token.as_str()) {
+		Ok(token) => token,
+		Err(e) => {
+			let message = format!("Error backup key shares : Can not parse the authentication token : {}", e);
+			warn!(message);
+			return Json(json!({"error": message}))
+		},
+	};
 
 	if !token.is_valid().await {
-		info!("Error restore backup keyshares : token expired : admin = {}", admin_address);
+		warn!("Error restore backup keyshares : token expired : admin = {}", admin_address);
 
 		return Json(json! ({
-			"status": "Authentication Token Expired",
+			"error": "Authentication Token Expired",
 		}))
 	}
 
 	let hash = sha256::digest(restore_file.as_slice());
 
 	if token.data_hash != hash {
-		info!("Error restore backup keyshares : mismatch data hash : admin = {}", admin_address);
+		warn!("Error restore backup keyshares : mismatch data hash : admin = {}", admin_address);
 
 		return Json(json! ({
-			"status": " Mismatch Data Hash",
+			"error": " Mismatch Data Hash",
 		}))
 	}
 
 	let backup_file = state.seal_path.to_owned() + "backup.zip";
 
-	let mut zipfile = std::fs::File::create(backup_file.clone()).unwrap();
-	zipfile.write_all(&restore_file).unwrap();
+	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
+		Ok(file) => file,
+		Err(e) => {
+			let message = format!("Error backup key shares : Can not create file on disk : {}", e);
+			warn!(message);
+			return Json(json!({"error": message}))
+		},
+	};
+
+	match zipfile.write_all(&restore_file) {
+		Ok(_) => debug!("zip file is stored on disk."),
+		Err(e) => {
+			let message = format!("Error restoring backups, writing zip file to disk{:?}",e);
+			error!(message);
+			return Json(json!({
+				"error": message,
+			}))
+		},		
+	}
 
 	match zip_extract(&backup_file, &state.seal_path) {
-		Ok(_) => debug!("successful zip_extract"),
+		Ok(_) => debug!("zip_extract success"),
 		Err(e) => {
+			let message = format!("Error restoring backups, extracting zip file {:?}",e);
+			error!(message);
 			return Json(json!({
-				"status": format!("Error restoring backups,{:?}",e),
+				"error": message,
 			}))
 		}
 	}
 
-	remove_file(backup_file).unwrap();
+	match remove_file(backup_file) {
+		Ok(_) => debug!("remove zip file successful"),
+		Err(e) => {
+			return Json(json!({
+				"error": format!("Backup success with Error in removing zip file, {:?}",e),
+			}))
+		}
+	};
 
 	// TODO : self-check extracted data
 	Json(json!({
