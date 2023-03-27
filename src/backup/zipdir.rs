@@ -108,7 +108,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 			Ok(file) => file,
 			Err(e) => {
 				error!("Backup extract error opening internal file at index {} : {:?}",i, e);
-				return Err(e).into()
+				return Err(e)
 			},
 		};
 
@@ -123,7 +123,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 		// DIRECTORY
 		if (*file.name()).ends_with('/') {
 			match fs::create_dir_all(fullpath) {
-				Ok(file) => info!("create {:?}",fullpath),
+				Ok(_file) => info!("create {:?}",fullpath),
 				Err(e) => {
 					error!("Backup extract error create internal directory : {:?}",e);
 					return Err(zip::result::ZipError::Io(e))
@@ -134,7 +134,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 			if let Some(p) = fullpath.parent() {
 				if !p.exists() {
 					match fs::create_dir_all(p) {
-						Ok(file) => info!("create {:?}",p),
+						Ok(_file) => info!("create {:?}",p),
 						Err(e) => {
 							error!("Backup extract error create internal file : {:?}",e);
 							return Err(zip::result::ZipError::Io(e))
@@ -185,6 +185,6 @@ mod test {
 	async fn zip_test() {
 		add_dir_zip("/tmp", "/tmp/backup.zip");
 
-		zip_extract("/tmp/backup.zip", "/tmp/test/");
+		let _ = zip_extract("/tmp/backup.zip", "/tmp/test/");
 	}
 }

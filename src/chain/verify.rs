@@ -552,7 +552,7 @@ pub async fn verify_requester_type(
 
 		},
 
-		Err(_) => return false,
+		Err(_) => false,
 	}
 }
 
@@ -582,11 +582,12 @@ impl AuthenticationToken {
 
 // Retrieving the stored Keyshare
 impl StoreKeyshareData {
-	// TODO: use json canonicalization of JOSE/JWT encode
 	pub fn serialize(self) -> String {
-		self.nft_id.to_string() +
-			"_" + &String::from_utf8(self.keyshare).unwrap() + // TODO: manage unwrap()
-			"_" + &self.auth_token.serialize()
+		let keyshare_str = match String::from_utf8(self.keyshare) {
+			Ok(s) => s,
+			Err(e) => return format!("Error serializing keyshare data: {}", e),
+		};
+		format!("{}_{}_{}", self.nft_id, keyshare_str, self.auth_token.serialize())
 	}
 }
 
@@ -595,43 +596,39 @@ impl StoreKeyshareData {
 ----------------------------------*/
 
 impl StoreKeysharePacket {
-	// Signer string to public key
+
 	pub fn get_signer(&self) -> Result<Signer, VerificationError> {
 		let mut signer = self.signer_address.clone();
 
 		if signer.starts_with("<Bytes>") && signer.ends_with("</Bytes>") {
 			signer = signer
 				.strip_prefix("<Bytes>")
-				.unwrap()
+				.ok_or(VerificationError::MALFORMATEDSIGNER)?
 				.strip_suffix("</Bytes>")
-				.unwrap()
+				.ok_or(VerificationError::MALFORMATEDSIGNER)?
 				.to_string();
 		}
 
 		let parsed_data: Vec<&str> = if signer.contains('_') {
 			signer.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDSIGNER)
+			return Err(VerificationError::MALFORMATEDSIGNER);
 		};
 
 		if parsed_data.len() < 3 {
-			return Err(VerificationError::MALFORMATEDSIGNER)
+			return Err(VerificationError::MALFORMATEDSIGNER);
 		}
 
-		let account = match sr25519::Public::from_ss58check(parsed_data[0]) {
-			Ok(acc) => acc,
-			Err(_) => return Err(VerificationError::INVALIDSIGNERADDRESS),
-		};
+		let account = sr25519::Public::from_ss58check(parsed_data[0])
+			.map_err(|_| VerificationError::INVALIDSIGNERADDRESS)?;
 
-		let block_num = match parsed_data[1].parse::<u32>() {
-			Ok(bn) => bn,
-			Err(_) => return Err(VerificationError::INVALIDAUTHTOKEN),
-		};
+		let block_num = parsed_data[1]
+			.parse::<u32>()
+			.map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
 
-		let block_valid = match parsed_data[2].parse::<u32>() {
-			Ok(bv) => bv,
-			Err(_) => return Err(VerificationError::INVALIDAUTHTOKEN),
-		};
+		let block_valid = parsed_data[2]
+			.parse::<u32>()
+			.map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
 
 		Ok(Signer {
 			account,
@@ -649,31 +646,30 @@ impl StoreKeysharePacket {
 		if data.starts_with("<Bytes>") && data.ends_with("</Bytes>") {
 			data = data
 				.strip_prefix("<Bytes>")
-				.unwrap()
+				.ok_or(VerificationError::MALFORMATEDDATA)?
 				.strip_suffix("</Bytes>")
-				.unwrap()
+				.ok_or(VerificationError::MALFORMATEDDATA)?
 				.to_string();
 		}
 
 		let parsed_data: Vec<&str> = if data.contains('_') {
 			data.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDDATA)
+			return Err(VerificationError::MALFORMATEDDATA);
 		};
 
 		if parsed_data.len() != 4 {
-			return Err(VerificationError::MALFORMATEDDATA)
+			return Err(VerificationError::MALFORMATEDDATA);
 		}
 
-		let nft_id = match parsed_data[0].parse::<u32>() {
-			Ok(n) => n,
-			Err(_) => return Err(VerificationError::INVALIDNFTID),
-		};
+		let nft_id = parsed_data[0]
+			.parse::<u32>()
+			.map_err(|_| VerificationError::INVALIDNFTID)?;
 
 		let keyshare = if !parsed_data[1].is_empty() {
 			parsed_data[1].as_bytes().to_vec()
 		} else {
-			return Err(VerificationError::INVALIDKEYSHARE)
+			return Err(VerificationError::INVALIDKEYSHARE);
 		};
 
 		let keyshare_size = keyshare.len() as u16;
@@ -685,20 +681,21 @@ impl StoreKeysharePacket {
 			return Err(VerificationError::KEYSHAREISTOOLONG)
 		}
 
-		let block_number = match parsed_data[2].parse::<u32>() {
-			Ok(bn) => bn,
-			Err(_) => return Err(VerificationError::INVALIDAUTHTOKEN),
-		};
+		let block_number = parsed_data[2]
+			.parse::<u32>()
+			.map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
 
-		let block_validation = match parsed_data[3].parse::<u32>() {
-			Ok(bv) => bv,
-			Err(_) => return Err(VerificationError::INVALIDAUTHTOKEN),
-		};
+		let block_validation = parsed_data[3]
+			.parse::<u32>()
+			.map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
 
 		Ok(StoreKeyshareData {
 			nft_id,
 			keyshare,
-			auth_token: AuthenticationToken { block_number, block_validation },
+			auth_token: AuthenticationToken {
+				block_number,
+				block_validation,
+			},
 		})
 	}
 
@@ -870,9 +867,9 @@ impl RetrieveKeysharePacket {
 		if data.starts_with("<Bytes>") && data.ends_with("</Bytes>") {
 			data = data
 				.strip_prefix("<Bytes>")
-				.unwrap()
+				.ok_or(VerificationError::MALFORMATEDDATA)?
 				.strip_suffix("</Bytes>")
-				.unwrap()
+				.ok_or(VerificationError::MALFORMATEDDATA)?
 				.to_string();
 		}
 

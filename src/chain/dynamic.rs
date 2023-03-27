@@ -73,25 +73,29 @@ impl ChainInteract {
 /// Gets the chain api
 /// # Arguments
 /// * `url` - The url of the chain
-pub async fn dynamic_get_nft_data(nft_id: u32){
+pub async fn dynamic_get_nft_data(nft_id: u32) -> Result<String, String> {
     let ci = ChainInteract::new(
         CIType::Storage,
         "nft",
         "nfts",
         vec![Value::from_bytes(nft_id.to_be_bytes())],
     );
-    let res = match ci.exec().await {
-        ChainResult::SC(result) => result.unwrap(),
-        ChainResult::TX(result) => panic!("Storage can not return a Transaction"),
-    };
-    info!("NFT Data = {}", res);
+    match ci.exec().await {
+        ChainResult::SC(result) => {
+            match result {
+                Ok(res) => Ok(res),
+                Err(err) => Err(format!("Failed to get NFT data: {}", err)),
+            }
+        },
+        ChainResult::TX(_) => Err("Storage cannot return a transaction".to_string()),
+    }
 }
 
 
     /* ---------------- Sample Dynamic Calls ----------------*/
     /// Sample dynamic calls
-    async fn dynamic_tx() {
-        let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+    async fn dynamic_tx() -> Result<(), Box<dyn std::error::Error>> {
+        let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await?;
 
         let signer = PairSigner::new(AccountKeyring::Alice.pair());
         let dest = AccountKeyring::Bob.to_account_id();
@@ -114,51 +118,51 @@ pub async fn dynamic_get_nft_data(nft_id: u32){
         let hash = api
             .tx()
             .sign_and_submit_default(&tx, &signer)
-            .await
-            .unwrap();
+            .await?;
         info!("Balance transfer extrinsic submitted: {}", hash);
+
+        Ok(())
     }
 
-    async fn dynamic_constant() {
-        let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
-        let constant_address = subxt::dynamic::constant("nft", "ExistentialDeposit");
-        let existential_deposit = api.constants().at(&constant_address).unwrap();
-        info!("Existential Deposit: {}", existential_deposit);
-    }
 
-    async fn dynamic_storage() {
-        let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+async fn dynamic_constant() -> Result<(), Box<dyn std::error::Error>> {
+    let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
+    let constant_address = subxt::dynamic::constant("nft", "ExistentialDeposit");
+    let existential_deposit = api.constants().at(&constant_address)?;
+    info!("Existential Deposit: {}", existential_deposit);
 
-        // sample : fetch an account details
+    Ok(())
+}
 
-        let dest = AccountKeyring::Bob.to_account_id();
+async fn dynamic_storage() -> Result<(), Box<dyn std::error::Error>> {
+    let api = get_chain_api(TERNOA_ALPHANET_RPC.into()).await;
 
-        let storage_address = subxt::dynamic::storage(
-            "System",
-            "Account",
-            vec![
-                // Something that encodes to an AccountId32 is what we need for the map key here:
-                Value::from_bytes(&dest),
-            ],
-        );
-        
-        let account = api
-            .storage()
-            .fetch_or_default(&storage_address, None)
-            .await
-            .unwrap();
-        info!("Bob's account details: {account}");
+    // sample: fetch an account details
+    let dest = AccountKeyring::Bob.to_account_id();
+    let storage_address = subxt::dynamic::storage(
+        "System",
+        "Account",
+        vec![
+            Value::from_bytes(&dest),
+        ],
+    );
+    let account = api
+        .storage()
+        .fetch_or_default(&storage_address, None)
+        .await?;
+    info!("Bob's account details: {}", account);
 
-        // sample storage iteration : fetch all accounts
-
-        let storage_address = subxt::dynamic::storage_root("System", "Account");
-        let mut iter = api.storage().iter(storage_address, 10, None).await.unwrap();
-        let mut counter = 0;
-        while let Some((key, account)) = iter.next().await.unwrap() {
-            info!("{}: {}", hex::encode(key), account);
-            counter += 1;
-            if counter > 10 {
-                break;
-            }
+    // sample: storage iteration - fetch all accounts
+    let storage_address = subxt::dynamic::storage_root("System", "Account");
+    let mut iter = api.storage().iter(storage_address, 10, None).await?;
+    let mut counter = 0;
+    while let Some((key, account)) = iter.next().await? {
+        info!("{}: {}", hex::encode(key), account);
+        counter += 1;
+        if counter > 10 {
+            break;
         }
     }
+
+    Ok(())
+}
