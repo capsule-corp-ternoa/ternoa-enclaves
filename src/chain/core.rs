@@ -410,10 +410,6 @@ pub async fn get_onchain_rent_contract(nft_id: u32) -> Option<AccountId32> {
 		}
 	}
 
-
-
-
-
 	// let api = get_chain_api().await;
 	// let storage_address = ternoa::storage().rent().contracts(nft_id);
 	// let rent_contract_data =
@@ -562,8 +558,17 @@ pub async fn nft_keyshare_oracle(
 	// Create a transaction to submit:
 	let tx = ternoa::tx().nft().add_secret_shard(nft_id);
 
+	
 	// submit the transaction with default params:
-	api.tx().sign_and_submit_default(&tx, &signer).await
+	//api.tx().sign_and_submit_default(&tx, &signer).await
+	
+	// With nonce
+	api
+	.tx()
+	.create_signed(&tx, &signer, Default::default())
+	.await?
+	.submit()
+	.await
 }
 
 // -------------- CAPSULE SYNC (ORACLE) --------------
@@ -594,7 +599,15 @@ pub async fn capsule_keyshare_oracle(
 			let tx = ternoa::tx().nft().add_capsule_shard(nft_id);
 
 			// submit the transaction with default params:
-			api.tx().sign_and_submit_default(&tx, &signer).await
+			//api.tx().sign_and_submit_default(&tx, &signer).await
+
+			// With nonce
+			api
+			.tx()
+			.create_signed(&tx, &signer, Default::default())
+			.await?
+			.submit()
+			.await
 		},
 		Err(e) => Err(subxt::Error::Other(e.to_string())),
 	}
