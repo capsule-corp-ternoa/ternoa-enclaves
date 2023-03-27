@@ -57,6 +57,9 @@ pub enum ReturnStatus {
 	INVALIDKEYSHARE,
 	INVALIDNFTID,
 
+	KEYSHAREISTOOSHORT,
+	KEYSHAREISTOOLONG,
+
 	EXPIREDSIGNER,
 	EXPIREDREQUEST,
 
@@ -102,6 +105,9 @@ pub enum VerificationError {
 	MALFORMATEDSIGNER,
 	INVALIDOWNERADDRESS,
 	INVALIDSIGNERADDRESS,
+
+	KEYSHAREISTOOSHORT,
+	KEYSHAREISTOOLONG,
 
 	INVALIDAUTHTOKEN,
 	INVALIDKEYSHARE,
@@ -451,6 +457,32 @@ impl VerificationError {
 					"description": description,
 				}))
 			},
+
+			VerificationError::KEYSHAREISTOOSHORT => {
+				let status = ReturnStatus::KEYSHAREISTOOSHORT;
+				let description = format!("TEE Key-share {call:?}: Secret-Share is too short, it is not secure enough.");
+				info!("{}, requester : {}", description, caller);
+
+				Json(json! ({
+					"status": status,
+					"nft_id": nft_id,
+					"enclave_id": enclave_id,
+					"description": description,
+				}))
+			},
+
+			VerificationError::KEYSHAREISTOOLONG => {
+				let status = ReturnStatus::KEYSHAREISTOOLONG;
+				let description = format!("TEE Key-share {call:?}: Secret-Share is too long, it is not possible to store it.");
+				info!("{}, requester : {}", description, caller);
+
+				Json(json! ({
+					"status": status,
+					"nft_id": nft_id,
+					"enclave_id": enclave_id,
+					"description": description,
+				}))
+			},
 		}
 	}
 }
@@ -638,6 +670,15 @@ impl StoreKeysharePacket {
 		} else {
 			return Err(VerificationError::INVALIDKEYSHARE)
 		};
+
+		let keyshare_size = keyshare.len() as u16;
+		if  keyshare_size < 16 {
+			return Err(VerificationError::KEYSHAREISTOOSHORT)
+		}
+
+		if  keyshare_size > 3000 {
+			return Err(VerificationError::KEYSHAREISTOOLONG)
+		}
 
 		let block_number = match parsed_data[2].parse::<u32>() {
 			Ok(bn) => bn,
