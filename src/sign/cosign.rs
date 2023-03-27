@@ -4,6 +4,7 @@ use sigstore::crypto::{
 	signing_key::{ecdsa::ECDSAKeys, SigStoreKeyPair},
 	CosignVerificationKey, SigStoreSigner, Signature, SigningScheme,
 };
+use tracing::error;
 
 use crate::servers::http_server::downloader;
 
@@ -27,17 +28,24 @@ fn _import_skey(path: &str, pass: &str) -> SigStoreSigner {
 	ecdsa_key_pair.to_sigstore_signer().unwrap()
 }
 
-fn import_vkey() -> CosignVerificationKey {
+fn import_vkey() -> Result<CosignVerificationKey, anyhow::Error> {
 	// Production
 	let url = "https://gist.githubusercontent.com/zorvan/46b26ff51b27590683ddaf70c0ea9dac/raw/2b437edaa808b79f2e7768cde9085150b2f10a32/cosign.pub";
-	let get_pub = downloader(url).unwrap();
+	let get_pub = match downloader(url) {
+		Ok(data) => data,
+		Err(e) => {
+			let message = format!("error retrieving public key from ternoa github {}",e);
+			error!(message);
+			return Err(e);
+		},
+	};
 	let ecdsa_p256_asn1_public_pem = get_pub.as_bytes();
 
 	// Imported PEM encoded public key as CosignVerificationKey using ECDSA_P256_ASN1_PUBLIC_PEM as
 	// verification algorithm. let ecdsa_p256_asn1_public_pem =
 	// std::fs::read("/keys/cosign.pub").unwrap();
 
-	CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default()).unwrap()
+	Ok(CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default())?) 
 }
 
 /// verify the signature of the binary file
@@ -48,7 +56,10 @@ fn import_vkey() -> CosignVerificationKey {
 /// * `Result<bool, anyhow::Error>` - The result of the verification
 pub fn verify(signed_data: &[u8], signature_data: &str) -> Result<bool, anyhow::Error> {
 	// TODO: from github release
-	let verification_key = import_vkey();
+	let verification_key = match import_vkey() {
+		Ok(key) => key,
+		Err(e) => return Err(e),
+	};
 
 	//Verifying the signature of the binary file
 	match verification_key
@@ -91,7 +102,7 @@ mod test {
 		const SIGNATURE: &str = "MEYCIQC3yrs3cZCcHVf7nNXoNgfCXCz39EHmXjkivDpUg+zc9gIhAMqeHB7Cbh7/srWAk33PzIcXKYRDHBTwwSlb26KtnTbB";
 
 		let signature = Signature::Base64Encoded(SIGNATURE.as_bytes());
-		let verification_key = import_vkey();
+		let verification_key = import_vkey().unwrap();
 
 		let result = matches!(verification_key.verify_signature(signature, DATA.as_bytes()), Ok(_));
 
