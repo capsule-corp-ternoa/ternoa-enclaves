@@ -43,21 +43,21 @@ where
 		if path.is_file() {
 			tracing::info!("adding file {:?} as {:?} ...", path, name);
 			#[allow(deprecated)]
-			zip.start_file_from_path(name, options).unwrap();
-			let mut f = File::open(path).unwrap();
+			zip.start_file_from_path(name, options)?;
+			let mut f = File::open(path)?;
 
-			f.read_to_end(&mut buffer).unwrap();
-			zip.write_all(&buffer).unwrap();
+			f.read_to_end(&mut buffer)?;
+			zip.write_all(&buffer)?;
 			buffer.clear();
 		} else if !name.as_os_str().is_empty() {
 			// Only if not root! Avoids path spec / warning
 			// and mapname conversion failed error on unzip
 			tracing::info!("adding dir {:?} as {:?} ...", path, name);
 			#[allow(deprecated)]
-			zip.add_directory_from_path(name, options).unwrap();
+			zip.add_directory_from_path(name, options)?;
 		}
 	}
-	zip.finish().unwrap();
+	zip.finish()?;
 	Result::Ok(())
 }
 
@@ -71,12 +71,12 @@ fn doit(
 		return Err(ZipError::FileNotFound)
 	}
 	let path = Path::new(dst_file);
-	let file = File::create(path).unwrap();
+	let file = File::create(path)?;
 
 	let walkdir = WalkDir::new(src_dir);
 	let it = walkdir.into_iter();
 
-	zip_dir(&mut it.filter_map(|e| e.ok()), src_dir, file, method).unwrap();
+	zip_dir(&mut it.filter_map(|e| e.ok()), src_dir, file, method)?;
 
 	Ok(())
 }
@@ -165,7 +165,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 			use std::os::unix::fs::PermissionsExt;
 
 			if let Some(mode) = file.unix_mode() {
-				fs::set_permissions(fullpath, fs::Permissions::from_mode(mode)).unwrap();
+				fs::set_permissions(fullpath, fs::Permissions::from_mode(mode))?;
 			}
 		}
 	}
