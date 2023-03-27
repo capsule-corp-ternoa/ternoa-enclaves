@@ -200,7 +200,9 @@ pub async fn nft_store_keyshare(
 	debug!("3-8 API nft store keyshare");
 
 	match request.verify_store_request("secret-nft").await {
+		
 		Ok(verified_data) => {
+
 			if !std::path::Path::new(&state.clone().seal_path).exists() {
 				let status = ReturnStatus::DATABASEFAILURE;
 				let description = format!(
