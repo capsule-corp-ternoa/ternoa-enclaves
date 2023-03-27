@@ -8,15 +8,14 @@ use std::{
 	fs::{File, OpenOptions},
 	io::{Read, Seek, Write},
 };
+use std::error::Error;
+use std::io::SeekFrom;
 
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use super::verify::RequesterType;
 
-/* ******************************
-		LOG-FILE STRUCTURE
-****************************** */
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NFTType {
 	SECRET,
@@ -100,21 +99,37 @@ pub fn update_log_file_view(
 	requester_type: RequesterType,
 	log_type: LogType,
 	nft_type: &str,
-) {
+) -> bool {
+	if let Err(e) = update_view(file_path, requester_address, requester_type, log_type, nft_type) {
+		error!("Unable to update log file view: {}", e);
+		return false;
+	}
+
+	true
+}
+
+/// update_view
+fn update_view(
+	file_path: String,
+	requester_address: String,
+	requester_type: RequesterType,
+	log_type: LogType,
+	nft_type: &str,
+) -> Result<(), Box<dyn Error>> {
 	debug!("4-7 update log file view");
 
 	let mut log_file = OpenOptions::new()
 		.read(true)
 		.write(true)
 		.append(false)
-		.open(file_path)
-		.expect("Unable to open log file");
+		.open(file_path)?;
 
 	let mut old_logs = String::new();
-	log_file.read_to_string(&mut old_logs).unwrap(); // TODO: manage unwrap()
-	log_file.seek(std::io::SeekFrom::Start(0)).unwrap();
+	log_file.read_to_string(&mut old_logs)?;
 
-	let mut log_file_struct: LogFile = serde_json::from_str(&old_logs).unwrap(); // TODO: manage unwrap()
+	log_file.seek(SeekFrom::Start(0))?;
+
+	let mut log_file_struct: LogFile = serde_json::from_str(&old_logs)?;
 
 	let log_account = LogAccount::new(requester_address, requester_type);
 	let new_log = LogStruct::new(log_account, log_type);
@@ -125,8 +140,10 @@ pub fn update_log_file_view(
 		log_file_struct.insert_new_nft_log(new_log);
 	}
 
-	let log_buf = serde_json::to_vec(&log_file_struct).unwrap(); // TODO: manage unwrap()
-	log_file.write_all(&log_buf).unwrap(); // TODO: manage unwrap()
+	let log_buf = serde_json::to_vec(&log_file_struct)?;
+	log_file.write_all(&log_buf)?;
+
+	Ok(())
 }
 
 /* **********************
@@ -262,7 +279,7 @@ mod test {
 
 		assert_eq!(
 			log_file,
-			serde_json::from_str(correct_log).expect("error deserailizing json body")
+			serde_json::from_str(correct_log).expect("error deserializing json body")
 		);
 	}
 

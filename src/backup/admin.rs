@@ -461,7 +461,14 @@ pub async fn admin_backup_push_bulk(
 	let mut zipfile = std::fs::File::create(backup_file.clone()).unwrap();
 	zipfile.write_all(&restore_file).unwrap();
 
-	zip_extract(&backup_file, &state.seal_path);
+	match zip_extract(&backup_file, &state.seal_path) {
+		Ok(_) => debug!("successful zip_extract"),
+		Err(e) => {
+			return Json(json!({
+				"status": format!("Error restoring backups,{:?}",e),
+			}))
+		}
+	}
 
 	remove_file(backup_file).unwrap();
 
