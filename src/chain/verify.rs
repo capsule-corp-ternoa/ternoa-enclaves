@@ -533,21 +533,26 @@ pub async fn verify_requester_type(
 	owner: AccountId32,
 	requester_type: RequesterType,
 ) -> bool {
-	let converted_requester_address =
-		subxt::utils::AccountId32::from_str(&requester_address).unwrap(); // TODO: manage unwrap()
 
-	match requester_type {
-		RequesterType::OWNER | RequesterType::NONE => owner == converted_requester_address,
+	match AccountId32::from_str(&requester_address) {
+		Ok(converted_requester_address) => {
+			match requester_type {
+				RequesterType::OWNER | RequesterType::NONE => owner == converted_requester_address,
 
-		RequesterType::DELEGATEE => match get_onchain_delegatee_account(nft_id).await {
-			KeyshareHolder::Delegatee(delegatee) => delegatee == converted_requester_address,
-			_ => false,
+				RequesterType::DELEGATEE => match get_onchain_delegatee_account(nft_id).await {
+					KeyshareHolder::Delegatee(delegatee) => delegatee == converted_requester_address,
+					_ => false,
+				},
+
+				RequesterType::RENTEE => match get_onchain_rentee_account(nft_id).await {
+					KeyshareHolder::Rentee(rentee) => rentee == converted_requester_address,
+					_ => false,
+				},
+			}
+
 		},
 
-		RequesterType::RENTEE => match get_onchain_rentee_account(nft_id).await {
-			KeyshareHolder::Rentee(rentee) => rentee == converted_requester_address,
-			_ => false,
-		},
+		Err(_) => return false,
 	}
 }
 
