@@ -376,10 +376,10 @@ pub async fn admin_backup_push_bulk(
 		let name = match field.name() {
 			Some(name) => name.to_string(),
 			_ => {
-				info!("Error restore backup keyshares : field name : {:?}", field);
+				info!("Admin restore :  field name : {:?}", field);
 
 				return Json(json!({
-						"error": format!("Error request field name {:?}", field),
+						"error": format!("Admin restore : Error request field name {:?}", field),
 				}))
 			},
 		};
@@ -390,12 +390,12 @@ pub async fn admin_backup_push_bulk(
 					Ok(bytes) => bytes,
 					Err(e) => {
 						info!(
-							"Error restore backup keyshares : Error request admin_address {:?}",
+							"Admin restore :  Error request admin_address {:?}",
 							e
 						);
 
 						return Json(json!({
-								"error": format!("Error request admin_address {:?}", e),
+								"error": format!("Admin restore : Error request admin_address {:?}", e),
 						}))
 					},
 				},
@@ -405,12 +405,12 @@ pub async fn admin_backup_push_bulk(
 					Ok(bytes) => bytes.to_vec(),
 					Err(e) => {
 						info!(
-							"Error restore backup keyshares : Error request restore_file {:?}",
+							"Admin restore :  Error request restore_file {:?}",
 							e
 						);
 
 						return Json(json!({
-								"error": format!("Error request restore_file {:?}", e),
+								"error": format!("Admin restore : Error request restore_file {:?}", e),
 						}))
 					},
 				},
@@ -419,10 +419,10 @@ pub async fn admin_backup_push_bulk(
 				auth_token = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(e) => {
-						info!("Error restore backup keyshares : Error request auth_token {:?}", e);
+						info!("Admin restore :  Error request auth_token {:?}", e);
 
 						return Json(json!({
-							"error": format!("Error request auth_token {:?}", e),
+							"error": format!("Admin restore : Error request auth_token {:?}", e),
 						}))
 					},
 				},
@@ -432,19 +432,19 @@ pub async fn admin_backup_push_bulk(
 					Ok(sig) => match sig.strip_prefix("0x") {
 						Some(hexsig) => hexsig.to_owned(),
 						_ => {
-							info!("Error restore backup keyshares : Error request signature format, expectex 0x prefix, {sig}");
+							info!("Admin restore :  Error request signature format, expectex 0x prefix, {sig}");
 
 							return Json(json!({
-									"error": format!("Error request signature format, expectex 0x prefix"),
+									"error": format!("Admin restore : Error request signature format, expectex 0x prefix"),
 							}))
 						},
 					},
 
 					Err(e) => {
-						info!("Error restore backup keyshares : Error request signature {:?}", e);
+						info!("Admin restore :  Error request signature {:?}", e);
 
 						return Json(json!({
-								"error": format!("Error request signature {:?}", e),
+								"error": format!("Admin restore : Error request signature {:?}", e),
 						}))
 					},
 				},
@@ -452,14 +452,14 @@ pub async fn admin_backup_push_bulk(
 			_ => {
 				info!("Error restore backup keyshares : Error request field name {:?}", field);
 				return Json(json!({
-						"error": format!("Error request field name {:?}", field),
+						"error": format!("Admin restore : Error request field name {:?}", field),
 				}))
 			},
 		}
 	}
 
 	if !verify_account_id(&admin_address.clone()) {
-		let message = format!("Error backup key shares : Requester is not whitelisted : {}", admin_address);
+		let message = format!("Admin restore :  Requester is not whitelisted : {}", admin_address);
 
 		warn!(message);
 
@@ -480,7 +480,7 @@ pub async fn admin_backup_push_bulk(
 		auth_token = match auth_token.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
 			_ => {
-				return Json(json! ({"error": "Strip Token prefix error"}))
+				return Json(json! ({"error": "Admin restore : Strip Token prefix error"}))
 			}
 		};
 			
@@ -495,27 +495,27 @@ pub async fn admin_backup_push_bulk(
 	let token: StoreAuthenticationToken = match serde_json::from_str(auth_token.as_str()) {
 		Ok(token) => token,
 		Err(e) => {
-			let message = format!("Error backup key shares : Can not parse the authentication token : {}", e);
+			let message = format!("Admin restore : Can not parse the authentication token : {}", e);
 			warn!(message);
 			return Json(json!({"error": message}))
 		},
 	};
 
 	if !token.is_valid().await {
-		warn!("Error restore backup keyshares : token expired : admin = {}", admin_address);
+		warn!("Admin restore :  token expired : admin = {}", admin_address);
 
 		return Json(json! ({
-			"error": "Authentication Token Expired",
+			"error": "Admin restore : Authentication Token Expired",
 		}))
 	}
 
 	let hash = sha256::digest(restore_file.as_slice());
 
 	if token.data_hash != hash {
-		warn!("Error restore backup keyshares : mismatch data hash : admin = {}", admin_address);
+		warn!("Admin restore :  mismatch data hash : admin = {}", admin_address);
 
 		return Json(json! ({
-			"error": " Mismatch Data Hash",
+			"error": "Admin restore : Mismatch Data Hash",
 		}))
 	}
 
@@ -524,7 +524,7 @@ pub async fn admin_backup_push_bulk(
 	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
 		Ok(file) => file,
 		Err(e) => {
-			let message = format!("Error backup key shares : Can not create file on disk : {}", e);
+			let message = format!("Admin restore :  Can not create file on disk : {}", e);
 			warn!(message);
 			return Json(json!({"error": message}))
 		},
@@ -533,7 +533,7 @@ pub async fn admin_backup_push_bulk(
 	match zipfile.write_all(&restore_file) {
 		Ok(_) => debug!("zip file is stored on disk."),
 		Err(e) => {
-			let message = format!("Error restoring backups, writing zip file to disk{:?}",e);
+			let message = format!("Admin restore :  writing zip file to disk{:?}",e);
 			error!(message);
 			return Json(json!({
 				"error": message,
@@ -544,7 +544,7 @@ pub async fn admin_backup_push_bulk(
 	match zip_extract(&backup_file, &state.read().unwrap().seal_path) {
 		Ok(_) => debug!("zip_extract success"),
 		Err(e) => {
-			let message = format!("Error restoring backups, extracting zip file {:?}",e);
+			let message = format!("Admin restore :  extracting zip file {:?}",e);
 			error!(message);
 			return Json(json!({
 				"error": message,
@@ -556,14 +556,48 @@ pub async fn admin_backup_push_bulk(
 		Ok(_) => debug!("remove zip file successful"),
 		Err(e) => {
 			return Json(json!({
-				"error": format!("Backup success with Error in removing zip file, {:?}",e),
+				"warning": format!("Backup success with Error in removing zip file, {:?}",e),
 			}))
 		}
 	};
 
+	// Update Enclave Account, if it is updated.
+	let enclave_account_file = "/nft/enclave_account.key";
+	if !std::path::Path::new(&enclave_account_file).exists() {
+		return Json(json!({
+			"error": format!("Admin restore : Encalve Account file not found"),
+		}))
+	};
+	
+	debug!("Admin restore : Found Enclave Account, Importing it! : path: {}", enclave_account_file);
+
+	let phrase = match std::fs::read_to_string(enclave_account_file) {
+		Ok(phrase) => phrase,
+		Err(err) => {
+			let message = format!("Admin restore : Error reading enclave account file: {:?}", err);
+			error!(message);
+			return Json(json!({
+				"error": message,
+			}))
+		},
+	};
+	
+	let enclave_keypair = match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
+		Ok((keypair, _seed)) => keypair,
+		Err(err) => {
+			let message = format!("Admin restore : Error creating keypair from phrase: {:?}", err);
+			error!(message);
+			return Json(json!({
+				"error": message,
+			}))
+		},
+	};
+		
+	state.write().unwrap().enclave_key = enclave_keypair;
+		
 	// TODO : self-check extracted data
 	Json(json!({
-		"status": format!("Success restoring backups"),
+		"success": format!("Success restoring backups"),
 	}))
 }
 
