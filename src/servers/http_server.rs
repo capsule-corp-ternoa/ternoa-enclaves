@@ -24,6 +24,7 @@ use tracing::{debug, error, info};
 use std::{
 	path::PathBuf,
 	time::{Duration, SystemTime},
+	sync::{Arc, RwLock},
 };
 
 use crate::{chain::{
@@ -55,6 +56,8 @@ pub struct StateConfig {
 	pub seal_path: String,
 	pub identity: String,
 }
+
+pub type SharedState = Arc<RwLock<StateConfig>>;
 
 /// http server
 /// # Arguments
@@ -118,11 +121,15 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		keypair
 	};
 
-	let state_config = StateConfig {
-		enclave_key: enclave_keypair,
-		seal_path: seal_path.to_owned(),
-		identity: identity.to_string(),
-	};
+	let state_config: SharedState = Arc::new(RwLock::new(StateConfig { 
+		enclave_key: enclave_keypair, 
+		seal_path: seal_path.to_owned(), 
+		identity: identity.to_string() 
+	}));
+
+	//state_config.write().unwrap().enclave_key = enclave_keypair;
+	//state_config.write().unwrap().seal_path = seal_path.to_owned();
+	//state_config.write().unwrap().identity = identity.to_string();
 
 	let _ = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
@@ -202,7 +209,7 @@ async fn fallback(uri: axum::http::Uri) -> Json<Value> {
 	HEALTH CHECK
 ------------------------------ */
 /// Health check endpoint
-async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
+async fn get_health_status(State(state): State<SharedState>) -> Json<Value> {
 	debug!("3-3 Healthchek handler.");
 	match evalueate_health_status(&state) {
 		Some(json_val) => {
@@ -223,11 +230,11 @@ async fn get_health_status(State(state): State<StateConfig>) -> Json<Value> {
 /// Health check endpoint
 /// This function is called by the health check endpoint
 /// It returns a JSON object with the following fields :
-fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
+fn evalueate_health_status(state: &SharedState) -> Option<Json<Value>> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 
 	debug!("3-3-4 healthcheck : get public key.");
-	let pubkey: [u8; 32] = match state.enclave_key.as_ref().to_bytes()[64..].try_into() {
+	let pubkey: [u8; 32] = match state.read().unwrap().enclave_key.as_ref().to_bytes()[64..].try_into() {
 		Ok(pk) => pk,
 		Err(e) =>
 			return Some(Json(json!({
