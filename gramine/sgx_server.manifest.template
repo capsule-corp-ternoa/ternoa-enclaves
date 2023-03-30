@@ -65,11 +65,11 @@ loader.insecure__use_cmdline_argv = true
 loader.pal_internal_mem_size = "128M"
 
 sgx.require_avx    = true
-#sgx.require_avx512 = true
-#sgx.require_mpx    = true
-#sgx.require_pkru   = true
-#sgx.require_amx    = true
-#sgx.require_exinfo = true
+#sgx.require_avx512 = false
+#sgx.require_mpx    = false
+#sgx.require_pkru   = false
+#sgx.require_amx    = false
+#sgx.require_exinfo = false
 
 sgx.file_check_policy = "strict"
 
