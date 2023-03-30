@@ -1,0 +1,61 @@
+[package]
+name = "sgx_signer"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "sgx_signer"
+path = "src/main.rs"
+
+[dependencies]
+
+# Server
+rustls = "0.20.6"
+reqwest = "0.11.16"
+
+tokio = { version = "1.27", features = ["full"] }
+tokio-util = "0.7.7"
+tokio-stream = { version="0.1.12", features = ["net"] }
+tokio-cron-scheduler = "0.9.4"
+
+tower-http = { version = "0.4", features = ["cors","fs", "trace", "timeout"] }
+tower = {version = "0.4.13", features = ["timeout"]}
+
+# codec
+serde_json = "1.0.95"
+serde = { version = "1.0.159", features = ["derive"] }
+hex = "0.4.3"
+base64 = "0.21.0"
+zip = "0.6.4"
+
+log = "0.4.17"
+chrono = "0.4.24"
+cached = "0.42.0"
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter", "fmt"] }
+
+rand = "0.8.5"
+clap = { version = "4.2.1", features = ["derive"] }
+anyhow = "1.0.70"
+
+# IPFS
+futures = "0.3.27"
+tokio-test = "0.4.2"
+
+# Ternoa/Polkadot
+parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive", "full", "bit-vec"] }
+subxt = { git = "https://github.com/paritytech/subxt.git" , features = ["substrate-compat"]}
+sp-keyring = "20.0.0"
+sp-runtime = { version = "20.0.0" }
+sp-core = { version = "18.0.0", default-features = false, features = ["full_crypto"] }
+
+# Crypto / Keys
+schnorrkel = "0.10.2"
+sha256 = "1.1.2"
+
+[features]
+default = ["dev-0"]
+mainnet = []
+alphanet = []
+dev-1 = []
+dev-0 = []
