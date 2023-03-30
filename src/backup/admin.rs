@@ -24,7 +24,7 @@ use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::PublicError, sr25519::Signature};
 
-use crate::{chain::core::get_current_block_number, servers::http_server::StateConfig};
+use crate::{chain::core::get_current_block_number, servers::http_server::{StateConfig, SharedState}};
 
 use super::zipdir::{add_dir_zip, zip_extract};
 
@@ -223,7 +223,7 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 /// ```
 
 pub async fn admin_backup_fetch_bulk(
-	State(state): State<StateConfig>,
+	State(state): State<SharedState>,
 	Json(backup_request): Json<FetchBulkPacket>,
 ) -> impl IntoResponse {
 	debug!("3-15 API : backup fetch bulk");
@@ -289,7 +289,7 @@ pub async fn admin_backup_fetch_bulk(
 	}
 
 	// create new backup
-	add_dir_zip(&state.seal_path.clone(), backup_file);
+	add_dir_zip(&state.read().unwrap().seal_path.clone(), backup_file);
 
 	// `File` implements `AsyncRead`
 	let file = match tokio::fs::File::open(backup_file).await {
@@ -343,7 +343,7 @@ fn get_json_response(status: String, data: Vec<u8>) -> Json<Value> {
 /// ```
 
 pub async fn admin_backup_push_bulk(
-	State(state): State<StateConfig>,
+	State(state): State<SharedState>,
 	mut store_request: Multipart,
 ) -> Json<Value> {
 	debug!("3-16 API : backup push bulk");
@@ -549,7 +549,7 @@ pub async fn admin_backup_push_bulk(
 		}))
 	}
 
-	let backup_file = state.seal_path.to_owned() + "backup.zip";
+	let backup_file = state.read().unwrap().seal_path.to_owned() + "backup.zip";
 
 	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
 		Ok(file) => file,
@@ -571,7 +571,7 @@ pub async fn admin_backup_push_bulk(
 		},		
 	}
 
-	match zip_extract(&backup_file, &state.seal_path) {
+	match zip_extract(&backup_file, &state.read().unwrap().seal_path) {
 		Ok(_) => debug!("zip_extract success"),
 		Err(e) => {
 			let message = format!("Error restoring backups, extracting zip file {:?}",e);
@@ -638,7 +638,7 @@ mod test {
 		.0;
 
 		let mut zipdata = Vec::new();
-		let mut zipfile = std::fs::File::open("./test.zip").unwrap();
+		let mut zipfile = std::fs::File::open("./test/test.zip").unwrap();
 		let _ = zipfile.read_to_end(&mut zipdata).unwrap();
 
 		let last_block_number = get_current_block_number().await.unwrap();
@@ -683,6 +683,38 @@ mod test {
 		let packet = FetchBulkPacket {
 			admin_address,
 			auth_token: auth_str, 
+			signature: format!("{}{:?}", "0x", signature),
+		};
+
+		println!("FetchBulkPacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
+	}
+
+	#[derive(Serialize, Deserialize)]
+	pub struct FetchBulkPacketOld {
+		admin_address: String,
+		auth_token: FetchAuthenticationToken,
+		signature: String,
+	}
+
+	#[tokio::test]
+	async fn generate_fetch_bulk_old_test() {
+		let admin = sr25519::Pair::from_phrase(
+			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
+			None,
+		)
+		.unwrap()
+		.0;
+
+		let last_block_number = get_current_block_number().await.unwrap();
+
+		let admin_address = admin.public().to_ss58check();
+		let auth =
+			FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
+		let signature = admin.sign(&serde_json::to_vec(&auth).unwrap());
+
+		let packet = FetchBulkPacketOld {
+			admin_address,
+			auth_token: auth, 
 			signature: format!("{}{:?}", "0x", signature),
 		};
 

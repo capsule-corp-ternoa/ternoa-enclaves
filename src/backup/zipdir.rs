@@ -120,6 +120,10 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 		let fullpath_str = outdir.to_string() + outpath.to_str().unwrap();
 		let fullpath = Path::new(&fullpath_str);
 
+		if (*file.name()).contains("__MACOSX") {
+			continue
+		}
+
 		// DIRECTORY
 		if (*file.name()).ends_with('/') {
 			match fs::create_dir_all(fullpath) {
@@ -129,23 +133,30 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 					return Err(zip::result::ZipError::Io(e))
 				},
 			}
-		} else {
-			// FILE
+		}
+		// FILE 
+		else { 
+			// Create Parent Directory of the file if not exists
 			if let Some(p) = fullpath.parent() {
 				if !p.exists() {
 					match fs::create_dir_all(p) {
 						Ok(_file) => info!("create {:?}",p),
 						Err(e) => {
-							error!("Backup extract error create internal file : {:?}",e);
+							error!("Backup extract error creating paretn directory : {:?}",e);
 							return Err(zip::result::ZipError::Io(e))
 						},
 					}
 				}
 			}
+
+			// Overwrite the file
 			let mut outfile = match fs::File::create(fullpath) {
-				Ok(file) => file,
+				Ok(file) => {
+					info!("create {:?}", fullpath);
+					file
+				},
 				Err(e) => {
-					error!("Backup extract error : {:?}",e);
+					error!("Backup extract error (re)creating the file : {:?}",e);
 					return Err(zip::result::ZipError::Io(e)) 
 				},
 			};
@@ -153,7 +164,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 			match io::copy(&mut file, &mut outfile) {
 				Ok(n) => info!("successfuly copied {} bytes", n),
 				Err(e) => {
-					error!("BAckup extract error : {:?}",e);
+					error!("Backup extract error copying data to file : {:?}",e);
 					return Err(zip::result::ZipError::Io(e))
 				},
 			}

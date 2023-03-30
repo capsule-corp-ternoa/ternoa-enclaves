@@ -285,6 +285,7 @@ mod test {
 
 	#[tokio::test]
 	async fn file_log_test() {
+		let file_name = "./test/test.log".to_string();
 		// Simulating the Store keyshare process
 		let mut file = std::fs::File::create("test.log").unwrap(); // TODO: manage unwrap()
 		let owner = "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5".to_string();
@@ -301,7 +302,7 @@ mod test {
 		// Simulating Retrive keyshare
 		let requester_address = "5TQAxH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa7".to_string();
 		update_log_file_view(
-			"test.log".to_string(),
+			file_name.clone(),
 			requester_address,
 			RequesterType::DELEGATEE,
 			LogType::VIEW,
@@ -311,7 +312,7 @@ mod test {
 		// Simulating convert to capsule
 		let requester_address = "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5".to_string();
 		update_log_file_view(
-			"test.log".to_string(),
+			file_name.clone(),
 			requester_address,
 			RequesterType::OWNER,
 			LogType::STORE,
@@ -324,5 +325,8 @@ mod test {
 		file.read_to_string(&mut content).unwrap();
 
 		println!("{content}");
+
+		// Clean up
+		std::fs::remove_file(file_name).unwrap();
 	}
 }
