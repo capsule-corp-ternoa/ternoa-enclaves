@@ -21,19 +21,19 @@ use subxt::{tx::PairSigner, utils::AccountId32, OnlineClient, PolkadotConfig, Er
 
 #[cfg_attr(
 	feature = "mainnet",
-	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_mainnet.scale")
+	subxt::subxt(runtime_metadata_path = "../../../credentials/artifacts/ternoa_mainnet.scale")
 )]
 #[cfg_attr(
 	feature = "alphanet",
-	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_alphanet.scale")
+	subxt::subxt(runtime_metadata_path = "../../../credentials/artifacts/ternoa_alphanet.scale")
 )]
 #[cfg_attr(
 	feature = "dev-1",
-	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev1.scale")
+	subxt::subxt(runtime_metadata_path = "../../../credentials/artifacts/ternoa_dev1.scale")
 )]
 #[cfg_attr(
 	feature = "dev-0",
-	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev0.scale")
+	subxt::subxt(runtime_metadata_path = "../../../credentials/artifacts/ternoa_dev0.scale")
 )]
 
 pub mod ternoa {}
@@ -145,18 +145,22 @@ struct Args {
 	/// Path to the location for storing sealed NFT key-shares
 	#[arg(short, long)]
 	seed: String,
+
+	#[arg(short, long)]
+	file: String,
 }
 
 /* MAIN */
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    generate_fetch_bulk_test(args.seed.clone()).await;
-    generate_fetch_bulk_old_test(args.seed.clone()).await;
+    generate_fetch_bulk(args.seed.clone()).await;
+    generate_fetch_bulk_old(args.seed.clone()).await;
+	generate_push_bulk(args.seed, args.file).await;
 }
 
 
-async fn generate_fetch_bulk_test(seed_phrase: String) {
+async fn generate_fetch_bulk(seed_phrase: String) {
     let admin = sr25519::Pair::from_phrase(
         &seed_phrase,
         None,
@@ -178,11 +182,11 @@ async fn generate_fetch_bulk_test(seed_phrase: String) {
         signature: format!("{}{:?}", "0x", signature),
     };
 
-    println!("FetchBulkPacket = \n{}\n", serde_json::to_string_pretty(&packet).unwrap());
+    println!("***** NEW Fetch Bulk Packet = \n{}\n", serde_json::to_string_pretty(&packet).unwrap());
 }
 
 
-async fn generate_fetch_bulk_old_test(seed_phrase: String) {
+async fn generate_fetch_bulk_old(seed_phrase: String) {
     let admin = sr25519::Pair::from_phrase(
         &seed_phrase,
         None,
@@ -203,6 +207,41 @@ async fn generate_fetch_bulk_old_test(seed_phrase: String) {
         signature: format!("{}{:?}", "0x", signature),
     };
 
-    println!("*Old* FetchBulkPacket = \n{}\n", serde_json::to_string_pretty(&packet).unwrap());
+    println!("***** OLD Fetch Bulk Packet = \n{}\n", serde_json::to_string(&packet).unwrap());
 }
 
+async fn generate_push_bulk(seed_phrase: String, file_path: String) {
+	let admin = sr25519::Pair::from_phrase(
+        &seed_phrase,
+        None,
+    )
+    .unwrap()
+    .0;
+
+    let last_block_number = get_current_block_number().await.unwrap();
+
+    let admin_address = admin.public().to_ss58check();
+
+	let mut zipdata = Vec::new();
+	let mut zipfile = std::fs::File::open(&file_path).unwrap();
+	let _ = zipfile.read_to_end(&mut zipdata).unwrap();
+
+	let hash = sha256::digest(zipdata.as_slice());
+
+	let auth = StoreAuthenticationToken {
+		block_number: last_block_number,
+		block_validation: 10,
+		data_hash: hash,
+	};
+
+	let auth_str = serde_json::to_string(&auth).unwrap();
+	let sig = admin.sign(auth_str.as_bytes());
+	let sig_str = format!("{}{:?}", "0x", sig);
+
+	println!(
+		"***** Push Bulk Packet = \n Admin:\t\t {} \n Auth_Token:\t {} \n Signature:\t {} \n ",
+		admin.public(),
+		auth_str,
+		sig_str
+	);
+}
