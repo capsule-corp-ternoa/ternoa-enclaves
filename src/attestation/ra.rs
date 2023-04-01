@@ -8,7 +8,7 @@ use std::{
 use axum::Json;
 use cached::proc_macro::once;
 use serde_json::{json, Value};
-use tracing::{info, error, debug};
+use tracing::{debug, error, info};
 
 #[once(time = 60, sync_writes = false)]
 pub async fn ra_get_quote() -> Json<Value> {
