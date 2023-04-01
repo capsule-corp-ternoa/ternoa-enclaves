@@ -21,19 +21,22 @@ use subxt::{tx::PairSigner, utils::AccountId32, OnlineClient, PolkadotConfig, Er
 
 #[cfg_attr(
 	feature = "mainnet",
-	subxt::subxt(runtime_metadata_path = "../../../credentials/artifacts/ternoa_mainnet.scale")
+	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_mainnet.scale")
 )]
+
 #[cfg_attr(
 	feature = "alphanet",
-	subxt::subxt(runtime_metadata_path = "../../../credentials/artifacts/ternoa_alphanet.scale")
+	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_alphanet.scale")
 )]
+
 #[cfg_attr(
 	feature = "dev-1",
-	subxt::subxt(runtime_metadata_path = "../../../credentials/artifacts/ternoa_dev1.scale")
+	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev1.scale")
 )]
+
 #[cfg_attr(
 	feature = "dev-0",
-	subxt::subxt(runtime_metadata_path = "../../../credentials/artifacts/ternoa_dev0.scale")
+	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev0.scale")
 )]
 
 pub mod ternoa {}
@@ -49,13 +52,17 @@ pub async fn get_chain_api() -> Result<DefaultApi, Error> {
 
 	let rpc_endoint = if cfg!(feature = "mainnet") {
 		"wss://mainnet.ternoa.network:443".to_string()
-	} else if cfg!(feature = "alphanetnet") {
+	} else if cfg!(feature = "alphanet") {
 		"wss://alphanet.ternoa.com:443".to_string()
 	} else if cfg!(feature = "dev-1") {
 		"wss://dev-1.ternoa.network:443".to_string()
-	} else {
+	} else if cfg!(feature = "dev-0") {
 		"wss://dev-0.ternoa.network:443".to_string()
+	} else {
+		return Err(Error::Other("Unknown chain".to_string()))
 	};
+
+	println!("endpoint  = {rpc_endoint}\n");
 
 	DefaultApi::from_url(rpc_endoint).await
 }
