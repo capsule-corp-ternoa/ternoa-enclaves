@@ -73,7 +73,6 @@ sgx.require_avx    = true
 
 sgx.file_check_policy = "strict"
 
-# TODO: PRODUCTION SPID
 sgx.remote_attestation = "epid"
 sgx.ra_client_spid = "B6941ED89BCD7301A08739845B3B865A"
 sgx.ra_client_linkable = true

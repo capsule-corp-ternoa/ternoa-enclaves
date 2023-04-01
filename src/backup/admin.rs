@@ -3,8 +3,8 @@
 #![allow(unused_variables)]
 
 use axum::{
-	body::{StreamBody, Bytes},
-	extract::{Multipart, State, FromRequest},
+	body::{Bytes, StreamBody},
+	extract::{FromRequest, Multipart, State},
 	http::header,
 	response::IntoResponse,
 	Json,
@@ -24,14 +24,25 @@ use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::PublicError, sr25519::Signature};
 
-use crate::{chain::core::get_current_block_number, servers::http_server::{StateConfig, SharedState}};
+use crate::{
+	chain::core::get_current_block_number,
+	servers::http_server::{SharedState, StateConfig},
+};
 
 use super::zipdir::{add_dir_zip, zip_extract};
 
+#[cfg(any(feature = "alphanet", feature = "mainnet"))]
 const BACKUP_WHITELIST: [&str; 3] = [
-	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ", // Mohsin
-	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW", // Prabhu
-	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Amin
+	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ",
+	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
+	"5HmNNUGDRNJgKScvDu1yUKFeqKkXeGjsK5SMGW744Uo2YgFj",
+];
+
+#[cfg(any(feature = "dev-0", feature = "dev-1"))]
+const BACKUP_WHITELIST: [&str; 3] = [
+	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ",
+	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
+	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
 ];
 
 /* *************************************
@@ -92,8 +103,8 @@ impl FetchAuthenticationToken {
 			Ok(number) => number,
 			Err(err) => {
 				error!("Failed to get current block number: {}", err);
-				return false;
-			}
+				return false
+			},
 		};
 
 		(last_block_number > self.block_number - 3) // for finalization delay
@@ -104,15 +115,13 @@ impl FetchAuthenticationToken {
 
 impl StoreAuthenticationToken {
 	pub async fn is_valid(&self) -> bool {
-
 		let last_block_number = match get_current_block_number().await {
 			Ok(number) => number,
 			Err(err) => {
 				error!("Failed to get current block number: {}", err);
-				return false;
-			}
+				return false
+			},
 		};
-
 
 		(last_block_number > self.block_number - 3) // for finalization delay
 			&& (last_block_number < self.block_number + self.block_validation + 3) // validity period
@@ -186,7 +195,6 @@ fn get_signature(signature: String) -> Result<Signature, FromHexError> {
 	match <[u8; 64]>::from_hex(stripped) {
 		Ok(s) => {
 			let sig = sr25519::Signature::from_raw(s);
-			debug!("Signature :- {:?}", sig);
 			Ok(sig)
 		},
 		Err(err) => Err(err),
@@ -210,6 +218,15 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 	sr25519::Pair::verify(&get_signature(signature), message, &account_pubkey)
 }
 
+async fn update_health_status (state: &SharedState, message: String) {	
+	
+	let shared_state_write = &mut state.write().await;
+	debug!("got shared state to write.");
+
+	shared_state_write.set_maintenance(message);
+	debug!("Maintenance state is set.");
+}
+
 /// Backup Key Shares
 /// This function is used to backup the key shares of the validators
 /// # Arguments
@@ -221,84 +238,109 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 /// ```
 /// backup_key_shares(state, backup_request)
 /// ```
-
+#[axum::debug_handler]
 pub async fn admin_backup_fetch_bulk(
 	State(state): State<SharedState>,
 	Json(backup_request): Json<FetchBulkPacket>,
 ) -> impl IntoResponse {
 	debug!("3-15 API : backup fetch bulk");
-
+	
+	update_health_status(&state, "Encalve is doing backup, please wait...".to_string()).await;
+	
 	if !verify_account_id(&backup_request.admin_address) {
-		let message = format!("Error backup key shares : Requester is not whitelisted : {}", backup_request.admin_address);
+		let message = format!(
+			"Error backup key shares : Requester is not whitelisted : {}",
+			backup_request.admin_address
+		);
 		warn!(message);
 
 		return "Error backup keyshares : Invalid admin".into_response()
 	}
-	
+
 	let mut auth = backup_request.auth_token.clone();
 
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
-				return "Strip Token prefix error".into_response()
-			}
+			_ =>
+				return Json(json!({"error": "Strip Token prefix error".to_string()}))
+					.into_response(),
 		};
-			
+
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
-				return "Strip Token suffix error".into_response()
-			}
+			_ =>
+				return Json(json!({"error": "Strip Token suffix error".to_string()}))
+					.into_response(),
 		}
 	}
 
 	let auth_token: FetchAuthenticationToken = match serde_json::from_str(&auth) {
 		Ok(token) => token,
 		Err(e) => {
-			let message = format!("Error backup key shares : Authentication token is not parsable : {}", e);
+			let message =
+				format!("Error backup key shares : Authentication token is not parsable : {}", e);
 			warn!(message);
-			return message.into_response()
+			return Json(json!({ "error": message })).into_response()
 		},
 	};
-	
+
 	if !verify_signature(
 		&backup_request.admin_address,
 		backup_request.signature.clone(),
 		backup_request.auth_token.clone().as_bytes(),
 	) {
-		return "Invalid Signature".to_string().into_response();
-	} 
-	
-
-	if !auth_token.is_valid().await {
-		return "Authentication Token is not valid, or expired".to_string().into_response();
+		return Json(json!({"error": "Invalid Signature".to_string()})).into_response()
 	}
 
-	let backup_file = "/temporary/backup.zip";
+	debug!("Validating the authentication token");
+	if !auth_token.is_valid().await {
+		return Json(json!({"error": "Authentication Token is not valid, or expired".to_string()}))
+			.into_response()
+	}
+
+	let mut backup_file = "/temporary/backup.zip".to_string();
+	let counter = 1;
 	// remove previously generated backup
-	if std::path::Path::new(&backup_file).exists() {
-		match std::fs::remove_file(backup_file) {
-			Ok(_) => { debug!("Successfully removed previous zip file")},
+	while std::path::Path::new(&backup_file.clone()).exists() {
+		match std::fs::remove_file(backup_file.clone()) {
+			Ok(_) => {
+				debug!("Successfully removed previous zip file")
+			},
 			Err(e) => {
-				let message = format!("Error backup key shares : Can not remove previous backup file : {}", e);
+				let message = format!(
+					"Error backup key shares : Can not remove previous backup file : {}",
+					e
+				);
 				warn!(message);
-				return message.into_response()
+				//return Json(json!({ "error": message })).into_response()
+				backup_file = format!("/temporary/backup-{counter}.zip");
 			},
 		}
 	}
+	
+	let shared_state_read = state.read().await;
+	let seal_path = shared_state_read.get_seal_path();
+	drop(shared_state_read);
 
-	// create new backup
-	add_dir_zip(&state.read().unwrap().seal_path.clone(), backup_file);
+	debug!("Start zippping file");
+	add_dir_zip(&seal_path, &backup_file);
 
 	// `File` implements `AsyncRead`
+	debug!("Opening backup file");
 	let file = match tokio::fs::File::open(backup_file).await {
 		Ok(file) => file,
-		Err(err) => return format!("Backup File not found: {}", err).into_response(),
+		Err(err) =>
+			return Json(json!({ "error": format!("Backup File not found: {}", err) }))
+				.into_response(),
 	};
+	
 	// convert the `AsyncRead` into a `Stream`
+	debug!("Create reader-stream");
 	let stream = ReaderStream::new(file);
+	
 	// convert the `Stream` into an `axum::body::HttpBody`
+	debug!("Create body-stream");
 	let body = StreamBody::new(stream);
 
 	let headers = [
@@ -306,8 +348,10 @@ pub async fn admin_backup_fetch_bulk(
 		(header::CONTENT_DISPOSITION, "attachment; filename=\"Backup.zip\""),
 	];
 
+	update_health_status(&state, String::new()).await;
+
+	debug!("Sending the backup data to the client ...");
 	(headers, body).into_response()
-	
 }
 
 /// Returns Json Response
@@ -341,7 +385,7 @@ fn get_json_response(status: String, data: Vec<u8>) -> Json<Value> {
 /// ```
 /// backup_key_shares(state, backup_request)
 /// ```
-
+#[axum::debug_handler]
 pub async fn admin_backup_push_bulk(
 	State(state): State<SharedState>,
 	mut store_request: Multipart,
@@ -349,22 +393,22 @@ pub async fn admin_backup_push_bulk(
 	debug!("3-16 API : backup push bulk");
 	debug!("received request = {:?}", store_request);
 
+	//update_health_status(&state, "Restoring the backups".to_string()).await;
+
 	let mut admin_address = String::new();
 	let mut restore_file = Vec::<u8>::new();
 	let mut auth_token = String::new();
 	let mut signature = String::new();
 
-	while let Some(field) = match store_request
-		.next_field()
-		.await {
-			Ok(field) => field,
-			Err(e) => {
-				let message = format!("Error backup key shares : Can not parse request form-data : {}", e);
-				warn!(message);
-				return Json(json!({"error": message}))
-			},
-		} 
-	{
+	while let Some(field) = match store_request.next_field().await {
+		Ok(field) => field,
+		Err(e) => {
+			let message =
+				format!("Error backup key shares : Can not parse request form-data : {}", e);
+			warn!(message);
+			return Json(json!({ "error": message }))
+		},
+	} {
 		let name = match field.name() {
 			Some(name) => name.to_string(),
 			_ => {
@@ -419,10 +463,7 @@ pub async fn admin_backup_push_bulk(
 				admin_address = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(e) => {
-						info!(
-							"Admin restore :  Error request admin_address {:?}",
-							e
-						);
+						info!("Admin restore :  Error request admin_address {:?}", e);
 
 						return Json(json!({
 								"error": format!("Admin restore : Error request admin_address {:?}", e),
@@ -434,10 +475,7 @@ pub async fn admin_backup_push_bulk(
 				restore_file = match field.bytes().await {
 					Ok(bytes) => bytes.to_vec(),
 					Err(e) => {
-						info!(
-							"Admin restore :  Error request restore_file {:?}",
-							e
-						);
+						info!("Admin restore :  Error request restore_file {:?}", e);
 
 						return Json(json!({
 								"error": format!("Admin restore : Error request restore_file {:?}", e),
@@ -509,16 +547,12 @@ pub async fn admin_backup_push_bulk(
 	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
 		auth_token = match auth_token.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
-				return Json(json! ({"error": "Admin restore : Strip Token prefix error"}))
-			}
+			_ => return Json(json! ({"error": "Admin restore : Strip Token prefix error"})),
 		};
-			
+
 		auth_token = match auth_token.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
-				return Json(json! ({"error": "Strip Token suffix error"}))
-			}
+			_ => return Json(json! ({"error": "Strip Token suffix error"})),
 		}
 	}
 
@@ -527,7 +561,7 @@ pub async fn admin_backup_push_bulk(
 		Err(e) => {
 			let message = format!("Admin restore : Can not parse the authentication token : {}", e);
 			warn!(message);
-			return Json(json!({"error": message}))
+			return Json(json!({ "error": message }))
 		},
 	};
 
@@ -549,46 +583,49 @@ pub async fn admin_backup_push_bulk(
 		}))
 	}
 
-	let backup_file = state.read().unwrap().seal_path.to_owned() + "backup.zip";
+	let shared_state = state.read().await;
+	let seal_path = shared_state.get_seal_path();
+	let backup_file = seal_path.clone() + "backup.zip";
+	drop(shared_state);
 
 	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
 		Ok(file) => file,
 		Err(e) => {
 			let message = format!("Admin restore :  Can not create file on disk : {}", e);
 			warn!(message);
-			return Json(json!({"error": message}))
+			return Json(json!({ "error": message }))
 		},
 	};
 
 	match zipfile.write_all(&restore_file) {
 		Ok(_) => debug!("zip file is stored on disk."),
 		Err(e) => {
-			let message = format!("Admin restore :  writing zip file to disk{:?}",e);
+			let message = format!("Admin restore :  writing zip file to disk{:?}", e);
 			error!(message);
 			return Json(json!({
 				"error": message,
 			}))
-		},		
+		},
 	}
-
-	match zip_extract(&backup_file, &state.read().unwrap().seal_path) {
+	// TODO: Verify backup data befor writing them on the disk
+	// Check if the enclave_account or keyshares are invalid
+	match zip_extract(&backup_file, &seal_path) {
 		Ok(_) => debug!("zip_extract success"),
 		Err(e) => {
-			let message = format!("Admin restore :  extracting zip file {:?}",e);
+			let message = format!("Admin restore :  extracting zip file {:?}", e);
 			error!(message);
 			return Json(json!({
 				"error": message,
 			}))
-		}
+		},
 	}
 
 	match remove_file(backup_file) {
 		Ok(_) => debug!("remove zip file successful"),
-		Err(e) => {
+		Err(e) =>
 			return Json(json!({
 				"warning": format!("Backup success with Error in removing zip file, {:?}",e),
-			}))
-		}
+			})),
 	};
 
 	// Update Enclave Account, if it is updated.
@@ -598,7 +635,7 @@ pub async fn admin_backup_push_bulk(
 			"error": format!("Admin restore : Encalve Account file not found"),
 		}))
 	};
-	
+
 	debug!("Admin restore : Found Enclave Account, Importing it! : path: {}", enclave_account_file);
 
 	let phrase = match std::fs::read_to_string(enclave_account_file) {
@@ -611,7 +648,9 @@ pub async fn admin_backup_push_bulk(
 			}))
 		},
 	};
-	
+
+	debug!("Admin restore : Phrase read, converting it to keypair.");
+
 	let enclave_keypair = match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
 		Ok((keypair, _seed)) => keypair,
 		Err(err) => {
@@ -622,9 +661,17 @@ pub async fn admin_backup_push_bulk(
 			}))
 		},
 	};
-		
-	state.write().unwrap().enclave_key = enclave_keypair;
-		
+
+	debug!("Admin restore : Keypair success");
+
+	let mut shared_state_write = state.write().await;
+	debug!("Admin restore : share-state is taken");
+	shared_state_write.set_key(enclave_keypair);
+	debug!("share-state Enclave Account updated");
+	drop(shared_state_write);
+
+	//update_health_status(&state, String::new()).await;
+
 	// TODO : self-check extracted data
 	Json(json!({
 		"success": format!("Success restoring backups"),
@@ -641,12 +688,10 @@ mod test {
 
 	#[tokio::test]
 	async fn bulk_fetch_test() {
-		let admin_keypair = sr25519::Pair::from_phrase(
-			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
-			None,
-		)
-		.unwrap()
-		.0;
+		let seed_phrase: &str =
+			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
+
+		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
 		let last_block_number = get_current_block_number().await.unwrap();
 
 		let auth =
@@ -664,12 +709,10 @@ mod test {
 
 	#[tokio::test]
 	async fn bulk_restore_test() {
-		let admin_keypair = sr25519::Pair::from_phrase(
-			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
-			None,
-		)
-		.unwrap()
-		.0;
+		let seed_phrase: &str =
+			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
+
+		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
 
 		let mut zipdata = Vec::new();
 		let mut zipfile = std::fs::File::open("./test/test.zip").unwrap();
@@ -695,64 +738,6 @@ mod test {
 			auth_str,
 			sig_str
 		);
-	}
-
-	#[tokio::test]
-	async fn generate_fetch_bulk_test() {
-		let admin = sr25519::Pair::from_phrase(
-			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
-			None,
-		)
-		.unwrap()
-		.0;
-
-		let last_block_number = get_current_block_number().await.unwrap();
-
-		let admin_address = admin.public().to_ss58check();
-		let auth =
-			FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
-		let auth_str = serde_json::to_string(&auth).unwrap();
-		let signature = admin.sign(auth_str.as_bytes());
-
-		let packet = FetchBulkPacket {
-			admin_address,
-			auth_token: auth_str, 
-			signature: format!("{}{:?}", "0x", signature),
-		};
-
-		println!("FetchBulkPacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
-	}
-
-	#[derive(Serialize, Deserialize)]
-	pub struct FetchBulkPacketOld {
-		admin_address: String,
-		auth_token: FetchAuthenticationToken,
-		signature: String,
-	}
-
-	#[tokio::test]
-	async fn generate_fetch_bulk_old_test() {
-		let admin = sr25519::Pair::from_phrase(
-			"hockey fine lawn number explain bench twenty blue range cover egg sibling",
-			None,
-		)
-		.unwrap()
-		.0;
-
-		let last_block_number = get_current_block_number().await.unwrap();
-
-		let admin_address = admin.public().to_ss58check();
-		let auth =
-			FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
-		let signature = admin.sign(&serde_json::to_vec(&auth).unwrap());
-
-		let packet = FetchBulkPacketOld {
-			admin_address,
-			auth_token: auth, 
-			signature: format!("{}{:?}", "0x", signature),
-		};
-
-		println!("FetchBulkPacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());
 	}
 
 	#[test]

@@ -2,6 +2,16 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 
+use std::{
+	fs::File,
+	io::Write,
+	path::PathBuf,
+	sync::Arc,
+	time::{Duration, SystemTime},
+};
+
+use tokio::sync::RwLock;
+
 use axum::{
 	error_handling::HandleErrorLayer,
 	extract::State,
@@ -13,26 +23,15 @@ use axum::{
 use reqwest;
 
 use sp_core::Pair;
+
+use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 
 use anyhow::{anyhow, Error};
-use tower::ServiceBuilder;
-
 use serde_json::{json, Value};
 use tracing::{debug, error, info};
 
 use std::time::{Duration, SystemTime};
-
-use crate::{chain::{
-	capsule::{
-		capsule_get_views, capsule_remove_keyshare, capsule_retrieve_keyshare,
-		capsule_set_keyshare, is_capsule_available,
-	},
-	nft::{
-		is_nft_available, nft_get_views, nft_remove_keyshare, nft_retrieve_keyshare,
-		nft_store_keyshare,
-	},
-}, attestation::ra::ra_get_quote};
 
 use crate::{
 	backup::admin::{admin_backup_fetch_bulk, admin_backup_push_bulk},
@@ -41,16 +40,58 @@ use crate::{
 
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 
-use std::{fs::File, io::Write};
-
 use super::server_common;
 
 /// StateConfig shared by all routes
 #[derive(Clone)]
 pub struct StateConfig {
-	pub enclave_key: sp_core::sr25519::Pair,
-	pub seal_path: String,
-	pub identity: String,
+	enclave_key: sp_core::sr25519::Pair,
+	seal_path: String,
+	identity: String,
+	maintenance: String,
+}
+
+impl StateConfig {
+	pub fn new(
+		enclave_key: sp_core::sr25519::Pair,
+		seal_path: String,
+		identity: String,
+		maintenance: String,
+	) -> StateConfig {
+		StateConfig { enclave_key, seal_path, identity, maintenance }
+	}
+
+	pub fn get_key(&self) -> sp_core::sr25519::Pair {
+		self.enclave_key.clone()
+	}
+
+	pub fn set_key(&mut self, keypair: sp_core::sr25519::Pair) {
+		self.enclave_key = keypair;
+	}
+
+	pub fn get_seal_path(&self) -> String {
+		self.seal_path.clone()
+	}
+
+	pub fn set_seal_path(&mut self, path: String) {
+		self.seal_path = path;
+	}
+
+	pub fn get_identity(&self) -> String {
+		self.identity.clone()
+	}
+
+	pub fn set_identity(&mut self, id: String) {
+		self.identity = id;
+	}
+
+	pub fn get_maintenance(&self) -> String {
+		self.maintenance.clone()
+	}
+
+	pub fn set_maintenance(&mut self, message: String) {
+		self.maintenance = message;
+	}
 }
 
 pub type SharedState = Arc<RwLock<StateConfig>>;
@@ -143,15 +184,12 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		keypair
 	};
 
-	let state_config: SharedState = Arc::new(RwLock::new(StateConfig { 
-		enclave_key: enclave_keypair, 
-		seal_path: seal_path.to_owned(), 
-		identity: identity.to_string() 
-	}));
-
-	//state_config.write().unwrap().enclave_key = enclave_keypair;
-	//state_config.write().unwrap().seal_path = seal_path.to_owned();
-	//state_config.write().unwrap().identity = identity.to_string();
+	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
+		enclave_keypair,
+		seal_path.to_owned(),
+		identity.to_string(),
+		String::new(),
+	)));
 
 	let _ = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
@@ -189,11 +227,11 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.layer(
 			ServiceBuilder::new()
 				.layer(HandleErrorLayer::new(handle_timeout_error))
-				.timeout(Duration::from_secs(10)),
+				.timeout(Duration::from_secs(20)),
 		)
 		.layer(monitor_layer)
 		.layer(CorsLayer::permissive())
-		.with_state(state_config);
+		.with_state(Arc::clone(&state_config));
 
 	debug!("2-3 Starting Server with routes");
 	match server_common::serve(http_app, domain, port).await {
@@ -233,7 +271,9 @@ async fn fallback(uri: axum::http::Uri) -> Json<Value> {
 /// Health check endpoint
 async fn get_health_status(State(state): State<SharedState>) -> Json<Value> {
 	debug!("3-3 Healthchek handler.");
-	match evalueate_health_status(&state) {
+	let shared_state = state.read().await;
+
+	match evalueate_health_status(shared_state.get_key(), shared_state.get_maintenance()) {
 		Some(json_val) => {
 			debug!("3-3-1 Healthchek exit successfully .");
 			json_val
@@ -254,7 +294,8 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 
 	debug!("3-3-4 healthcheck : get public key.");
-	let pubkey: [u8; 32] = match state.read().unwrap().enclave_key.as_ref().to_bytes()[64..].try_into() {
+
+	let pubkey: [u8; 32] = match enclave_key.as_ref().to_bytes()[64..].try_into() {
 		Ok(pk) => pk,
 		Err(_e) =>
 			return Some(Json(json!({
@@ -266,6 +307,15 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	};
 
 	let enclave_address = sp_core::sr25519::Public::from_raw(pubkey);
+
+	if !maintenance.is_empty() {
+		return Some(Json(json!({
+			"status": 230,
+			"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
+			"description": maintenance,
+			"enclave_address": enclave_address,
+		})))
+	}
 
 	Some(Json(json!({
 		"status": 200,
