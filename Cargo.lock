@@ -5193,7 +5193,6 @@ dependencies = [
  "clap",
  "futures",
  "hex",
- "log",
  "parity-scale-codec",
  "rand 0.8.5",
  "reqwest",

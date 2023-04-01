@@ -79,6 +79,7 @@ pub enum ReturnStatus {
 	NOTBURNT,
 	NOTSYNCING,
 
+	INTERNALSTATELOCKED,
 	InvalidBlockNumber,
 }
 
@@ -462,7 +463,9 @@ impl VerificationError {
 
 			VerificationError::KEYSHAREISTOOSHORT => {
 				let status = ReturnStatus::KEYSHAREISTOOSHORT;
-				let description = format!("TEE Key-share {call:?}: Secret-Share is too short, it is not secure enough.");
+				let description = format!(
+					"TEE Key-share {call:?}: Secret-Share is too short, it is not secure enough."
+				);
 				info!("{}, requester : {}", description, caller);
 
 				Json(json! ({
@@ -535,23 +538,19 @@ pub async fn verify_requester_type(
 	owner: AccountId32,
 	requester_type: RequesterType,
 ) -> bool {
-
 	match AccountId32::from_str(&requester_address) {
-		Ok(converted_requester_address) => {
-			match requester_type {
-				RequesterType::OWNER | RequesterType::NONE => owner == converted_requester_address,
+		Ok(converted_requester_address) => match requester_type {
+			RequesterType::OWNER | RequesterType::NONE => owner == converted_requester_address,
 
-				RequesterType::DELEGATEE => match get_onchain_delegatee_account(nft_id).await {
-					KeyshareHolder::Delegatee(delegatee) => delegatee == converted_requester_address,
-					_ => false,
-				},
+			RequesterType::DELEGATEE => match get_onchain_delegatee_account(nft_id).await {
+				KeyshareHolder::Delegatee(delegatee) => delegatee == converted_requester_address,
+				_ => false,
+			},
 
-				RequesterType::RENTEE => match get_onchain_rentee_account(nft_id).await {
-					KeyshareHolder::Rentee(rentee) => rentee == converted_requester_address,
-					_ => false,
-				},
-			}
-
+			RequesterType::RENTEE => match get_onchain_rentee_account(nft_id).await {
+				KeyshareHolder::Rentee(rentee) => rentee == converted_requester_address,
+				_ => false,
+			},
 		},
 
 		Err(_) => false,
@@ -575,8 +574,8 @@ impl AuthenticationToken {
 			Ok(number) => number,
 			Err(err) => {
 				error!("Failed to get current block number: {}", err);
-				return false;
-			}
+				return false
+			},
 		};
 		(last_block_number > self.block_number - 3) // for finalization delay
 			&& (last_block_number < self.block_number + self.block_validation + 3)
@@ -604,7 +603,6 @@ impl StoreKeyshareData {
 ----------------------------------*/
 
 impl StoreKeysharePacket {
-
 	pub fn get_signer(&self) -> Result<Signer, VerificationError> {
 		let mut signer = self.signer_address.clone();
 
@@ -620,23 +618,21 @@ impl StoreKeysharePacket {
 		let parsed_data: Vec<&str> = if signer.contains('_') {
 			signer.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDSIGNER);
+			return Err(VerificationError::MALFORMATEDSIGNER)
 		};
 
 		if parsed_data.len() < 3 {
-			return Err(VerificationError::MALFORMATEDSIGNER);
+			return Err(VerificationError::MALFORMATEDSIGNER)
 		}
 
 		let account = sr25519::Public::from_ss58check(parsed_data[0])
 			.map_err(|_| VerificationError::INVALIDSIGNERADDRESS)?;
 
-		let block_num = parsed_data[1]
-			.parse::<u32>()
-			.map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
+		let block_num =
+			parsed_data[1].parse::<u32>().map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
 
-		let block_valid = parsed_data[2]
-			.parse::<u32>()
-			.map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
+		let block_valid =
+			parsed_data[2].parse::<u32>().map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
 
 		Ok(Signer {
 			account,
@@ -663,47 +659,40 @@ impl StoreKeysharePacket {
 		let parsed_data: Vec<&str> = if data.contains('_') {
 			data.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDDATA);
+			return Err(VerificationError::MALFORMATEDDATA)
 		};
 
 		if parsed_data.len() != 4 {
-			return Err(VerificationError::MALFORMATEDDATA);
+			return Err(VerificationError::MALFORMATEDDATA)
 		}
 
-		let nft_id = parsed_data[0]
-			.parse::<u32>()
-			.map_err(|_| VerificationError::INVALIDNFTID)?;
+		let nft_id = parsed_data[0].parse::<u32>().map_err(|_| VerificationError::INVALIDNFTID)?;
 
 		let keyshare = if !parsed_data[1].is_empty() {
 			parsed_data[1].as_bytes().to_vec()
 		} else {
-			return Err(VerificationError::INVALIDKEYSHARE);
+			return Err(VerificationError::INVALIDKEYSHARE)
 		};
 
 		let keyshare_size = keyshare.len() as u16;
-		if  keyshare_size < 16 {
+		if keyshare_size < 16 {
 			return Err(VerificationError::KEYSHAREISTOOSHORT)
 		}
 
-		if  keyshare_size > 3000 {
+		if keyshare_size > 3000 {
 			return Err(VerificationError::KEYSHAREISTOOLONG)
 		}
 
-		let block_number = parsed_data[2]
-			.parse::<u32>()
-			.map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
+		let block_number =
+			parsed_data[2].parse::<u32>().map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
 
-		let block_validation = parsed_data[3]
-			.parse::<u32>()
-			.map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
+		let block_validation =
+			parsed_data[3].parse::<u32>().map_err(|_| VerificationError::INVALIDAUTHTOKEN)?;
 
 		Ok(StoreKeyshareData {
 			nft_id,
 			keyshare,
-			auth_token: AuthenticationToken {
-				block_number,
-				block_validation,
-			},
+			auth_token: AuthenticationToken { block_number, block_validation },
 		})
 	}
 
