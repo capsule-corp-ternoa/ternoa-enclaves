@@ -34,9 +34,9 @@ fn import_vkey() -> Result<CosignVerificationKey, anyhow::Error> {
 	let get_pub = match downloader(url) {
 		Ok(data) => data,
 		Err(e) => {
-			let message = format!("error retrieving public key from ternoa github {}",e);
+			let message = format!("error retrieving public key from ternoa github {}", e);
 			error!(message);
-			return Err(e);
+			return Err(e)
 		},
 	};
 	let ecdsa_p256_asn1_public_pem = get_pub.as_bytes();
@@ -45,7 +45,7 @@ fn import_vkey() -> Result<CosignVerificationKey, anyhow::Error> {
 	// verification algorithm. let ecdsa_p256_asn1_public_pem =
 	// std::fs::read("/keys/cosign.pub").unwrap();
 
-	Ok(CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default())?) 
+	Ok(CosignVerificationKey::from_pem(ecdsa_p256_asn1_public_pem, &SigningScheme::default())?)
 }
 
 /// verify the signature of the binary file

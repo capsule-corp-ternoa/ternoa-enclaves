@@ -3,7 +3,7 @@ use std::{
 	io::{self, prelude::*, Seek, Write},
 	iter::Iterator,
 };
-use tracing::{info, error};
+use tracing::{error, info};
 use zip::{result::ZipError, write::FileOptions};
 
 use std::{fs::File, path::Path};
@@ -84,13 +84,13 @@ fn doit(
 /* ----------------------------
 		EXTRACT ARCHIVE
 -------------------------------*/
-pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
+pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 	let fname = std::path::Path::new(filename);
 
 	let infile = match fs::File::open(fname) {
 		Ok(file) => file,
 		Err(e) => {
-			error!("Backup extract error opening zip file : {:?}",e);
+			error!("Backup extract error opening zip file : {:?}", e);
 			return Err(ZipError::Io(e))
 		},
 	};
@@ -98,7 +98,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 	let mut archive = match zip::ZipArchive::new(infile) {
 		Ok(archive) => archive,
 		Err(e) => {
-			error!("Backup extract error opening file as zip-archive: {:?}",e);
+			error!("Backup extract error opening file as zip-archive: {:?}", e);
 			return Err(e)
 		},
 	};
@@ -107,7 +107,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 		let mut file = match archive.by_index(i) {
 			Ok(file) => file,
 			Err(e) => {
-				error!("Backup extract error opening internal file at index {} : {:?}",i, e);
+				error!("Backup extract error opening internal file at index {} : {:?}", i, e);
 				return Err(e)
 			},
 		};
@@ -127,22 +127,22 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 		// DIRECTORY
 		if (*file.name()).ends_with('/') {
 			match fs::create_dir_all(fullpath) {
-				Ok(_file) => info!("create {:?}",fullpath),
+				Ok(_file) => info!("create {:?}", fullpath),
 				Err(e) => {
-					error!("Backup extract error create internal directory : {:?}",e);
+					error!("Backup extract error create internal directory : {:?}", e);
 					return Err(zip::result::ZipError::Io(e))
 				},
 			}
 		}
-		// FILE 
-		else { 
+		// FILE
+		else {
 			// Create Parent Directory of the file if not exists
 			if let Some(p) = fullpath.parent() {
 				if !p.exists() {
 					match fs::create_dir_all(p) {
-						Ok(_file) => info!("create {:?}",p),
+						Ok(_file) => info!("create {:?}", p),
 						Err(e) => {
-							error!("Backup extract error creating paretn directory : {:?}",e);
+							error!("Backup extract error creating paretn directory : {:?}", e);
 							return Err(zip::result::ZipError::Io(e))
 						},
 					}
@@ -156,15 +156,15 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError>{
 					file
 				},
 				Err(e) => {
-					error!("Backup extract error (re)creating the file : {:?}",e);
-					return Err(zip::result::ZipError::Io(e)) 
+					error!("Backup extract error (re)creating the file : {:?}", e);
+					return Err(zip::result::ZipError::Io(e))
 				},
 			};
 
 			match io::copy(&mut file, &mut outfile) {
 				Ok(n) => info!("successfuly copied {} bytes", n),
 				Err(e) => {
-					error!("Backup extract error copying data to file : {:?}",e);
+					error!("Backup extract error copying data to file : {:?}", e);
 					return Err(zip::result::ZipError::Io(e))
 				},
 			}
