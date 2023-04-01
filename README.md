@@ -32,10 +32,6 @@ SDK installation [Doc](https://download.01.org/intel-sgx/latest/linux-latest/doc
 SDK code [Repository](https://github.com/intel/linux-sgx)
 
 
-### ● Generate Certificates
-Valid certtificates specific for your machine (URI or IP) should be generated using scripts and config file in ```credentials/certificates/``` folder. 
-- TODO : generate certificates in enclave
-
 ### ● Fetch Metadata
 When metadata of the chain is updated, use ```subxt``` command-line to get new metadata from chain rpc endpoint:
 
@@ -65,6 +61,7 @@ To stop the Enclave properly :
 ```shell
 sudo scripts/stop-server.sh --port 8102
 ```
+
 ## Quote and Report
 If enclave starts successfully, the quote data, IAS reports and log information will be available on [quote](./quote/) folder.
 All of these data will be removes by stop-server.sh command.

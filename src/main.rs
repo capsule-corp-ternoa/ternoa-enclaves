@@ -67,7 +67,8 @@ async fn main() {
 	info!("1-2 Starting Tracing");
 
 	let subscriber = FmtSubscriber::builder().with_max_level(verbosity_level).finish();
-	tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed"); // TODO: manage expect()
+	tracing::subscriber::set_global_default(subscriber)
+		.expect("main: setting default subscriber failed");
 
 	info!("1-3 Starting Sentry");
 	let _guard = sentry::init((

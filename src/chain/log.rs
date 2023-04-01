@@ -5,11 +5,10 @@
 
 use std::{
 	collections::BTreeMap,
+	error::Error,
 	fs::{File, OpenOptions},
-	io::{Read, Seek, Write},
+	io::{Read, Seek, SeekFrom, Write},
 };
-use std::error::Error;
-use std::io::SeekFrom;
 
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info};
@@ -102,7 +101,7 @@ pub fn update_log_file_view(
 ) -> bool {
 	if let Err(e) = update_view(file_path, requester_address, requester_type, log_type, nft_type) {
 		error!("Unable to update log file view: {}", e);
-		return false;
+		return false
 	}
 
 	true
@@ -118,11 +117,7 @@ fn update_view(
 ) -> Result<(), Box<dyn Error>> {
 	debug!("4-7 update log file view");
 
-	let mut log_file = OpenOptions::new()
-		.read(true)
-		.write(true)
-		.append(false)
-		.open(file_path)?;
+	let mut log_file = OpenOptions::new().read(true).write(true).append(false).open(file_path)?;
 
 	let mut old_logs = String::new();
 	log_file.read_to_string(&mut old_logs)?;

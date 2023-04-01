@@ -7,9 +7,9 @@ use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
 use serde::Serialize;
 
-use std::fmt;
 use sp_core::H256;
-use subxt::{tx::PairSigner, utils::AccountId32, OnlineClient, PolkadotConfig, Error};
+use std::fmt;
+use subxt::{tx::PairSigner, utils::AccountId32, Error, OnlineClient, PolkadotConfig};
 //use subxt::{metadata::DecodeStaticType, storage::{address::Yes, StaticStorageAddress}};
 
 use tracing::{debug, error, info};
@@ -75,19 +75,26 @@ struct JsonRPC {
 /// # Returns
 /// * `u32` - The current block number
 pub async fn get_current_block_number() -> Result<u32, Error> {
+	debug!("current_block : get api");
 	let api = match get_chain_api().await {
 		Ok(api) => api,
 		Err(err) => return Err(err),
 	};
 
+	debug!("current_block : get finalize head");
 	let hash = match api.rpc().finalized_head().await {
 		Ok(hash) => hash,
 		Err(err) => return Err(err),
 	};
-
+	
+	debug!("current_block : get block number");
 	let last_block = match api.rpc().block(Some(hash)).await {
 		Ok(Some(last_block)) => last_block,
-		Ok(None) => return Err(subxt::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, "Block not found"))),
+		Ok(None) =>
+			return Err(subxt::Error::Io(std::io::Error::new(
+				std::io::ErrorKind::Other,
+				"Block not found",
+			))),
 		Err(err) => return Err(err),
 	};
 
@@ -100,40 +107,37 @@ pub async fn get_current_block_number() -> Result<u32, Error> {
 /// # Returns
 /// * `String` - The block hash
 pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl IntoResponse {
-
 	match get_chain_api().await {
-		Ok(api) => {
-			match api.rpc().block_hash(Some(block_number.into())).await {
-				Ok(block_hash) => {
-					info!("Block hash for block number {block_number}");
-					match block_hash {
-						Some(hash) => {
-							info!("Block hash for block number {block_number}: {hash}");
-							axum::Json(JsonRPC {
-								status: ReturnStatus::RETRIEVESUCCESS,
-								input: "block_number=".to_owned() + &block_number.to_string(),
-								output: "block_hash=".to_owned() + &hash.to_string(),
-							})
-						},
-						None => {
-							info!("Block number {block_number} not found.");
-							axum::Json(JsonRPC {
-								status: ReturnStatus::BLOCKNOTFOUND,
-								input: "block_number=".to_owned() + &block_number.to_string(),
-								output: "Block number not found.".to_string(),
-							})
-						}
-					}
-				},
-				_ => {
-					info!("Block number {block_number} not found.");
-					axum::Json(JsonRPC {
-						status: ReturnStatus::BLOCKNOTFOUND,
-						input: "block_number=".to_owned() + &block_number.to_string(),
-						output: "Block number not found.".to_string(),
-					})
+		Ok(api) => match api.rpc().block_hash(Some(block_number.into())).await {
+			Ok(block_hash) => {
+				info!("Block hash for block number {block_number}");
+				match block_hash {
+					Some(hash) => {
+						info!("Block hash for block number {block_number}: {hash}");
+						axum::Json(JsonRPC {
+							status: ReturnStatus::RETRIEVESUCCESS,
+							input: "block_number=".to_owned() + &block_number.to_string(),
+							output: "block_hash=".to_owned() + &hash.to_string(),
+						})
+					},
+					None => {
+						info!("Block number {block_number} not found.");
+						axum::Json(JsonRPC {
+							status: ReturnStatus::BLOCKNOTFOUND,
+							input: "block_number=".to_owned() + &block_number.to_string(),
+							output: "Block number not found.".to_string(),
+						})
+					},
 				}
-			}
+			},
+			_ => {
+				info!("Block number {block_number} not found.");
+				axum::Json(JsonRPC {
+					status: ReturnStatus::BLOCKNOTFOUND,
+					input: "block_number=".to_owned() + &block_number.to_string(),
+					output: "Block number not found.".to_string(),
+				})
+			},
 		},
 		Err(err) => {
 			info!("Block number {block_number} not found. {err}");
@@ -144,7 +148,6 @@ pub async fn rpc_query(PathExtract(block_number): PathExtract<u32>) -> impl Into
 			})
 		},
 	}
-
 
 	// let api = get_chain_api().await;
 	// // RPC : Get Block-Hash
@@ -186,7 +189,6 @@ use sp_keyring::AccountKeyring;
 /// # Returns
 /// * `JsonTX` - The transaction status
 pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoResponse {
-
 	match get_chain_api().await {
 		Ok(api) => {
 			let signer = PairSigner::new(AccountKeyring::Alice.pair());
@@ -207,8 +209,8 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 						sender: String::from("ALICE"),
 						receiver: String::from("BOB"),
 						tx_hash: String::from(""),
-					});
-				}
+					})
+				},
 			};
 
 			info!("Balance transfer extrinsic sent and included. Hash: {:#?}", hash);
@@ -220,7 +222,7 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 				receiver: String::from("BOB"),
 				tx_hash: hash.to_string(),
 			})
-		}
+		},
 		Err(err) => {
 			info!("Balance transfer extrinsic Error: {}", err);
 
@@ -233,7 +235,6 @@ pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoRespo
 			})
 		},
 	}
-
 
 	// let api = get_chain_api().await;
 
@@ -280,8 +281,8 @@ pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 		Ok(api) => api,
 		Err(err) => {
 			error!("Failed to get chain API: {:?}", err);
-			return None;
-		}
+			return None
+		},
 	};
 
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
@@ -290,8 +291,8 @@ pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 		Ok(storage) => storage,
 		Err(err) => {
 			error!("Failed to get storage: {:?}", err);
-			return None;
-		}
+			return None
+		},
 	};
 
 	match storage.fetch(&storage_address).await {
@@ -299,7 +300,7 @@ pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 		Err(err) => {
 			error!("Failed to fetch NFT data: {:?}", err);
 			None
-		}
+		},
 	}
 }
 
@@ -318,8 +319,8 @@ pub async fn get_onchain_delegatee(nft_id: u32) -> Option<AccountId32> {
 				Ok(storage) => storage,
 				Err(err) => {
 					error!("Failed to get storage: {:?}", err);
-					return None;
-				}
+					return None
+				},
 			};
 
 			match storage.fetch(&storage_address).await {
@@ -327,16 +328,14 @@ pub async fn get_onchain_delegatee(nft_id: u32) -> Option<AccountId32> {
 				Err(err) => {
 					error!("Failed to fetch NFT data: {:?}", err);
 					None
-				}
+				},
 			}
-		}
+		},
 		Err(err) => {
 			error!("Failed to get chain API: {:?}", err);
 			None
-		}
+		},
 	}
-
-
 
 	// let api = get_chain_api().await;
 	// let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
@@ -384,30 +383,28 @@ pub async fn get_onchain_rent_contract(nft_id: u32) -> Option<AccountId32> {
 				Ok(storage) => storage,
 				Err(err) => {
 					error!("Failed to get storage: {:?}", err);
-					return None;
-				}
+					return None
+				},
 			};
 
 			match storage.fetch(&storage_address).await {
-				Ok(rent_contract) => {
-					match rent_contract {
-						Some(data) => data.rentee,
-						_ => {
-							error!("Failed to fetch NFT data: {:?}", rent_contract);
-							None
-						},
-					}
-				}
+				Ok(rent_contract) => match rent_contract {
+					Some(data) => data.rentee,
+					_ => {
+						error!("Failed to fetch NFT data: {:?}", rent_contract);
+						None
+					},
+				},
 				Err(err) => {
 					error!("Failed to fetch NFT data: {:?}", err);
 					None
-				}
+				},
 			}
-		}
+		},
 		Err(err) => {
 			error!("Failed to get chain API: {:?}", err);
 			None
-		}
+		},
 	}
 
 	// let api = get_chain_api().await;
@@ -470,7 +467,6 @@ pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<Account
 	join_result.into_iter().map(|jr| jr.unwrap()).collect()
 }
 */
-
 // -------------- GET NFT DATA --------------
 
 #[derive(Serialize)]
@@ -558,17 +554,11 @@ pub async fn nft_keyshare_oracle(
 	// Create a transaction to submit:
 	let tx = ternoa::tx().nft().add_secret_shard(nft_id);
 
-	
 	// submit the transaction with default params:
 	//api.tx().sign_and_submit_default(&tx, &signer).await
-	
+
 	// With nonce
-	api
-	.tx()
-	.create_signed(&tx, &signer, Default::default())
-	.await?
-	.submit()
-	.await
+	api.tx().create_signed(&tx, &signer, Default::default()).await?.submit().await
 }
 
 // -------------- CAPSULE SYNC (ORACLE) --------------
@@ -602,12 +592,7 @@ pub async fn capsule_keyshare_oracle(
 			//api.tx().sign_and_submit_default(&tx, &signer).await
 
 			// With nonce
-			api
-			.tx()
-			.create_signed(&tx, &signer, Default::default())
-			.await?
-			.submit()
-			.await
+			api.tx().create_signed(&tx, &signer, Default::default()).await?.submit().await
 		},
 		Err(e) => Err(subxt::Error::Other(e.to_string())),
 	}
@@ -664,21 +649,21 @@ mod test {
 		storage_query().await;
 		submit_tx(axum::extract::Path(12_345)).await;
 	}
-/*
-	#[tokio::test]
+	/*
+		#[tokio::test]
 
-	async fn concurrent_nft_test() {
-		let mut rng = thread_rng();
-		let nft_ids: Vec<u32> = (1..220).map(|_| rng.gen_range(100..11000)).collect();
+		async fn concurrent_nft_test() {
+			let mut rng = thread_rng();
+			let nft_ids: Vec<u32> = (1..220).map(|_| rng.gen_range(100..11000)).collect();
 
-		// Concurrent (Avg. 0.3 ms/request)
-		let start = Instant::now();
-		let nft_data_vec = get_nft_data_batch(nft_ids.clone()).await;
-		let elapsed_time = start.elapsed().as_micros();
-		info!("\nConcurrent time is {} microseconds", elapsed_time);
-		info!("Concurrent NFT Data : {:#?}", nft_data_vec[9].as_ref().unwrap().owner);
-	}
-*/
+			// Concurrent (Avg. 0.3 ms/request)
+			let start = Instant::now();
+			let nft_data_vec = get_nft_data_batch(nft_ids.clone()).await;
+			let elapsed_time = start.elapsed().as_micros();
+			info!("\nConcurrent time is {} microseconds", elapsed_time);
+			info!("Concurrent NFT Data : {:#?}", nft_data_vec[9].as_ref().unwrap().owner);
+		}
+	*/
 
 	#[tokio::test]
 	async fn multiple_nft_test() {
