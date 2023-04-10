@@ -87,7 +87,7 @@ mod test {
 		const DATA: &str = "DATA TO BE SIGNED BY COSIGN";
 
 		/* PASSWORD MUST BE RIGHT */
-		let signing_key = _import_skey("credentials/keys/cosign.key", "Test123456");
+		let signing_key = _import_skey("credentials/keys/dev/cosign.key", "Test123456");
 
 		let signature = signing_key.sign(DATA.as_bytes()).unwrap();
 
@@ -124,7 +124,7 @@ mod test {
 		};
 		let data = std::fs::read(binary_path).unwrap();
 
-		let signing_key = _import_skey("credentials/keys/cosign.key", "Test123456");
+		let signing_key = _import_skey("credentials/keys/dev/cosign.key", "Test123456");
 
 		let signature = signing_key.sign(&data).unwrap();
 		let encoded_sig = general_purpose::STANDARD.encode(signature);
