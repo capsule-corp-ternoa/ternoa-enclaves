@@ -47,6 +47,7 @@ sp-core = { version = "18.0.0", default-features = false, features = ["full_cryp
 schnorrkel = "0.10.2"
 sha256 = "1.1.2"
 
+
 [features]
 default = ["alphanet"]
 mainnet = []
