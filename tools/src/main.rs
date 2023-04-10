@@ -17,23 +17,20 @@ use tracing::{debug, error, info, warn};
 
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::PublicError, sr25519::Signature};
-use subxt::{tx::PairSigner, utils::AccountId32, OnlineClient, PolkadotConfig, Error};
+use subxt::{tx::PairSigner, utils::AccountId32, Error, OnlineClient, PolkadotConfig};
 
 #[cfg_attr(
 	feature = "mainnet",
 	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_mainnet.scale")
 )]
-
 #[cfg_attr(
 	feature = "alphanet",
 	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_alphanet.scale")
 )]
-
 #[cfg_attr(
 	feature = "dev-1",
 	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev1.scale")
 )]
-
 #[cfg_attr(
 	feature = "dev-0",
 	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev0.scale")
@@ -67,7 +64,6 @@ pub async fn get_chain_api() -> Result<DefaultApi, Error> {
 	DefaultApi::from_url(rpc_endoint).await
 }
 
-
 /// Get the current block number
 /// # Returns
 /// * `u32` - The current block number
@@ -84,13 +80,16 @@ pub async fn get_current_block_number() -> Result<u32, Error> {
 
 	let last_block = match api.rpc().block(Some(hash)).await {
 		Ok(Some(last_block)) => last_block,
-		Ok(None) => return Err(subxt::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, "Block not found"))),
+		Ok(None) =>
+			return Err(subxt::Error::Io(std::io::Error::new(
+				std::io::ErrorKind::Other,
+				"Block not found",
+			))),
 		Err(err) => return Err(err),
 	};
 
 	Ok(last_block.block.header.number)
 }
-
 
 /* *************************************
 		FETCH  BULK DATA STRUCTURES
@@ -141,93 +140,94 @@ pub struct StoreBulkPacket {
 
 #[derive(Serialize, Deserialize)]
 pub struct FetchBulkPacketOld {
-    admin_address: String,
-    auth_token: FetchAuthenticationToken,
-    signature: String,
+	admin_address: String,
+	auth_token: FetchAuthenticationToken,
+	signature: String,
 }
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-	/// Path to the location for storing sealed NFT key-shares
+	// Seed Phrase for Admin or NFT-Owner
 	#[arg(short, long)]
 	seed: String,
 
+	/// Path to (ZIP-) File, containing sealed NFT key-shares backups
 	#[arg(short, long)]
 	file: String,
+
+	// NFT-ID for storing keyshares in enclave
+	#[arg(short, long, default_value_t = 0)]
+	nftid: u32,
 }
 
 /* MAIN */
 #[tokio::main]
 async fn main() {
-    let args = Args::parse();
-    generate_fetch_bulk(args.seed.clone()).await;
-    generate_fetch_bulk_old(args.seed.clone()).await;
-	generate_push_bulk(args.seed, args.file).await;
+	let args = Args::parse();
+	generate_fetch_bulk(args.seed.clone()).await;
+	generate_fetch_bulk_old(args.seed.clone()).await;
+	generate_push_bulk(args.seed.clone(), args.file).await;
+	generate_store_request(args.seed, args.nftid).await;
 }
 
+/* ************************
+	 ADMIN FETCH BULK
+*************************/
 
 async fn generate_fetch_bulk(seed_phrase: String) {
-    let admin = sr25519::Pair::from_phrase(
-        &seed_phrase,
-        None,
-    )
-    .unwrap()
-    .0;
+	let admin = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
 
-    let last_block_number = get_current_block_number().await.unwrap();
+	let last_block_number = get_current_block_number().await.unwrap();
 
-    let admin_address = admin.public().to_ss58check();
-    let auth =
-        FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
-    let auth_str = serde_json::to_string(&auth).unwrap();
-    let signature = admin.sign(auth_str.as_bytes());
+	let admin_address = admin.public().to_ss58check();
+	let auth = FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
+	let auth_str = serde_json::to_string(&auth).unwrap();
+	let signature = admin.sign(auth_str.as_bytes());
 
-    let packet = FetchBulkPacket {
-        admin_address,
-        auth_token: auth_str, 
-        signature: format!("{}{:?}", "0x", signature),
-    };
+	let packet = FetchBulkPacket {
+		admin_address,
+		auth_token: auth_str,
+		signature: format!("{}{:?}", "0x", signature),
+	};
 
-    println!("***** NEW Fetch Bulk Packet = \n{}\n", serde_json::to_string_pretty(&packet).unwrap());
+	println!(
+		"***** NEW Fetch Bulk Packet = \n{}\n",
+		serde_json::to_string_pretty(&packet).unwrap()
+	);
 }
 
+/* ************************
+ ADMIN FETCH BULK OLD
+*************************/
 
 async fn generate_fetch_bulk_old(seed_phrase: String) {
-    let admin = sr25519::Pair::from_phrase(
-        &seed_phrase,
-        None,
-    )
-    .unwrap()
-    .0;
+	let admin = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
 
-    let last_block_number = get_current_block_number().await.unwrap();
+	let last_block_number = get_current_block_number().await.unwrap();
 
-    let admin_address = admin.public().to_ss58check();
-    let auth =
-        FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
-    let signature = admin.sign(&serde_json::to_vec(&auth).unwrap());
+	let admin_address = admin.public().to_ss58check();
+	let auth = FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
+	let signature = admin.sign(&serde_json::to_vec(&auth).unwrap());
 
-    let packet = FetchBulkPacketOld {
-        admin_address,
-        auth_token: auth, 
-        signature: format!("{}{:?}", "0x", signature),
-    };
+	let packet = FetchBulkPacketOld {
+		admin_address,
+		auth_token: auth,
+		signature: format!("{}{:?}", "0x", signature),
+	};
 
-    println!("***** OLD Fetch Bulk Packet = \n{}\n", serde_json::to_string(&packet).unwrap());
+	println!("***** OLD Fetch Bulk Packet = \n{}\n", serde_json::to_string(&packet).unwrap());
 }
 
+/* ************************
+	 ADMIN PUSH BULK
+*************************/
 async fn generate_push_bulk(seed_phrase: String, file_path: String) {
-	let admin = sr25519::Pair::from_phrase(
-        &seed_phrase,
-        None,
-    )
-    .unwrap()
-    .0;
+	let admin = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
 
-    let last_block_number = get_current_block_number().await.unwrap();
+	let last_block_number = get_current_block_number().await.unwrap();
 
-    let admin_address = admin.public().to_ss58check();
+	let admin_address = admin.public().to_ss58check();
 
 	let mut zipdata = Vec::new();
 	let mut zipfile = std::fs::File::open(&file_path).unwrap();
@@ -251,4 +251,67 @@ async fn generate_push_bulk(seed_phrase: String, file_path: String) {
 		auth_str,
 		sig_str
 	);
+}
+
+/* ************************
+   SECRET STORE REQUEST
+*************************/
+// Validity time of Keyshare Data
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct AuthenticationToken {
+	pub block_number: u32,
+	pub block_validation: u32,
+}
+
+// Keyshare Data structure
+#[derive(Clone, Debug, PartialEq)]
+pub struct StoreKeyshareData {
+	pub nft_id: u32,
+	pub keyshare: Vec<u8>,
+	pub auth_token: AuthenticationToken,
+}
+
+// Packet-signer and validity of it
+#[derive(Serialize, Clone, PartialEq, Debug)]
+pub struct Signer {
+	account: sr25519::Public,
+	auth_token: AuthenticationToken,
+}
+
+#[derive(Serialize, Clone)]
+pub struct StoreKeysharePacket {
+	pub owner_address: sr25519::Public,
+
+	// Signed by owner
+	signer_address: String,
+	signersig: String,
+
+	// Signed by signer
+	pub data: String, // TODO: Replace by "SecretData" JWT/JWS
+	pub signature: String,
+}
+
+async fn generate_store_request(seed_phrase: String, nftid: u32) {
+	let current_block_number = get_current_block_number().await.unwrap();
+	let owner = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
+
+	let signer = sr25519::Pair::generate().0;
+
+	let signer_address = format!("{}_{}_10", signer.public().to_ss58check(), current_block_number);
+	let signersig = owner.sign(signer_address.as_bytes());
+	let data = format!(
+		"{}_thisIsMySecretDataWhichCannotContainAnyUnderScore(:-P)_{}_10",nftid,
+		current_block_number
+	);
+	let signature = signer.sign(data.as_bytes());
+
+	let packet = StoreKeysharePacket {
+		owner_address: owner.public(),
+		signer_address,
+		signersig: format!("{}{:?}", "0x", signersig),
+		data,
+		signature: format!("{}{:?}", "0x", signature),
+	};
+
+	println!("***** Secret Store Request = \n{}\n", serde_json::to_string_pretty(&packet).unwrap());
 }
