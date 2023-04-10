@@ -49,7 +49,7 @@ sgx.trusted_files = [
   "file:/etc/ssl/certs/ca-certificates.crt",
   "file:bin/checksum",
   "file:bin/sgx_server.sig",
-  "file:{{ credentials_path }}/keys/cosign.pub",
+  "file:{{ credentials_path }}/keys/dev/cosign.pub",
 ]
 
 # The Tokio runtime requires eventfd, and the Gramine implementation
