@@ -51,7 +51,7 @@ pub async fn get_chain_api() -> Result<DefaultApi, Error> {
 
 	let rpc_endoint = if cfg!(feature = "mainnet") {
 		"wss://mainnet.ternoa.network:443".to_string()
-	} else if cfg!(feature = "alphanetnet") {
+	} else if cfg!(feature = "alphanet") {
 		"wss://alphanet.ternoa.com:443".to_string()
 	} else if cfg!(feature = "dev-1") {
 		"wss://dev-1.ternoa.network:443".to_string()
