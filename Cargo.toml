@@ -69,7 +69,7 @@ sigstore = {git = "https://github.com/sigstore/sigstore-rs.git"}
 rustls-acme = {version = "0.5.2", features = ["axum"]}
 
 [features]
-default = ["dev-0"]
+default = ["mainnet"]
 mainnet = []
 alphanet = []
 dev-1 = []
