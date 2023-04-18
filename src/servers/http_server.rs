@@ -14,7 +14,7 @@ use tokio::sync::RwLock;
 
 use axum::{
 	error_handling::HandleErrorLayer,
-	extract::State,
+	extract::{State,DefaultBodyLimit},
 	http::{Method, StatusCode, Uri},
 	routing::{get, post},
 	BoxError, Json, Router,
@@ -26,6 +26,7 @@ use sp_core::Pair;
 
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::limit::RequestBodyLimitLayer;
 
 use anyhow::{anyhow, Error};
 use serde_json::{json, Value};
@@ -107,6 +108,8 @@ impl StateConfig {
 }
 
 pub type SharedState = Arc<RwLock<StateConfig>>;
+
+const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024;
 
 /// http server
 /// # Arguments
@@ -198,6 +201,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		// CENTRALIZED BACKUP API
 		.route("/api/backup/fetch-bulk", post(admin_backup_fetch_bulk))
 		.route("/api/backup/push-bulk", post(admin_backup_push_bulk))
+		.layer(DefaultBodyLimit::max(CONTENT_LENGTH_LIMIT))
 		// NFT SECRET-SHARING API
 		.route("/api/secret-nft/get-views-log/:nft_id", get(nft_get_views))
 		.route("/api/secret-nft/is-keyshare-available/:nft_id", get(is_nft_available))
@@ -210,6 +214,8 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.route("/api/capsule-nft/set-keyshare", post(capsule_set_keyshare))
 		.route("/api/capsule-nft/retrieve-keyshare", post(capsule_retrieve_keyshare))
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
+		
+		//.layer(RequestBodyLimitLayer::new(CONTENT_LENGTH_LIMIT))
 		.layer(
 			ServiceBuilder::new()
 				.layer(HandleErrorLayer::new(handle_timeout_error))

@@ -22,7 +22,7 @@ tokio = { version = "1.26", features = ["full"] }
 tokio-util = "0.7.7"
 tokio-stream = { version="0.1.9", features = ["net"] }
 
-tower-http = { version = "0.3.5", features = ["add-extension","cors","fs","trace","timeout"] }
+tower-http = { version = "0.4.0", features = ["add-extension","cors","fs","trace","timeout", "limit"] }
 tower = {version = "0.4.13", features = ["timeout"]}
 urlencoding = "2.1.2"
 
@@ -69,7 +69,7 @@ sigstore = {git = "https://github.com/sigstore/sigstore-rs.git"}
 rustls-acme = {version = "0.5.2", features = ["axum"]}
 
 [features]
-default = ["dev-0"]
+default = ["mainnet"]
 mainnet = []
 alphanet = []
 dev-1 = []
