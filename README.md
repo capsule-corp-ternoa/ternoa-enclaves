@@ -52,12 +52,12 @@ You have to specify the chain which you want to use.
 
 This command will build a binary for dev-0 chain : 
 ```shell
-CHAIN="dev-0" sudo ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8102 --identity DEV-C1N1EI --dev
+sudo CHAIN="dev-0" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8102 --identity DEV-C1N1EI --dev
 ```
 For official binary which uses mainnet chain, you need this command : 
 This command will build a binary for dev-0 chain : 
 ```shell
-CHAIN="mainnet" sudo ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100 --identity MAIN-C1N1E1 --release
+sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100 --identity MAIN-C1N1E1 --release
 ```
 
 ### Start Parameters : 
@@ -80,7 +80,7 @@ CHAIN="mainnet" sudo ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.netw
 ## Resume an Enclave
 It is similar to Start, but it won't compile the binary : 
 ```shell
-CHAIN="alphanet" sudo ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8101 --identity ALPHA-C1N1EI --dev
+sudo CHAIN="alphanet" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8101 --identity ALPHA-C1N1EI --dev
 ```
 
 ## Stop an Enclave
