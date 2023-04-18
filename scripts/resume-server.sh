@@ -6,17 +6,20 @@ SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
 SEAL_PATH=$GRAMINE_PATH/nft
 CERT_PATH=$BASEDIR/credentials/certificates
-QUOTE_PATH=$GRAMINEPATH/quote
+QUOTE_PATH=$GRAMINE_PATH/quote
 CREDENTIALS_PATH=$BASEDIR/credentials
 
 # DEFAULT VALUES
-DOMAIN=${DOMIAN:-dev-c1n1.ternoa.network}
+CHAIN=${CHAIN:-alphanet}
+DOMAIN=${DOMIAN:-alphanet-c1n1v2.ternoa.dev}
 PORT=${PORT:-8101}
 MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
 NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
 # PASSWORD = Test123456
 #TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} 
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
+VERBOSITY_LEVLE=2
+DEV_BUILD=0
 
 # OVERWRITE WITH PRODUCTION VALUES
 ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
@@ -67,16 +70,23 @@ while :; do
 		die 'ERROR: "--identity" requires a non-empty option argument.'
 	    fi
 	    ;;
+	-d|--dev)
+		DEV_BUILD=1
+	;;
+	-r|--release)
+		DEV_BUILD=0
+		CERT_PATH=$GRAMINE_PATH/certificates
+	;;
 	-v|--verbose)
-		if [ "$2" ]; then
+	if [ "$2" ]; then
 		VERBOSITY_LEVLE=$2
 		shift
-		else
+	    else
 		die 'ERROR: "--verbosity" requires a non-empty option argument.'
-		fi
+	    fi
 	;;
 	-h|--help)
-	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
+	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n [-d | --dev] [-r | --release] \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
 	    exit 0
 	    ;;
         *) break
@@ -121,6 +131,7 @@ make 	SGX=1 \
 	SGX_CERT_PATH=$CERT_PATH \
 	SGX_IDENTITY=$ENCLAVE_IDENTITY \
 	SGX_VERBOSITY=$VERBOSITY_LEVLE\
+	SGX_DEV_BUILD=$DEV_BUILD\
 	start-gramine-server >> $GRAMINE_PATH/make.log 2>&1 &
 
 cd $BASEDIR
