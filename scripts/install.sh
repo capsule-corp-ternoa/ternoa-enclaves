@@ -179,6 +179,6 @@ sudo CHAIN="alphanet" ./scripts/start-server.sh --domain alphanet-c1n1v2.ternoa.
 curl -s https://mainnet-c1n1.ternoa.network:8100/api/health | jq .
 
 # You can stop the server on the specific PORT and clean intermediate files with :
-sudo scripts/stop-server.sh -p 8100
+#sudo scripts/stop-server.sh -p 8100
 
 
