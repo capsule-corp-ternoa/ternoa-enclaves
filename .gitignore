@@ -10,3 +10,14 @@
 **/*.rs.bk
 
 .idea
+gramine/nft/*
+gramine/bin/*
+gramine/certificates/*
+gramine/quote/*
+gramine/enclave.log
+gramine/make.log
+gramine/sgx_server.manifest
+gramine/sgx_server.sig
+gramine/sgx_server.manifest.sgx
+credentials/*
+root/*
