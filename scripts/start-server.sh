@@ -10,7 +10,8 @@ QUOTE_PATH=$GRAMINE_PATH/quote
 CREDENTIALS_PATH=$BASEDIR/credentials
 
 # DEFAULT VALUES
-DOMAIN=${DOMIAN:-dev-c1n1.ternoa.network}
+CHAIN=${CHAIN:-alphanet}
+DOMAIN=${DOMIAN:-alphanet-c1n1v2.ternoa.dev}
 PORT=${PORT:-8101}
 MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
 NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
@@ -18,7 +19,7 @@ NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
 #TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} 
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
 VERBOSITY_LEVLE=2
-DEV_BUILD=1
+DEV_BUILD=0
 
 # OVERWRITE WITH PRODUCTION VALUES
 ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
@@ -71,12 +72,12 @@ while :; do
 	    ;;
 	-d|--dev)
 	# Compiling the source code
-	    if [ -z "$(which cargo)" ]
-	    then
-		/home/ubuntu/.cargo/bin/cargo build --release
-	    else
-		cargo build --release
-	    fi
+		if [ -z "$(which cargo)" ]
+		then
+			/home/ubuntu/.cargo/bin/cargo build --release --no-default-features --features $CHAIN
+		else
+			cargo build --release --no-default-features --features $CHAIN
+		fi
 		
 		DEV_BUILD=1
 
@@ -88,7 +89,7 @@ while :; do
 	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
 	    
 		echo "signing the binary ..."
-	    cosign sign-blob --key $BASEDIR/credentials/keys/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
+	    COSIGN_PASSWORD="Test123456" cosign sign-blob --key $BASEDIR/credentials/keys/dev/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
 		tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
 		mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
 	;;
@@ -96,7 +97,7 @@ while :; do
 		mkdir -p $GRAMINE_PATH/bin/
 		
 		DEV_BUILD=0
-
+		
 		echo "Downloading binary and signature from Ternoa github repository"
 		$SCRIPTS_PATH/fetch-release.sh
 		mv ./sgx_server $GRAMINE_PATH/bin/
