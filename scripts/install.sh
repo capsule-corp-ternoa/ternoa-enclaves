@@ -167,7 +167,7 @@ cd sgx_server
 # --domain      is critical for certificates of tls/https 
 # --port        different enclaves on the same machine need to have different ports
 
-CHAIN="mainnet" sudo ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8102 --identity DEV-C1N1EI --dev
+ sudo CHAIN="alphanet" ./scripts/start-server.sh --domain alphanet-c1n1v2.ternoa.dev --port 8100 --identity ALPHANET-C1N1V2EI --release
 
 # You can test the server on the specific DOMAIN and PORT with
 curl -s https://mainnet-c1n1.ternoa.network:8100/api/health | jq .
