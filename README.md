@@ -33,33 +33,70 @@ SDK code [Repository](https://github.com/intel/linux-sgx)
 
 
 ### ● Fetch Metadata
-When metadata of the chain is updated, use ```subxt``` command-line to get new metadata from chain rpc endpoint:
 
+When metadata of the chain is updated, Go to ```credentials/artifacts``` folder and run : 
 ```bash
-subxt metadata --url wss://alphanet.ternoa.com:443 > ternoa_alphanet.scale
+./gen_metadata.sh
 ```
-then put the file in ```credentials/artifacts``` folder.
+this will fetch latest metadata of Ternoa chains.
 
 Sometimes it is useful to have a json version of metadata : 
 ```bash
 subxt codegen --url wss://alphanet.ternoa.com:443 > ternoa_alphanet.code
 ```
 
-## Build and Run
-If you are on a SGX machine :
+## Start an Enclave
 
+Make sure you are on a SGX machine, driver and sdk are installed.
+You have to specify the chain which you want to use.
+
+This command will build a binary for dev-0 chain : 
 ```shell
-sudo ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8102 --identity DEV-C1N1EI --build
+CHAIN="dev-0" sudo ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8102 --identity DEV-C1N1EI --dev
 ```
-otherwise you need to run in simulation mode : 
+For official binary which uses mainnet chain, you need this command : 
+This command will build a binary for dev-0 chain : 
 ```shell
-make start-gramine-server
+CHAIN="mainnet" sudo ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100 --identity MAIN-C1N1E1 --release
 ```
-default port is 8100 .
+
+### Start Parameters : 
+
+ CHAIN         environment variable that specifies for which wss endpoint the binary should be built
+
+ --dev         builds and signs the binary everytime, so you need to provide password for signing with cosign private-key.
+ 
+ --release     downloads binary and signature from Ternoa github 
+ repository
+ 
+ --domain      is critical for certificates of tls/https 
+ 
+ --port        different enclaves on the same machine need to have 
+ different ports
+ 
+ --identity    optional name for each enclave to be able to 
+ differentiate between them if there are multiple enclaves on a machine
+
+## Resume an Enclave
+It is similar to Start, but it won't compile the binary : 
+```shell
+CHAIN="alphanet" sudo ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8101 --identity ALPHA-C1N1EI --dev
+```
+
+## Stop an Enclave
 
 To stop the Enclave properly :
+
 ```shell
-sudo scripts/stop-server.sh --port 8102
+sudo scripts/stop-server.sh --port 8100
+```
+
+## Clear an Enclave
+
+To clear the Enclave and remove all intermediate sgx files and binaries :
+
+```shell
+sudo scripts/clear-server.sh
 ```
 
 ## Quote and Report
@@ -69,4 +106,7 @@ All of these data will be removes by stop-server.sh command.
 ## Client
 An importable Postman [json file](./client/postman.json) is available at client folder. CA Certificate file for the machine should be introduced to Postman.
 Sample ```curl``` commands are provided on [client.sh](./client/client.sh) file.
+
+## Signing Tool
+[Readme](./toolds/README.md)
 
