@@ -55,10 +55,10 @@ tokio-test = "0.4.2"
 # Ternoa/Polkadot
 parity-scale-codec = { version = "3.2.1", default-features = false, features = ["derive", "full", "bit-vec"] }
 
-subxt = { git = "https://github.com/paritytech/subxt.git" , features = ["substrate-compat"]}
-sp-keyring = "20.0.0"
-sp-runtime = { version = "20.0.0" }
-sp-core = { version = "18.0.0", default-features = false, features = ["full_crypto"] }
+subxt = { version = "0.28.0" , features = ["substrate-compat"]}
+sp-keyring = "23.0.0"
+sp-runtime = { version = "23.0.0" }
+sp-core = { version = "20.0.0", default-features = false, features = ["full_crypto"] }
 
 # Crypto / Keys
 schnorrkel = "0.10.2"
