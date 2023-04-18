@@ -171,6 +171,10 @@ cd sgx_server
 cargo build --release --no-default-features --features alphanet
 sudo scripts/clear-server.sh
 sudo CHAIN="alphanet" ./scripts/start-server.sh --domain alphanet-c1n1v2.ternoa.dev --port 8100 --identity ALPHANET-C1N1V2EI --dev
+#sudo CHAIN="alphanet" ./scripts/start-server.sh --domain alphanet-c1n2v2.ternoa.dev --port 8100 --identity ALPHANET-C1N2V2EI --dev
+#sudo CHAIN="alphanet" ./scripts/start-server.sh --domain alphanet-c1n3v2.ternoa.dev --port 8100 --identity ALPHANET-C1N3V2EI --dev
+#sudo CHAIN="alphanet" ./scripts/start-server.sh --domain alphanet-c1n4v2.ternoa.dev --port 8100 --identity ALPHANET-C1N4V2EI --dev
+#sudo CHAIN="alphanet" ./scripts/start-server.sh --domain alphanet-c1n5v2.ternoa.dev --port 8100 --identity ALPHANET-C1N5V2EI --dev
 
 
  #sudo CHAIN="alphanet" ./scripts/start-server.sh --domain alphanet-c1n1v2.ternoa.dev --port 8100 --identity ALPHANET-C1N1V2EI --release
