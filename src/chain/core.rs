@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use sp_core::H256;
 use std::fmt;
-use subxt::{tx::PairSigner, utils::AccountId32, Error, OnlineClient, PolkadotConfig};
+use subxt::{tx::Signer, tx::PairSigner, utils::AccountId32, Error, OnlineClient, PolkadotConfig};
 //use subxt::{metadata::DecodeStaticType, storage::{address::Yes, StaticStorageAddress}};
 
 use tracing::{debug, error, info};
@@ -51,7 +51,7 @@ pub async fn get_chain_api() -> Result<DefaultApi, Error> {
 
 	let rpc_endoint = if cfg!(feature = "mainnet") {
 		"wss://mainnet.ternoa.network:443".to_string()
-	} else if cfg!(feature = "alphanetnet") {
+	} else if cfg!(feature = "alphanet") {
 		"wss://alphanet.ternoa.com:443".to_string()
 	} else if cfg!(feature = "dev-1") {
 		"wss://dev-1.ternoa.network:443".to_string()
@@ -183,94 +183,6 @@ struct JsonTX {
 
 use sp_keyring::AccountKeyring;
 
-/// Submit a transaction
-/// # Arguments
-/// * `amount` - The amount to transfer
-/// # Returns
-/// * `JsonTX` - The transaction status
-pub async fn submit_tx(PathExtract(amount): PathExtract<u128>) -> impl IntoResponse {
-	match get_chain_api().await {
-		Ok(api) => {
-			let signer = PairSigner::new(AccountKeyring::Alice.pair());
-			let dest = AccountKeyring::Bob.to_account_id().into();
-
-			// Create a transaction to submit:
-			let tx = ternoa::tx().balances().transfer(dest, amount);
-
-			// submit the transaction with default params:
-			let hash = match api.tx().sign_and_submit_default(&tx, &signer).await {
-				Ok(h) => h,
-				Err(e) => {
-					info!("Balance transfer extrinsic Error: {}", e);
-
-					return axum::Json(JsonTX {
-						status: 430,
-						amount,
-						sender: String::from("ALICE"),
-						receiver: String::from("BOB"),
-						tx_hash: String::from(""),
-					})
-				},
-			};
-
-			info!("Balance transfer extrinsic sent and included. Hash: {:#?}", hash);
-
-			axum::Json(JsonTX {
-				status: 200,
-				amount,
-				sender: String::from("ALICE"),
-				receiver: String::from("BOB"),
-				tx_hash: hash.to_string(),
-			})
-		},
-		Err(err) => {
-			info!("Balance transfer extrinsic Error: {}", err);
-
-			axum::Json(JsonTX {
-				status: 430,
-				amount,
-				sender: String::from("ALICE"),
-				receiver: String::from("BOB"),
-				tx_hash: String::from("Balance transfer extrinsic Error"),
-			})
-		},
-	}
-
-	// let api = get_chain_api().await;
-
-	// let signer = PairSigner::new(AccountKeyring::Alice.pair());
-	// let dest = AccountKeyring::Bob.to_account_id().into();
-	//
-	// // Create a transaction to submit:
-	// let tx = ternoa::tx().balances().transfer(dest, amount);
-	//
-	// // submit the transaction with default params:
-	// let hash = match api.tx().sign_and_submit_default(&tx, &signer).await {
-	// 	Ok(h) => h,
-	// 	Err(e) => {
-	// 		info!("Balance transfer extrinsic Error: {}", e);
-	//
-	// 		return axum::Json(JsonTX {
-	// 			status: 430,
-	// 			amount,
-	// 			sender: String::from("ALICE"),
-	// 			receiver: String::from("BOB"),
-	// 			tx_hash: e.to_string(),
-	// 		})
-	// 	},
-	// };
-	//
-	// info!("Balance transfer extrinsic submitted: {}", hash);
-	//
-	// axum::Json(JsonTX {
-	// 	status: 200,
-	// 	amount,
-	// 	sender: String::from("ALICE"),
-	// 	receiver: String::from("BOB"),
-	// 	tx_hash: hash.to_string(),
-	// })
-}
-
 // -------------- GET NFT/CAPSULE DATA --------------
 /// Get the NFT/Capsule data
 /// # Arguments
@@ -287,7 +199,7 @@ pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
 
-	let storage = match api.storage().at(None).await {
+	let storage = match api.storage().at_latest().await {
 		Ok(storage) => storage,
 		Err(err) => {
 			error!("Failed to get storage: {:?}", err);
@@ -315,7 +227,7 @@ pub async fn get_onchain_delegatee(nft_id: u32) -> Option<AccountId32> {
 		Ok(api) => {
 			let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
 
-			let storage = match api.storage().at(None).await {
+			let storage = match api.storage().at_latest().await {
 				Ok(storage) => storage,
 				Err(err) => {
 					error!("Failed to get storage: {:?}", err);
@@ -340,7 +252,7 @@ pub async fn get_onchain_delegatee(nft_id: u32) -> Option<AccountId32> {
 	// let api = get_chain_api().await;
 	// let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
 	//
-	// api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap()
+	// api.storage().at_latest().await.unwrap().fetch(&storage_address).await.unwrap()
 }
 
 /*
@@ -379,7 +291,7 @@ pub async fn get_onchain_rent_contract(nft_id: u32) -> Option<AccountId32> {
 		Ok(api) => {
 			let storage_address = ternoa::storage().rent().contracts(nft_id);
 
-			let storage = match api.storage().at(None).await {
+			let storage = match api.storage().at_latest().await {
 				Ok(storage) => storage,
 				Err(err) => {
 					error!("Failed to get storage: {:?}", err);
@@ -410,7 +322,7 @@ pub async fn get_onchain_rent_contract(nft_id: u32) -> Option<AccountId32> {
 	// let api = get_chain_api().await;
 	// let storage_address = ternoa::storage().rent().contracts(nft_id);
 	// let rent_contract_data =
-	// 	api.storage().at(None).await.unwrap().fetch(&storage_address).await.unwrap();
+	// 	api.storage().at_latest().await.unwrap().fetch(&storage_address).await.unwrap();
 	//
 	// match rent_contract_data {
 	// 	Some(data) => data.rentee,
@@ -457,7 +369,7 @@ pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<Account
 	let mut fetches = Vec::new();
 	for nft_addr in nft_address.iter().take(nft_ids.len()) {
 		// Critical line with complex type
-		let nft_data_future = api.storage().at(None).await.unwrap().fetch(nft_addr);
+		let nft_data_future = api.storage().at_latest().await.unwrap().fetch(nft_addr);
 		fetches.push(nft_data_future);
 	}
 
@@ -547,7 +459,7 @@ pub async fn nft_keyshare_oracle(
 		Ok(api) => api,
 		Err(e) => return Err(subxt::Error::Other(e.to_string())),
 	};
-
+	
 	// Submit Extrinsic
 	let signer = PairSigner::new(keypair);
 
@@ -631,7 +543,7 @@ mod test {
 		let api = get_chain_api().await.unwrap();
 		let address = ternoa::storage().system().account_root();
 
-		let mut iter = api.storage().at(None).await.unwrap().iter(address, 10).await.unwrap();
+		let mut iter = api.storage().at_latest().await.unwrap().iter(address, 10).await.unwrap();
 		let mut counter = 0;
 		while let Some((key, account)) = iter.next().await.unwrap() {
 			info!("{}: {}", hex::encode(key), account.data.free);
@@ -647,7 +559,6 @@ mod test {
 		rpc_query(axum::extract::Path(1436090)).await;
 		get_constant().await;
 		storage_query().await;
-		submit_tx(axum::extract::Path(12_345)).await;
 	}
 	/*
 		#[tokio::test]
