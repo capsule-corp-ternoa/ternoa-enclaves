@@ -79,7 +79,10 @@ while :; do
 			cargo build --release --no-default-features --features $CHAIN
 		fi
 		
+		# Use dev manifest template
 		DEV_BUILD=1
+		# SEAL the certificates / use it only when you are confidents
+		#CERT_PATH=$GRAMINE_PATH/certificates
 
 		mkdir -p $GRAMINE_PATH/bin/
 		cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
@@ -96,6 +99,7 @@ while :; do
 	-r|--release)
 		mkdir -p $GRAMINE_PATH/bin/
 		
+		# Use release manifest template
 		DEV_BUILD=0
 		
 		echo "Downloading binary and signature from Ternoa github repository"
