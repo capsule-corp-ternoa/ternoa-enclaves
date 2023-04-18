@@ -21,8 +21,8 @@ fs.mounts = [
   { path = "/temporary", type = "tmpfs" },
   { path = "/quote", uri = "file:{{ quote_path }}", type = "chroot" },
   { path = "/keys", uri = "file:{{ credentials_path }}/keys", type = "chroot" },
-  { path = "/certificates", uri = "file:{{ certificates_path }}", type = "_sgx_mrenclave" },
-  { path = "/nft" , uri = "file:{{ seal_path }}",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
+  { path = "/certificates", uri = "file:{{ certificates_path }}", type = "encrypted", key_name = "_sgx_mrenclave" },
+  { path = "/nft" , uri = "file:{{ seal_path }}", type = "encrypted", key_name = "_sgx_mrenclave"},
 ]
 
 sgx.allowed_files = [
@@ -58,8 +58,11 @@ sys.insecure__allow_eventfd = true
 
 sgx.enclave_size = "1G"
 sgx.thread_num = 24
+sgx.max_threads = 24
+
 #sgx.insecure__rpc_thread_num = 24
-sgx.debug = true
+
+sgx.debug = false
 sgx.nonpie_binary = true
 loader.insecure__use_cmdline_argv = true
 loader.pal_internal_mem_size = "128M"
