@@ -11,23 +11,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 LICENSE
+
+if [ -z $1 ]; then 
+  echo "Error! please provide a 'Chain name' i.e alphanet, mainnet, dev-0"
+  exit
+else
+  CHAIN=$1
+  echo "Chain = $CHAIN"
+fi
+
 # ASSETS STRUCTURE
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )
 SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
-SEAL_PATH=$GRAMINE_PATH/nft
-CERT_PATH=$BASEDIR/credentials/certificates
-QUOTE_PATH=$GRAMINE_PATH/quote
-CREDENTIALS_PATH=$BASEDIR/credentials
-
-# DEFAULT VALUES
-DOMAIN=${DOMIAN:-dev-c1n1.ternoa.network}
-PORT=${PORT:-8101}
-MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
-NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
-# PASSWORD = Test123456
-#TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} 
-ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
 
 # OVERWRITE WITH PRODUCTION VALUES
 ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
@@ -46,12 +42,13 @@ die() {
 
 if [ -z "$(which cargo)" ]
 then
-/home/ubuntu/.cargo/bin/cargo build --release
+/home/ubuntu/.cargo/bin/cargo build --release --no-default-features --features $CHAIN
 else
-cargo build --release
+cargo build --release --no-default-features --features $CHAIN
 fi
 
 mkdir -p $GRAMINE_PATH/bin/
+rm $GRAMINE_PATH/bin/*
 cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
 
 echo "creating binary checksum ..."
