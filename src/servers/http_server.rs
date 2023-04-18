@@ -134,7 +134,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 				return
 			},
 		};
-
+		
 		match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
 			Ok((keypair, _seed)) => keypair,
 			Err(err) => {

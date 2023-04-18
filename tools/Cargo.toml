@@ -41,7 +41,7 @@ futures = "0.3.27"
 parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive", "full", "bit-vec"] }
 subxt = { git = "https://github.com/paritytech/subxt.git" , features = ["substrate-compat"]}
 
-sp-core = { version = "18.0.0", default-features = false, features = ["full_crypto"] }
+sp-core = { version = "20.0.0", default-features = false, features = ["full_crypto"] }
 
 # Crypto / Keys
 schnorrkel = "0.10.2"
