@@ -64,7 +64,7 @@ sp-core = { version = "20.0.0", default-features = false, features = ["full_cryp
 schnorrkel = "0.10.2"
 sha256 = "1.1.1"
 sequoia-openpgp = "1.13.0"
-sigstore = {git = "https://github.com/sigstore/sigstore-rs.git"}
+sigstore = "0.6.0"
 
 rustls-acme = {version = "0.5.2", features = ["axum"]}
 
