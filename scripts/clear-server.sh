@@ -51,7 +51,7 @@ done
 
 find . -name *~ | xargs rm
 rm -rf $GRAMINEPATH/quote/*
-rm 0rf $GRAMINEPATH/bin/*
+rm -rf $GRAMINEPATH/bin/*
 rm -rf $SEALPATH/*
 
 cd $GRAMINEPATH
