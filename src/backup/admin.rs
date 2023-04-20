@@ -32,7 +32,14 @@ use crate::{
 
 use super::zipdir::{add_dir_zip, zip_extract};
 
-#[cfg(any(feature = "alphanet", feature = "mainnet"))]
+#[cfg(any(feature = "mainnet"))]
+const BACKUP_WHITELIST: [&str; 3] = [
+	"5HTo8dZtj6Tr5dGqmtVRBBJDb2RU9cnDUxWGncLzp66jsoiz",
+	"5CFnpSxhKQSGFZ8fJwU3WTwTrJrms3dpK2C6oz8rc9sss3NB",
+	"5E2Dgq4XoY6hgbycHKREvR3uRztY3DiiJXsmjQPrZSgrWF4q",
+];
+
+#[cfg(any(feature = "alphanet"))]
 const BACKUP_WHITELIST: [&str; 3] = [
 	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ",
 	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
