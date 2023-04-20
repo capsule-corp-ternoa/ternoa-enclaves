@@ -36,7 +36,7 @@ use super::zipdir::{add_dir_zip, zip_extract};
 const BACKUP_WHITELIST: [&str; 3] = [
 	"5HTo8dZtj6Tr5dGqmtVRBBJDb2RU9cnDUxWGncLzp66jsoiz",
 	"5CFnpSxhKQSGFZ8fJwU3WTwTrJrms3dpK2C6oz8rc9sss3NB",
-	"5E2Dgq4XoY6hgbycHKREvR3uRztY3DiiJXsmjQPrZSgrWF4q",
+	"5CVZ4bQhwWaAQwk1SWZ5FzGTyEzU9PkXRiQEehsBhmyjJwDX",
 ];
 
 #[cfg(any(feature = "alphanet"))]
