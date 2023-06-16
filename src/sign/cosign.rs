@@ -36,7 +36,7 @@ fn import_vkey() -> Result<CosignVerificationKey, anyhow::Error> {
 		Err(e) => {
 			let message = format!("error retrieving public key from ternoa github {}", e);
 			error!(message);
-			return Err(e)
+			return Err(e);
 		},
 	};
 	let ecdsa_p256_asn1_public_pem = get_pub.as_bytes();

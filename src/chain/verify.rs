@@ -574,7 +574,7 @@ impl AuthenticationToken {
 			Ok(number) => number,
 			Err(err) => {
 				error!("Failed to get current block number: {}", err);
-				return false
+				return false;
 			},
 		};
 		(last_block_number > self.block_number - 3) // for finalization delay
@@ -618,11 +618,11 @@ impl StoreKeysharePacket {
 		let parsed_data: Vec<&str> = if signer.contains('_') {
 			signer.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDSIGNER)
+			return Err(VerificationError::MALFORMATEDSIGNER);
 		};
 
 		if parsed_data.len() < 3 {
-			return Err(VerificationError::MALFORMATEDSIGNER)
+			return Err(VerificationError::MALFORMATEDSIGNER);
 		}
 
 		let account = sr25519::Public::from_ss58check(parsed_data[0])
@@ -659,11 +659,11 @@ impl StoreKeysharePacket {
 		let parsed_data: Vec<&str> = if data.contains('_') {
 			data.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDDATA)
+			return Err(VerificationError::MALFORMATEDDATA);
 		};
 
 		if parsed_data.len() != 4 {
-			return Err(VerificationError::MALFORMATEDDATA)
+			return Err(VerificationError::MALFORMATEDDATA);
 		}
 
 		let nft_id = parsed_data[0].parse::<u32>().map_err(|_| VerificationError::INVALIDNFTID)?;
@@ -671,16 +671,16 @@ impl StoreKeysharePacket {
 		let keyshare = if !parsed_data[1].is_empty() {
 			parsed_data[1].as_bytes().to_vec()
 		} else {
-			return Err(VerificationError::INVALIDKEYSHARE)
+			return Err(VerificationError::INVALIDKEYSHARE);
 		};
 
 		let keyshare_size = keyshare.len() as u16;
 		if keyshare_size < 16 {
-			return Err(VerificationError::KEYSHAREISTOOSHORT)
+			return Err(VerificationError::KEYSHAREISTOOSHORT);
 		}
 
 		if keyshare_size > 3000 {
-			return Err(VerificationError::KEYSHAREISTOOLONG)
+			return Err(VerificationError::KEYSHAREISTOOLONG);
 		}
 
 		let block_number =
@@ -725,7 +725,7 @@ impl StoreKeysharePacket {
 		};
 
 		if !signer.auth_token.is_valid().await {
-			return Err(VerificationError::EXPIREDSIGNER)
+			return Err(VerificationError::EXPIREDSIGNER);
 		}
 
 		let signersig = match self.parse_signature("signer") {
@@ -776,15 +776,15 @@ impl StoreKeysharePacket {
 					let nft_status = onchain_nft_data.state;
 
 					if nft_type == "secret-nft" && !nft_status.is_secret {
-						return Err(VerificationError::IDISNOTSECRETNFT)
+						return Err(VerificationError::IDISNOTSECRETNFT);
 					}
 
 					if nft_type == "capsule" && !nft_status.is_capsule {
-						return Err(VerificationError::IDISNOTCAPSULE)
+						return Err(VerificationError::IDISNOTCAPSULE);
 					}
 
 					if !parsed_data.auth_token.clone().is_valid().await {
-						return Err(VerificationError::EXPIREDDATA)
+						return Err(VerificationError::EXPIREDDATA);
 					}
 
 					if verify_requester_type(
@@ -873,11 +873,11 @@ impl RetrieveKeysharePacket {
 		let parsed_data: Vec<&str> = if data.contains('_') {
 			data.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDDATA)
+			return Err(VerificationError::MALFORMATEDDATA);
 		};
 
 		if parsed_data.len() != 3 {
-			return Err(VerificationError::MALFORMATEDDATA)
+			return Err(VerificationError::MALFORMATEDDATA);
 		}
 
 		let nft_id = match parsed_data[0].parse::<u32>() {
@@ -909,7 +909,7 @@ impl RetrieveKeysharePacket {
 		};
 
 		if !data.auth_token.is_valid().await {
-			return Err(VerificationError::EXPIREDDATA)
+			return Err(VerificationError::EXPIREDDATA);
 		}
 
 		let sig = match self.parse_signature() {
@@ -942,15 +942,15 @@ impl RetrieveKeysharePacket {
 				let nft_status = onchain_nft_data.state;
 
 				if nft_type == "secret-nft" && !nft_status.is_secret {
-					return Err(VerificationError::IDISNOTSECRETNFT)
+					return Err(VerificationError::IDISNOTSECRETNFT);
 				}
 
 				if nft_type == "capsule" && !nft_status.is_capsule {
-					return Err(VerificationError::IDISNOTCAPSULE)
+					return Err(VerificationError::IDISNOTCAPSULE);
 				}
 
 				if !parsed_data.auth_token.clone().is_valid().await {
-					return Err(VerificationError::EXPIREDDATA)
+					return Err(VerificationError::EXPIREDDATA);
 				}
 
 				if verify_requester_type(
