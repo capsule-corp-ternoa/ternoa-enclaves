@@ -107,7 +107,7 @@ pub async fn capsule_get_views(
 				nft_id,
 				log: LogFile::new(),
 				description: "nft_id does not exist.".to_string(),
-			})
+			});
 		},
 	};
 
@@ -122,7 +122,7 @@ pub async fn capsule_get_views(
 			nft_id,
 			log: LogFile::new(),
 			description: "nft_id is not a capsule-nft".to_string(),
-		})
+		});
 	}
 
 	let file_path = enclave_sealpath + &nft_id.to_string() + ".log";
@@ -139,7 +139,7 @@ pub async fn capsule_get_views(
 			nft_id,
 			log: LogFile::new(),
 			description: "Capsule nft_id does not exist on this enclave".to_string(),
-		})
+		});
 	};
 
 	// OPEN LOG-FILE
@@ -156,7 +156,7 @@ pub async fn capsule_get_views(
 				nft_id,
 				log: LogFile::new(),
 				description: "can not retrieve the log of capsule views".to_string(),
-			})
+			});
 		},
 	};
 
@@ -251,12 +251,12 @@ pub async fn capsule_set_keyshare(
 					"nft_id": verified_data.nft_id,
 					"enclave_id": enclave_identity,
 					"description": description,
-				}))
+				}));
 			};
 
-			let file_path = enclave_sealpath.clone() +
-				"capsule_" + &verified_data.nft_id.to_string() +
-				".keyshare";
+			let file_path = enclave_sealpath.clone()
+				+ "capsule_" + &verified_data.nft_id.to_string()
+				+ ".keyshare";
 
 			// CREATE KEY-SHARE FILE ON ENCLAVE DISK
 			let mut f = match std::fs::File::create(file_path.clone()) {
@@ -279,7 +279,7 @@ pub async fn capsule_set_keyshare(
 						"nft_id": verified_data.nft_id,
 						"enclave_id": enclave_identity,
 						"description": description,
-					}))
+					}));
 				},
 			};
 
@@ -304,7 +304,7 @@ pub async fn capsule_set_keyshare(
 						"nft_id": verified_data.nft_id,
 						"enclave_id": enclave_identity,
 						"description": description,
-					}))
+					}));
 				},
 			};
 
@@ -411,13 +411,14 @@ pub async fn capsule_set_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_store_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(e) =>
+				Err(e) => {
 					return e.express_verification_error(
 						APICALL::CAPSULESET,
 						request.owner_address.to_string(),
 						0,
 						enclave_identity,
-					),
+					)
+				},
 			};
 
 			err.express_verification_error(
@@ -454,9 +455,9 @@ pub async fn capsule_retrieve_keyshare(
 	match request.verify_retrieve_request("capsule").await {
 		Ok(verified_data) => {
 			// DOES KEY-SHARE EXIST?
-			let file_path = enclave_sealpath.clone() +
-				"capsule_" + &verified_data.nft_id.to_string() +
-				".keyshare";
+			let file_path = enclave_sealpath.clone()
+				+ "capsule_" + &verified_data.nft_id.to_string()
+				+ ".keyshare";
 			if !std::path::Path::new(&file_path).is_file() {
 				let status = ReturnStatus::KEYNOTEXIST;
 				let description = format!(
@@ -472,7 +473,7 @@ pub async fn capsule_retrieve_keyshare(
 					"nft_id": verified_data.nft_id,
 					"enclave_id": enclave_identity,
 					"description": description,
-				}))
+				}));
 			}
 
 			// OPEN CAPSULE KEY-SHARE
@@ -496,7 +497,7 @@ pub async fn capsule_retrieve_keyshare(
 						"nft_id": verified_data.nft_id,
 						"enclave_id": enclave_identity,
 						"description": description,
-					}))
+					}));
 				},
 			};
 
@@ -528,7 +529,7 @@ pub async fn capsule_retrieve_keyshare(
 						"nft_id": verified_data.nft_id,
 						"enclave_id": enclave_identity,
 						"description": description,
-					}))
+					}));
 				},
 			};
 
@@ -571,13 +572,14 @@ pub async fn capsule_retrieve_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_retrieve_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(e) =>
+				Err(e) => {
 					return e.express_verification_error(
 						APICALL::CAPSULERETRIEVE,
 						request.requester_address.to_string(),
 						0,
 						enclave_identity,
-					),
+					)
+				},
 			};
 
 			err.express_verification_error(
@@ -633,7 +635,7 @@ pub async fn capsule_remove_keyshare(
 			description:
 				"Error removing capsule key-share from TEE, Capsule is not in burnt state."
 					.to_string(),
-		})
+		});
 	}
 
 	if !std::path::Path::new(&enclave_sealpath).exists() {
@@ -645,7 +647,7 @@ pub async fn capsule_remove_keyshare(
 			enclave_id: enclave_identity,
 			description: "Error removing capsule key-share from TEE, use another enclave please."
 				.to_string(),
-		})
+		});
 	};
 
 	let file_path =
@@ -665,7 +667,7 @@ pub async fn capsule_remove_keyshare(
 			description:
 				"Error removing capsule key-share from TEE : Capsule nft_id does not exist"
 					.to_string(),
-		})
+		});
 	}
 
 	match std::fs::remove_file(file_path) {

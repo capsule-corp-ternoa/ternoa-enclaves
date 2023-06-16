@@ -42,13 +42,13 @@ tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter", "fmt"] }
 sentry = { version = "0.30.0", features = ["anyhow", "debug-images", "tracing", "tower", "tower-http"] }
 
+regex = "1.8.4"
 rand = "0.8.5"
 clap = { version = "4.0.29", features = ["derive"] }
 sysinfo = "0.27.0"
 anyhow = "1.0.68"
 walkdir = "2.3.2"
 
-# IPFS
 futures = "0.3.25"
 tokio-test = "0.4.2"
 

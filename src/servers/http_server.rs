@@ -14,7 +14,7 @@ use tokio::sync::RwLock;
 
 use axum::{
 	error_handling::HandleErrorLayer,
-	extract::{State,DefaultBodyLimit},
+	extract::{DefaultBodyLimit, State},
 	http::{Method, StatusCode, Uri},
 	routing::{get, post},
 	BoxError, Json, Router,
@@ -35,7 +35,8 @@ use tracing::{debug, error, info};
 use std::time::{Duration, SystemTime};
 
 use crate::{
-	backup::admin::{admin_backup_fetch_bulk, admin_backup_push_bulk},
+	backup::admin_bulk::{admin_backup_fetch_bulk, admin_backup_push_bulk},
+	backup::admin_nftid::{admin_backup_fetch_id, admin_backup_push_id},
 	sign::cosign,
 };
 
@@ -120,7 +121,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 			Ok(phrase) => phrase,
 			Err(err) => {
 				error!("Error reading enclave account file: {:?}", err);
-				return
+				return;
 			},
 		};
 
@@ -170,7 +171,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 			},
 			Err(e) => {
 				debug!("2-1-3 failed to creat encalve keypair file, error : {:?}", e);
-				return
+				return;
 			},
 		};
 
@@ -180,7 +181,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 			},
 			Err(e) => {
 				debug!("2-1-4 write encalve keypair to file failed, error : {:?}", e);
-				return
+				return;
 			},
 		}
 
@@ -213,6 +214,8 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.route("/api/health", get(get_health_status))
 		.route("/api/quote", get(ra_get_quote))
 		// CENTRALIZED BACKUP API
+		.route("/api/backup/fetch-id", post(admin_backup_fetch_id))
+		.route("/api/backup/push-id", post(admin_backup_push_id))
 		.route("/api/backup/fetch-bulk", post(admin_backup_fetch_bulk))
 		.route("/api/backup/push-bulk", post(admin_backup_push_bulk))
 		.layer(DefaultBodyLimit::max(CONTENT_LENGTH_LIMIT))
@@ -228,7 +231,6 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.route("/api/capsule-nft/set-keyshare", post(capsule_set_keyshare))
 		.route("/api/capsule-nft/retrieve-keyshare", post(capsule_retrieve_keyshare))
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
-		
 		//.layer(RequestBodyLimitLayer::new(CONTENT_LENGTH_LIMIT))
 		.layer(
 			ServiceBuilder::new()
@@ -320,7 +322,7 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 			"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
 			"description": maintenance,
 			"enclave_address": enclave_address,
-		})))
+		})));
 	}
 
 	Some(Json(json!({
