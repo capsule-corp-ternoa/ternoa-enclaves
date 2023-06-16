@@ -235,7 +235,7 @@ pub async fn nft_get_views(
 				nft_id,
 				log: LogFile::new(),
 				description: "nft_id does not exist.".to_string(),
-			})
+			});
 		},
 	};
 
@@ -249,7 +249,7 @@ pub async fn nft_get_views(
 			nft_id,
 			log: LogFile::new(),
 			description: "nft_id is not a secret-nft".to_string(),
-		})
+		});
 	}
 
 	let file_path = enclave_sealpath + &nft_id.to_string() + ".log";
@@ -267,7 +267,7 @@ pub async fn nft_get_views(
 			nft_id,
 			log: LogFile::new(),
 			description: "nft_id does not exist on this enclave".to_string(),
-		})
+		});
 	};
 
 	let mut log_file = match OpenOptions::new().read(true).open(file_path.clone()) {
@@ -283,7 +283,7 @@ pub async fn nft_get_views(
 				nft_id,
 				log: LogFile::new(),
 				description: "can not retrieve the log of secret-nft views".to_string(),
-			})
+			});
 		},
 	};
 
@@ -305,7 +305,7 @@ pub async fn nft_get_views(
 						description:
 							"deserialization error : can not retrieve the log of secret-nft views"
 								.to_string(),
-					})
+					});
 				},
 			};
 
@@ -381,7 +381,7 @@ pub async fn nft_store_keyshare(
 					"enclave_id": enclave_identity,
 					"description": "Error storing NFT key-share to TEE, use another enclave please."
 					.to_string(),
-				}))
+				}));
 			};
 
 			let file_path =
@@ -404,7 +404,7 @@ pub async fn nft_store_keyshare(
 					"enclave_id": enclave_identity,
 					"description": "Error storing NFT key-share to TEE : nft_id already exists"
 					.to_string(),
-				}))
+				}));
 			}
 
 			let mut f = match std::fs::File::create(file_path.clone()) {
@@ -427,7 +427,7 @@ pub async fn nft_store_keyshare(
 						"enclave_id": enclave_identity,
 						"description": "Error storing NFT key-share to TEE, use another enclave please."
 						.to_string(),
-					}))
+					}));
 				},
 			};
 
@@ -455,7 +455,7 @@ pub async fn nft_store_keyshare(
 						"enclave_id": enclave_identity,
 						"description": "Error storing NFT key-share to TEE, use another enclave please."
 						.to_string(),
-					}))
+					}));
 				},
 			};
 
@@ -525,13 +525,14 @@ pub async fn nft_store_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_store_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(e) =>
+				Err(e) => {
 					return e.express_verification_error(
 						APICALL::NFTRETRIEVE,
 						request.owner_address.to_string(),
 						0,
 						enclave_identity,
-					),
+					)
+				},
 			};
 
 			err.express_verification_error(
@@ -563,7 +564,7 @@ fn nft_keyshare_oracle_results(
 		Ok(file) => file,
 		Err(e) => {
 			error!("Failed to create log file: {}", e);
-			return false
+			return false;
 		},
 	};
 
@@ -576,13 +577,13 @@ fn nft_keyshare_oracle_results(
 		Ok(buf) => buf,
 		Err(e) => {
 			error!("Failed to serialize log file: {}", e);
-			return false
+			return false;
 		},
 	};
 
 	if let Err(e) = file.write_all(&log_buf) {
 		error!("Failed to write to log file: {}", e);
-		return false
+		return false;
 	}
 
 	true
@@ -635,7 +636,7 @@ pub async fn nft_retrieve_keyshare(
 					"nft_id": verified_data.nft_id,
 					"enclave_id": enclave_identity,
 					"description": description,
-				}))
+				}));
 			}
 
 			let mut file = match std::fs::File::open(file_path) {
@@ -656,7 +657,7 @@ pub async fn nft_retrieve_keyshare(
 						"nft_id": verified_data.nft_id,
 						"enclave_id": enclave_identity,
 						"description": description,
-					}))
+					}));
 				},
 			};
 
@@ -686,7 +687,7 @@ pub async fn nft_retrieve_keyshare(
 						"nft_id": verified_data.nft_id,
 						"enclave_id": enclave_identity,
 						"description": description,
-					}))
+					}));
 				},
 			};
 
@@ -738,13 +739,14 @@ pub async fn nft_retrieve_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_retrieve_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(e) =>
+				Err(e) => {
 					return e.express_verification_error(
 						APICALL::NFTRETRIEVE,
 						request.requester_address.to_string(),
 						0,
 						enclave_identity,
-					),
+					)
+				},
 			};
 
 			err.express_verification_error(
@@ -796,7 +798,7 @@ pub async fn nft_remove_keyshare(
 			enclave_id: enclave_identity,
 			description: "Error removing NFT key-share from TEE, NFT is not in burnt state."
 				.to_string(),
-		})
+		});
 	}
 
 	if !std::path::Path::new(&enclave_sealpath).exists() {
@@ -807,7 +809,7 @@ pub async fn nft_remove_keyshare(
 			enclave_id: enclave_identity,
 			description: "Error removing NFT key-share from TEE, use another enclave please."
 				.to_string(),
-		})
+		});
 	};
 
 	let file_path = enclave_sealpath.clone() + "nft_" + &request.nft_id.to_string() + ".keyshare";
@@ -826,7 +828,7 @@ pub async fn nft_remove_keyshare(
 			enclave_id: enclave_identity,
 			description: "Error removing NFT key-share from TEE : nft_id does not exist"
 				.to_string(),
-		})
+		});
 	}
 
 	match std::fs::remove_file(file_path.clone()) {
@@ -847,7 +849,7 @@ pub async fn nft_remove_keyshare(
 						nft_id: request.nft_id,
 						enclave_id: enclave_identity,
 						description: "Error removing Keyshare from Enclave.".to_string(),
-					})
+					});
 				},
 			}
 
