@@ -103,7 +103,7 @@ impl FetchAuthenticationToken {
 			Ok(number) => number,
 			Err(err) => {
 				error!("Failed to get current block number: {}", err);
-				return false
+				return false;
 			},
 		};
 
@@ -119,7 +119,7 @@ impl StoreAuthenticationToken {
 			Ok(number) => number,
 			Err(err) => {
 				error!("Failed to get current block number: {}", err);
-				return false
+				return false;
 			},
 		};
 
@@ -218,8 +218,7 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 	sr25519::Pair::verify(&get_signature(signature), message, &account_pubkey)
 }
 
-async fn update_health_status (state: &SharedState, message: String) {	
-	
+async fn update_health_status(state: &SharedState, message: String) {
 	let shared_state_write = &mut state.write().await;
 	debug!("got shared state to write.");
 
@@ -244,9 +243,9 @@ pub async fn admin_backup_fetch_bulk(
 	Json(backup_request): Json<FetchBulkPacket>,
 ) -> impl IntoResponse {
 	debug!("3-15 API : backup fetch bulk");
-	
+
 	update_health_status(&state, "Encalve is doing backup, please wait...".to_string()).await;
-	
+
 	if !verify_account_id(&backup_request.admin_address) {
 		let message = format!(
 			"Error backup key shares : Requester is not whitelisted : {}",
@@ -262,16 +261,18 @@ pub async fn admin_backup_fetch_bulk(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return Json(json!({"error": "Strip Token prefix error".to_string()}))
-					.into_response(),
+					.into_response()
+			},
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return Json(json!({"error": "Strip Token suffix error".to_string()}))
-					.into_response(),
+					.into_response()
+			},
 		}
 	}
 
@@ -281,7 +282,7 @@ pub async fn admin_backup_fetch_bulk(
 			let message =
 				format!("Error backup key shares : Authentication token is not parsable : {}", e);
 			warn!(message);
-			return Json(json!({ "error": message })).into_response()
+			return Json(json!({ "error": message })).into_response();
 		},
 	};
 
@@ -290,13 +291,13 @@ pub async fn admin_backup_fetch_bulk(
 		backup_request.signature.clone(),
 		backup_request.auth_token.clone().as_bytes(),
 	) {
-		return Json(json!({"error": "Invalid Signature".to_string()})).into_response()
+		return Json(json!({"error": "Invalid Signature".to_string()})).into_response();
 	}
 
 	debug!("Validating the authentication token");
 	if !auth_token.is_valid().await {
 		return Json(json!({"error": "Authentication Token is not valid, or expired".to_string()}))
-			.into_response()
+			.into_response();
 	}
 
 	let mut backup_file = "/temporary/backup.zip".to_string();
@@ -318,7 +319,7 @@ pub async fn admin_backup_fetch_bulk(
 			},
 		}
 	}
-	
+
 	let shared_state_read = state.read().await;
 	let seal_path = shared_state_read.get_seal_path();
 	drop(shared_state_read);
@@ -330,15 +331,16 @@ pub async fn admin_backup_fetch_bulk(
 	debug!("Opening backup file");
 	let file = match tokio::fs::File::open(backup_file).await {
 		Ok(file) => file,
-		Err(err) =>
+		Err(err) => {
 			return Json(json!({ "error": format!("Backup File not found: {}", err) }))
-				.into_response(),
+				.into_response()
+		},
 	};
-	
+
 	// convert the `AsyncRead` into a `Stream`
 	debug!("Create reader-stream");
 	let stream = ReaderStream::new(file);
-	
+
 	// convert the `Stream` into an `axum::body::HttpBody`
 	debug!("Create body-stream");
 	let body = StreamBody::new(stream);
@@ -406,7 +408,7 @@ pub async fn admin_backup_push_bulk(
 			let message =
 				format!("Error backup key shares : Can not parse request form-data : {}", e);
 			warn!(message);
-			return Json(json!({ "error": message }))
+			return Json(json!({ "error": message }));
 		},
 	} {
 		let name = match field.name() {
@@ -459,7 +461,7 @@ pub async fn admin_backup_push_bulk(
 		};
 
 		match name.as_str() {
-			"admin_address" =>
+			"admin_address" => {
 				admin_address = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(e) => {
@@ -467,11 +469,12 @@ pub async fn admin_backup_push_bulk(
 
 						return Json(json!({
 								"error": format!("Admin restore : Error request admin_address {:?}", e),
-						}))
+						}));
 					},
-				},
+				}
+			},
 
-			"restore_file" =>
+			"restore_file" => {
 				restore_file = match field.bytes().await {
 					Ok(bytes) => bytes.to_vec(),
 					Err(e) => {
@@ -479,11 +482,12 @@ pub async fn admin_backup_push_bulk(
 
 						return Json(json!({
 								"error": format!("Admin restore : Error request restore_file {:?}", e),
-						}))
+						}));
 					},
-				},
+				}
+			},
 
-			"auth_token" =>
+			"auth_token" => {
 				auth_token = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(e) => {
@@ -491,11 +495,12 @@ pub async fn admin_backup_push_bulk(
 
 						return Json(json!({
 							"error": format!("Admin restore : Error request auth_token {:?}", e),
-						}))
+						}));
 					},
-				},
+				}
+			},
 
-			"signature" =>
+			"signature" => {
 				signature = match field.text().await {
 					Ok(sig) => match sig.strip_prefix("0x") {
 						Some(hexsig) => hexsig.to_owned(),
@@ -504,7 +509,7 @@ pub async fn admin_backup_push_bulk(
 
 							return Json(json!({
 									"error": format!("Admin restore : Error request signature format, expectex 0x prefix"),
-							}))
+							}));
 						},
 					},
 
@@ -513,15 +518,16 @@ pub async fn admin_backup_push_bulk(
 
 						return Json(json!({
 								"error": format!("Admin restore : Error request signature {:?}", e),
-						}))
+						}));
 					},
-				},
+				}
+			},
 
 			_ => {
 				info!("Error restore backup keyshares : Error request field name {:?}", field);
 				return Json(json!({
 						"error": format!("Admin restore : Error request field name {:?}", field),
-				}))
+				}));
 			},
 		}
 	}
@@ -533,7 +539,7 @@ pub async fn admin_backup_push_bulk(
 
 		return Json(json! ({
 			"error": message,
-		}))
+		}));
 	}
 
 	if !verify_signature(&admin_address, signature.clone(), auth_token.clone().as_bytes()) {
@@ -541,7 +547,7 @@ pub async fn admin_backup_push_bulk(
 
 		return Json(json! ({
 			"error": "Invalid token signature",
-		}))
+		}));
 	}
 
 	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
@@ -561,7 +567,7 @@ pub async fn admin_backup_push_bulk(
 		Err(e) => {
 			let message = format!("Admin restore : Can not parse the authentication token : {}", e);
 			warn!(message);
-			return Json(json!({ "error": message }))
+			return Json(json!({ "error": message }));
 		},
 	};
 
@@ -570,7 +576,7 @@ pub async fn admin_backup_push_bulk(
 
 		return Json(json! ({
 			"error": "Admin restore : Authentication Token Expired",
-		}))
+		}));
 	}
 
 	let hash = sha256::digest(restore_file.as_slice());
@@ -580,7 +586,7 @@ pub async fn admin_backup_push_bulk(
 
 		return Json(json! ({
 			"error": "Admin restore : Mismatch Data Hash",
-		}))
+		}));
 	}
 
 	let shared_state = state.read().await;
@@ -593,7 +599,7 @@ pub async fn admin_backup_push_bulk(
 		Err(e) => {
 			let message = format!("Admin restore :  Can not create file on disk : {}", e);
 			warn!(message);
-			return Json(json!({ "error": message }))
+			return Json(json!({ "error": message }));
 		},
 	};
 
@@ -604,7 +610,7 @@ pub async fn admin_backup_push_bulk(
 			error!(message);
 			return Json(json!({
 				"error": message,
-			}))
+			}));
 		},
 	}
 	// TODO: Verify backup data befor writing them on the disk
@@ -616,16 +622,17 @@ pub async fn admin_backup_push_bulk(
 			error!(message);
 			return Json(json!({
 				"error": message,
-			}))
+			}));
 		},
 	}
 
 	match remove_file(backup_file) {
 		Ok(_) => debug!("remove zip file successful"),
-		Err(e) =>
+		Err(e) => {
 			return Json(json!({
 				"warning": format!("Backup success with Error in removing zip file, {:?}",e),
-			})),
+			}))
+		},
 	};
 
 	// Update Enclave Account, if it is updated.
@@ -633,7 +640,7 @@ pub async fn admin_backup_push_bulk(
 	if !std::path::Path::new(&enclave_account_file).exists() {
 		return Json(json!({
 			"error": format!("Admin restore : Encalve Account file not found"),
-		}))
+		}));
 	};
 
 	debug!("Admin restore : Found Enclave Account, Importing it! : path: {}", enclave_account_file);
@@ -645,7 +652,7 @@ pub async fn admin_backup_push_bulk(
 			error!(message);
 			return Json(json!({
 				"error": message,
-			}))
+			}));
 		},
 	};
 
@@ -658,7 +665,7 @@ pub async fn admin_backup_push_bulk(
 			error!(message);
 			return Json(json!({
 				"error": message,
-			}))
+			}));
 		},
 	};
 

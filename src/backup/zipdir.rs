@@ -13,8 +13,9 @@ const METHOD_DEFLATED: Option<zip::CompressionMethod> = Some(zip::CompressionMet
 
 pub fn add_dir_zip(src_dir: &str, dst_file: &str) -> i32 {
 	match doit(src_dir, dst_file, METHOD_DEFLATED.unwrap()) {
-		Ok(_) =>
-			tracing::info!("bulk backup compression done: {} written to {}", src_dir, dst_file),
+		Ok(_) => {
+			tracing::info!("bulk backup compression done: {} written to {}", src_dir, dst_file)
+		},
 		Err(e) => tracing::info!("Error bulk backup : {:?}", e),
 	}
 
@@ -68,7 +69,7 @@ fn doit(
 	method: zip::CompressionMethod,
 ) -> zip::result::ZipResult<()> {
 	if !Path::new(src_dir).is_dir() {
-		return Err(ZipError::FileNotFound)
+		return Err(ZipError::FileNotFound);
 	}
 	let path = Path::new(dst_file);
 	let file = File::create(path)?;
@@ -91,7 +92,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 		Ok(file) => file,
 		Err(e) => {
 			error!("Backup extract error opening zip file : {:?}", e);
-			return Err(ZipError::Io(e))
+			return Err(ZipError::Io(e));
 		},
 	};
 
@@ -99,7 +100,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 		Ok(archive) => archive,
 		Err(e) => {
 			error!("Backup extract error opening file as zip-archive: {:?}", e);
-			return Err(e)
+			return Err(e);
 		},
 	};
 
@@ -108,7 +109,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 			Ok(file) => file,
 			Err(e) => {
 				error!("Backup extract error opening internal file at index {} : {:?}", i, e);
-				return Err(e)
+				return Err(e);
 			},
 		};
 
@@ -121,7 +122,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 		let fullpath = Path::new(&fullpath_str);
 
 		if (*file.name()).contains("__MACOSX") {
-			continue
+			continue;
 		}
 
 		// DIRECTORY
@@ -130,7 +131,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 				Ok(_file) => info!("create {:?}", fullpath),
 				Err(e) => {
 					error!("Backup extract error create internal directory : {:?}", e);
-					return Err(zip::result::ZipError::Io(e))
+					return Err(zip::result::ZipError::Io(e));
 				},
 			}
 		}
@@ -143,7 +144,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 						Ok(_file) => info!("create {:?}", p),
 						Err(e) => {
 							error!("Backup extract error creating paretn directory : {:?}", e);
-							return Err(zip::result::ZipError::Io(e))
+							return Err(zip::result::ZipError::Io(e));
 						},
 					}
 				}
@@ -157,7 +158,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 				},
 				Err(e) => {
 					error!("Backup extract error (re)creating the file : {:?}", e);
-					return Err(zip::result::ZipError::Io(e))
+					return Err(zip::result::ZipError::Io(e));
 				},
 			};
 
@@ -165,7 +166,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 				Ok(n) => info!("successfuly copied {} bytes", n),
 				Err(e) => {
 					error!("Backup extract error copying data to file : {:?}", e);
-					return Err(zip::result::ZipError::Io(e))
+					return Err(zip::result::ZipError::Io(e));
 				},
 			}
 		}

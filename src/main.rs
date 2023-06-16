@@ -40,16 +40,17 @@ async fn main() {
 	info!("1-1 Main function started self-check.");
 
 	match http_server::self_checksig() {
-		Ok(str) =>
+		Ok(str) => {
 			if str == "Successful" {
 				info!("Binary verification successful.");
 			} else {
 				tracing::error!("ERROR: Binary verfification Failed :  {}", str);
-				return
-			},
+				return;
+			}
+		},
 		Err(str) => {
 			tracing::error!("ERROR: Binary verfification Failed :  {}", str);
-			return
+			return;
 		},
 	}
 

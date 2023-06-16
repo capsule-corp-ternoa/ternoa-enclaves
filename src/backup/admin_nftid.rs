@@ -1,0 +1,727 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
+use axum::{
+	body::{Bytes, StreamBody},
+	extract::{FromRequest, Multipart, State},
+	http::header,
+	response::IntoResponse,
+	Json,
+};
+use reqwest::StatusCode;
+use tokio_util::io::ReaderStream;
+
+use hex::{FromHex, FromHexError};
+use serde_json::{json, Value};
+use sp_core::{crypto::Ss58Codec, sr25519, Pair};
+use std::{
+	collections::BTreeMap,
+	io::{Read, Write},
+};
+
+use std::fs::{remove_file, File};
+use tracing::{debug, error, info, warn};
+
+use serde::{Deserialize, Serialize};
+use sp_core::{crypto::PublicError, sr25519::Signature};
+
+use crate::{
+	chain::core::get_current_block_number,
+	servers::http_server::{SharedState, StateConfig},
+};
+
+use super::zipdir::{add_dir_zip, zip_extract};
+
+#[cfg(any(feature = "alphanet", feature = "mainnet"))]
+const BACKUP_WHITELIST: [&str; 3] = [
+	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ",
+	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
+	"5HmNNUGDRNJgKScvDu1yUKFeqKkXeGjsK5SMGW744Uo2YgFj",
+];
+
+#[cfg(any(feature = "dev-0", feature = "dev-1"))]
+const BACKUP_WHITELIST: [&str; 3] = [
+	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ",
+	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
+	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
+];
+
+const MAX_VALIDATION_PERIOD: u8 = 20;
+const MAX_BLOCK_VARIATION: u8 = 5;
+
+/* *************************************
+		FETCH  BULK DATA STRUCTURES
+**************************************** */
+
+// Validity time of Keyshare Data
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AuthenticationToken {
+	pub block_number: u32,
+	pub block_validation: u8,
+	pub data_hash: String,
+}
+
+/// Fetch Bulk Data
+#[derive(Serialize, Deserialize)]
+pub struct FetchIdPacket {
+	admin_address: String,
+	nftid: String,
+	auth_token: String, //FetchAuthenticationToken,
+	signature: String,
+}
+
+/// Fetch Bulk Response
+#[derive(Serialize)]
+pub struct FetchIdResponse {
+	data: String,
+	signature: String,
+}
+
+/* *************************************
+		STORE  BULK DATA STRUCTURES
+**************************************** */
+
+/// Store Bulk Packet
+#[derive(Serialize, Deserialize)]
+pub struct StoreIdPacket {
+	admin_address: String,
+	restore_map: String,
+	auth_token: AuthenticationToken,
+	signature: String,
+}
+
+/* ----------------------------------
+AUTHENTICATION TOKEN IMPLEMENTATION
+----------------------------------*/
+
+/// Retrieving the stored Keyshare
+impl AuthenticationToken {
+	pub async fn is_valid(&self) -> bool {
+		let last_block_number = match get_current_block_number().await {
+			Ok(number) => number,
+			Err(err) => {
+				error!("Failed to get current block number: {}", err);
+				return false;
+			},
+		};
+
+		(last_block_number > self.block_number - (MAX_BLOCK_VARIATION as u32)) // for finalization delay
+			&& (last_block_number < self.block_number + (self.block_validation + MAX_BLOCK_VARIATION) as u32) // validity period
+			&&  (self.block_validation < MAX_VALIDATION_PERIOD) // A finite validity period
+	}
+}
+
+/* *************************************
+		 VERIFICATION FUNCTIONS
+**************************************** */
+
+/// Verify Account Id if it is Whitelisted
+/// # Arguments
+/// * `account_id` - Account ID
+/// # Returns
+/// * `bool` - Result
+/// # Example
+/// ```
+/// verify_account_id(account_id)
+/// ```
+/// # Errors
+/// * `PublicError` - If the account ID is not a valid SS58 string
+fn verify_account_id(account_id: &str) -> bool {
+	BACKUP_WHITELIST.contains(&account_id)
+}
+
+/// Get the public key of an Account ID
+/// # Arguments
+/// * `account_id` - Account ID
+/// # Returns
+/// * `Result<sr25519::Public, PublicError>` - Result
+/// # Example
+/// ```
+/// get_public_key(account_id, signature, data)
+/// ```
+/// # Errors
+/// * `PublicError` - If the account ID is not a valid SS58 string
+/// * `FromHexError` - If the signature is not a valid hex string
+/// * `PublicError` - If the signature is not a valid signature
+fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
+	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id)
+		.map_err(|err: PublicError| {
+			debug!("Error constructing public key {:?}", err);
+			err
+		});
+
+	pk
+}
+
+/// Converts the signature to a Signature type
+/// # Arguments
+/// * `signature` - Signature
+/// # Returns
+/// * `Result<Signature, FromHexError>` - Signature
+/// # Example
+/// ```
+/// get_signature(signature)
+/// ```
+/// # Errors
+/// * `FromHexError` - If the signature is not a valid hex string
+fn get_signature(signature: String) -> Result<Signature, FromHexError> {
+	let stripped = match signature.strip_prefix("0x") {
+		Some(sig) => sig,
+		None => signature.as_str(),
+	};
+
+	match <[u8; 64]>::from_hex(stripped) {
+		Ok(s) => {
+			let sig = sr25519::Signature::from_raw(s);
+			Ok(sig)
+		},
+		Err(err) => Err(err),
+	}
+}
+
+/// Verifies the signature of the message
+/// # Arguments
+/// * `account_id` - Account ID
+/// * `signature` - Signature
+/// * `message` - Message
+/// # Returns
+/// * `bool` - True if the signature is valid
+/// # Example
+/// ```
+/// verify_signature(account_id, signature, message)
+/// ```
+fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool {
+	match get_public_key(account_id) {
+		Ok(pk) => match get_signature(signature) {
+			Ok(val) => sr25519::Pair::verify(&val, message, &pk),
+			Err(err) => {
+				debug!("Error generating pair {:?}", err);
+				false
+			},
+		},
+		Err(_) => false,
+	}
+}
+
+async fn update_health_status(state: &SharedState, message: String) {
+	let shared_state_write = &mut state.write().await;
+	debug!("got shared state to write.");
+
+	shared_state_write.set_maintenance(message);
+	debug!("Maintenance state is set.");
+}
+
+/// Backup Key Shares
+/// This function is used to backup the key shares of the validators
+/// # Arguments
+/// * `state` - StateConfig
+/// * `backup_request` - BackupRequest
+/// # Returns
+/// * `Json` - BackupResponse
+/// # Example
+/// ```
+/// backup_key_shares(state, backup_request)
+/// ```
+#[axum::debug_handler]
+pub async fn admin_backup_fetch_id(
+	State(state): State<SharedState>,
+	Json(backup_request): Json<FetchIdPacket>,
+) -> impl IntoResponse {
+	debug!("3-15 API : backup fetch bulk");
+
+	update_health_status(&state, "Encalve is doing backup, please wait...".to_string()).await;
+
+	if !verify_account_id(&backup_request.admin_address) {
+		let message = format!(
+			"Error backup key shares : Requester is not whitelisted : {}",
+			backup_request.admin_address
+		);
+		warn!(message);
+
+		update_health_status(&state, String::new()).await;
+		return Json(json!({ "error": message })).into_response();
+	}
+
+	let mut auth = backup_request.auth_token.clone();
+
+	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
+		auth = match auth.strip_prefix("<Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				update_health_status(&state, String::new()).await;
+				return (
+					StatusCode::UNPROCESSABLE_ENTITY,
+					Json(json!({"error": "Strip Token prefix error".to_string()})),
+				)
+					.into_response();
+			},
+		};
+
+		auth = match auth.strip_suffix("</Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				update_health_status(&state, String::new()).await;
+				return (
+					StatusCode::UNPROCESSABLE_ENTITY,
+					Json(json!({"error": "Strip Token suffix error".to_string()})),
+				)
+					.into_response();
+			},
+		}
+	}
+
+	let auth_token: AuthenticationToken = match serde_json::from_str(&auth) {
+		Ok(token) => token,
+		Err(e) => {
+			let message =
+				format!("Error backup key shares : Authentication token is not parsable : {}", e);
+			warn!(message);
+			return (StatusCode::UNPROCESSABLE_ENTITY, Json(json!({ "error": message })))
+				.into_response();
+		},
+	};
+
+	if !verify_signature(
+		&backup_request.admin_address,
+		backup_request.signature.clone(),
+		backup_request.auth_token.clone().as_bytes(),
+	) {
+		return Json(json!({"error": "Invalid Signature".to_string()})).into_response();
+	}
+
+	debug!("Validating the authentication token");
+	if !auth_token.is_valid().await {
+		return Json(json!({"error": "Authentication Token is not valid, or expired".to_string()}))
+			.into_response();
+	}
+
+	let mut backup_file = "/temporary/backup.zip".to_string();
+	let counter = 1;
+	// remove previously generated backup
+	while std::path::Path::new(&backup_file.clone()).exists() {
+		match std::fs::remove_file(backup_file.clone()) {
+			Ok(_) => {
+				debug!("Successfully removed previous zip file")
+			},
+			Err(e) => {
+				let message = format!(
+					"Error backup key shares : Can not remove previous backup file : {}",
+					e
+				);
+				warn!(message);
+				//return Json(json!({ "error": message })).into_response()
+				backup_file = format!("/temporary/backup-{counter}.zip");
+			},
+		}
+	}
+
+	let shared_state_read = state.read().await;
+	let seal_path = shared_state_read.get_seal_path();
+	drop(shared_state_read);
+
+	debug!("Start zippping file");
+	add_dir_zip(&seal_path, &backup_file);
+
+	// `File` implements `AsyncRead`
+	debug!("Opening backup file");
+	let file = match tokio::fs::File::open(backup_file).await {
+		Ok(file) => file,
+		Err(err) => {
+			return Json(json!({ "error": format!("Backup File not found: {}", err) }))
+				.into_response()
+		},
+	};
+
+	// convert the `AsyncRead` into a `Stream`
+	debug!("Create reader-stream");
+	let stream = ReaderStream::new(file);
+
+	// convert the `Stream` into an `axum::body::HttpBody`
+	debug!("Create body-stream");
+	let body = StreamBody::new(stream);
+
+	let headers = [
+		(header::CONTENT_TYPE, "text/toml; charset=utf-8"),
+		(header::CONTENT_DISPOSITION, "attachment; filename=\"Backup.zip\""),
+	];
+
+	update_health_status(&state, String::new()).await;
+
+	debug!("Sending the backup data to the client ...");
+	(headers, body).into_response()
+}
+
+/// Returns Json Response
+/// # Arguments
+/// * `status` - Status of the request
+/// * `data` - Data to be returned
+/// # Returns
+/// * `Json<Value>` - Json response
+/// # Example
+/// ```
+/// get_json_response("Successfull request".to_string(), data)
+/// ```
+fn get_json_response(status: String, data: Vec<u8>) -> Json<Value> {
+	Json(json!({
+		"status": status,
+		"data": data,
+	}))
+}
+
+/* ******************************
+ BULK PUSH KEY_SHARES TO THIS ENCLAVE
+********************************* */
+/// Backup Key Shares
+/// This function is used to backup the key shares of the validators
+/// # Arguments
+/// * `state` - StateConfig
+/// * `store_request` - StoreBulkPacket
+/// # Returns
+/// * `Json` - BackupResponse
+/// # Example
+/// ```
+/// backup_key_shares(state, backup_request)
+/// ```
+#[axum::debug_handler]
+pub async fn admin_backup_push_id(
+	State(state): State<SharedState>,
+	mut store_request: Multipart,
+) -> Json<Value> {
+	debug!("3-16 API : backup push bulk");
+	debug!("received request = {:?}", store_request);
+
+	//update_health_status(&state, "Restoring the backups".to_string()).await;
+
+	let mut admin_address = String::new();
+	let mut restore_file = Vec::<u8>::new();
+	let mut auth_token = String::new();
+	let mut signature = String::new();
+
+	while let Some(field) = match store_request.next_field().await {
+		Ok(field) => field,
+		Err(e) => {
+			let message =
+				format!("Error backup key shares : Can not parse request form-data : {}", e);
+			warn!(message);
+			return Json(json!({ "error": message }));
+		},
+	} {
+		let name = match field.name() {
+			Some(name) => name.to_string(),
+			_ => {
+				info!("Admin restore :  field name : {:?}", field);
+
+				return Json(json!({
+						"error": format!("Admin restore : Error request field name {:?}", field),
+				}));
+			},
+		};
+
+		match name.as_str() {
+			"admin_address" => {
+				admin_address = match field.text().await {
+					Ok(bytes) => bytes,
+					Err(e) => {
+						info!("Admin restore :  Error request admin_address {:?}", e);
+
+						return Json(json!({
+								"error": format!("Admin restore : Error request admin_address {:?}", e),
+						}));
+					},
+				}
+			},
+
+			"restore_file" => {
+				restore_file = match field.bytes().await {
+					Ok(bytes) => bytes.to_vec(),
+					Err(e) => {
+						info!("Admin restore :  Error request restore_file {:?}", e);
+
+						return Json(json!({
+								"error": format!("Admin restore : Error request restore_file {:?}", e),
+						}));
+					},
+				}
+			},
+
+			"auth_token" => {
+				auth_token = match field.text().await {
+					Ok(bytes) => bytes,
+					Err(e) => {
+						info!("Admin restore :  Error request auth_token {:?}", e);
+
+						return Json(json!({
+							"error": format!("Admin restore : Error request auth_token {:?}", e),
+						}));
+					},
+				}
+			},
+
+			"signature" => {
+				signature = match field.text().await {
+					Ok(sig) => match sig.strip_prefix("0x") {
+						Some(hexsig) => hexsig.to_owned(),
+						_ => {
+							info!("Admin restore :  Error request signature format, expectex 0x prefix, {sig}");
+
+							return Json(json!({
+									"error": format!("Admin restore : Error request signature format, expectex 0x prefix"),
+							}));
+						},
+					},
+
+					Err(e) => {
+						info!("Admin restore :  Error request signature {:?}", e);
+
+						return Json(json!({
+								"error": format!("Admin restore : Error request signature {:?}", e),
+						}));
+					},
+				}
+			},
+
+			_ => {
+				info!("Error restore backup keyshares : Error request field name {:?}", field);
+				return Json(json!({
+						"error": format!("Admin restore : Error request field name {:?}", field),
+				}));
+			},
+		}
+	}
+
+	if !verify_account_id(&admin_address.clone()) {
+		let message = format!("Admin restore :  Requester is not whitelisted : {}", admin_address);
+
+		warn!(message);
+
+		return Json(json! ({
+			"error": message,
+		}));
+	}
+
+	if !verify_signature(&admin_address, signature.clone(), auth_token.clone().as_bytes()) {
+		warn!("Error restore backup keyshares : Invalid signature : admin = {}", admin_address);
+
+		return Json(json! ({
+			"error": "Invalid token signature",
+		}));
+	}
+
+	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
+		auth_token = match auth_token.strip_prefix("<Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => return Json(json! ({"error": "Admin restore : Strip Token prefix error"})),
+		};
+
+		auth_token = match auth_token.strip_suffix("</Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => return Json(json! ({"error": "Strip Token suffix error"})),
+		}
+	}
+
+	let token: AuthenticationToken = match serde_json::from_str(auth_token.as_str()) {
+		Ok(token) => token,
+		Err(e) => {
+			let message = format!("Admin restore : Can not parse the authentication token : {}", e);
+			warn!(message);
+			return Json(json!({ "error": message }));
+		},
+	};
+
+	if !token.is_valid().await {
+		warn!("Admin restore :  token expired : admin = {}", admin_address);
+
+		return Json(json! ({
+			"error": "Admin restore : Authentication Token Expired",
+		}));
+	}
+
+	let hash = sha256::digest(restore_file.as_slice());
+
+	if token.data_hash != hash {
+		warn!("Admin restore :  mismatch data hash : admin = {}", admin_address);
+
+		return Json(json! ({
+			"error": "Admin restore : Mismatch Data Hash",
+		}));
+	}
+
+	let shared_state = state.read().await;
+	let seal_path = shared_state.get_seal_path();
+	let backup_file = seal_path.clone() + "backup.zip";
+	drop(shared_state);
+
+	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
+		Ok(file) => file,
+		Err(e) => {
+			let message = format!("Admin restore :  Can not create file on disk : {}", e);
+			warn!(message);
+			return Json(json!({ "error": message }));
+		},
+	};
+
+	match zipfile.write_all(&restore_file) {
+		Ok(_) => debug!("zip file is stored on disk."),
+		Err(e) => {
+			let message = format!("Admin restore :  writing zip file to disk{:?}", e);
+			error!(message);
+			return Json(json!({
+				"error": message,
+			}));
+		},
+	}
+	// TODO: Verify backup data befor writing them on the disk
+	// Check if the enclave_account or keyshares are invalid
+	match zip_extract(&backup_file, &seal_path) {
+		Ok(_) => debug!("zip_extract success"),
+		Err(e) => {
+			let message = format!("Admin restore :  extracting zip file {:?}", e);
+			error!(message);
+			return Json(json!({
+				"error": message,
+			}));
+		},
+	}
+
+	match remove_file(backup_file) {
+		Ok(_) => debug!("remove zip file successful"),
+		Err(e) => {
+			return Json(json!({
+				"warning": format!("Backup success with Error in removing zip file, {:?}",e),
+			}))
+		},
+	};
+
+	// Update Enclave Account, if it is updated.
+	let enclave_account_file = "/nft/enclave_account.key";
+	if !std::path::Path::new(&enclave_account_file).exists() {
+		return Json(json!({
+			"error": format!("Admin restore : Encalve Account file not found"),
+		}));
+	};
+
+	debug!("Admin restore : Found Enclave Account, Importing it! : path: {}", enclave_account_file);
+
+	let phrase = match std::fs::read_to_string(enclave_account_file) {
+		Ok(phrase) => phrase,
+		Err(err) => {
+			let message = format!("Admin restore : Error reading enclave account file: {:?}", err);
+			error!(message);
+			return Json(json!({
+				"error": message,
+			}));
+		},
+	};
+
+	debug!("Admin restore : Phrase read, converting it to keypair.");
+
+	let enclave_keypair = match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
+		Ok((keypair, _seed)) => keypair,
+		Err(err) => {
+			let message = format!("Admin restore : Error creating keypair from phrase: {:?}", err);
+			error!(message);
+			return Json(json!({
+				"error": message,
+			}));
+		},
+	};
+
+	debug!("Admin restore : Keypair success");
+
+	let mut shared_state_write = state.write().await;
+	debug!("Admin restore : share-state is taken");
+	shared_state_write.set_key(enclave_keypair);
+	debug!("share-state Enclave Account updated");
+	drop(shared_state_write);
+
+	//update_health_status(&state, String::new()).await;
+
+	// TODO : self-check extracted data
+	Json(json!({
+		"success": format!("Success restoring backups"),
+	}))
+}
+
+/* **********************
+		 TEST
+********************** */
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[tokio::test]
+	async fn id_fetch_test() {
+		let seed_phrase: &str =
+			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
+
+		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
+		let last_block_number = get_current_block_number().await.unwrap();
+		let hash = sha256::digest(Vec::<u8>::new().as_slice());
+
+		let auth = AuthenticationToken {
+			block_number: last_block_number,
+			block_validation: 10,
+			data_hash: hash,
+		};
+		let auth_bytes = serde_json::to_vec(&auth).unwrap();
+		let sig = admin_keypair.sign(&auth_bytes);
+		let sig_str = serde_json::to_string(&sig).unwrap();
+
+		let _request = FetchIdPacket {
+			admin_address: admin_keypair.public().to_string(),
+			auth_token: serde_json::to_string(&auth).unwrap(),
+			signature: sig_str,
+			nftid: todo!(),
+		};
+	}
+
+	#[tokio::test]
+	async fn id_restore_test() {
+		let seed_phrase: &str =
+			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
+
+		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
+
+		let mut zipdata = Vec::new();
+		let mut zipfile = std::fs::File::open("./test/test.zip").unwrap();
+		let _ = zipfile.read_to_end(&mut zipdata).unwrap();
+
+		let last_block_number = get_current_block_number().await.unwrap();
+
+		let hash = sha256::digest(zipdata.as_slice());
+
+		let auth = AuthenticationToken {
+			block_number: last_block_number,
+			block_validation: 10,
+			data_hash: hash,
+		};
+
+		let auth_str = serde_json::to_string(&auth).unwrap();
+		let sig = admin_keypair.sign(auth_str.as_bytes());
+		let sig_str = format!("{}{:?}", "0x", sig);
+
+		println!(
+			" Admin:\t\t {} \n Auth_Token:\t {} \n Signature:\t {} \n ",
+			admin_keypair.public(),
+			auth_str,
+			sig_str
+		);
+	}
+
+	#[test]
+	fn test_get_signature_valid() {
+		let input  = "0xb7255023814e304b72bc880cc993d5c654ce060db0c3f0772b453714c760521962943747af605a90d0503812c6a62c5c1080cbf377095551af0c168a8c724da8".to_string();
+		let expected = Signature(<[u8; 64]>::from_hex(input.strip_prefix("0x").unwrap()).unwrap());
+		let results = get_signature(input).unwrap();
+		assert_eq!(results, expected);
+	}
+
+	#[test]
+	fn test_get_public_key_valid() {
+		let account = "5DAENKLsmj9FbfxgKuWn81smhKz9dZg75fveUFSUtqrr4CPn";
+		let results = get_public_key(account).unwrap();
+		assert_eq!(results, sr25519::Public::from_ss58check(account).unwrap());
+	}
+}
