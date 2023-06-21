@@ -16,6 +16,7 @@ use axum::{
 	error_handling::HandleErrorLayer,
 	extract::{DefaultBodyLimit, State},
 	http::{Method, StatusCode, Uri},
+	response::IntoResponse,
 	routing::{get, post},
 	BoxError, Json, Router,
 };
@@ -253,46 +254,55 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 ------------------------------ */
 /// Handle errors from the router.
 /// This is a catch-all handler that will be called for any error that isn't handled by a route.
-async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> (StatusCode, String) {
+async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> impl IntoResponse {
 	debug!("3-1 Timeout Handler start");
 	if err.is::<tower::timeout::error::Elapsed>() {
 		debug!("3-1-1 Timeout Handler : Request took too long.");
-		(StatusCode::REQUEST_TIMEOUT, "Request took too long".to_string())
+		(StatusCode::REQUEST_TIMEOUT, "Request took too long".to_string()).into_response()
 	} else {
 		debug!("3-1-1 Timeout Handler : unhandled internal error.");
 		(StatusCode::INTERNAL_SERVER_ERROR, format!("Unhandled internal error: {err}"))
+			.into_response()
 	}
 }
 
 /// Handle errors from the router.
-async fn fallback(uri: axum::http::Uri) -> Json<Value> {
+async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
 	debug!("3-2 Fallback handler for {uri}");
-	Json(json!({
-		"status": 432,
-		"description": format!("No route to {}",uri),
-	}))
+	(
+		StatusCode::BAD_REQUEST,
+		Json(json!({
+			"status": 432,
+			"description": format!("No route to URL : {}",uri),
+		})),
+	)
+		.into_response()
 }
 
 /*  ------------------------------
 	HEALTH CHECK
 ------------------------------ */
 /// Health check endpoint
-async fn get_health_status(State(state): State<SharedState>) -> Json<Value> {
+async fn get_health_status(State(state): State<SharedState>) -> impl IntoResponse {
 	debug!("3-3 Healthchek handler.");
 	let shared_state = state.read().await;
 
 	match evalueate_health_status(shared_state.get_key(), shared_state.get_maintenance()) {
-		Some(json_val) => {
+		Some(response) => {
 			debug!("3-3-1 Healthchek exit successfully .");
-			json_val
+			response.into_response()
 		},
 
 		_ => {
 			debug!("3-3-1 Healthchek exited with None.");
-			Json(json!({
-				"status": 433,
-				"description": "Healthcheck returned NONE".to_string()
-			}))
+			(
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(json!({
+					"status": 666,
+					"description": "Healthcheck returned NONE".to_string()
+				})),
+			)
+				.into_response()
 		},
 	}
 }
@@ -317,21 +327,26 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let enclave_address = sp_core::sr25519::Public::from_raw(pubkey);
 
 	if !maintenance.is_empty() {
-		return Some(Json(json!({
-			"status": 230,
-			"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
-			"description": maintenance,
-			"enclave_address": enclave_address,
-		})));
+		return Some((
+			StatusCode::PROCESSING,
+			Json(json!({
+				"status": 500,
+				"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
+				"description": maintenance,
+				"enclave_address": enclave_address,
+			})),
+		));
 	}
 
-	Some(Json(json!({
-		"status": 200,
-		"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
-		"description": "SGX server is running!".to_string(),
-		"enclave_address": enclave_address,
-		//"quote": quote_vec,
-	})))
+	Some((
+		StatusCode::OK,
+		Json(json!({
+			"status": 200,
+			"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
+			"description": "SGX server is running!".to_string(),
+			"enclave_address": enclave_address,
+		})),
+	))
 }
 
 /*  ------------------------------
