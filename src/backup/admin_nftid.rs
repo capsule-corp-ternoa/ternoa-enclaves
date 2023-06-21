@@ -63,11 +63,11 @@ pub struct AuthenticationToken {
 }
 
 /// Fetch Bulk Data
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FetchIdPacket {
 	admin_address: String,
-	nftid: String,
-	auth_token: String, //FetchAuthenticationToken,
+	nftid_vec: String,
+	auth_token: String,
 	signature: String,
 }
 
@@ -83,7 +83,7 @@ pub struct FetchIdResponse {
 **************************************** */
 
 /// Store Bulk Packet
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct StoreIdPacket {
 	admin_address: String,
 	restore_map: String,
@@ -94,21 +94,44 @@ pub struct StoreIdPacket {
 /* ----------------------------------
 AUTHENTICATION TOKEN IMPLEMENTATION
 ----------------------------------*/
+#[derive(Debug)]
+pub enum ValidationResult {
+	Success,
+	ErrorRpcCall,
+	ExpiredBlockNumber,
+	FutureBlockNumber,
+	InvalidPeriod,
+}
 
 /// Retrieving the stored Keyshare
 impl AuthenticationToken {
-	pub async fn is_valid(&self) -> bool {
+	pub async fn is_valid(&self) -> ValidationResult {
 		let last_block_number = match get_current_block_number().await {
 			Ok(number) => number,
 			Err(err) => {
 				error!("Failed to get current block number: {}", err);
-				return false;
+				return ValidationResult::ErrorRpcCall;
 			},
 		};
 
-		(last_block_number > self.block_number - (MAX_BLOCK_VARIATION as u32)) // for finalization delay
-			&& (last_block_number < self.block_number + (self.block_validation + MAX_BLOCK_VARIATION) as u32) // validity period
-			&&  (self.block_validation < MAX_VALIDATION_PERIOD) // A finite validity period
+		if last_block_number < self.block_number - (MAX_BLOCK_VARIATION as u32) {
+			// for finalization delay
+			return ValidationResult::ExpiredBlockNumber;
+		}
+
+		if self.block_validation > MAX_VALIDATION_PERIOD {
+			// A finite validity period
+			return ValidationResult::InvalidPeriod;
+		}
+
+		if last_block_number
+			> self.block_number + ((self.block_validation + MAX_BLOCK_VARIATION) as u32)
+		{
+			// validity period
+			return ValidationResult::FutureBlockNumber;
+		}
+
+		return ValidationResult::Success;
 	}
 }
 
@@ -212,6 +235,13 @@ async fn update_health_status(state: &SharedState, message: String) {
 	debug!("Maintenance state is set.");
 }
 
+
+pub async fn error_handler(message: String, state: &SharedState) -> Json<Value> {
+		error!(message);
+		update_health_status(&state, String::new()).await;
+		return Json(json!({ "error": message }));
+}
+
 /// Backup Key Shares
 /// This function is used to backup the key shares of the validators
 /// # Arguments
@@ -237,10 +267,8 @@ pub async fn admin_backup_fetch_id(
 			"Error backup key shares : Requester is not whitelisted : {}",
 			backup_request.admin_address
 		);
-		warn!(message);
-
-		update_health_status(&state, String::new()).await;
-		return Json(json!({ "error": message })).into_response();
+		
+		return error_handler(message, &state).await.into_response();
 	}
 
 	let mut auth = backup_request.auth_token.clone();
@@ -249,24 +277,14 @@ pub async fn admin_backup_fetch_id(
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
 			_ => {
-				update_health_status(&state, String::new()).await;
-				return (
-					StatusCode::UNPROCESSABLE_ENTITY,
-					Json(json!({"error": "Strip Token prefix error".to_string()})),
-				)
-					.into_response();
+					return error_handler("Strip Token prefix error".to_string(), &state).await.into_response();
 			},
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
 			_ => {
-				update_health_status(&state, String::new()).await;
-				return (
-					StatusCode::UNPROCESSABLE_ENTITY,
-					Json(json!({"error": "Strip Token suffix error".to_string()})),
-				)
-					.into_response();
+					return error_handler("Strip Token suffix error".to_string(), &state).await.into_response();
 			},
 		}
 	}
@@ -276,9 +294,7 @@ pub async fn admin_backup_fetch_id(
 		Err(e) => {
 			let message =
 				format!("Error backup key shares : Authentication token is not parsable : {}", e);
-			warn!(message);
-			return (StatusCode::UNPROCESSABLE_ENTITY, Json(json!({ "error": message })))
-				.into_response();
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -287,13 +303,23 @@ pub async fn admin_backup_fetch_id(
 		backup_request.signature.clone(),
 		backup_request.auth_token.clone().as_bytes(),
 	) {
-		return Json(json!({"error": "Invalid Signature".to_string()})).into_response();
+		return error_handler("Invalid Signature".to_string(), &state).await.into_response();
 	}
 
 	debug!("Validating the authentication token");
-	if !auth_token.is_valid().await {
-		return Json(json!({"error": "Authentication Token is not valid, or expired".to_string()}))
-			.into_response();
+	let validity = auth_token.is_valid().await;
+	match validity {
+		ValidationResult::Success => debug!("AUthentication token is valid."),
+		_ => {
+			let message = format!("Authentication Token is not valid, or expired : {:?}", validity);
+			return error_handler(message, &state).await.into_response();
+		},
+	}
+
+	let hash = sha256::digest(backup_request.nftid_vec.as_bytes());
+
+	if auth_token.data_hash != hash {
+		return error_handler("Admin backup : Mismatch Data Hash".to_string(), &state).await.into_response();
 	}
 
 	let mut backup_file = "/temporary/backup.zip".to_string();
@@ -387,7 +413,7 @@ fn get_json_response(status: String, data: Vec<u8>) -> Json<Value> {
 pub async fn admin_backup_push_id(
 	State(state): State<SharedState>,
 	mut store_request: Multipart,
-) -> Json<Value> {
+) -> impl IntoResponse {
 	debug!("3-16 API : backup push bulk");
 	debug!("received request = {:?}", store_request);
 
@@ -404,17 +430,19 @@ pub async fn admin_backup_push_id(
 			let message =
 				format!("Error backup key shares : Can not parse request form-data : {}", e);
 			warn!(message);
-			return Json(json!({ "error": message }));
+			update_health_status(&state, String::new()).await;
+			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
 		},
 	} {
 		let name = match field.name() {
 			Some(name) => name.to_string(),
 			_ => {
-				info!("Admin restore :  field name : {:?}", field);
+				warn!("Admin restore :  field name : {:?}", field);
 
-				return Json(json!({
-						"error": format!("Admin restore : Error request field name {:?}", field),
-				}));
+				let message = format!("Admin restore : Error request field name {:?}", field);
+				update_health_status(&state, String::new()).await;
+				return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+					.into_response();
 			},
 		};
 
@@ -423,11 +451,13 @@ pub async fn admin_backup_push_id(
 				admin_address = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(e) => {
-						info!("Admin restore :  Error request admin_address {:?}", e);
+						warn!("Admin restore :  Error request admin_address {:?}", e);
 
-						return Json(json!({
-								"error": format!("Admin restore : Error request admin_address {:?}", e),
-						}));
+						let message =
+							format!("Admin restore : Error request admin_address {:?}", e);
+						update_health_status(&state, String::new()).await;
+						return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+							.into_response();
 					},
 				}
 			},
@@ -436,11 +466,12 @@ pub async fn admin_backup_push_id(
 				restore_file = match field.bytes().await {
 					Ok(bytes) => bytes.to_vec(),
 					Err(e) => {
-						info!("Admin restore :  Error request restore_file {:?}", e);
+						warn!("Admin restore :  Error request restore_file {:?}", e);
 
-						return Json(json!({
-								"error": format!("Admin restore : Error request restore_file {:?}", e),
-						}));
+						let message = format!("Admin restore : Error request restore_file {:?}", e);
+						update_health_status(&state, String::new()).await;
+						return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+							.into_response();
 					},
 				}
 			},
@@ -449,11 +480,12 @@ pub async fn admin_backup_push_id(
 				auth_token = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(e) => {
-						info!("Admin restore :  Error request auth_token {:?}", e);
+						warn!("Admin restore :  Error request auth_token {:?}", e);
 
-						return Json(json!({
-							"error": format!("Admin restore : Error request auth_token {:?}", e),
-						}));
+						let message = format!("Admin restore : Error request auth_token {:?}", e);
+						update_health_status(&state, String::new()).await;
+						return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+							.into_response();
 					},
 				}
 			},
@@ -463,29 +495,30 @@ pub async fn admin_backup_push_id(
 					Ok(sig) => match sig.strip_prefix("0x") {
 						Some(hexsig) => hexsig.to_owned(),
 						_ => {
-							info!("Admin restore :  Error request signature format, expectex 0x prefix, {sig}");
-
-							return Json(json!({
-									"error": format!("Admin restore : Error request signature format, expectex 0x prefix"),
-							}));
+							warn!("Admin restore :  Error request signature format, expectex 0x prefix, {sig}");
+							let message = "Admin restore : Error request signature format, expectex 0x prefix".to_string();
+							update_health_status(&state, String::new()).await;
+							return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+								.into_response();
 						},
 					},
 
 					Err(e) => {
-						info!("Admin restore :  Error request signature {:?}", e);
-
-						return Json(json!({
-								"error": format!("Admin restore : Error request signature {:?}", e),
-						}));
+						warn!("Admin restore :  Error request signature {:?}", e);
+						let message = format!("Admin restore : Error request signature {:?}", e);
+						update_health_status(&state, String::new()).await;
+						return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+							.into_response();
 					},
 				}
 			},
 
 			_ => {
-				info!("Error restore backup keyshares : Error request field name {:?}", field);
-				return Json(json!({
-						"error": format!("Admin restore : Error request field name {:?}", field),
-				}));
+				warn!("Error restore backup keyshares : Error request field name {:?}", field);
+				let message = format!("Admin restore : Error request field name {:?}", field);
+				update_health_status(&state, String::new()).await;
+				return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+					.into_response();
 			},
 		}
 	}
@@ -495,28 +528,37 @@ pub async fn admin_backup_push_id(
 
 		warn!(message);
 
-		return Json(json! ({
-			"error": message,
-		}));
+		update_health_status(&state, String::new()).await;
+		return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
 	}
 
 	if !verify_signature(&admin_address, signature.clone(), auth_token.clone().as_bytes()) {
 		warn!("Error restore backup keyshares : Invalid signature : admin = {}", admin_address);
 
-		return Json(json! ({
-			"error": "Invalid token signature",
-		}));
+		let message = "Invalid token signature".to_string();
+		update_health_status(&state, String::new()).await;
+		return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
 	}
 
 	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
 		auth_token = match auth_token.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => return Json(json! ({"error": "Admin restore : Strip Token prefix error"})),
+			_ => {
+				let message = "Strip Token prefix error".to_string();
+				update_health_status(&state, String::new()).await;
+				return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+					.into_response();
+			},
 		};
 
 		auth_token = match auth_token.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => return Json(json! ({"error": "Strip Token suffix error"})),
+			_ => {
+				let message = "Strip Token suffix error".to_string();
+				update_health_status(&state, String::new()).await;
+				return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+					.into_response();
+			},
 		}
 	}
 
@@ -525,26 +567,28 @@ pub async fn admin_backup_push_id(
 		Err(e) => {
 			let message = format!("Admin restore : Can not parse the authentication token : {}", e);
 			warn!(message);
-			return Json(json!({ "error": message }));
+			update_health_status(&state, String::new()).await;
+			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
 		},
 	};
 
-	if !token.is_valid().await {
-		warn!("Admin restore :  token expired : admin = {}", admin_address);
-
-		return Json(json! ({
-			"error": "Admin restore : Authentication Token Expired",
-		}));
+	let validity = token.is_valid().await;
+	match validity {
+		ValidationResult::Success => debug!("AUthentication token is valid."),
+		_ => {
+			let message = format!("Authentication Token is not valid, or expired : {:?}", validity);
+			update_health_status(&state, String::new()).await;
+			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
+		},
 	}
 
 	let hash = sha256::digest(restore_file.as_slice());
 
 	if token.data_hash != hash {
 		warn!("Admin restore :  mismatch data hash : admin = {}", admin_address);
-
-		return Json(json! ({
-			"error": "Admin restore : Mismatch Data Hash",
-		}));
+		let message = "Admin restore : Mismatch Data Hash".to_string();
+		update_health_status(&state, String::new()).await;
+		return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
 	}
 
 	let shared_state = state.read().await;
@@ -557,7 +601,9 @@ pub async fn admin_backup_push_id(
 		Err(e) => {
 			let message = format!("Admin restore :  Can not create file on disk : {}", e);
 			warn!(message);
-			return Json(json!({ "error": message }));
+			update_health_status(&state, String::new()).await;
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
+				.into_response();
 		},
 	};
 
@@ -565,10 +611,10 @@ pub async fn admin_backup_push_id(
 		Ok(_) => debug!("zip file is stored on disk."),
 		Err(e) => {
 			let message = format!("Admin restore :  writing zip file to disk{:?}", e);
-			error!(message);
-			return Json(json!({
-				"error": message,
-			}));
+			warn!(message);
+			update_health_status(&state, String::new()).await;
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
+				.into_response();
 		},
 	}
 	// TODO: Verify backup data befor writing them on the disk
@@ -577,28 +623,32 @@ pub async fn admin_backup_push_id(
 		Ok(_) => debug!("zip_extract success"),
 		Err(e) => {
 			let message = format!("Admin restore :  extracting zip file {:?}", e);
-			error!(message);
-			return Json(json!({
-				"error": message,
-			}));
+			warn!(message);
+			update_health_status(&state, String::new()).await;
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
+				.into_response();
 		},
 	}
 
 	match remove_file(backup_file) {
 		Ok(_) => debug!("remove zip file successful"),
 		Err(e) => {
-			return Json(json!({
-				"warning": format!("Backup success with Error in removing zip file, {:?}",e),
-			}))
+			let message = format!("Backup success with Error in removing zip file, {:?}", e);
+			warn!(message);
+			update_health_status(&state, String::new()).await;
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
+				.into_response();
 		},
 	};
 
 	// Update Enclave Account, if it is updated.
 	let enclave_account_file = "/nft/enclave_account.key";
 	if !std::path::Path::new(&enclave_account_file).exists() {
-		return Json(json!({
-			"error": format!("Admin restore : Encalve Account file not found"),
-		}));
+		let message = "Admin restore : Encalve Account file not found".to_string();
+		warn!(message);
+		update_health_status(&state, String::new()).await;
+		return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
+			.into_response();
 	};
 
 	debug!("Admin restore : Found Enclave Account, Importing it! : path: {}", enclave_account_file);
@@ -607,10 +657,10 @@ pub async fn admin_backup_push_id(
 		Ok(phrase) => phrase,
 		Err(err) => {
 			let message = format!("Admin restore : Error reading enclave account file: {:?}", err);
-			error!(message);
-			return Json(json!({
-				"error": message,
-			}));
+			warn!(message);
+			update_health_status(&state, String::new()).await;
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
+				.into_response();
 		},
 	};
 
@@ -620,10 +670,10 @@ pub async fn admin_backup_push_id(
 		Ok((keypair, _seed)) => keypair,
 		Err(err) => {
 			let message = format!("Admin restore : Error creating keypair from phrase: {:?}", err);
-			error!(message);
-			return Json(json!({
-				"error": message,
-			}));
+			warn!(message);
+			update_health_status(&state, String::new()).await;
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
+				.into_response();
 		},
 	};
 
@@ -638,9 +688,13 @@ pub async fn admin_backup_push_id(
 	//update_health_status(&state, String::new()).await;
 
 	// TODO : self-check extracted data
-	Json(json!({
-		"success": format!("Success restoring backups"),
-	}))
+	(
+		StatusCode::OK,
+		Json(json!({
+			"success": format!("Success restoring backups"),
+		})),
+	)
+		.into_response()
 }
 
 /* **********************
@@ -658,23 +712,31 @@ mod test {
 
 		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
 		let last_block_number = get_current_block_number().await.unwrap();
-		let hash = sha256::digest(Vec::<u8>::new().as_slice());
+		let nfts: Vec<u32> = vec![10, 200, 3000, 40000, 500000, 6000000];
+		let (_,aligned_nfts,_) = unsafe { nfts.align_to::<u8>() };
+		let hash = sha256::digest(aligned_nfts);
 
 		let auth = AuthenticationToken {
 			block_number: last_block_number,
 			block_validation: 10,
 			data_hash: hash,
 		};
+
 		let auth_bytes = serde_json::to_vec(&auth).unwrap();
 		let sig = admin_keypair.sign(&auth_bytes);
 		let sig_str = serde_json::to_string(&sig).unwrap();
 
-		let _request = FetchIdPacket {
+		let request = FetchIdPacket {
 			admin_address: admin_keypair.public().to_string(),
+			nftid_vec: serde_json::to_string(aligned_nfts).unwrap(),
 			auth_token: serde_json::to_string(&auth).unwrap(),
 			signature: sig_str,
-			nftid: todo!(),
 		};
+		
+		println!("{:#?}", request);
+
+
+
 	}
 
 	#[tokio::test]
