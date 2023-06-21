@@ -5,11 +5,11 @@
 use axum::{
 	body::{Bytes, StreamBody},
 	extract::{FromRequest, Multipart, State},
-	http::header,
+	http::{header, StatusCode},
 	response::IntoResponse,
 	Json,
 };
-use reqwest::StatusCode;
+
 use tokio_util::io::ReaderStream;
 
 use hex::{FromHex, FromHexError};
@@ -131,7 +131,7 @@ impl AuthenticationToken {
 			return ValidationResult::FutureBlockNumber;
 		}
 
-		return ValidationResult::Success;
+		ValidationResult::Success
 	}
 }
 
@@ -235,11 +235,10 @@ async fn update_health_status(state: &SharedState, message: String) {
 	debug!("Maintenance state is set.");
 }
 
-
-pub async fn error_handler(message: String, state: &SharedState) -> Json<Value> {
-		error!(message);
-		update_health_status(&state, String::new()).await;
-		return Json(json!({ "error": message }));
+pub async fn error_handler(message: String, state: &SharedState) -> impl IntoResponse {
+	error!(message);
+	update_health_status(state, String::new()).await;
+	(StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
 }
 
 /// Backup Key Shares
@@ -267,7 +266,7 @@ pub async fn admin_backup_fetch_id(
 			"Error backup key shares : Requester is not whitelisted : {}",
 			backup_request.admin_address
 		);
-		
+
 		return error_handler(message, &state).await.into_response();
 	}
 
@@ -277,14 +276,18 @@ pub async fn admin_backup_fetch_id(
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
 			_ => {
-					return error_handler("Strip Token prefix error".to_string(), &state).await.into_response();
+				return error_handler("Strip Token prefix error".to_string(), &state)
+					.await
+					.into_response();
 			},
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
 			_ => {
-					return error_handler("Strip Token suffix error".to_string(), &state).await.into_response();
+				return error_handler("Strip Token suffix error".to_string(), &state)
+					.await
+					.into_response();
 			},
 		}
 	}
@@ -319,9 +322,22 @@ pub async fn admin_backup_fetch_id(
 	let hash = sha256::digest(backup_request.nftid_vec.as_bytes());
 
 	if auth_token.data_hash != hash {
-		return error_handler("Admin backup : Mismatch Data Hash".to_string(), &state).await.into_response();
+		return error_handler("Admin backup : Mismatch Data Hash".to_string(), &state)
+			.await
+			.into_response();
 	}
 
+	let nft_slice: Vec<u8> = match serde_json::from_str(&backup_request.nftid_vec) {
+		Ok(nfts) => nfts,
+		Err(e) => {
+			let message = format!("unable to deserialize nftid vector : {:?}", e);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+
+	let (_, nftids, _) = unsafe { nft_slice.align_to::<Vec<u32>>() };
+
+	//let nftids =
 	let mut backup_file = "/temporary/backup.zip".to_string();
 	let counter = 1;
 	// remove previously generated backup
@@ -713,7 +729,7 @@ mod test {
 		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
 		let last_block_number = get_current_block_number().await.unwrap();
 		let nfts: Vec<u32> = vec![10, 200, 3000, 40000, 500000, 6000000];
-		let (_,aligned_nfts,_) = unsafe { nfts.align_to::<u8>() };
+		let (_, aligned_nfts, _) = unsafe { nfts.align_to::<u8>() };
 		let hash = sha256::digest(aligned_nfts);
 
 		let auth = AuthenticationToken {
@@ -732,11 +748,8 @@ mod test {
 			auth_token: serde_json::to_string(&auth).unwrap(),
 			signature: sig_str,
 		};
-		
+
 		println!("{:#?}", request);
-
-
-
 	}
 
 	#[tokio::test]
