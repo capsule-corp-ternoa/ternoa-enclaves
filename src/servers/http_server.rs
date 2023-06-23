@@ -37,7 +37,7 @@ use std::time::{Duration, SystemTime};
 
 use crate::{
 	backup::admin_bulk::{admin_backup_fetch_bulk, admin_backup_push_bulk},
-	backup::admin_nftid::{admin_backup_fetch_id, admin_backup_push_id},
+	backup::admin_nftid::{admin_backup_fetch_id},
 	sign::cosign,
 };
 
@@ -103,15 +103,13 @@ const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024;
 
 /// http server
 /// # Arguments
-/// * `domain` - domain name
-/// * `port` - port number
 /// * `identity` - identity
 /// * `seal_path` - seal path
 /// # Example
 /// ```
-/// http_server("localhost", 8080, "identity", "seal_path");
+/// http_server("identity", "seal_path");
 /// ```
-pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &str) {
+pub fn http_server(identity: &str, seal_path: &str) -> Result<Router, Error> {
 	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
 	let enclave_account_file = "/nft/enclave_account.key";
 
@@ -122,7 +120,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 			Ok(phrase) => phrase,
 			Err(err) => {
 				error!("Error reading enclave account file: {:?}", err);
-				return;
+				return Err(anyhow!(err));
 			},
 		};
 
@@ -170,9 +168,9 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 				debug!("2-1-3 created encalve keypair file successfully");
 				file_handle
 			},
-			Err(e) => {
-				debug!("2-1-3 failed to creat encalve keypair file, error : {:?}", e);
-				return;
+			Err(err) => {
+				error!("2-1-3 failed to creat encalve keypair file, error : {:?}", err);
+				return Err(anyhow!(err));
 			},
 		};
 
@@ -180,9 +178,9 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 			Ok(_) => {
 				debug!("2-1-4 write encalve keypair to file successfully");
 			},
-			Err(e) => {
-				debug!("2-1-4 write encalve keypair to file failed, error : {:?}", e);
-				return;
+			Err(err) => {
+				error!("2-1-4 write encalve keypair to file failed, error : {:?}", err);
+				return Err(anyhow!(err));
 			},
 		}
 
@@ -216,7 +214,6 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.route("/api/quote", get(ra_get_quote))
 		// CENTRALIZED BACKUP API
 		.route("/api/backup/fetch-id", post(admin_backup_fetch_id))
-		.route("/api/backup/push-id", post(admin_backup_push_id))
 		.route("/api/backup/fetch-bulk", post(admin_backup_fetch_bulk))
 		.route("/api/backup/push-bulk", post(admin_backup_push_bulk))
 		.layer(DefaultBodyLimit::max(CONTENT_LENGTH_LIMIT))
@@ -242,11 +239,7 @@ pub async fn http_server(domain: &str, port: &u16, identity: &str, seal_path: &s
 		.layer(CorsLayer::permissive())
 		.with_state(Arc::clone(&state_config));
 
-	debug!("2-3 Starting Server with routes");
-	match server_common::serve(http_app, domain, port).await {
-		Ok(_) => debug!("2-4 server exited successfully"),
-		Err(e) => error!("2-4 server exited with error : {:?}", e),
-	}
+	Ok(http_app)
 }
 
 /*  ------------------------------

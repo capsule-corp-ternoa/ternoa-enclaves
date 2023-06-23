@@ -1,20 +1,48 @@
+A tool to generate signed json body to be used for in Postman/cUrl requests to Ternoa sgx enclave API endpoints.
+
+
 ## Build
 Compile the binary for your desired chain, i.e dev-0, alphanet, mainnet
 
 default feature is alphanet.
 
-here is a smaple for dev-0 chain :
-
 ``` shell
-cargo build --release --no-default-features --features dev-0
+cargo build --release --no-default-features --features mainnet
 ``` 
 
-
 ## Run
-Run the program with a whitelisted seed-phrase and input zip-file 
 
+Options:
+
+  -s, --seed SEED-PHRASE &emsp;&emsp; Seed Phrase for Admin or NFT-Owner 
+
+  -a, --api-version API_VERSION  &emsp;&emsp;  Version of backup API i.e 0.2.0 , 0.3.0
+
+  -f, --file FILE-PATH  &emsp;&emsp;  Path to (ZIP-) File, containing sealed NFT key-shares backups
+
+  -n, --nftid NFTID  &emsp;&emsp;  NFT-ID for storing keyshares in enclave
+
+ 
+* Generate request for bulk backup
+  
 ``` shell
-./target/release/sgx_signer --seed "12 words seed of a whitelisted admin" --file <filepath> --nftid <u32>
+sgx_signer --seed "12 words seed of a whitelisted admin"
 ```
 
-The outputs are Signed Json body to be used in Postman/cUrl requests to enclave API endpoints.
+* Generate request for older version bulk backup
+  
+``` shell
+sgx_signer --seed "12 words seed of a whitelisted admin" --api-version 0.2.0 
+```
+
+* Generate request for restoring bulk backup
+  
+``` shell
+sgx_signer --seed "12 words seed of a whitelisted admin" --file /valid-path/backup.zip
+```
+
+* Generate request for restoring secret share of a nftid 
+  
+``` shell
+sgx_signer --seed "12 words seed of a whitelisted admin" --nftid 13098
+```
