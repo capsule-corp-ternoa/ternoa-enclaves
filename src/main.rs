@@ -1,5 +1,5 @@
 use clap::Parser;
-use tracing::{info, Level};
+use tracing::{debug, info, Level, error};
 use tracing_subscriber::FmtSubscriber;
 
 mod attestation;
@@ -84,7 +84,17 @@ async fn main() {
 
 	info!("1-4 Staring http-server");
 
-	http_server::http_server(&args.domain, &args.port, &args.identity, &args.sealpath).await;
+	let http_app = match http_server::http_server(&args.identity, &args.sealpath) {
+		Ok(app) => app,
+		Err(_e) => {
+			error!("Error creating http application, exiting.");
+			return
+		}, 
+	};
 
-	info!("1-5 http-server exited");
+	debug!("1-5 Starting Server with routes");
+	match servers::server_common::serve(http_app, &args.domain, &args.port).await {
+		Ok(_) => info!("Server exited successfully"),
+		Err(e) => error!("Server exited with error : {:?}", e),
+	}
 }
