@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
+	backup::zipdir::add_list_zip,
 	chain::core::get_current_block_number,
 	servers::http_server::{SharedState, StateConfig},
 };
@@ -75,19 +76,6 @@ pub struct FetchIdPacket {
 #[derive(Serialize)]
 pub struct FetchIdResponse {
 	data: String,
-	signature: String,
-}
-
-/* *************************************
-		STORE  BULK DATA STRUCTURES
-**************************************** */
-
-/// Store Bulk Packet
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StoreIdPacket {
-	admin_address: String,
-	restore_map: String,
-	auth_token: AuthenticationToken,
 	signature: String,
 }
 
@@ -219,11 +207,14 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 		Ok(pk) => match get_signature(signature) {
 			Ok(val) => sr25519::Pair::verify(&val, message, &pk),
 			Err(err) => {
-				debug!("Error generating pair {:?}", err);
+				debug!("Error get signature {:?}", err);
 				false
 			},
 		},
-		Err(_) => false,
+		Err(_) => {
+			debug!("Error get public key from account-id");
+			false
+		},
 	}
 }
 
@@ -258,7 +249,7 @@ pub async fn admin_backup_fetch_id(
 	Json(backup_request): Json<FetchIdPacket>,
 ) -> impl IntoResponse {
 	debug!("3-15 API : backup fetch bulk");
-
+	
 	update_health_status(&state, "Encalve is doing backup, please wait...".to_string()).await;
 
 	if !verify_account_id(&backup_request.admin_address) {
@@ -291,7 +282,7 @@ pub async fn admin_backup_fetch_id(
 			},
 		}
 	}
-
+	
 	let auth_token: AuthenticationToken = match serde_json::from_str(&auth) {
 		Ok(token) => token,
 		Err(e) => {
@@ -304,7 +295,7 @@ pub async fn admin_backup_fetch_id(
 	if !verify_signature(
 		&backup_request.admin_address,
 		backup_request.signature.clone(),
-		backup_request.auth_token.clone().as_bytes(),
+		backup_request.auth_token.as_bytes(),
 	) {
 		return error_handler("Invalid Signature".to_string(), &state).await.into_response();
 	}
@@ -312,7 +303,7 @@ pub async fn admin_backup_fetch_id(
 	debug!("Validating the authentication token");
 	let validity = auth_token.is_valid().await;
 	match validity {
-		ValidationResult::Success => debug!("AUthentication token is valid."),
+		ValidationResult::Success => debug!("Authentication token is valid."),
 		_ => {
 			let message = format!("Authentication Token is not valid, or expired : {:?}", validity);
 			return error_handler(message, &state).await.into_response();
@@ -327,17 +318,18 @@ pub async fn admin_backup_fetch_id(
 			.into_response();
 	}
 
-	let nft_slice: Vec<u8> = match serde_json::from_str(&backup_request.nftid_vec) {
-		Ok(nfts) => nfts,
+	let nftidv: Vec<u32> = match serde_json::from_str(&backup_request.nftid_vec) {
+		Ok(v) => v,
 		Err(e) => {
 			let message = format!("unable to deserialize nftid vector : {:?}", e);
 			return error_handler(message, &state).await.into_response();
 		},
 	};
 
-	let (_, nftids, _) = unsafe { nft_slice.align_to::<Vec<u32>>() };
+	let nftids: Vec<String> = nftidv.iter().map(|x| x.to_string()).collect::<Vec<String>>();
 
-	//let nftids =
+	// TODO::check nftids , is empty, are in range, ...
+
 	let mut backup_file = "/temporary/backup.zip".to_string();
 	let counter = 1;
 	// remove previously generated backup
@@ -363,7 +355,7 @@ pub async fn admin_backup_fetch_id(
 	drop(shared_state_read);
 
 	debug!("Start zippping file");
-	add_dir_zip(&seal_path, &backup_file);
+	add_list_zip(&seal_path, nftids, &backup_file);
 
 	// `File` implements `AsyncRead`
 	debug!("Opening backup file");
@@ -394,325 +386,6 @@ pub async fn admin_backup_fetch_id(
 	(headers, body).into_response()
 }
 
-/// Returns Json Response
-/// # Arguments
-/// * `status` - Status of the request
-/// * `data` - Data to be returned
-/// # Returns
-/// * `Json<Value>` - Json response
-/// # Example
-/// ```
-/// get_json_response("Successfull request".to_string(), data)
-/// ```
-fn get_json_response(status: String, data: Vec<u8>) -> Json<Value> {
-	Json(json!({
-		"status": status,
-		"data": data,
-	}))
-}
-
-/* ******************************
- BULK PUSH KEY_SHARES TO THIS ENCLAVE
-********************************* */
-/// Backup Key Shares
-/// This function is used to backup the key shares of the validators
-/// # Arguments
-/// * `state` - StateConfig
-/// * `store_request` - StoreBulkPacket
-/// # Returns
-/// * `Json` - BackupResponse
-/// # Example
-/// ```
-/// backup_key_shares(state, backup_request)
-/// ```
-#[axum::debug_handler]
-pub async fn admin_backup_push_id(
-	State(state): State<SharedState>,
-	mut store_request: Multipart,
-) -> impl IntoResponse {
-	debug!("3-16 API : backup push bulk");
-	debug!("received request = {:?}", store_request);
-
-	//update_health_status(&state, "Restoring the backups".to_string()).await;
-
-	let mut admin_address = String::new();
-	let mut restore_file = Vec::<u8>::new();
-	let mut auth_token = String::new();
-	let mut signature = String::new();
-
-	while let Some(field) = match store_request.next_field().await {
-		Ok(field) => field,
-		Err(e) => {
-			let message =
-				format!("Error backup key shares : Can not parse request form-data : {}", e);
-			warn!(message);
-			update_health_status(&state, String::new()).await;
-			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
-		},
-	} {
-		let name = match field.name() {
-			Some(name) => name.to_string(),
-			_ => {
-				warn!("Admin restore :  field name : {:?}", field);
-
-				let message = format!("Admin restore : Error request field name {:?}", field);
-				update_health_status(&state, String::new()).await;
-				return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
-					.into_response();
-			},
-		};
-
-		match name.as_str() {
-			"admin_address" => {
-				admin_address = match field.text().await {
-					Ok(bytes) => bytes,
-					Err(e) => {
-						warn!("Admin restore :  Error request admin_address {:?}", e);
-
-						let message =
-							format!("Admin restore : Error request admin_address {:?}", e);
-						update_health_status(&state, String::new()).await;
-						return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
-							.into_response();
-					},
-				}
-			},
-
-			"restore_file" => {
-				restore_file = match field.bytes().await {
-					Ok(bytes) => bytes.to_vec(),
-					Err(e) => {
-						warn!("Admin restore :  Error request restore_file {:?}", e);
-
-						let message = format!("Admin restore : Error request restore_file {:?}", e);
-						update_health_status(&state, String::new()).await;
-						return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
-							.into_response();
-					},
-				}
-			},
-
-			"auth_token" => {
-				auth_token = match field.text().await {
-					Ok(bytes) => bytes,
-					Err(e) => {
-						warn!("Admin restore :  Error request auth_token {:?}", e);
-
-						let message = format!("Admin restore : Error request auth_token {:?}", e);
-						update_health_status(&state, String::new()).await;
-						return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
-							.into_response();
-					},
-				}
-			},
-
-			"signature" => {
-				signature = match field.text().await {
-					Ok(sig) => match sig.strip_prefix("0x") {
-						Some(hexsig) => hexsig.to_owned(),
-						_ => {
-							warn!("Admin restore :  Error request signature format, expectex 0x prefix, {sig}");
-							let message = "Admin restore : Error request signature format, expectex 0x prefix".to_string();
-							update_health_status(&state, String::new()).await;
-							return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
-								.into_response();
-						},
-					},
-
-					Err(e) => {
-						warn!("Admin restore :  Error request signature {:?}", e);
-						let message = format!("Admin restore : Error request signature {:?}", e);
-						update_health_status(&state, String::new()).await;
-						return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
-							.into_response();
-					},
-				}
-			},
-
-			_ => {
-				warn!("Error restore backup keyshares : Error request field name {:?}", field);
-				let message = format!("Admin restore : Error request field name {:?}", field);
-				update_health_status(&state, String::new()).await;
-				return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
-					.into_response();
-			},
-		}
-	}
-
-	if !verify_account_id(&admin_address.clone()) {
-		let message = format!("Admin restore :  Requester is not whitelisted : {}", admin_address);
-
-		warn!(message);
-
-		update_health_status(&state, String::new()).await;
-		return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
-	}
-
-	if !verify_signature(&admin_address, signature.clone(), auth_token.clone().as_bytes()) {
-		warn!("Error restore backup keyshares : Invalid signature : admin = {}", admin_address);
-
-		let message = "Invalid token signature".to_string();
-		update_health_status(&state, String::new()).await;
-		return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
-	}
-
-	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
-		auth_token = match auth_token.strip_prefix("<Bytes>") {
-			Some(stripped) => stripped.to_owned(),
-			_ => {
-				let message = "Strip Token prefix error".to_string();
-				update_health_status(&state, String::new()).await;
-				return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
-					.into_response();
-			},
-		};
-
-		auth_token = match auth_token.strip_suffix("</Bytes>") {
-			Some(stripped) => stripped.to_owned(),
-			_ => {
-				let message = "Strip Token suffix error".to_string();
-				update_health_status(&state, String::new()).await;
-				return (StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
-					.into_response();
-			},
-		}
-	}
-
-	let token: AuthenticationToken = match serde_json::from_str(auth_token.as_str()) {
-		Ok(token) => token,
-		Err(e) => {
-			let message = format!("Admin restore : Can not parse the authentication token : {}", e);
-			warn!(message);
-			update_health_status(&state, String::new()).await;
-			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
-		},
-	};
-
-	let validity = token.is_valid().await;
-	match validity {
-		ValidationResult::Success => debug!("AUthentication token is valid."),
-		_ => {
-			let message = format!("Authentication Token is not valid, or expired : {:?}", validity);
-			update_health_status(&state, String::new()).await;
-			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
-		},
-	}
-
-	let hash = sha256::digest(restore_file.as_slice());
-
-	if token.data_hash != hash {
-		warn!("Admin restore :  mismatch data hash : admin = {}", admin_address);
-		let message = "Admin restore : Mismatch Data Hash".to_string();
-		update_health_status(&state, String::new()).await;
-		return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
-	}
-
-	let shared_state = state.read().await;
-	let seal_path = shared_state.get_seal_path();
-	let backup_file = seal_path.clone() + "backup.zip";
-	drop(shared_state);
-
-	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
-		Ok(file) => file,
-		Err(e) => {
-			let message = format!("Admin restore :  Can not create file on disk : {}", e);
-			warn!(message);
-			update_health_status(&state, String::new()).await;
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
-				.into_response();
-		},
-	};
-
-	match zipfile.write_all(&restore_file) {
-		Ok(_) => debug!("zip file is stored on disk."),
-		Err(e) => {
-			let message = format!("Admin restore :  writing zip file to disk{:?}", e);
-			warn!(message);
-			update_health_status(&state, String::new()).await;
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
-				.into_response();
-		},
-	}
-	// TODO: Verify backup data befor writing them on the disk
-	// Check if the enclave_account or keyshares are invalid
-	match zip_extract(&backup_file, &seal_path) {
-		Ok(_) => debug!("zip_extract success"),
-		Err(e) => {
-			let message = format!("Admin restore :  extracting zip file {:?}", e);
-			warn!(message);
-			update_health_status(&state, String::new()).await;
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
-				.into_response();
-		},
-	}
-
-	match remove_file(backup_file) {
-		Ok(_) => debug!("remove zip file successful"),
-		Err(e) => {
-			let message = format!("Backup success with Error in removing zip file, {:?}", e);
-			warn!(message);
-			update_health_status(&state, String::new()).await;
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
-				.into_response();
-		},
-	};
-
-	// Update Enclave Account, if it is updated.
-	let enclave_account_file = "/nft/enclave_account.key";
-	if !std::path::Path::new(&enclave_account_file).exists() {
-		let message = "Admin restore : Encalve Account file not found".to_string();
-		warn!(message);
-		update_health_status(&state, String::new()).await;
-		return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
-			.into_response();
-	};
-
-	debug!("Admin restore : Found Enclave Account, Importing it! : path: {}", enclave_account_file);
-
-	let phrase = match std::fs::read_to_string(enclave_account_file) {
-		Ok(phrase) => phrase,
-		Err(err) => {
-			let message = format!("Admin restore : Error reading enclave account file: {:?}", err);
-			warn!(message);
-			update_health_status(&state, String::new()).await;
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
-				.into_response();
-		},
-	};
-
-	debug!("Admin restore : Phrase read, converting it to keypair.");
-
-	let enclave_keypair = match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
-		Ok((keypair, _seed)) => keypair,
-		Err(err) => {
-			let message = format!("Admin restore : Error creating keypair from phrase: {:?}", err);
-			warn!(message);
-			update_health_status(&state, String::new()).await;
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
-				.into_response();
-		},
-	};
-
-	debug!("Admin restore : Keypair success");
-
-	let mut shared_state_write = state.write().await;
-	debug!("Admin restore : share-state is taken");
-	shared_state_write.set_key(enclave_keypair);
-	debug!("share-state Enclave Account updated");
-	drop(shared_state_write);
-
-	//update_health_status(&state, String::new()).await;
-
-	// TODO : self-check extracted data
-	(
-		StatusCode::OK,
-		Json(json!({
-			"success": format!("Success restoring backups"),
-		})),
-	)
-		.into_response()
-}
-
 /* **********************
 		 TEST
 ********************** */
@@ -721,69 +394,124 @@ pub async fn admin_backup_push_id(
 mod test {
 	use super::*;
 
+	use axum::{
+		body::Body,
+		extract::connect_info::MockConnectInfo,
+		http::{self, Request, StatusCode},
+		response::Html,
+		routing::post,
+		Router,
+	};
+
+	use serde_json::{json, Value};
+	use tracing::Level;
+	use tracing_subscriber::FmtSubscriber;
+	use std::net::SocketAddr;
+	use std::sync::Arc;
+	use tokio::net::TcpListener;
+	use tokio::sync::RwLock;
+	use tower::Service; // for `call`
+	use tower::ServiceExt; // for `oneshot` and `ready`
+
 	#[tokio::test]
 	async fn id_fetch_test() {
-		let seed_phrase: &str =
-			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
+		let subscriber = FmtSubscriber::builder().with_max_level(Level::DEBUG).finish();
+		tracing::subscriber::set_global_default(subscriber).expect("main: setting default subscriber failed");
+
+		let seed_phrase: &str = "hockey fine lawn number explain bench twenty blue range cover egg sibling";
 
 		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
 		let last_block_number = get_current_block_number().await.unwrap();
-		let nfts: Vec<u32> = vec![10, 200, 3000, 40000, 500000, 6000000];
-		let (_, aligned_nfts, _) = unsafe { nfts.align_to::<u8>() };
-		let hash = sha256::digest(aligned_nfts);
+		let nftids: &[u32] = &[10, 200, 3000, 40000, 500000, 6000000];
+
+		let nftids_str = serde_json::to_string(nftids).unwrap();
+		let hash = sha256::digest(nftids_str.as_bytes());
 
 		let auth = AuthenticationToken {
 			block_number: last_block_number,
-			block_validation: 10,
-			data_hash: hash,
-		};
-
-		let auth_bytes = serde_json::to_vec(&auth).unwrap();
-		let sig = admin_keypair.sign(&auth_bytes);
-		let sig_str = serde_json::to_string(&sig).unwrap();
-
-		let request = FetchIdPacket {
-			admin_address: admin_keypair.public().to_string(),
-			nftid_vec: serde_json::to_string(aligned_nfts).unwrap(),
-			auth_token: serde_json::to_string(&auth).unwrap(),
-			signature: sig_str,
-		};
-
-		println!("{:#?}", request);
-	}
-
-	#[tokio::test]
-	async fn id_restore_test() {
-		let seed_phrase: &str =
-			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
-
-		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
-
-		let mut zipdata = Vec::new();
-		let mut zipfile = std::fs::File::open("./test/test.zip").unwrap();
-		let _ = zipfile.read_to_end(&mut zipdata).unwrap();
-
-		let last_block_number = get_current_block_number().await.unwrap();
-
-		let hash = sha256::digest(zipdata.as_slice());
-
-		let auth = AuthenticationToken {
-			block_number: last_block_number,
-			block_validation: 10,
+			block_validation: 15,
 			data_hash: hash,
 		};
 
 		let auth_str = serde_json::to_string(&auth).unwrap();
 		let sig = admin_keypair.sign(auth_str.as_bytes());
 		let sig_str = format!("{}{:?}", "0x", sig);
+		
 
-		println!(
-			" Admin:\t\t {} \n Auth_Token:\t {} \n Signature:\t {} \n ",
-			admin_keypair.public(),
-			auth_str,
-			sig_str
-		);
+		let request = FetchIdPacket {
+			admin_address: admin_keypair.public().to_string(),
+			nftid_vec: nftids_str,
+			auth_token: auth_str,
+			signature: sig_str,
+		};
+
+		let request_body = serde_json::to_string(&request).unwrap();
+		println!("Request Body : {:#?}\n", request_body);
+
+		let (enclave_keypair, _, _) = sp_core::sr25519::Pair::generate_with_phrase(None);
+
+		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
+			enclave_keypair,
+			"/tmp/seal".to_owned(),
+			"Test-Enclave".to_string(),
+			String::new(),
+		)));
+
+		//let app = Router::new().route("/admin_backup_fetch_id", post(admin_backup_fetch_id)).with_state(state_config);
+		let mut app =
+			match crate::servers::http_server::http_server("Test-Enclave", "/tmp/seal") {
+				Ok(r) => r,
+				Err(err) => {
+					error!("Error creating http server {}", err);
+					return
+				}, 
+			};
+
+		let request1 = Request::builder()
+		.method(http::Method::GET)
+		.uri("/api/health")
+		.header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+		.body(Body::empty())
+		.unwrap();
+
+		let response = ServiceExt::<Request<Body>>::ready(&mut app)
+			.await
+			.unwrap()
+			.call(request1)
+			.await
+			.unwrap();
+		assert_eq!(response.status(), StatusCode::OK);
+
+		let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+		let body: Value = serde_json::from_slice(&body).unwrap();
+		println!("Health Check : {:#?}", body);
+
+		let request = Request::builder()
+			.method(http::Method::POST)
+			.uri("/api/backup/fetch-id")
+			.header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+			.body(Body::from(request_body))
+			.unwrap();
+
+		let response = ServiceExt::<Request<Body>>::ready(&mut app)
+			.await
+			.unwrap()
+			.call(request)
+			.await
+			.unwrap();
+		
+		assert_eq!(response.status(), StatusCode::OK);
+		
+		let (parts, body) = response.into_parts();
+        let body_bytes = hyper::body::to_bytes(body).await.unwrap();
+		
+		println!("parts header len {}",parts.headers.len());
+		println!("body len {}",body_bytes.len());
+
+		let mut file = File::create("/tmp/seal/ReceivedBackup.zip").unwrap();
+    	file.write_all(&body_bytes).unwrap();
 	}
+
 
 	#[test]
 	fn test_get_signature_valid() {
