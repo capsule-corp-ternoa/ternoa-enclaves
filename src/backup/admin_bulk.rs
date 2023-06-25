@@ -45,6 +45,9 @@ const BACKUP_WHITELIST: [&str; 3] = [
 	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
 ];
 
+const MAX_VALIDATION_PERIOD: u32 = 20;
+const MAX_BLOCK_VARIATION: u32 = 5;
+
 /* *************************************
 		FETCH  BULK DATA STRUCTURES
 **************************************** */
@@ -95,37 +98,59 @@ pub struct StoreBulkPacket {
 /* ----------------------------------
 AUTHENTICATION TOKEN IMPLEMENTATION
 ----------------------------------*/
+#[derive(Debug)]
+pub enum ValidationResult {
+	Success,
+	ErrorRpcCall,
+	ExpiredBlockNumber,
+	FutureBlockNumber,
+	InvalidPeriod,
+}
 
 /// Retrieving the stored Keyshare
 impl FetchAuthenticationToken {
-	pub async fn is_valid(&self) -> bool {
-		let last_block_number = match get_current_block_number().await {
-			Ok(number) => number,
-			Err(err) => {
-				error!("Failed to get current block number: {}", err);
-				return false;
-			},
-		};
+	pub fn is_valid(&self, last_block_number: u32) -> ValidationResult {
+		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
+			// for finalization delay
+			return ValidationResult::ExpiredBlockNumber;
+		}
 
-		(last_block_number > self.block_number - 3) // for finalization delay
-			&& (last_block_number < self.block_number + self.block_validation + 3) // validity period
-			&&  (self.block_validation < 20) // A finite validity period
+		if self.block_validation > MAX_VALIDATION_PERIOD {
+			// A finite validity period
+			return ValidationResult::InvalidPeriod;
+		}
+
+		if last_block_number
+			> self.block_number + self.block_validation + MAX_BLOCK_VARIATION
+		{
+			// validity period
+			return ValidationResult::FutureBlockNumber;
+		}
+
+		ValidationResult::Success
 	}
 }
 
 impl StoreAuthenticationToken {
-	pub async fn is_valid(&self) -> bool {
-		let last_block_number = match get_current_block_number().await {
-			Ok(number) => number,
-			Err(err) => {
-				error!("Failed to get current block number: {}", err);
-				return false;
-			},
-		};
+	pub fn is_valid(&self, last_block_number: u32) -> ValidationResult {
+		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
+			// for finalization delay
+			return ValidationResult::ExpiredBlockNumber;
+		}
 
-		(last_block_number > self.block_number - 3) // for finalization delay
-			&& (last_block_number < self.block_number + self.block_validation + 3) // validity period
-				&&  (self.block_validation < 20) // A finite validity period
+		if self.block_validation > MAX_VALIDATION_PERIOD {
+			// A finite validity period
+			return ValidationResult::InvalidPeriod;
+		}
+
+		if last_block_number
+			> self.block_number + self.block_validation + MAX_BLOCK_VARIATION
+		{
+			// validity period
+			return ValidationResult::FutureBlockNumber;
+		}
+
+		ValidationResult::Success
 	}
 }
 
@@ -294,10 +319,21 @@ pub async fn admin_backup_fetch_bulk(
 		return Json(json!({"error": "Invalid Signature".to_string()})).into_response();
 	}
 
+	let shared_state_read = state.read().await;
+	let seal_path = shared_state_read.get_seal_path();
+	let last_block_number = shared_state_read.get_current_block();
+	drop(shared_state_read);
+
 	debug!("Validating the authentication token");
-	if !auth_token.is_valid().await {
-		return Json(json!({"error": "Authentication Token is not valid, or expired".to_string()}))
+	let validation = auth_token.is_valid(last_block_number);
+	match  validation{
+		ValidationResult::Success => debug!("Authentication token is valid."),
+		_ => {
+			let message = format!("Authentication Token is not valid, or expired : {:?}", validation);
+			error!("Admin Backup Fetch Buld : {}", message);
+			return Json(json!({"error": message}))
 			.into_response();
+		},
 	}
 
 	let mut backup_file = "/temporary/backup.zip".to_string();
@@ -319,10 +355,6 @@ pub async fn admin_backup_fetch_bulk(
 			},
 		}
 	}
-
-	let shared_state_read = state.read().await;
-	let seal_path = shared_state_read.get_seal_path();
-	drop(shared_state_read);
 
 	debug!("Start zippping file");
 	add_dir_zip(&seal_path, &backup_file);
@@ -571,12 +603,19 @@ pub async fn admin_backup_push_bulk(
 		},
 	};
 
-	if !token.is_valid().await {
-		warn!("Admin restore :  token expired : admin = {}", admin_address);
+	let shared_state_read = state.read().await;
+	let seal_path = shared_state_read.get_seal_path();
+	let last_block_number = shared_state_read.get_current_block();
+	drop(shared_state_read);
 
-		return Json(json! ({
-			"error": "Admin restore : Authentication Token Expired",
-		}));
+	let validation = token.is_valid(last_block_number);
+	match validation {
+		ValidationResult::Success => debug!("Authentication token is valid."),
+		_ => {
+			let message = format!("Authentication Token is not valid, or expired : {:?}", validation);
+			error!("Admin restore :  token expired : {}", message);
+			return Json(json!({"error": message}));
+		},
 	}
 
 	let hash = sha256::digest(restore_file.as_slice());
@@ -589,10 +628,7 @@ pub async fn admin_backup_push_bulk(
 		}));
 	}
 
-	let shared_state = state.read().await;
-	let seal_path = shared_state.get_seal_path();
 	let backup_file = seal_path.clone() + "backup.zip";
-	drop(shared_state);
 
 	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
 		Ok(file) => file,
@@ -691,6 +727,8 @@ pub async fn admin_backup_push_bulk(
 
 #[cfg(test)]
 mod test {
+	use crate::chain::core::get_current_block_number_new_api;
+
 	use super::*;
 
 	#[tokio::test]
@@ -699,7 +737,7 @@ mod test {
 			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
 
 		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
-		let last_block_number = get_current_block_number().await.unwrap();
+		let last_block_number = get_current_block_number_new_api().await.unwrap();
 
 		let auth =
 			FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
@@ -725,7 +763,7 @@ mod test {
 		let mut zipfile = std::fs::File::open("./test/test.zip").unwrap();
 		let _ = zipfile.read_to_end(&mut zipdata).unwrap();
 
-		let last_block_number = get_current_block_number().await.unwrap();
+		let last_block_number = get_current_block_number_new_api().await.unwrap();
 
 		let hash = sha256::digest(zipdata.as_slice());
 

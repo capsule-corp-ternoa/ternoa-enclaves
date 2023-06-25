@@ -62,7 +62,7 @@ where
 				continue;
 			}
 		}
-		
+
 		// Write file or directory explicitly
 		// Some unzip tools unzip files with directory paths correctly, some do not!
 		if path.is_file() {

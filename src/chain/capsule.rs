@@ -95,7 +95,7 @@ pub async fn capsule_get_views(
 	let enclave_identity = shared_state.get_identity();
 	let enclave_sealpath = shared_state.get_seal_path();
 
-	let capsule_state = match get_onchain_nft_data(nft_id).await {
+	let capsule_state = match get_onchain_nft_data(state.clone(), nft_id).await {
 		Some(data) => data.state,
 		_ => {
 			info!(
@@ -231,7 +231,7 @@ pub async fn capsule_set_keyshare(
 	let enclave_sealpath = shared_state.get_seal_path();
 	let enclave_keypair = shared_state.get_key();
 
-	match request.verify_store_request("capsule").await {
+	match request.verify_store_request(state.clone(), "capsule").await {
 		// DATA-FILED IS VALID
 		Ok(verified_data) => {
 			// IS ENCLAVE SEAL-PATH READY?
@@ -309,7 +309,13 @@ pub async fn capsule_set_keyshare(
 			};
 
 			// Send extrinsic to Capsule-Pallet as Storage-Oracle
-			match capsule_keyshare_oracle(enclave_keypair.clone(), verified_data.nft_id).await {
+			match capsule_keyshare_oracle(
+				state.clone(),
+				enclave_keypair.clone(),
+				verified_data.nft_id,
+			)
+			.await
+			{
 				Ok(txh) => {
 					info!(
 						"Proof of storage has been sent to blockchain nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
@@ -452,7 +458,7 @@ pub async fn capsule_retrieve_keyshare(
 	let enclave_identity = shared_state.get_identity();
 	let enclave_sealpath = shared_state.get_seal_path();
 
-	match request.verify_retrieve_request("capsule").await {
+	match request.verify_retrieve_request(state.clone(), "capsule").await {
 		Ok(verified_data) => {
 			// DOES KEY-SHARE EXIST?
 			let file_path = enclave_sealpath.clone()
@@ -543,7 +549,7 @@ pub async fn capsule_retrieve_keyshare(
 				"capsule",
 			);
 
-			match get_current_block_number().await {
+			match get_current_block_number(state.clone()).await {
 				Ok(block_number) => {
 					let serialized_keyshare = StoreKeyshareData {
 						nft_id: verified_data.nft_id,
@@ -622,7 +628,7 @@ pub async fn capsule_remove_keyshare(
 	let enclave_sealpath = shared_state.get_seal_path();
 
 	// Check if CAPSULE is burnt
-	let capsule_status = match get_onchain_nft_data(request.nft_id).await {
+	let capsule_status = match get_onchain_nft_data(state.clone(), request.nft_id).await {
 		Some(_) => true, // not burnt
 		_ => false,      // burnt
 	};

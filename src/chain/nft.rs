@@ -223,7 +223,7 @@ pub async fn nft_get_views(
 	let enclave_identity = shared_state.get_identity();
 	let enclave_sealpath = shared_state.get_seal_path();
 
-	let nft_state = match get_onchain_nft_data(nft_id).await {
+	let nft_state = match get_onchain_nft_data(state.clone(), nft_id).await {
 		Some(data) => data.state,
 		_ => {
 			info!(
@@ -362,7 +362,7 @@ pub async fn nft_store_keyshare(
 	let enclave_sealpath = shared_state.get_seal_path();
 	let enclave_keypair = shared_state.get_key();
 
-	match request.verify_store_request("secret-nft").await {
+	match request.verify_store_request(state.clone(), "secret-nft").await {
 		Ok(verified_data) => {
 			if !std::path::Path::new(&enclave_sealpath).exists() {
 				let status = ReturnStatus::DATABASEFAILURE;
@@ -460,7 +460,7 @@ pub async fn nft_store_keyshare(
 			};
 
 			// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
-			match nft_keyshare_oracle(enclave_keypair, verified_data.nft_id).await {
+			match nft_keyshare_oracle(state.clone(), enclave_keypair, verified_data.nft_id).await {
 				Ok(txh) => {
 					let result = nft_keyshare_oracle_results(
 						enclave_sealpath,
@@ -616,7 +616,7 @@ pub async fn nft_retrieve_keyshare(
 	let enclave_identity = shared_state.get_identity();
 	let enclave_sealpath = shared_state.get_seal_path();
 
-	match request.verify_retrieve_request("secret-nft").await {
+	match request.verify_retrieve_request(state.clone(), "secret-nft").await {
 		Ok(verified_data) => {
 			let file_path =
 				enclave_sealpath.clone() + "nft_" + &verified_data.nft_id.to_string() + ".keyshare";
@@ -701,7 +701,7 @@ pub async fn nft_retrieve_keyshare(
 				"secret-nft",
 			);
 
-			match get_current_block_number().await {
+			match get_current_block_number(state.clone()).await {
 				Ok(block_number) => {
 					let serialized_keyshare = StoreKeyshareData {
 						nft_id: verified_data.nft_id,
@@ -785,7 +785,7 @@ pub async fn nft_remove_keyshare(
 	let enclave_identity = shared_state.get_identity();
 	let enclave_sealpath = shared_state.get_seal_path();
 
-	let nft_status = match get_onchain_nft_data(request.nft_id).await {
+	let nft_status = match get_onchain_nft_data(state.clone(), request.nft_id).await {
 		Some(_) => true, // not burnt
 		_ => false,      // burntd
 	};
