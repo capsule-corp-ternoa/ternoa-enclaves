@@ -93,17 +93,10 @@ pub enum ValidationResult {
 
 /// Retrieving the stored Keyshare
 impl AuthenticationToken {
-	pub async fn is_valid(&self) -> ValidationResult {
-		let last_block_number = match get_current_block_number().await {
-			Ok(number) => number,
-			Err(err) => {
-				error!("Failed to get current block number: {}", err);
-				return ValidationResult::ErrorRpcCall;
-			},
-		};
-
+	pub async fn is_valid(&self, last_block_number: u32) -> ValidationResult {
 		if last_block_number < self.block_number - (MAX_BLOCK_VARIATION as u32) {
 			// for finalization delay
+			debug!("last block number = {} < request block number = {}", last_block_number, self.block_number);
 			return ValidationResult::ExpiredBlockNumber;
 		}
 
@@ -249,7 +242,7 @@ pub async fn admin_backup_fetch_id(
 	Json(backup_request): Json<FetchIdPacket>,
 ) -> impl IntoResponse {
 	debug!("3-15 API : backup fetch bulk");
-	
+
 	update_health_status(&state, "Encalve is doing backup, please wait...".to_string()).await;
 
 	if !verify_account_id(&backup_request.admin_address) {
@@ -282,7 +275,7 @@ pub async fn admin_backup_fetch_id(
 			},
 		}
 	}
-	
+
 	let auth_token: AuthenticationToken = match serde_json::from_str(&auth) {
 		Ok(token) => token,
 		Err(e) => {
@@ -300,8 +293,13 @@ pub async fn admin_backup_fetch_id(
 		return error_handler("Invalid Signature".to_string(), &state).await.into_response();
 	}
 
+	let shared_state_read = state.read().await;
+	let seal_path = shared_state_read.get_seal_path();
+	let last_block_number = shared_state_read.get_current_block();
+	drop(shared_state_read);
+
 	debug!("Validating the authentication token");
-	let validity = auth_token.is_valid().await;
+	let validity = auth_token.is_valid(last_block_number).await;
 	match validity {
 		ValidationResult::Success => debug!("Authentication token is valid."),
 		_ => {
@@ -350,10 +348,6 @@ pub async fn admin_backup_fetch_id(
 		}
 	}
 
-	let shared_state_read = state.read().await;
-	let seal_path = shared_state_read.get_seal_path();
-	drop(shared_state_read);
-
 	debug!("Start zippping file");
 	add_list_zip(&seal_path, nftids, &backup_file);
 
@@ -392,6 +386,8 @@ pub async fn admin_backup_fetch_id(
 
 #[cfg(test)]
 mod test {
+	use crate::chain::core::{create_chain_api, get_chain_api, get_current_block_number_new_api};
+
 	use super::*;
 
 	use axum::{
@@ -404,24 +400,26 @@ mod test {
 	};
 
 	use serde_json::{json, Value};
-	use tracing::Level;
-	use tracing_subscriber::FmtSubscriber;
 	use std::net::SocketAddr;
 	use std::sync::Arc;
 	use tokio::net::TcpListener;
 	use tokio::sync::RwLock;
 	use tower::Service; // for `call`
-	use tower::ServiceExt; // for `oneshot` and `ready`
+	use tower::ServiceExt;
+	use tracing::Level;
+	use tracing_subscriber::FmtSubscriber; // for `oneshot` and `ready`
 
 	#[tokio::test]
 	async fn id_fetch_test() {
 		let subscriber = FmtSubscriber::builder().with_max_level(Level::DEBUG).finish();
-		tracing::subscriber::set_global_default(subscriber).expect("main: setting default subscriber failed");
+		tracing::subscriber::set_global_default(subscriber)
+			.expect("main: setting default subscriber failed");
 
-		let seed_phrase: &str = "hockey fine lawn number explain bench twenty blue range cover egg sibling";
+		let seed_phrase: &str =
+			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
 
 		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
-		let last_block_number = get_current_block_number().await.unwrap();
+		let last_block_number = get_current_block_number_new_api().await.unwrap();
 		let nftids: &[u32] = &[10, 200, 3000, 40000, 500000, 6000000];
 
 		let nftids_str = serde_json::to_string(nftids).unwrap();
@@ -436,7 +434,6 @@ mod test {
 		let auth_str = serde_json::to_string(&auth).unwrap();
 		let sig = admin_keypair.sign(auth_str.as_bytes());
 		let sig_str = format!("{}{:?}", "0x", sig);
-		
 
 		let request = FetchIdPacket {
 			admin_address: admin_keypair.public().to_string(),
@@ -448,6 +445,8 @@ mod test {
 		let request_body = serde_json::to_string(&request).unwrap();
 		println!("Request Body : {:#?}\n", request_body);
 
+		// Test environment
+
 		let (enclave_keypair, _, _) = sp_core::sr25519::Pair::generate_with_phrase(None);
 
 		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
@@ -455,24 +454,25 @@ mod test {
 			"/tmp/seal".to_owned(),
 			"Test-Enclave".to_string(),
 			String::new(),
+			create_chain_api().await.unwrap(),
 		)));
 
 		//let app = Router::new().route("/admin_backup_fetch_id", post(admin_backup_fetch_id)).with_state(state_config);
 		let mut app =
-			match crate::servers::http_server::http_server("Test-Enclave", "/tmp/seal") {
+			match crate::servers::http_server::http_server("Test-Enclave", "/tmp/seal").await {
 				Ok(r) => r,
 				Err(err) => {
 					error!("Error creating http server {}", err);
-					return
-				}, 
+					return;
+				},
 			};
 
 		let request1 = Request::builder()
-		.method(http::Method::GET)
-		.uri("/api/health")
-		.header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-		.body(Body::empty())
-		.unwrap();
+			.method(http::Method::GET)
+			.uri("/api/health")
+			.header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+			.body(Body::empty())
+			.unwrap();
 
 		let response = ServiceExt::<Request<Body>>::ready(&mut app)
 			.await
@@ -481,10 +481,12 @@ mod test {
 			.await
 			.unwrap();
 		assert_eq!(response.status(), StatusCode::OK);
-
 		let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
 		let body: Value = serde_json::from_slice(&body).unwrap();
-		println!("Health Check : {:#?}", body);
+		println!("Health Check Result: {:#?}", body);
+
+		info!("Wait for 5 seconds to update the block number between requests");
+		tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
 
 		let request = Request::builder()
 			.method(http::Method::POST)
@@ -499,19 +501,18 @@ mod test {
 			.call(request)
 			.await
 			.unwrap();
-		
+
 		assert_eq!(response.status(), StatusCode::OK);
-		
+
 		let (parts, body) = response.into_parts();
-        let body_bytes = hyper::body::to_bytes(body).await.unwrap();
-		
-		println!("parts header len {}",parts.headers.len());
-		println!("body len {}",body_bytes.len());
+		let body_bytes = hyper::body::to_bytes(body).await.unwrap();
+
+		println!("parts header len {}", parts.headers.len());
+		println!("body len {}", body_bytes.len());
 
 		let mut file = File::create("/tmp/seal/ReceivedBackup.zip").unwrap();
-    	file.write_all(&body_bytes).unwrap();
+		file.write_all(&body_bytes).unwrap();
 	}
-
 
 	#[test]
 	fn test_get_signature_valid() {
