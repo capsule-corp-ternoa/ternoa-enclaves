@@ -37,8 +37,10 @@ use tracing::{debug, error, info};
 )]
 
 pub mod ternoa {}
+use crate::servers::http_server::SharedState;
+
 use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
-type DefaultApi = OnlineClient<PolkadotConfig>;
+pub type DefaultApi = OnlineClient<PolkadotConfig>;
 
 #[derive(Serialize)]
 pub enum ReturnStatus {
@@ -51,7 +53,7 @@ pub enum ReturnStatus {
 /// Get the chain API
 /// # Returns
 /// * `DefaultApi` - The chain API
-pub async fn get_chain_api() -> Result<DefaultApi, Error> {
+pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	debug!("5-1 get chain API");
 
 	let rpc_endoint = if cfg!(feature = "mainnet") {
@@ -67,6 +69,11 @@ pub async fn get_chain_api() -> Result<DefaultApi, Error> {
 	DefaultApi::from_url(rpc_endoint).await
 }
 
+pub async fn get_chain_api(state: SharedState) -> DefaultApi {
+	let shared_state_read = state.read().await;
+	shared_state_read.get_rpc_client()
+}
+
 // -------------- TEST RPC QUERY --------------
 
 #[derive(Serialize)]
@@ -79,9 +86,27 @@ struct JsonRPC {
 /// Get the current block number
 /// # Returns
 /// * `u32` - The current block number
-pub async fn get_current_block_number() -> Result<u32, Error> {
+pub async fn get_current_block_number(state: SharedState) -> Result<u32, Error> {
 	debug!("current_block : get api");
-	let api = match get_chain_api().await {
+	let api = get_chain_api(state).await;
+
+	debug!("current_block : get block number");
+	let last_block = match api.blocks().at_latest().await {
+		Ok(last_block) => last_block,
+		Err(err) => {
+			error!("core : unable to get latest block : {}", err);
+			return Err(err);
+		},
+	};
+
+	Ok(last_block.number())
+}
+
+// --------------------------
+pub async fn get_current_block_number_new_api() -> Result<u32, Error> {
+	debug!("current_block : get api");
+
+	let api = match create_chain_api().await {
 		Ok(api) => api,
 		Err(err) => return Err(err),
 	};
@@ -106,7 +131,6 @@ pub async fn get_current_block_number() -> Result<u32, Error> {
 
 	Ok(last_block.block.header.number)
 }
-
 // -------------- TEST TRANSACTION --------------
 
 #[derive(Serialize)]
@@ -124,15 +148,9 @@ use sp_keyring::AccountKeyring;
 /// Get the NFT/Capsule data
 /// # Arguments
 /// * `nft_id` - The NFT/Capsule ID
-pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
+pub async fn get_onchain_nft_data(state: SharedState, nft_id: u32) -> Option<NFTData<AccountId32>> {
 	debug!("4-1 get chain NFT DATA");
-	let api = match get_chain_api().await {
-		Ok(api) => api,
-		Err(err) => {
-			error!("Failed to get chain API: {:?}", err);
-			return None;
-		},
-	};
+	let api = get_chain_api(state).await;
 
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
 
@@ -157,38 +175,30 @@ pub async fn get_onchain_nft_data(nft_id: u32) -> Option<NFTData<AccountId32>> {
 /// Get the NFT/Capsule delegatee
 /// # Arguments
 /// * `nft_id` - The NFT/Capsule ID
-pub async fn get_onchain_delegatee(nft_id: u32) -> Option<AccountId32> {
+pub async fn get_onchain_delegatee(state: SharedState, nft_id: u32) -> Option<AccountId32> {
 	debug!("4-2 get chain API");
 
-	match get_chain_api().await {
-		Ok(api) => {
-			let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
+	let api = get_chain_api(state).await;
 
-			let storage = match api.storage().at_latest().await {
-				Ok(storage) => storage,
-				Err(err) => {
-					error!("Failed to get storage: {:?}", err);
-					return None;
-				},
-			};
+	let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
 
-			match storage.fetch(&storage_address).await {
-				Ok(delegated) => delegated,
-				Err(err) => {
-					error!("Failed to fetch NFT data: {:?}", err);
-					None
-				},
-			}
-		},
+	let storage = match api.storage().at_latest().await {
+		Ok(storage) => storage,
 		Err(err) => {
-			error!("Failed to get chain API: {:?}", err);
+			error!("Failed to get storage: {:?}", err);
+			return None;
+		},
+	};
+
+	match storage.fetch(&storage_address).await {
+		Ok(delegated) => delegated,
+		Err(err) => {
+			error!("Failed to fetch NFT data: {:?}", err);
 			None
 		},
 	}
 
-	// let api = get_chain_api().await;
 	// let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
-	//
 	// api.storage().at_latest().await.unwrap().fetch(&storage_address).await.unwrap()
 }
 
@@ -221,37 +231,31 @@ RENT PALLET
 /// * `nft_id` - The NFT/Capsule ID
 /// # Returns
 /// * `Option<AccountId32>` - The rent contract
-pub async fn get_onchain_rent_contract(nft_id: u32) -> Option<AccountId32> {
+pub async fn get_onchain_rent_contract(state: SharedState, nft_id: u32) -> Option<AccountId32> {
 	debug!("4-3 get chain API");
 
-	match get_chain_api().await {
-		Ok(api) => {
-			let storage_address = ternoa::storage().rent().contracts(nft_id);
+	let api = get_chain_api(state).await;
 
-			let storage = match api.storage().at_latest().await {
-				Ok(storage) => storage,
-				Err(err) => {
-					error!("Failed to get storage: {:?}", err);
-					return None;
-				},
-			};
+	let storage_address = ternoa::storage().rent().contracts(nft_id);
 
-			match storage.fetch(&storage_address).await {
-				Ok(rent_contract) => match rent_contract {
-					Some(data) => data.rentee,
-					_ => {
-						error!("Failed to fetch NFT data: {:?}", rent_contract);
-						None
-					},
-				},
-				Err(err) => {
-					error!("Failed to fetch NFT data: {:?}", err);
-					None
-				},
-			}
+	let storage = match api.storage().at_latest().await {
+		Ok(storage) => storage,
+		Err(err) => {
+			error!("Failed to get storage: {:?}", err);
+			return None;
+		},
+	};
+
+	match storage.fetch(&storage_address).await {
+		Ok(rent_contract) => match rent_contract {
+			Some(data) => data.rentee,
+			_ => {
+				error!("Failed to fetch NFT data: {:?}", rent_contract);
+				None
+			},
 		},
 		Err(err) => {
-			error!("Failed to get chain API: {:?}", err);
+			error!("Failed to fetch NFT data: {:?}", err);
 			None
 		},
 	}
@@ -284,13 +288,7 @@ pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<Account
 	type AddressType = Address<StaticStorageMapKey, NFTData<AccountId32>, Yes, (), Yes>;
 	//StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
 
-	let api = match get_chain_api().await {
-		Ok(api) => api,
-		Err(err) => {
-			error!("Failed to get chain API: {:?}", err);
-			return Vec::new();
-		},
-	};
+	let api = create_chain_api().await.unwrap();
 
 	let nft_address: Vec<AddressType> =
 		nft_ids.iter().map(|id| ternoa::storage().nft().nfts(id)).collect();
@@ -317,36 +315,6 @@ struct JsonNFTData {
 	owner: String,
 	creator: String,
 	offchain_data: String,
-}
-
-/// Get the NFT/Capsule data
-/// # Arguments
-/// * `nft_id` - The NFT/Capsule ID
-/// # Returns
-/// * `impl IntoResponse` - The NFT/Capsule data
-pub async fn get_parse_nft_data(PathExtract(nft_id): PathExtract<u32>) -> impl IntoResponse {
-	let data = get_onchain_nft_data(nft_id).await;
-	match data {
-		Some(nft_data) => {
-			info!("NFT DATA of Num.{} : \n {}", nft_id, nft_data);
-
-			axum::Json(JsonNFTData {
-				status: ReturnStatus::RETRIEVESUCCESS,
-				nft_id,
-				owner: nft_data.owner.clone().to_string(),
-				creator: nft_data.creator.clone().to_string(),
-				offchain_data: "0x".to_string() + &hex::encode(nft_data.offchain_data.0),
-			})
-		},
-
-		None => axum::Json(JsonNFTData {
-			status: ReturnStatus::NFTNOTFOUND,
-			nft_id,
-			owner: String::from("Not Found"),
-			creator: String::from("Not Found"),
-			offchain_data: String::from("Not Found"),
-		}),
-	}
 }
 
 impl fmt::Display for NFTData<AccountId32> {
@@ -379,15 +347,13 @@ impl fmt::Display for NFTData<AccountId32> {
 /// # Returns
 /// * `Result<sp_core::H256, subxt::Error>` - The transaction hash
 pub async fn nft_keyshare_oracle(
+	state: SharedState,
 	keypair: sp_core::sr25519::Pair,
 	nft_id: u32,
 ) -> Result<sp_core::H256, subxt::Error> {
 	debug!("4-5 NFT ORACLE");
 
-	let api = match get_chain_api().await {
-		Ok(api) => api,
-		Err(e) => return Err(subxt::Error::Other(e.to_string())),
-	};
+	let api = get_chain_api(state).await;
 
 	// Submit Extrinsic
 	let signer = PairSigner::new(keypair);
@@ -413,27 +379,25 @@ pub async fn nft_keyshare_oracle(
 /// # Returns
 /// * `Result<sp_core::H256, subxt::Error>` - The transaction hash
 pub async fn capsule_keyshare_oracle(
+	state: SharedState,
 	keypair: sp_core::sr25519::Pair,
 	nft_id: u32,
 ) -> Result<sp_core::H256, subxt::Error> {
 	debug!("4-6 CAPSULE ORACLE");
 
-	match get_chain_api().await {
-		Ok(api) => {
-			// Submit Extrinsic
-			let signer = PairSigner::new(keypair);
+	let api = get_chain_api(state).await;
 
-			// Create a transaction to submit:
-			let tx = ternoa::tx().nft().add_capsule_shard(nft_id);
+	// Submit Extrinsic
+	let signer = PairSigner::new(keypair);
 
-			// submit the transaction with default params:
-			//api.tx().sign_and_submit_default(&tx, &signer).await
+	// Create a transaction to submit:
+	let tx = ternoa::tx().nft().add_capsule_shard(nft_id);
 
-			// With nonce
-			api.tx().create_signed(&tx, &signer, Default::default()).await?.submit().await
-		},
-		Err(e) => Err(subxt::Error::Other(e.to_string())),
-	}
+	// submit the transaction with default params:
+	//api.tx().sign_and_submit_default(&tx, &signer).await
+
+	// With nonce
+	api.tx().create_signed(&tx, &signer, Default::default()).await?.submit().await
 }
 
 /* **********************
@@ -447,7 +411,7 @@ mod test {
 	use std::time::Instant;
 
 	pub async fn get_constant() -> impl IntoResponse {
-		let api = get_chain_api().await.unwrap();
+		let api = create_chain_api().await.unwrap();
 		// Build a constant address to query:
 		let address = ternoa::constants().balances().existential_deposit();
 		// Look it up:
@@ -456,7 +420,7 @@ mod test {
 	}
 
 	pub async fn storage_query() -> impl IntoResponse {
-		let api = get_chain_api().await.unwrap();
+		let api = create_chain_api().await.unwrap();
 		let address = ternoa::storage().system().account_root();
 
 		let mut iter = api.storage().at_latest().await.unwrap().iter(address, 10).await.unwrap();
@@ -475,26 +439,11 @@ mod test {
 		let mut rng = thread_rng();
 		let nft_ids: Vec<u32> = (1..220).map(|_| rng.gen_range(100..11000)).collect();
 
-		// Concurrent (Avg. 0.3 ms/request)
+		// Concurrent (Avg. 0.3 ms/request on dev-0)
 		let start = Instant::now();
 		let nft_data_vec = get_nft_data_batch(nft_ids.clone()).await;
 		let elapsed_time = start.elapsed().as_micros();
 		println!("\nConcurrent time is {} microseconds", elapsed_time);
 		println!("Concurrent NFT Data : {:#?}", nft_data_vec[9].as_ref().unwrap().owner);
-	}
-
-	#[tokio::test]
-	async fn multiple_nft_test() {
-		let nft_ids = (200u32..250).collect::<Vec<u32>>();
-
-		// Single (Avg. 48 ms/request)
-		let mut nft_data = vec![get_onchain_nft_data(10).await];
-		let start = Instant::now();
-		for id in nft_ids.clone() {
-			nft_data.push(get_onchain_nft_data(id).await);
-		}
-		let elapsed_time = start.elapsed().as_micros();
-		println!("\nSingle time is {} microseconds", elapsed_time);
-		println!("Single NFT Data : {:#?}", nft_data[9].as_ref().unwrap().owner);
 	}
 }
