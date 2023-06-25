@@ -10,6 +10,7 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
+use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use axum::{
@@ -31,13 +32,13 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use anyhow::{anyhow, Error};
 use serde_json::{json, Value};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 
 use std::time::{Duration, SystemTime};
 
 use crate::{
 	backup::admin_bulk::{admin_backup_fetch_bulk, admin_backup_push_bulk},
-	backup::admin_nftid::{admin_backup_fetch_id},
+	backup::admin_nftid::admin_backup_fetch_id,
 	sign::cosign,
 };
 
@@ -52,6 +53,8 @@ pub struct StateConfig {
 	seal_path: String,
 	identity: String,
 	maintenance: String,
+	rpc_client: DefaultApi,
+	current_block: u32,
 }
 
 impl StateConfig {
@@ -60,8 +63,9 @@ impl StateConfig {
 		seal_path: String,
 		identity: String,
 		maintenance: String,
+		rpc_client: DefaultApi,
 	) -> StateConfig {
-		StateConfig { enclave_key, seal_path, identity, maintenance }
+		StateConfig { enclave_key, seal_path, identity, maintenance, rpc_client, current_block: 0 }
 	}
 
 	pub fn get_key(&self) -> sp_core::sr25519::Pair {
@@ -95,6 +99,18 @@ impl StateConfig {
 	pub fn set_maintenance(&mut self, message: String) {
 		self.maintenance = message;
 	}
+
+	pub fn get_rpc_client(&self) -> DefaultApi {
+		self.rpc_client.clone()
+	}
+
+	pub fn set_current_block(&mut self, block_number: u32) {
+		self.current_block = block_number;
+	}
+
+	pub fn get_current_block(&self) -> u32 {
+		self.current_block
+	}
 }
 
 pub type SharedState = Arc<RwLock<StateConfig>>;
@@ -109,7 +125,7 @@ const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024;
 /// ```
 /// http_server("identity", "seal_path");
 /// ```
-pub fn http_server(identity: &str, seal_path: &str) -> Result<Router, Error> {
+pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Error> {
 	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
 	let enclave_account_file = "/nft/enclave_account.key";
 
@@ -187,11 +203,20 @@ pub fn http_server(identity: &str, seal_path: &str) -> Result<Router, Error> {
 		keypair
 	};
 
+	let rpc = match create_chain_api().await {
+		Ok(api) => api,
+		Err(err) => {
+			error!("2-1-5 get online chain api, error : {:?}", err);
+			return Err(anyhow!(err));
+		},
+	};
+
 	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 		enclave_keypair,
 		seal_path.to_owned(),
 		identity.to_string(),
 		String::new(),
+		rpc.clone(),
 	)));
 
 	let _ = CorsLayer::new()
@@ -238,6 +263,39 @@ pub fn http_server(identity: &str, seal_path: &str) -> Result<Router, Error> {
 		.layer(monitor_layer)
 		.layer(CorsLayer::permissive())
 		.with_state(Arc::clone(&state_config));
+
+	tokio::spawn(async move {
+		// Subscribe to all finalized blocks:
+		let mut blocks_sub = match rpc.blocks().subscribe_finalized().await {
+			Ok(sub) => sub,
+			Err(e) => {
+				error!(" Unable to subscribe to finalized blocks {:?}", e);
+				return;
+			},
+		};
+
+		// For each new finalized block, get block number
+		while let Some(block) = blocks_sub.next().await {
+			let block = match block {
+				Ok(blk) => blk,
+				Err(e) => {
+					error!(" Unable to get finalized block {:?}", e);
+					continue;
+				},
+			};
+
+			let block_number = block.header().number;
+
+			let shared_state_write = &mut state_config.write().await;
+			trace!("Block Number Thread : got shared state to write.");
+
+			shared_state_write.set_current_block(block_number);
+			debug!("Block Number Thread : block_number state is set to {}", block_number);
+		}
+	});
+
+	info!("Wait for 3 seconds to update the block number");
+	tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
 	Ok(http_app)
 }
