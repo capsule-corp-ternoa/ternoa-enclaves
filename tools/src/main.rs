@@ -21,19 +21,19 @@ use subxt::{tx::PairSigner, utils::AccountId32, Error, OnlineClient, PolkadotCon
 
 #[cfg_attr(
 	feature = "mainnet",
-	subxt::subxt(runtime_metadata_path = "../../credentials/artifacts/ternoa_mainnet.scale")
+	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_mainnet.scale")
 )]
 #[cfg_attr(
 	feature = "alphanet",
-	subxt::subxt(runtime_metadata_path = "../../credentials/artifacts/ternoa_alphanet.scale")
+	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_alphanet.scale")
 )]
 #[cfg_attr(
 	feature = "dev-1",
-	subxt::subxt(runtime_metadata_path = "../../credentials/artifacts/ternoa_dev1.scale")
+	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev1.scale")
 )]
 #[cfg_attr(
 	feature = "dev-0",
-	subxt::subxt(runtime_metadata_path = "../../credentials/artifacts/ternoa_dev0.scale")
+	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev0.scale")
 )]
 
 pub mod ternoa {}
@@ -56,7 +56,7 @@ pub async fn get_chain_api() -> Result<DefaultApi, Error> {
 	} else if cfg!(feature = "dev-0") {
 		"wss://dev-0.ternoa.network:443".to_string()
 	} else {
-		return Err(Error::Other("Unknown chain".to_string()))
+		return Err(Error::Other("Unknown chain".to_string()));
 	};
 
 	println!("endpoint  = {rpc_endoint}\n");
@@ -80,11 +80,12 @@ pub async fn get_current_block_number() -> Result<u32, Error> {
 
 	let last_block = match api.rpc().block(Some(hash)).await {
 		Ok(Some(last_block)) => last_block,
-		Ok(None) =>
+		Ok(None) => {
 			return Err(subxt::Error::Io(std::io::Error::new(
 				std::io::ErrorKind::Other,
 				"Block not found",
-			))),
+			)))
+		},
 		Err(err) => return Err(err),
 	};
 
@@ -145,14 +146,18 @@ pub struct FetchBulkPacketOld {
 	signature: String,
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+	/// Request type : [retrieve, store] for secrets [fetch, restore] for backup
+	#[arg(short, long, default_value_t = String::new())]
+	request: String,
+
 	/// Seed Phrase for Admin or NFT-Owner
 	#[arg(short, long, default_value_t = String::new())]
 	seed: String,
 
-	/// Version of backup API i.e 0.2.0 , 0.3.0
+	/// Version of backup API, Used during Migration Times
 	#[arg(short, long, default_value_t = String::from("0.3.0"))]
 	api_version: String,
 
@@ -160,9 +165,25 @@ struct Args {
 	#[arg(short, long, default_value_t = String::new())]
 	file: String,
 
-	/// NFT-ID for storing keyshares in enclave
+	/// NFTID of the secret to be stored or retrived, If 'Custom-Data' option is present, this option will be ignored
 	#[arg(short, long, default_value_t = 0)]
 	nftid: u32,
+
+	/// Secret_data for storing keyshares in enclave
+	#[arg(short, long, default_value_t = String::new())]
+	secret_share: String,
+
+	/// BlockNumber (Optional)
+	#[arg(short, long, default_value_t = 0)]
+	block_number: u32,
+
+	/// Number of blocks after the current block number which after it, the request is invalid. (Optional)
+	#[arg(short, long, default_value_t = 15)]
+	expire: u8,
+
+	/// Custom Data, right format is "NFTID_SecretShare_CurrentBlockNumber_Expire"
+	#[arg(short, long, default_value_t = String::new())]
+	custom_data: String,
 }
 
 /* MAIN */
@@ -170,22 +191,29 @@ struct Args {
 async fn main() {
 	let args = Args::parse();
 
-	if std::path::Path::new(&args.file).exists() {
-		generate_push_bulk(args.seed.clone(), args.file).await;
-		return
-	}
-	
-	if args.nftid > 0 {
-		generate_retrieve_request(args.seed.clone(), args.nftid).await;
-		generate_store_request(args.seed, args.nftid).await;
-		return
+	if args.seed.is_empty() {
+		println!("\n Seed-phrase can not be empty! \n");
+		return;
 	}
 
-	match args.api_version.as_str() {
-		"0.2.0" | "0.1.0" => generate_fetch_bulk_old(args.seed.clone()).await,
-		_ => generate_fetch_bulk(args.seed.clone()).await,
+	if args.nftid > 0 || !args.custom_data.is_empty() {
+		match args.request.to_lowercase().as_str() {
+			"retrieve" => generate_retrieve_request(args.clone()).await,
+			"store" => generate_store_request(args).await,
+			_ => println!("\n Please provide a valid request type \n"),
+		}
+		return;
+	}else if std::path::Path::new(&args.file).exists() {
+		match args.request.to_lowercase().as_str() {
+			"restore" => generate_push_bulk(args.seed.clone(), args.file).await,
+			"fetch" => generate_fetch_bulk(args.seed.clone()).await,
+			_ => println!("\n Please provide a valid request type \n"),
+		}
+		return;
+	}else {
+		println!("\n Please provide either a NFTID or a Custom Data \n");
+		return;
 	}
-	
 }
 
 /* ************************
@@ -198,7 +226,7 @@ async fn generate_fetch_bulk(seed_phrase: String) {
 	let last_block_number = get_current_block_number().await.unwrap();
 
 	let admin_address = admin.public().to_ss58check();
-	let auth = FetchAuthenticationToken { block_number: last_block_number, block_validation: 15};
+	let auth = FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
 	let auth_str = serde_json::to_string(&auth).unwrap();
 	let signature = admin.sign(auth_str.as_bytes());
 
@@ -212,28 +240,6 @@ async fn generate_fetch_bulk(seed_phrase: String) {
 		"================================== Backup Fetch Bulk Packet = \n{}\n",
 		serde_json::to_string_pretty(&packet).unwrap()
 	);
-}
-
-/* ************************
- ADMIN FETCH BULK OLD
-*************************/
-
-async fn generate_fetch_bulk_old(seed_phrase: String) {
-	let admin = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
-
-	let last_block_number = get_current_block_number().await.unwrap();
-
-	let admin_address = admin.public().to_ss58check();
-	let auth = FetchAuthenticationToken { block_number: last_block_number, block_validation: 15 };
-	let signature = admin.sign(&serde_json::to_vec(&auth).unwrap());
-
-	let packet = FetchBulkPacketOld {
-		admin_address,
-		auth_token: auth,
-		signature: format!("{}{:?}", "0x", signature),
-	};
-
-	println!("================================== OLD Fetch Bulk Packet = \n{}\n", serde_json::to_string_pretty(&packet).unwrap());
 }
 
 /* ************************
@@ -254,7 +260,7 @@ async fn generate_push_bulk(seed_phrase: String, file_path: String) {
 
 	let auth = StoreAuthenticationToken {
 		block_number: last_block_number,
-		block_validation: 15,
+		block_validation: 10,
 		data_hash: hash,
 	};
 
@@ -308,18 +314,36 @@ pub struct StoreKeysharePacket {
 	pub signature: String,
 }
 
-async fn generate_store_request(seed_phrase: String, nftid: u32) {
-	let current_block_number = get_current_block_number().await.unwrap();
-	let owner = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
+async fn generate_store_request(args: Args) {
 
+	let owner = sr25519::Pair::from_phrase(&args.seed, None).unwrap().0;
 	let signer = sr25519::Pair::generate().0;
 
-	let signer_address = format!("{}_{}_15", signer.public().to_ss58check(), current_block_number);
+	let current_block_number = if args.block_number > 0 {
+		args.block_number
+	} else {
+		get_current_block_number().await.unwrap()
+	};
+
+	let signer_address =
+		format!("{}_{}_{}", signer.public().to_ss58check(), current_block_number, args.expire);
 	let signersig = owner.sign(signer_address.as_bytes());
-	let data = format!(
-		"{}_This-Is-My-Secret-Data-Which-Can-not-Contain-Any-UnderScore-(:-P)_{}_15",nftid,
-		current_block_number
-	);
+
+	let secret_share = if !args.secret_share.is_empty() {
+		args.secret_share
+	}else {
+		"This-is-a-Sample-Secret!@#$%^&*()1234567890".to_string()
+	};
+
+	let data = if !args.custom_data.is_empty() {
+		args.custom_data
+	} else {
+		format!(
+			"{}_{}_{}_{}",
+			args.nftid, secret_share, current_block_number, args.expire
+		)
+	};
+
 	let signature = signer.sign(data.as_bytes());
 
 	let packet = StoreKeysharePacket {
@@ -330,9 +354,11 @@ async fn generate_store_request(seed_phrase: String, nftid: u32) {
 		signature: format!("{}{:?}", "0x", signature),
 	};
 
-	println!("==================================  Secret Store Request = \n{}\n", serde_json::to_string_pretty(&packet).unwrap());
+	println!(
+		"\n==================================  Secret Store Request = \n{}\n",
+		serde_json::to_string_pretty(&packet).unwrap()
+	);
 }
-
 
 #[derive(Serialize, Debug, Clone, Copy)]
 pub enum RequesterType {
@@ -350,11 +376,20 @@ pub struct RetrieveKeysharePacket {
 	pub signature: String,
 }
 
-async fn generate_retrieve_request(seed_phrase: String, nftid: u32) {
-	let current_block_number = get_current_block_number().await.unwrap();
-	let owner = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
+async fn generate_retrieve_request(args: Args) {
+	if args.nftid == 0 && args.custom_data.is_empty() {
+		println!("\n NFTID is unknown! \n");
+		return;
+	}
 
-	let data = format!("{}_{}_15", nftid, current_block_number);
+	let current_block_number = get_current_block_number().await.unwrap();
+	let owner = sr25519::Pair::from_phrase(&args.seed, None).unwrap().0;
+
+	let data = if !args.custom_data.is_empty() {
+		args.custom_data
+	} else {
+		format!("{}_{}_{}", args.nftid, current_block_number, args.expire)
+	};
 
 	let signature = owner.sign(data.as_bytes());
 
@@ -365,5 +400,8 @@ async fn generate_retrieve_request(seed_phrase: String, nftid: u32) {
 		signature: format!("{}{:?}", "0x", signature),
 	};
 
-	println!("==================================  Secret Retrieve Request = \n{}\n", serde_json::to_string_pretty(&packet).unwrap());
+	println!(
+		"\n==================================  Secret Retrieve Request = \n{}\n",
+		serde_json::to_string_pretty(&packet).unwrap()
+	);
 }
