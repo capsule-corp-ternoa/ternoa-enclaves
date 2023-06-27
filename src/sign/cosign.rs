@@ -6,7 +6,7 @@ use sigstore::crypto::{
 };
 use tracing::error;
 
-use crate::servers::http_server::downloader;
+use crate::servers::binary_check::downloader;
 
 fn _import_skey(path: &str, pass: &str) -> SigStoreSigner {
 	// Imported encrypted PEM encoded private key as SigStoreKeyPair.
