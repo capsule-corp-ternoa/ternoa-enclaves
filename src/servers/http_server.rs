@@ -39,7 +39,6 @@ use std::time::{Duration, SystemTime};
 use crate::{
 	backup::admin_bulk::{admin_backup_fetch_bulk, admin_backup_push_bulk},
 	backup::admin_nftid::admin_backup_fetch_id,
-	sign::cosign,
 };
 
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
@@ -55,6 +54,7 @@ pub struct StateConfig {
 	maintenance: String,
 	rpc_client: DefaultApi,
 	current_block: u32,
+	binary_version: String,
 }
 
 impl StateConfig {
@@ -64,8 +64,17 @@ impl StateConfig {
 		identity: String,
 		maintenance: String,
 		rpc_client: DefaultApi,
+		binary_version: String,
 	) -> StateConfig {
-		StateConfig { enclave_key, seal_path, identity, maintenance, rpc_client, current_block: 0 }
+		StateConfig {
+			enclave_key,
+			seal_path,
+			identity,
+			maintenance,
+			rpc_client,
+			current_block: 0,
+			binary_version,
+		}
 	}
 
 	pub fn get_key(&self) -> sp_core::sr25519::Pair {
@@ -110,6 +119,10 @@ impl StateConfig {
 
 	pub fn get_current_block(&self) -> u32 {
 		self.current_block
+	}
+
+	pub fn get_binary_version(&self) -> String {
+		self.binary_version.clone()
 	}
 }
 
@@ -217,6 +230,7 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 		identity.to_string(),
 		String::new(),
 		rpc.clone(),
+		"0.4.0".to_string(),
 	)));
 
 	let _ = CorsLayer::new()
@@ -336,9 +350,8 @@ async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
 /// Health check endpoint
 async fn get_health_status(State(state): State<SharedState>) -> impl IntoResponse {
 	debug!("3-3 Healthchek handler.");
-	let shared_state = state.read().await;
 
-	match evalueate_health_status(shared_state.get_key(), shared_state.get_maintenance()) {
+	match evalueate_health_status(state).await {
 		Some(response) => {
 			debug!("3-3-1 Healthchek exit successfully .");
 			response.into_response()
@@ -362,6 +375,11 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 
+	let shared_state = state.read().await;
+	let block_number = shared_state.get_current_block();
+	let enclave_key = shared_state.get_key();
+	let binary_version = shared_state.get_binary_version();
+
 	debug!("3-3-4 healthcheck : get public key.");
 
 	let pubkey: [u8; 32] = match enclave_key.as_ref().to_bytes()[64..].try_into() {
@@ -377,12 +395,15 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 
 	let enclave_address = sp_core::sr25519::Public::from_raw(pubkey);
 
+	let maintenance = shared_state.get_maintenance();
 	if !maintenance.is_empty() {
 		return Some((
 			StatusCode::PROCESSING,
 			Json(json!({
 				"status": 500,
 				"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
+				"block_number": block_number,
+				"version": binary_version,
 				"description": maintenance,
 				"enclave_address": enclave_address,
 			})),
@@ -394,6 +415,8 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 		Json(json!({
 			"status": 200,
 			"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
+			"block_number": block_number,
+			"version": binary_version,
 			"description": "SGX server is running!".to_string(),
 			"enclave_address": enclave_address,
 		})),

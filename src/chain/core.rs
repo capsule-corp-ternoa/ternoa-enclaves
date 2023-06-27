@@ -50,7 +50,8 @@ pub enum ReturnStatus {
 }
 
 // -------------- CHAIN API --------------
-/// Get the chain API
+
+/// Creates a new chain API
 /// # Returns
 /// * `DefaultApi` - The chain API
 pub async fn create_chain_api() -> Result<DefaultApi, Error> {
@@ -69,19 +70,15 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	DefaultApi::from_url(rpc_endoint).await
 }
 
+/// Get the current block number
+/// # Returns
+/// * `u32` - The current block number
 pub async fn get_chain_api(state: SharedState) -> DefaultApi {
 	let shared_state_read = state.read().await;
 	shared_state_read.get_rpc_client()
 }
 
-// -------------- TEST RPC QUERY --------------
-
-#[derive(Serialize)]
-struct JsonRPC {
-	status: ReturnStatus,
-	input: String,
-	output: String,
-}
+// -------------- BLOCK NUMBER --------------
 
 /// Get the current block number
 /// # Returns
@@ -102,7 +99,10 @@ pub async fn get_current_block_number(state: SharedState) -> Result<u32, Error> 
 	Ok(last_block.number())
 }
 
-// --------------------------
+/// Get the current block number by creating new chain API and reading the blockchain
+/// # Returns
+/// * `u32` - The current block number
+
 pub async fn get_current_block_number_new_api() -> Result<u32, Error> {
 	debug!("current_block : get api");
 
@@ -131,20 +131,9 @@ pub async fn get_current_block_number_new_api() -> Result<u32, Error> {
 
 	Ok(last_block.block.header.number)
 }
-// -------------- TEST TRANSACTION --------------
-
-#[derive(Serialize)]
-struct JsonTX {
-	status: u16,
-	amount: u128,
-	sender: String,
-	receiver: String,
-	tx_hash: String,
-}
-
-use sp_keyring::AccountKeyring;
 
 // -------------- GET NFT/CAPSULE DATA --------------
+
 /// Get the NFT/Capsule data
 /// # Arguments
 /// * `nft_id` - The NFT/Capsule ID
@@ -172,6 +161,7 @@ pub async fn get_onchain_nft_data(state: SharedState, nft_id: u32) -> Option<NFT
 }
 
 // -------------- GET DELGATEE --------------
+
 /// Get the NFT/Capsule delegatee
 /// # Arguments
 /// * `nft_id` - The NFT/Capsule ID
@@ -197,34 +187,7 @@ pub async fn get_onchain_delegatee(state: SharedState, nft_id: u32) -> Option<Ac
 			None
 		},
 	}
-
-	// let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
-	// api.storage().at_latest().await.unwrap().fetch(&storage_address).await.unwrap()
 }
-
-/*
-RENT PALLET
-{
-	/// Start block of the contract.
-	pub start_block: Option<BlockNumber>,
-	/// Renter of the NFT.
-	pub renter: AccountId,
-	/// Rentee of the NFT.
-	pub rentee: Option<AccountId>,
-	/// Duration of the renting contract.
-	pub duration: Duration<BlockNumber>,
-	/// Acceptance type of the renting contract.
-	pub acceptance_type: AcceptanceType<AccountList<AccountId, AccountSizeLimit>>,
-	/// Renter can cancel.
-	pub renter_can_revoke: bool,
-	/// Rent fee paid by rentee.
-	pub rent_fee: RentFee<Balance>,
-	/// Optional cancellation fee for renter.
-	pub renter_cancellation_fee: CancellationFee<Balance>,
-	/// Optional cancellation fee for rentee.
-	pub rentee_cancellation_fee: CancellationFee<Balance>,
-}
-*/
 
 /// Get the NFT/Capsule rent contract
 /// # Arguments
@@ -260,6 +223,8 @@ pub async fn get_onchain_rent_contract(state: SharedState, nft_id: u32) -> Optio
 		},
 	}
 }
+
+// -------------- BATCH/CONCURRENT --------------
 
 // Concurrent NFT Data
 
@@ -305,8 +270,6 @@ pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<Account
 
 	join_result.into_iter().map(|jr| jr.unwrap()).collect()
 }
-
-// -------------- GET NFT DATA --------------
 
 #[derive(Serialize)]
 struct JsonNFTData {

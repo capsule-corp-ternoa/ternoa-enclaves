@@ -96,7 +96,10 @@ impl AuthenticationToken {
 	pub async fn is_valid(&self, last_block_number: u32) -> ValidationResult {
 		if last_block_number < self.block_number - (MAX_BLOCK_VARIATION as u32) {
 			// for finalization delay
-			debug!("last block number = {} < request block number = {}", last_block_number, self.block_number);
+			debug!(
+				"last block number = {} < request block number = {}",
+				last_block_number, self.block_number
+			);
 			return ValidationResult::ExpiredBlockNumber;
 		}
 
@@ -455,6 +458,7 @@ mod test {
 			"Test-Enclave".to_string(),
 			String::new(),
 			create_chain_api().await.unwrap(),
+			"0.3.0".to_string(),
 		)));
 
 		//let app = Router::new().route("/admin_backup_fetch_id", post(admin_backup_fetch_id)).with_state(state_config);

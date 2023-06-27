@@ -7,7 +7,6 @@ mod backup;
 mod chain;
 mod servers;
 mod sign;
-use servers::http_server;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -39,7 +38,7 @@ struct Args {
 async fn main() {
 	info!("1-1 Main function started self-check.");
 
-	match http_server::self_checksig() {
+	match servers::binary_check::self_checksig() {
 		Ok(str) => {
 			if str == "Successful" {
 				info!("Binary verification successful.");
@@ -84,7 +83,7 @@ async fn main() {
 
 	info!("1-4 Staring http-server");
 
-	let http_app = match http_server::http_server(&args.identity, &args.sealpath).await {
+	let http_app = match servers::http_server::http_server(&args.identity, &args.sealpath).await {
 		Ok(app) => app,
 		Err(_e) => {
 			error!("Error creating http application, exiting.");
