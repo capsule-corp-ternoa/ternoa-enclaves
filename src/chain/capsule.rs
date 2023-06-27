@@ -1,6 +1,6 @@
 use crate::servers::http_server::SharedState;
 
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
 
 use std::{
@@ -51,14 +51,20 @@ pub async fn is_capsule_available(
 	if std::path::Path::new(&file_path).exists() {
 		info!("Availability check : path checked, path: {}", file_path);
 
-		Json(json!({"enclave_id": enclave_identity, "nft_id": nft_id, "exists": true}))
+		(
+			StatusCode::OK,
+			Json(json!({"enclave_id": enclave_identity, "nft_id": nft_id, "exists": true})),
+		)
 	} else {
 		info!(
 			"Availability check : capsule key-share does not exist, Capsule nft_id : {}, path : {}",
 			nft_id, file_path
 		);
 
-		Json(json!({"enclave_id": enclave_identity, "nft_id": nft_id, "exists": false}))
+		(
+			StatusCode::OK,
+			Json(json!({"enclave_id": enclave_identity, "nft_id": nft_id, "exists": false})),
+		)
 	}
 }
 
@@ -98,65 +104,77 @@ pub async fn capsule_get_views(
 	let capsule_state = match get_onchain_nft_data(state.clone(), nft_id).await {
 		Some(data) => data.state,
 		_ => {
-			info!(
+			error!(
 				"Error retrieving capsule-nft shares access-log : nft_id.{} does not exist",
 				nft_id
 			);
-			return Json(CapsuleViewResponse {
-				enclave_id: enclave_identity,
-				nft_id,
-				log: LogFile::new(),
-				description: "nft_id does not exist.".to_string(),
-			});
+			return (
+				StatusCode::NOT_FOUND,
+				Json(CapsuleViewResponse {
+					enclave_id: enclave_identity,
+					nft_id,
+					log: LogFile::new(),
+					description: "nft_id does not exist.".to_string(),
+				}),
+			);
 		},
 	};
 
 	if !capsule_state.is_capsule {
-		info!(
+		error!(
 			"Error retrieving capsule-nft shares access-log : nft_id.{} is not a capsule-nft",
 			nft_id
 		);
 
-		return Json(CapsuleViewResponse {
-			enclave_id: enclave_identity,
-			nft_id,
-			log: LogFile::new(),
-			description: "nft_id is not a capsule-nft".to_string(),
-		});
+		return (
+			StatusCode::NOT_ACCEPTABLE,
+			Json(CapsuleViewResponse {
+				enclave_id: enclave_identity,
+				nft_id,
+				log: LogFile::new(),
+				description: "nft_id is not a capsule-nft".to_string(),
+			}),
+		);
 	}
 
 	let file_path = enclave_sealpath + &nft_id.to_string() + ".log";
 
 	// CHECK LOG-FILE PATH
 	if !std::path::Path::new(&file_path).exists() {
-		info!(
+		error!(
 			"Error retrieving Capsule key-share access-log : log path does not exist, Capsule nft_id : {}, path : {}",
 			nft_id, file_path
 		);
 
-		return Json(CapsuleViewResponse {
-			enclave_id: enclave_identity,
-			nft_id,
-			log: LogFile::new(),
-			description: "Capsule nft_id does not exist on this enclave".to_string(),
-		});
+		return (
+			StatusCode::NOT_FOUND,
+			Json(CapsuleViewResponse {
+				enclave_id: enclave_identity,
+				nft_id,
+				log: LogFile::new(),
+				description: "Capsule nft_id does not exist on this enclave".to_string(),
+			}),
+		);
 	};
 
 	// OPEN LOG-FILE
 	let mut log_file = match OpenOptions::new().read(true).open(file_path.clone()) {
 		Ok(f) => f,
 		Err(_) => {
-			info!(
+			error!(
 				"Error retrieving Capsule key-share access-log : can not open the log file, Capsule nft_id : {}, path : {}",
 				nft_id, file_path
 			);
 
-			return Json(CapsuleViewResponse {
-				enclave_id: enclave_identity,
-				nft_id,
-				log: LogFile::new(),
-				description: "can not retrieve the log of capsule views".to_string(),
-			});
+			return (
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(CapsuleViewResponse {
+					enclave_id: enclave_identity,
+					nft_id,
+					log: LogFile::new(),
+					description: "can not retrieve the log of capsule views".to_string(),
+				}),
+			);
 		},
 	};
 
@@ -168,42 +186,52 @@ pub async fn capsule_get_views(
 
 			match serde_json::from_str(&log_data) {
 				Ok(log) => {
-					info!("successfully deserialized log file for nft_id : {}", nft_id);
-					Json(CapsuleViewResponse {
-						enclave_id: enclave_identity,
-						nft_id,
-						log,
-						description: "successful".to_string(),
-					})
+					error!("successfully deserialized log file for nft_id : {}", nft_id);
+
+					(
+						StatusCode::OK,
+						Json(CapsuleViewResponse {
+							enclave_id: enclave_identity,
+							nft_id,
+							log,
+							description: "successful".to_string(),
+						}),
+					)
 				},
 				Err(_) => {
-					info!(
+					error!(
 						"Error retrieving Capsule key-share access-log : can not deserialize the log file, Capsule nft_id : {}, path : {}",
 						nft_id, file_path
 					);
 
-					Json(CapsuleViewResponse {
-						enclave_id: enclave_identity,
-						nft_id,
-						log: LogFile::new(),
-						description: "can not deserialize the log of capsule views".to_string(),
-					})
+					(
+						StatusCode::UNPROCESSABLE_ENTITY,
+						Json(CapsuleViewResponse {
+							enclave_id: enclave_identity,
+							nft_id,
+							log: LogFile::new(),
+							description: "can not deserialize the log of capsule views".to_string(),
+						}),
+					)
 				},
 			}
 		},
 
 		Err(_) => {
-			info!(
+			error!(
 				"Error retrieving Capsule key-share access-log : can not read the log file, Capsule nft_id : {}, path : {}",
 				nft_id, file_path
 			);
 
-			Json(CapsuleViewResponse {
-				enclave_id: enclave_identity,
-				nft_id,
-				log: LogFile::new(),
-				description: "Error reading the log of capsule views".to_string(),
-			})
+			(
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(CapsuleViewResponse {
+					enclave_id: enclave_identity,
+					nft_id,
+					log: LogFile::new(),
+					description: "Error reading the log of capsule views".to_string(),
+				}),
+			)
 		},
 	}
 }
@@ -244,14 +272,17 @@ pub async fn capsule_set_keyshare(
 					enclave_sealpath
 				);
 
-				info!("{}, requester : {}", description, request.owner_address);
+				error!("{}, requester : {}", description, request.owner_address);
 
-				return Json(json!({
-					"status": status,
-					"nft_id": verified_data.nft_id,
-					"enclave_id": enclave_identity,
-					"description": description,
-				}));
+				return (
+					StatusCode::INTERNAL_SERVER_ERROR,
+					Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"description": description,
+					})),
+				);
 			};
 
 			let file_path = enclave_sealpath.clone()
@@ -269,17 +300,20 @@ pub async fn capsule_set_keyshare(
 						verified_data.nft_id,
 					);
 
-					info!(
+					error!(
 						"{}, Error : {}, requester : {}",
 						description, err, request.owner_address
 					);
 
-					return Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description": description,
-					}));
+					return (
+						StatusCode::INTERNAL_SERVER_ERROR,
+						Json(json!({
+							"status": status,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description": description,
+						})),
+					);
 				},
 			};
 
@@ -297,14 +331,20 @@ pub async fn capsule_set_keyshare(
 						verified_data.nft_id,
 					);
 
-					info!("{}, Error :{}, requester : {}", description, err, request.owner_address);
+					error!(
+						"{}, Error :{}, requester : {}",
+						description, err, request.owner_address
+					);
 
-					return Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description": description,
-					}));
+					return (
+						StatusCode::INTERNAL_SERVER_ERROR,
+						Json(json!({
+							"status": status,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description": description,
+						})),
+					);
 				},
 			};
 
@@ -374,12 +414,15 @@ pub async fn capsule_set_keyshare(
 						);
 					}
 
-					Json(json!({
-						"status": ReturnStatus::STORESUCCESS,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description":"Capsule key-share is successfully stored to TEE".to_string(),
-					}))
+					(
+						StatusCode::OK,
+						Json(json!({
+							"status": ReturnStatus::STORESUCCESS,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description":"Capsule key-share is successfully stored to TEE".to_string(),
+						})),
+					)
 				},
 
 				Err(err) => {
@@ -388,7 +431,7 @@ pub async fn capsule_set_keyshare(
 						"Error sending proof of storage to chain, Capsule nft_id : {}, Error : {err_str}" , verified_data.nft_id
 					);
 
-					info!("{}, owner = {}", message, request.owner_address);
+					error!("{}, owner = {}", message, request.owner_address);
 
 					info!("Removing the capsule key-share from TEE due to previous error, nft_id : {}", verified_data.nft_id);
 
@@ -403,12 +446,15 @@ pub async fn capsule_set_keyshare(
 						),
 					}
 
-					Json(json!({
-						"status": ReturnStatus::ORACLEFAILURE,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description": message,
-					}))
+					(
+						StatusCode::GATEWAY_TIMEOUT,
+						Json(json!({
+							"status": ReturnStatus::ORACLEFAILURE,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description": message,
+						})),
+					)
 				},
 			}
 		},
@@ -472,14 +518,17 @@ pub async fn capsule_retrieve_keyshare(
 					verified_data.nft_id,
 				);
 
-				info!("{}, requester : {}", description, request.requester_address);
+				error!("{}, requester : {}", description, request.requester_address);
 
-				return Json(json!({
-					"status": status,
-					"nft_id": verified_data.nft_id,
-					"enclave_id": enclave_identity,
-					"description": description,
-				}));
+				return (
+					StatusCode::NOT_FOUND,
+					Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"description": description,
+					})),
+				);
 			}
 
 			// OPEN CAPSULE KEY-SHARE
@@ -493,17 +542,20 @@ pub async fn capsule_retrieve_keyshare(
 						verified_data.nft_id,
 					);
 
-					info!(
+					error!(
 						"{}, Error : {}, requester : {}",
 						description, err, request.requester_address
 					);
 
-					return Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description": description,
-					}));
+					return (
+						StatusCode::NO_CONTENT,
+						Json(json!({
+							"status": status,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description": description,
+						})),
+					);
 				},
 			};
 
@@ -525,17 +577,20 @@ pub async fn capsule_retrieve_keyshare(
 						verified_data.nft_id,
 					);
 
-					info!(
+					error!(
 						"{} , Error : {} , requester : {}",
 						description, err, request.requester_address
 					);
 
-					return Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description": description,
-					}));
+					return (
+						StatusCode::NO_CONTENT,
+						Json(json!({
+							"status": status,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description": description,
+						})),
+					);
 				},
 			};
 
@@ -558,20 +613,26 @@ pub async fn capsule_retrieve_keyshare(
 					}
 					.serialize();
 
+					(
+						StatusCode::OK,
+						Json(json!({
+							"status": ReturnStatus::RETRIEVESUCCESS,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"keyshare_data": serialized_keyshare,
+							"description": "Success retrieving Capsule key-share.".to_string(),
+						})),
+					)
+				},
+				Err(err) => (
+					StatusCode::NOT_ACCEPTABLE,
 					Json(json!({
-						"status": ReturnStatus::RETRIEVESUCCESS,
+						"status": ReturnStatus::InvalidBlockNumber,
 						"nft_id": verified_data.nft_id,
 						"enclave_id": enclave_identity,
-						"keyshare_data": serialized_keyshare,
-						"description": "Success retrieving Capsule key-share.".to_string(),
-					}))
-				},
-				Err(err) => Json(json!({
-					"status": ReturnStatus::InvalidBlockNumber,
-					"nft_id": verified_data.nft_id,
-					"enclave_id": enclave_identity,
-					"description": format!("Fail retrieving Capsule key-share. {}", err),
-				})),
+						"description": format!("Fail retrieving Capsule key-share. {}", err),
+					})),
+				),
 			}
 		},
 

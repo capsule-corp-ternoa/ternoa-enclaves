@@ -120,9 +120,7 @@ impl FetchAuthenticationToken {
 			return ValidationResult::InvalidPeriod;
 		}
 
-		if last_block_number
-			> self.block_number + self.block_validation + MAX_BLOCK_VARIATION
-		{
+		if last_block_number > self.block_number + self.block_validation + MAX_BLOCK_VARIATION {
 			// validity period
 			return ValidationResult::FutureBlockNumber;
 		}
@@ -143,9 +141,7 @@ impl StoreAuthenticationToken {
 			return ValidationResult::InvalidPeriod;
 		}
 
-		if last_block_number
-			> self.block_number + self.block_validation + MAX_BLOCK_VARIATION
-		{
+		if last_block_number > self.block_number + self.block_validation + MAX_BLOCK_VARIATION {
 			// validity period
 			return ValidationResult::FutureBlockNumber;
 		}
@@ -326,13 +322,13 @@ pub async fn admin_backup_fetch_bulk(
 
 	debug!("Validating the authentication token");
 	let validation = auth_token.is_valid(last_block_number);
-	match  validation{
+	match validation {
 		ValidationResult::Success => debug!("Authentication token is valid."),
 		_ => {
-			let message = format!("Authentication Token is not valid, or expired : {:?}", validation);
+			let message =
+				format!("Authentication Token is not valid, or expired : {:?}", validation);
 			error!("Admin Backup Fetch Buld : {}", message);
-			return Json(json!({"error": message}))
-			.into_response();
+			return Json(json!({ "error": message })).into_response();
 		},
 	}
 
@@ -612,9 +608,10 @@ pub async fn admin_backup_push_bulk(
 	match validation {
 		ValidationResult::Success => debug!("Authentication token is valid."),
 		_ => {
-			let message = format!("Authentication Token is not valid, or expired : {:?}", validation);
+			let message =
+				format!("Authentication Token is not valid, or expired : {:?}", validation);
 			error!("Admin restore :  token expired : {}", message);
-			return Json(json!({"error": message}));
+			return Json(json!({ "error": message }));
 		},
 	}
 
