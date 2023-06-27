@@ -1,6 +1,6 @@
 use crate::servers::http_server::SharedState;
 
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 
 use std::{
 	fs::OpenOptions,
@@ -217,7 +217,7 @@ pub struct NFTViewResponse {
 pub async fn nft_get_views(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
-) -> Json<NFTViewResponse> {
+) -> impl IntoResponse {
 	debug!("3-7 API : nft get views");
 	let shared_state = &state.read().await;
 	let enclave_identity = shared_state.get_identity();
@@ -226,30 +226,36 @@ pub async fn nft_get_views(
 	let nft_state = match get_onchain_nft_data(state.clone(), nft_id).await {
 		Some(data) => data.state,
 		_ => {
-			info!(
+			error!(
 				"Error retrieving secret-nft shares access-log : nft_id.{} does not exist",
 				nft_id
 			);
-			return Json(NFTViewResponse {
-				enclave_id: enclave_identity,
-				nft_id,
-				log: LogFile::new(),
-				description: "nft_id does not exist.".to_string(),
-			});
+			return (
+				StatusCode::NOT_FOUND,
+				Json(NFTViewResponse {
+					enclave_id: enclave_identity,
+					nft_id,
+					log: LogFile::new(),
+					description: "nft_id does not exist.".to_string(),
+				}),
+			);
 		},
 	};
 
 	if !nft_state.is_secret {
-		info!(
+		error!(
 			"Error retrieving secret-nft shares access-log : nft_id.{} is not a secret-nft",
 			nft_id
 		);
-		return Json(NFTViewResponse {
-			enclave_id: enclave_identity,
-			nft_id,
-			log: LogFile::new(),
-			description: "nft_id is not a secret-nft".to_string(),
-		});
+		return (
+			StatusCode::NOT_ACCEPTABLE,
+			Json(NFTViewResponse {
+				enclave_id: enclave_identity,
+				nft_id,
+				log: LogFile::new(),
+				description: "nft_id is not a secret-nft".to_string(),
+			}),
+		);
 	}
 
 	let file_path = enclave_sealpath + &nft_id.to_string() + ".log";
@@ -257,33 +263,39 @@ pub async fn nft_get_views(
 	if std::path::Path::new(&file_path).exists() {
 		info!("Log path checked, path: {}", file_path);
 	} else {
-		info!(
+		error!(
 			"Error retrieving NFT key-share access-log : log path doe not exist, nft_id : {}, path : {}",
 			nft_id, file_path
 		);
 
-		return Json(NFTViewResponse {
-			enclave_id: enclave_identity,
-			nft_id,
-			log: LogFile::new(),
-			description: "nft_id does not exist on this enclave".to_string(),
-		});
+		return (
+			StatusCode::NOT_FOUND,
+			Json(NFTViewResponse {
+				enclave_id: enclave_identity,
+				nft_id,
+				log: LogFile::new(),
+				description: "nft_id does not exist on this enclave".to_string(),
+			}),
+		);
 	};
 
 	let mut log_file = match OpenOptions::new().read(true).open(file_path.clone()) {
 		Ok(f) => f,
 		Err(_) => {
-			warn!(
+			error!(
 				"Error retrieving NFT key-share access-log : can not open the log file, nft_id : {}, path : {}",
 				nft_id, file_path
 			);
 
-			return Json(NFTViewResponse {
-				enclave_id: enclave_identity,
-				nft_id,
-				log: LogFile::new(),
-				description: "can not retrieve the log of secret-nft views".to_string(),
-			});
+			return (
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(NFTViewResponse {
+					enclave_id: enclave_identity,
+					nft_id,
+					log: LogFile::new(),
+					description: "can not retrieve the log of secret-nft views".to_string(),
+				}),
+			);
 		},
 	};
 
@@ -293,43 +305,48 @@ pub async fn nft_get_views(
 			let log_data_json = match serde_json::from_str(&log_data) {
 				Ok(deser) => deser,
 				Err(e) => {
-					warn!(
+					error!(
 						"Error retrieving NFT key-share access-log : can not deserialize log file : {:?}, nft_id : {}, path : {}",
 						e, nft_id, file_path
 					);
 
-					return Json(NFTViewResponse {
+					 return (StatusCode::UNPROCESSABLE_ENTITY, Json(NFTViewResponse {
 						enclave_id: enclave_identity,
 						nft_id,
 						log: LogFile::new(),
 						description:
 							"deserialization error : can not retrieve the log of secret-nft views"
 								.to_string(),
-					});
+					}))
 				},
 			};
 
 			info!("successfully retrieved log file for nft_id : {}", nft_id);
-			Json(NFTViewResponse {
-				enclave_id: enclave_identity,
-				nft_id,
-				log: log_data_json,
-				description: "Successful".to_string(),
-			})
+			 (StatusCode::OK,
+				Json(NFTViewResponse {
+					enclave_id: enclave_identity,
+					nft_id,
+					log: log_data_json,
+					description: "Successful".to_string(),
+				}),
+			)
 		},
 
 		Err(_) => {
-			info!(
+			error!(
 				"Error retrieving NFT key-share access-log : can not read the log file, nft_id : {}, path : {}",
 				nft_id, file_path
 			);
 
-			Json(NFTViewResponse {
-				enclave_id: enclave_identity,
-				nft_id,
-				log: LogFile::new(),
-				description: "can not retrieve the log of nft views".to_string(),
-			})
+			(
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(NFTViewResponse {
+					enclave_id: enclave_identity,
+					nft_id,
+					log: LogFile::new(),
+					description: "can not retrieve the log of nft views".to_string(),
+				}),
+			)
 		},
 	}
 }
@@ -375,13 +392,16 @@ pub async fn nft_store_keyshare(
 
 				info!("{}, requester : {}", description, request.owner_address);
 
-				return Json(json!({
-					"status": status,
-					"nft_id": verified_data.nft_id,
-					"enclave_id": enclave_identity,
-					"description": "Error storing NFT key-share to TEE, use another enclave please."
-					.to_string(),
-				}));
+				return (
+					StatusCode::INTERNAL_SERVER_ERROR,
+					Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"description": "Error storing NFT key-share to TEE, use another enclave please."
+						.to_string(),
+					})),
+				);
 			};
 
 			let file_path =
@@ -398,13 +418,16 @@ pub async fn nft_store_keyshare(
 
 				info!("{}, requester : {}", description, request.owner_address);
 
-				return Json(json!({
-					"status": status,
-					"nft_id": verified_data.nft_id,
-					"enclave_id": enclave_identity,
-					"description": "Error storing NFT key-share to TEE : nft_id already exists"
-					.to_string(),
-				}));
+				return (
+					StatusCode::CONFLICT,
+					Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"description": "Error storing NFT key-share to TEE : nft_id already exists"
+						.to_string(),
+					})),
+				);
 			}
 
 			let mut f = match std::fs::File::create(file_path.clone()) {
@@ -421,13 +444,16 @@ pub async fn nft_store_keyshare(
 
 					info!("{}, requester : {}", description, request.owner_address);
 
-					return Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description": "Error storing NFT key-share to TEE, use another enclave please."
-						.to_string(),
-					}));
+					return (
+						StatusCode::INTERNAL_SERVER_ERROR,
+						Json(json!({
+							"status": status,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description": "Error storing NFT key-share to TEE, use another enclave please."
+							.to_string(),
+						})),
+					);
 				},
 			};
 
@@ -449,13 +475,16 @@ pub async fn nft_store_keyshare(
 
 					info!("{}, requester : {}", description, request.owner_address);
 
-					return Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description": "Error storing NFT key-share to TEE, use another enclave please."
-						.to_string(),
-					}));
+					return (
+						StatusCode::INTERNAL_SERVER_ERROR,
+						Json(json!({
+							"status": status,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description": "Error storing NFT key-share to TEE, use another enclave please."
+							.to_string(),
+						})),
+					);
 				},
 			};
 
@@ -512,12 +541,15 @@ pub async fn nft_store_keyshare(
 						Err(e) => error!("Error removing nft-keyshare from TEE : {:?}", e),
 					}
 
-					Json(json!({
-						"status": ReturnStatus::ORACLEFAILURE,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description": message,
-					}))
+					(
+						StatusCode::GATEWAY_TIMEOUT,
+						Json(json!({
+							"status": ReturnStatus::ORACLEFAILURE,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description": message,
+						})),
+					)
 				},
 			}
 		},
@@ -626,17 +658,20 @@ pub async fn nft_retrieve_keyshare(
 				let description =
 					format!("TEE Key-share {:?}: file path does not exist", APICALL::NFTRETRIEVE);
 
-				info!(
+				error!(
 					"{}, file path : {}, requester : {}",
 					description, file_path, request.requester_address
 				);
 
-				return Json(json!({
-					"status": status,
-					"nft_id": verified_data.nft_id,
-					"enclave_id": enclave_identity,
-					"description": description,
-				}));
+				return (
+					StatusCode::NOT_FOUND,
+					Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"description": description,
+					})),
+				);
 			}
 
 			let mut file = match std::fs::File::open(file_path) {
@@ -650,14 +685,17 @@ pub async fn nft_retrieve_keyshare(
 						err
 					);
 
-					info!("{}, requester : {}", description, request.requester_address);
+					error!("{}, requester : {}", description, request.requester_address);
 
-					return Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description": description,
-					}));
+					return (
+						StatusCode::NO_CONTENT,
+						Json(json!({
+							"status": status,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description": description,
+						})),
+					);
 				},
 			};
 
@@ -682,12 +720,15 @@ pub async fn nft_retrieve_keyshare(
 
 					info!("{}, requester : {}", description, request.requester_address);
 
-					return Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"description": description,
-					}));
+					return (
+						StatusCode::NO_CONTENT,
+						Json(json!({
+							"status": status,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"description": description,
+						})),
+					);
 				},
 			};
 
@@ -717,22 +758,28 @@ pub async fn nft_retrieve_keyshare(
 
 					info!("{}, requester : {}", description, request.requester_address);
 
-					Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_id": enclave_identity,
-						"keyshare_data": serialized_keyshare,
-						"description": description,
-					}))
+					(
+						StatusCode::OK,
+						Json(json!({
+							"status": status,
+							"nft_id": verified_data.nft_id,
+							"enclave_id": enclave_identity,
+							"keyshare_data": serialized_keyshare,
+							"description": description,
+						})),
+					)
 				},
 
-				Err(e) => Json(json!({
-					"status": ReturnStatus::InvalidBlockNumber,
-					"nft_id": verified_data.nft_id,
-					"enclave_id": enclave_identity,
-					"keyshare_data": "Error in data",
-					"description": format!("Error getting current block number: {}", e)
-				})),
+				Err(e) => (
+					StatusCode::NOT_ACCEPTABLE,
+					Json(json!({
+						"status": ReturnStatus::InvalidBlockNumber,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"keyshare_data": "Error in data",
+						"description": format!("Error getting current block number: {}", e)
+					})),
+				),
 			}
 		},
 

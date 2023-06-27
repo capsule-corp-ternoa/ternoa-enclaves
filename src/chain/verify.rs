@@ -11,9 +11,14 @@ use subxt::utils::AccountId32;
 
 use serde::{Deserialize, Serialize};
 
-use axum::Json;
+use axum::{
+	http::{header, StatusCode},
+	response::IntoResponse,
+	Json,
+};
+
 use serde_json::{json, Value};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{
 	chain::core::{
@@ -24,6 +29,9 @@ use crate::{
 };
 
 use super::core::get_current_block_number_new_api;
+
+const MAX_VALIDATION_PERIOD: u32 = 20;
+const MAX_BLOCK_VARIATION: u32 = 5;
 
 /* **********************
   DATA STRUCTURES
@@ -121,8 +129,8 @@ pub enum VerificationError {
 	INVALIDKEYSHARE,
 	INVALIDNFTID,
 
-	EXPIREDSIGNER,
-	EXPIREDDATA,
+	EXPIREDSIGNER(ValidationResult),
+	EXPIREDDATA(ValidationResult),
 
 	IDISNOTSECRETNFT,
 	IDISNOTCAPSULE,
@@ -215,7 +223,7 @@ impl VerificationError {
 		caller: String,
 		nft_id: u32,
 		enclave_id: String,
-	) -> Json<Value> {
+	) -> (StatusCode, Json<Value>) {
 		match self {
 			// SIGNER SIGNATURE FORMAT
 			VerificationError::INVALIDSIGNERSIG(e) => {
@@ -224,12 +232,15 @@ impl VerificationError {
 					format!("TEE Key-share {call:?}: Invalid request signature format, {e:?} ");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// DATA SIGNATURE FORMAT
@@ -239,12 +250,15 @@ impl VerificationError {
 					format!("TEE Key-share {call:?}: Invalid request data signature format, {e:?}");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// OWNER ADDRESS FORMAT
@@ -253,12 +267,15 @@ impl VerificationError {
 				let description = format!("TEE Key-share {call:?}: Invalid owner address format");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// SIGNER ADDRESS FORMAT
@@ -267,12 +284,15 @@ impl VerificationError {
 				let description = format!("TEE Key-share {call:?}: Invalid signer address format");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// VERIFY SIGNER TO BE SIGNED BY THE OWNER
@@ -281,12 +301,15 @@ impl VerificationError {
 				let description = format!("TEE Key-share {call:?}: Signer signature verification failed, Signer is not approved by NFT owner");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// VERIFY SIGNER TO BE SIGNED BY THE OWNER
@@ -296,12 +319,15 @@ impl VerificationError {
 					format!("TEE Key-share {call:?}: Data signature verification failed.");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// AUTHENTICATION-TOKEN FORMAT
@@ -311,12 +337,15 @@ impl VerificationError {
 					format!("TEE Key-share {call:?}: Invalid authentication-token format.");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// NFTID FORMAT
@@ -327,12 +356,15 @@ impl VerificationError {
 				);
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// EMPTY KEYSHARE
@@ -343,12 +375,15 @@ impl VerificationError {
 				);
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// VERIFY ONCHAIN NFTID TO BE OWNED BY SPECIFIED OWNER
@@ -358,12 +393,15 @@ impl VerificationError {
 					format!("TEE Key-share {call:?}: The nft-id is not owned by this owner.");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			VerificationError::REQUESTERVERIFICATIONFAILED => {
@@ -373,40 +411,49 @@ impl VerificationError {
 				);
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// EPIRATION PERIOD OF SIGNER ACCOUNT  (AUTHENTICATION-TOKEN)
-			VerificationError::EXPIREDSIGNER => {
+			VerificationError::EXPIREDSIGNER(e) => {
 				let status = ReturnStatus::EXPIREDSIGNER;
 				let description = format!("TEE Key-share {call:?}: The signer account has been expired or is not in valid range.");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// EPIRATION PERIOD OF REQUEST DATA  (AUTHENTICATION-TOKEN)
-			VerificationError::EXPIREDDATA => {
+			VerificationError::EXPIREDDATA(e) => {
 				let status = ReturnStatus::EXPIREDREQUEST;
 				let description = format!("TEE Key-share {call:?}: The request data field has been expired  or is not in valid range.");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// IS NOT ENCRYPTED ENTITY
@@ -416,12 +463,15 @@ impl VerificationError {
 					format!("TEE Key-share {call:?}: The nft-id is not a secret-nft.");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// IS NOT ENCRYPTED ENTITY
@@ -430,12 +480,15 @@ impl VerificationError {
 				let description = format!("TEE Key-share {call:?}: The nft-id is not a capsule.");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// PARSE DATA PACKET FAILED
@@ -444,12 +497,15 @@ impl VerificationError {
 				let description = format!("TEE Key-share {call:?}: Failed to parse data field.");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			// PARSE SIGNER PACKET FAILED
@@ -458,12 +514,15 @@ impl VerificationError {
 				let description = format!("TEE Key-share {call:?}: Failed to parse Signer field.");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			VerificationError::KEYSHAREISTOOSHORT => {
@@ -473,12 +532,15 @@ impl VerificationError {
 				);
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 
 			VerificationError::KEYSHAREISTOOLONG => {
@@ -486,12 +548,15 @@ impl VerificationError {
 				let description = format!("TEE Key-share {call:?}: Secret-Share is too long, it is not possible to store it.");
 				info!("{}, requester : {}", description, caller);
 
-				Json(json! ({
-					"status": status,
-					"nft_id": nft_id,
-					"enclave_id": enclave_id,
-					"description": description,
-				}))
+				(
+					StatusCode::BAD_REQUEST,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
 			},
 		}
 	}
@@ -542,7 +607,7 @@ pub async fn verify_requester_type(
 	requester_address: String,
 	nft_id: u32,
 	owner: AccountId32,
-	requester_type: RequesterType,
+	requester_type: RequesterType
 ) -> bool {
 	match AccountId32::from_str(&requester_address) {
 		Ok(converted_requester_address) => match requester_type {
@@ -566,6 +631,14 @@ pub async fn verify_requester_type(
 /* ----------------------------------
 AUTHENTICATION TOKEN IMPLEMENTATION
 ----------------------------------*/
+#[derive(Serialize, PartialEq, Debug)]
+pub enum ValidationResult {
+	Success,
+	ErrorRpcCall,
+	ExpiredBlockNumber,
+	FutureBlockNumber,
+	InvalidPeriod,
+}
 
 // Retrieving the stored Keyshare
 impl AuthenticationToken {
@@ -575,10 +648,31 @@ impl AuthenticationToken {
 		self.block_number.to_string() + "_" + &self.block_validation.to_string()
 	}
 
-	pub fn is_valid(&self, last_block_number: u32) -> bool {
-		(last_block_number > self.block_number - 3) // for finalization delay
-			&& (last_block_number < self.block_number + self.block_validation + 3)
-				&&  (self.block_validation < 100) // A finite validity period
+	pub fn is_valid(&self, last_block_number: u32) -> ValidationResult {
+		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
+			// for finalization delay
+			debug!(
+				"last block number = {} < request block number = {}",
+				last_block_number, self.block_number
+			);
+			return ValidationResult::ExpiredBlockNumber;
+		}
+
+		if self.block_validation > MAX_VALIDATION_PERIOD {
+			// A finite validity period
+			return ValidationResult::InvalidPeriod;
+		}
+
+		if last_block_number > self.block_number + self.block_validation + MAX_BLOCK_VARIATION {
+			debug!(
+				"last block number = {} > request block number = {} + validation_interval = {} + MAX_BLOCK_VARIATION = {}",
+				last_block_number, self.block_number, self.block_validation, MAX_BLOCK_VARIATION
+			);
+			// validity period
+			return ValidationResult::FutureBlockNumber;
+		}
+
+		ValidationResult::Success
 	}
 }
 
@@ -723,8 +817,10 @@ impl StoreKeysharePacket {
 			Err(_) => return Err(VerificationError::INVALIDSIGNERADDRESS),
 		};
 
-		if !signer.auth_token.is_valid(last_block_number) {
-			return Err(VerificationError::EXPIREDSIGNER);
+		let verify = signer.auth_token.is_valid(last_block_number);
+		match verify {
+			ValidationResult::Success => debug!("Signer auth-token is valid"),
+			_ => return Err(VerificationError::EXPIREDSIGNER(verify)),
 		}
 
 		let signersig = match self.parse_signature("signer") {
@@ -788,8 +884,10 @@ impl StoreKeysharePacket {
 						return Err(VerificationError::IDISNOTCAPSULE);
 					}
 
-					if !parsed_data.auth_token.clone().is_valid(last_block_number) {
-						return Err(VerificationError::EXPIREDDATA);
+					let verify = parsed_data.auth_token.clone().is_valid(last_block_number);
+					match verify {
+						ValidationResult::Success => debug!("Signer auth-token is valid"),
+						_ => return Err(VerificationError::EXPIREDDATA(verify)),
 					}
 
 					if verify_requester_type(
@@ -819,7 +917,7 @@ impl StoreKeysharePacket {
 
 	// SIGNATURE ONLY VERIFICATION
 	#[allow(dead_code)]
-	pub async fn verify_free_store_request(
+	pub fn verify_free_store_request(
 		&self,
 		last_block_number: u32,
 	) -> Result<StoreKeyshareData, VerificationError> {
@@ -917,8 +1015,10 @@ impl RetrieveKeysharePacket {
 			Err(e) => return Err(e),
 		};
 
-		if !data.auth_token.is_valid(last_block_number) {
-			return Err(VerificationError::EXPIREDDATA);
+		let verify = data.auth_token.is_valid(last_block_number);
+		match verify {
+			ValidationResult::Success => debug!("Data auth-token is valid"),
+			_ => return Err(VerificationError::EXPIREDDATA(verify)),
 		}
 
 		let sig = match self.parse_signature() {
@@ -964,8 +1064,10 @@ impl RetrieveKeysharePacket {
 					return Err(VerificationError::IDISNOTCAPSULE);
 				}
 
-				if !parsed_data.auth_token.clone().is_valid(last_block_number) {
-					return Err(VerificationError::EXPIREDDATA);
+				let verify = parsed_data.auth_token.clone().is_valid(last_block_number);
+				match verify {
+					ValidationResult::Success => debug!("Data auth-token is valid"),
+					_ => return Err(VerificationError::EXPIREDDATA(verify)),
 				}
 
 				if verify_requester_type(
@@ -1250,9 +1352,9 @@ mod test {
 
 		let packet = StoreKeysharePacket {
 			owner_address: owner.public(),
-			signer_address: signer_address.to_string(),
+			signer_address,
 			signersig: format!("{}{:?}", "0x", signersig),
-			data: data.to_string(),
+			data,
 			signature: format!("{}{:?}", "0x", signature),
 		};
 
@@ -1266,10 +1368,7 @@ mod test {
 		};
 
 		// correct
-		assert_eq!(
-			packet.verify_free_store_request(current_block_number).await.unwrap(),
-			correct_data
-		);
+		assert_eq!(packet.verify_free_store_request(current_block_number).unwrap(), correct_data);
 	}
 
 	#[tokio::test]
@@ -1290,9 +1389,9 @@ mod test {
 
 		let mut packet = StoreKeysharePacket {
 			owner_address: owner.public(),
-			signer_address: signer_address.to_string(),
+			signer_address: signer_address.clone(),
 			signersig: format!("{}{:?}", "0x", signersig),
-			data: data.to_string(),
+			data,
 			signature: format!("{}{:?}", "0x", signature),
 		};
 
@@ -1306,17 +1405,14 @@ mod test {
 		};
 
 		// correct
-		assert_eq!(
-			packet.verify_free_store_request(current_block_number).await.unwrap(),
-			correct_data
-		);
+		assert_eq!(packet.verify_free_store_request(current_block_number).unwrap(), correct_data);
 
 		// changed owner error
 		packet.owner_address =
 			sr25519::Public::from_ss58check("5DLgQdhNz8B7RTKKMRCDwJWWbqu5FRYsLgJivLhVaYEsCpin")
 				.unwrap();
 		assert_eq!(
-			packet.verify_free_store_request(current_block_number).await.unwrap_err(),
+			packet.verify_free_store_request(current_block_number).unwrap_err(),
 			VerificationError::SIGNERVERIFICATIONFAILED
 		);
 
@@ -1328,7 +1424,7 @@ mod test {
 			current_block_number
 		);
 		assert_eq!(
-			packet.verify_free_store_request(current_block_number).await.unwrap_err(),
+			packet.verify_free_store_request(current_block_number).unwrap_err(),
 			VerificationError::SIGNERVERIFICATIONFAILED
 		);
 
@@ -1337,7 +1433,7 @@ mod test {
 			format!("{}_{}_10", signer.public().to_ss58check(), current_block_number);
 		packet.signersig = "0xa4f331ec6c6197a95122f171fbbb561f528085b2ca5176d676596eea03669718a7047cd29db3da4f5c48d3eb9df5648c8b90851fe9781dfaa11aef0eb1e6b88a".to_string();
 		assert_eq!(
-			packet.verify_free_store_request(current_block_number).await.unwrap_err(),
+			packet.verify_free_store_request(current_block_number).unwrap_err(),
 			VerificationError::SIGNERVERIFICATIONFAILED
 		);
 
@@ -1350,8 +1446,8 @@ mod test {
 		packet.signersig = format!("{}{:?}", "0x", expired_signersig);
 
 		assert_eq!(
-			packet.verify_free_store_request(current_block_number).await.unwrap_err(),
-			VerificationError::EXPIREDSIGNER
+			packet.verify_free_store_request(current_block_number).unwrap_err(),
+			VerificationError::EXPIREDSIGNER(ValidationResult::ExpiredBlockNumber)
 		);
 	}
 }

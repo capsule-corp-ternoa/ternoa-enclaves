@@ -1,6 +1,6 @@
 [package]
 name = "sgx_server"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 
 [[bin]]
@@ -70,7 +70,7 @@ mime = "0.3"
 hyper = { version = "0.14", features = ["full"] }
 
 [features]
-default = ["dev-0"]
+default = ["alphanet"]
 mainnet = []
 alphanet = []
 dev-1 = []
