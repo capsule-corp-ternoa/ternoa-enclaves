@@ -8,14 +8,16 @@ name = "sgx_server"
 path = "src/main.rs"
 
 [dependencies]
-async-trait = "0.1.61"
+
+# Client
+reqwest = "0.11.14"
+graphql_client = "0.13.0"
 
 # Server
 axum = {version = "0.6.18", features = ["ws", "headers", "macros", "multipart"]}
 axum-jrpc = "0.3.2"
 axum-server = { version = "0.4.4", features = ["tls-rustls"] }
 rustls = "0.20.6"
-reqwest = "0.11.14"
 
 tokio = { version = "1.26", features = ["full"] }
 tokio-util = "0.7.7"
@@ -28,20 +30,19 @@ urlencoding = "2.1.2"
 # codec
 serde_json = "1.0.91"
 serde = { version = "1.0.152", features = ["derive"] }
-#josekit = "0.8.1"
 hex = "0.4.3"
 base64 = "0.21.0"
 zip = "0.6.4"
 
-#log = "0.4.17"
+# Time and Trace
 chrono = "0.4.23"
 tokio-cron-scheduler = "0.9.4"
-cached = "0.42.0"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter", "fmt"] }
 sentry = { version = "0.30.0", features = ["anyhow", "debug-images", "tracing", "tower", "tower-http"] }
 
-rand = "0.8.5"
+# Tools
+cached = "0.42.0"
 clap = { version = "4.0.29", features = ["derive"] }
 sysinfo = "0.27.0"
 anyhow = "1.0.68"
@@ -49,6 +50,7 @@ walkdir = "2.3.2"
 
 futures = "0.3.25"
 tokio-test = "0.4.2"
+async-trait = "0.1.61"
 
 # Ternoa/Polkadot
 parity-scale-codec = { version = "3.2.1", default-features = false, features = ["derive", "full", "bit-vec"] }
@@ -59,6 +61,7 @@ sp-runtime = { version = "24.0.0" }
 sp-core = { version = "21.0.0", default-features = false, features = ["full_crypto"] }
 
 # Crypto / Keys
+rand = "0.8.5"
 sha256 = "1.1.1"
 sequoia-openpgp = "1.13.0"
 sigstore = "0.6.0"
