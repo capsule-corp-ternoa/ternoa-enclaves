@@ -228,8 +228,9 @@ impl VerificationError {
 			// SIGNER SIGNATURE FORMAT
 			VerificationError::INVALIDSIGNERSIG(e) => {
 				let status = ReturnStatus::INVALIDSIGNERSIGNATURE;
-				let description =
-					format!("TEE Key-share {call:?}: Invalid request signature format, {e:?} ");
+				let description = format!(
+					"TEE Key-share {call:?}: Invalid request signer signature format, {e:?} "
+				);
 				info!("{}, requester : {}", description, caller);
 
 				(
@@ -394,7 +395,7 @@ impl VerificationError {
 				info!("{}, requester : {}", description, caller);
 
 				(
-					StatusCode::BAD_REQUEST,
+					StatusCode::UNAUTHORIZED,
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
@@ -607,7 +608,7 @@ pub async fn verify_requester_type(
 	requester_address: String,
 	nft_id: u32,
 	owner: AccountId32,
-	requester_type: RequesterType
+	requester_type: RequesterType,
 ) -> bool {
 	match AccountId32::from_str(&requester_address) {
 		Ok(converted_requester_address) => match requester_type {

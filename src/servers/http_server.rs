@@ -381,7 +381,7 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let binary_version = shared_state.get_binary_version();
 
 	debug!("3-3-4 healthcheck : get public key.");
-
+	// TODO: ADD RPC PROBLEM
 	let pubkey: [u8; 32] = match enclave_key.as_ref().to_bytes()[64..].try_into() {
 		Ok(pk) => pk,
 		Err(_e) =>
