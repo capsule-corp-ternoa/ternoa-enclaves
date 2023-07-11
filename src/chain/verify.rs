@@ -91,6 +91,7 @@ pub enum ReturnStatus {
 
 	NOTBURNT,
 	NOTSYNCING,
+	NOTSYNCED,
 
 	INTERNALSTATELOCKED,
 	InvalidBlockNumber,
@@ -134,6 +135,8 @@ pub enum VerificationError {
 
 	IDISNOTSECRETNFT,
 	IDISNOTCAPSULE,
+	NOTSYNCING,
+	NOTSYNCED,
 }
 
 // Validity time of Keyshare Data
@@ -183,7 +186,6 @@ pub enum RequesterType {
 	OWNER,
 	DELEGATEE,
 	RENTEE,
-	NONE,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -492,6 +494,40 @@ impl VerificationError {
 				)
 			},
 
+			// IS NOT ENCRYPTED ENTITY
+			VerificationError::NOTSYNCING => {
+				let status = ReturnStatus::NOTSYNCING;
+				let description = format!("TEE Key-share {call:?}: The nft is not in syncing mode.");
+				info!("{}, requester : {}", description, caller);
+
+				(
+					StatusCode::FORBIDDEN,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
+			},
+
+			// NFT IS NOT IN SYNCED MODE TO RETRIEVE STORED KEYSHARES
+			VerificationError::NOTSYNCED => {
+				let status = ReturnStatus::NOTSYNCED;
+				let description = format!("TEE Key-share {call:?}: The nft is not in synced mode.");
+				info!("{}, requester : {}", description, caller);
+
+				(
+					StatusCode::FORBIDDEN,
+					Json(json! ({
+						"status": status,
+						"nft_id": nft_id,
+						"enclave_id": enclave_id,
+						"description": description,
+					})),
+				)
+			},
+
 			// PARSE DATA PACKET FAILED
 			VerificationError::MALFORMATEDDATA => {
 				let status = ReturnStatus::INVALIDDATAFORMAT;
@@ -612,7 +648,7 @@ pub async fn verify_requester_type(
 ) -> bool {
 	match AccountId32::from_str(&requester_address) {
 		Ok(converted_requester_address) => match requester_type {
-			RequesterType::OWNER | RequesterType::NONE => owner == converted_requester_address,
+			RequesterType::OWNER => owner == converted_requester_address,
 
 			RequesterType::DELEGATEE => match get_onchain_delegatee_account(state, nft_id).await {
 				KeyshareHolder::Delegatee(delegatee) => delegatee == converted_requester_address,
@@ -877,12 +913,24 @@ impl StoreKeysharePacket {
 
 					let nft_status = onchain_nft_data.state;
 
-					if nft_type == "secret-nft" && !nft_status.is_secret {
-						return Err(VerificationError::IDISNOTSECRETNFT);
+					if nft_type == "secret-nft" {
+						if !nft_status.is_secret {
+							return Err(VerificationError::IDISNOTSECRETNFT);
+						}
+
+						if !nft_status.is_syncing_secret {
+							return Err(VerificationError::NOTSYNCING);
+						}
 					}
 
-					if nft_type == "capsule" && !nft_status.is_capsule {
-						return Err(VerificationError::IDISNOTCAPSULE);
+					if nft_type == "capsule" {
+						if !nft_status.is_capsule {
+							return Err(VerificationError::IDISNOTCAPSULE);
+						}
+
+						if !nft_status.is_syncing_capsule {
+							return Err(VerificationError::NOTSYNCING);
+						}
 					}
 
 					let verify = parsed_data.auth_token.clone().is_valid(last_block_number);
@@ -1057,12 +1105,24 @@ impl RetrieveKeysharePacket {
 
 				let nft_status = onchain_nft_data.state;
 
-				if nft_type == "secret-nft" && !nft_status.is_secret {
-					return Err(VerificationError::IDISNOTSECRETNFT);
+				if nft_type == "secret-nft" {
+					if !nft_status.is_secret {
+						return Err(VerificationError::IDISNOTSECRETNFT);
+					}
+
+					if nft_status.is_syncing_secret {
+						return Err(VerificationError::NOTSYNCED);
+					}
 				}
 
-				if nft_type == "capsule" && !nft_status.is_capsule {
-					return Err(VerificationError::IDISNOTCAPSULE);
+				if nft_type == "capsule" {
+					if !nft_status.is_capsule {
+						return Err(VerificationError::IDISNOTCAPSULE);
+					}
+
+					if nft_status.is_syncing_capsule {
+						return Err(VerificationError::NOTSYNCED);
+					}
 				}
 
 				let verify = parsed_data.auth_token.clone().is_valid(last_block_number);
@@ -1215,7 +1275,7 @@ mod test {
 		let packet_sdk = StoreKeysharePacket {
 			owner_address: sr25519::Public::from_slice(&[0u8; 32]).unwrap(),
 			signer_address: sr25519::Public::from_slice(&[1u8; 32]).unwrap().to_string(),
-			data: "163_1234567890abcdef_1000_10000".to_string(),
+			data: "163_1234567890abcdef_1000_15".to_string(),
 			signature: "xxx".to_string(),
 			signersig: "xxx".to_string(),
 		};
@@ -1226,7 +1286,7 @@ mod test {
 		assert_eq!(data.nft_id, 163);
 		assert_eq!(data.keyshare, b"1234567890abcdef");
 		assert_eq!(data.auth_token.block_number, 1000);
-		assert_eq!(data.auth_token.block_validation, 10000);
+		assert_eq!(data.auth_token.block_validation, 15);
 	}
 
 	#[tokio::test]
@@ -1234,7 +1294,7 @@ mod test {
 		let packet_polkadotjs = StoreKeysharePacket {
 			owner_address: sr25519::Public::from_slice(&[0u8; 32]).unwrap(),
 			signer_address: sr25519::Public::from_slice(&[1u8; 32]).unwrap().to_string(),
-			data: "<Bytes>163_1234567890abcdef_1000_10000</Bytes>".to_string(),
+			data: "<Bytes>163_1234567890abcdef_1000_15</Bytes>".to_string(),
 			signature: "xxx".to_string(),
 			signersig: "xxx".to_string(),
 		};
@@ -1244,7 +1304,7 @@ mod test {
 		assert_eq!(data.nft_id, 163);
 		assert_eq!(data.keyshare, b"1234567890abcdef");
 		assert_eq!(data.auth_token.block_number, 1000);
-		assert_eq!(data.auth_token.block_validation, 10000);
+		assert_eq!(data.auth_token.block_validation, 15);
 	}
 
 	#[tokio::test]

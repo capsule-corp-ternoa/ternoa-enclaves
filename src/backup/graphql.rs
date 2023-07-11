@@ -19,12 +19,15 @@ type Cursor = String;
 
 const PAGE_SIZE: i64 = 100;
 
-pub const MAINNET_CHAIN_URL: &str = "wss://mainnet.ternoa.network:443";
-pub const ALPHANET_CHAIN_URL: &str = "wss://alphanet.ternoa.com:443";
-pub const MAINNET_INDEXER_URL: &str = "https://indexer-mainnet.ternoa.dev/";
-pub const MAINNET_DICTIONARY_URL: &str = "https://dictionary-mainnet.ternoa.network";
-pub const ALPHANET_INDEXER_URL: &str = "https://indexer-alphanet.ternoa.dev/";
-pub const ALPHANET_DICTIONARY_URL: &str = "https://dictionary-alphanet.ternoa.network";
+#[cfg(feature = "mainnet")]
+pub const CHAIN_URL: &str = "wss://mainnet.ternoa.network:443";
+#[cfg(feature = "mainnet")]
+pub const INDEXER_URL: &str = "https://indexer-mainnet.ternoa.dev/";
+
+#[cfg(feature = "alphanet")]
+pub const CHAIN_URL: &str = "wss://alphanet.ternoa.com:443";
+#[cfg(feature = "alphanet")]
+pub const INDEXER_URL: &str = "https://indexer-alphanet.ternoa.dev/";
 
 /*  ----------------------------------
 	Convert NFTID to NodeID
@@ -44,7 +47,7 @@ pub async fn get_node_from_id(nftid: u32) -> Result<String, Box<dyn Error>> {
 	let client = reqwest::Client::new();
 	let variables = get_node::Variables { nftid: nftid.to_string() };
 	let request_body = GetNode::build_query(variables);
-	let res = client.post(MAINNET_INDEXER_URL).json(&request_body).send().await?;
+	let res = client.post(INDEXER_URL).json(&request_body).send().await?;
 	let response_body: Response<get_node::ResponseData> = res.json().await?;
 	let data = match response_body.data {
 		Some(data) => data,
@@ -75,7 +78,7 @@ pub async fn get_total_synced(after_nftid: u32) -> Result<i64, Box<dyn Error>> {
 	let client = reqwest::Client::new();
 	let variables = synced_info::Variables { after: after_nftid.to_string() };
 	let request_body = SyncedInfo::build_query(variables);
-	let res = client.post(MAINNET_INDEXER_URL).json(&request_body).send().await?;
+	let res = client.post(INDEXER_URL).json(&request_body).send().await?;
 	let response_body: Response<synced_info::ResponseData> = res.json().await?;
 	if response_body.data.is_none() {
 		return Ok(0);
@@ -116,7 +119,7 @@ pub async fn get_synced_nft(after_nftid: u32) -> Result<Vec<u32>, Box<dyn Error>
 			after: after_nftid.to_string(),
 		};
 		let request_body = TotalSynced::build_query(variables);
-		let res = client.post(MAINNET_INDEXER_URL).json(&request_body).send().await?;
+		let res = client.post(INDEXER_URL).json(&request_body).send().await?;
 		let response_body: Response<total_synced::ResponseData> = res.json().await?;
 		if response_body.data.is_none() {
 			return Ok(vec![]);
@@ -144,13 +147,13 @@ mod test {
     
     #[tokio::test]
     async fn get_nodeid_test() {
-        let node_id = get_node_from_id(346000).await;
+        let node_id = get_node_from_id(76724).await;
         println!("Node Id: {}", node_id.unwrap());
     }
 
     #[tokio::test]
 	async fn get_synced_test() {
-		let response = get_synced_nft(346000).await;
-		println!("Number of synced: {}", response.unwrap().len());
+		let response = get_synced_nft(75000).await.unwrap();
+		println!("Number of synced: {}\n First NFTID: {}, Last NFTID: {}", response.len(), response[0],response[response.len()-1]);
 	}
 }

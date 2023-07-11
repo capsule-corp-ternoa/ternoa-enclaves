@@ -316,7 +316,7 @@ pub async fn nft_keyshare_oracle(
 ) -> Result<sp_core::H256, subxt::Error> {
 	debug!("4-5 NFT ORACLE");
 
-	let api = get_chain_api(state).await;
+	let api = get_chain_api(state.clone()).await;
 
 	// Submit Extrinsic
 	let signer = PairSigner::new(keypair);
@@ -325,7 +325,12 @@ pub async fn nft_keyshare_oracle(
 	let tx = ternoa::tx().nft().add_secret_shard(nft_id);
 
 	// With nonce
-	api.tx().create_signed(&tx, &signer, Default::default()).await?.submit().await
+	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
+	let offchain_nonce = state.read().await.get_nonce();
+	//Increment offchain nonce
+	state.write().await.increment_nonce();
+	// Create the extrinsic
+	api.tx().create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?.submit().await
 }
 
 // -------------- CAPSULE SYNC (ORACLE) --------------
@@ -348,7 +353,7 @@ pub async fn capsule_keyshare_oracle(
 ) -> Result<sp_core::H256, subxt::Error> {
 	debug!("4-6 CAPSULE ORACLE");
 
-	let api = get_chain_api(state).await;
+	let api = get_chain_api(state.clone()).await;
 
 	// Submit Extrinsic
 	let signer = PairSigner::new(keypair);
@@ -360,7 +365,12 @@ pub async fn capsule_keyshare_oracle(
 	//api.tx().sign_and_submit_default(&tx, &signer).await
 
 	// With nonce
-	api.tx().create_signed(&tx, &signer, Default::default()).await?.submit().await
+	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
+	let offchain_nonce = state.clone().read().await.get_nonce();
+	//Increment offchain nonce
+	state.write().await.increment_nonce();
+	// Create the extrinsic
+	api.tx().create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?.submit().await
 }
 
 /* **********************
