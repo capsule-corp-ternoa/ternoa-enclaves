@@ -54,6 +54,7 @@ pub struct StateConfig {
 	maintenance: String,
 	rpc_client: DefaultApi,
 	current_block: u32,
+	nonce: u32,
 	binary_version: String,
 }
 
@@ -73,6 +74,7 @@ impl StateConfig {
 			maintenance,
 			rpc_client,
 			current_block: 0,
+			nonce: 0,
 			binary_version,
 		}
 	}
@@ -121,9 +123,23 @@ impl StateConfig {
 		self.current_block
 	}
 
+	pub fn get_nonce(&self) -> u32 {
+		self.nonce
+	}
+
+	pub fn increment_nonce(&mut self) {
+		self.nonce += 1;
+	}
+
+	pub fn reset_nonce(&mut self) {
+		self.nonce = 0;
+	}
+
 	pub fn get_binary_version(&self) -> String {
 		self.binary_version.clone()
 	}
+
+
 }
 
 pub type SharedState = Arc<RwLock<StateConfig>>;
@@ -305,6 +321,11 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 
 			shared_state_write.set_current_block(block_number);
 			debug!("Block Number Thread : block_number state is set to {}", block_number);
+
+			// For block number update, we should reset the nonce as well
+			// It is used as a batch of extrinsics for every block
+			shared_state_write.reset_nonce();
+			debug!("Block Number Thread : nonce has been reset");
 		}
 	});
 
