@@ -609,10 +609,10 @@ pub async fn capsule_retrieve_keyshare(
 					let serialized_keyshare = StoreKeyshareData {
 						nft_id: verified_data.nft_id,
 						keyshare: capsule_keyshare,
-						auth_token: AuthenticationToken { block_number, block_validation: 100 },
+						auth_token: AuthenticationToken { block_number, block_validation: 15 },
 					}
 					.serialize();
-
+					// TODO : SIGN the response
 					(
 						StatusCode::OK,
 						Json(json!({
