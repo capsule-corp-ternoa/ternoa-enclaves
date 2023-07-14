@@ -25,7 +25,7 @@ use crate::{
 		get_current_block_number, get_onchain_delegatee, get_onchain_nft_data,
 		get_onchain_rent_contract,
 	},
-	servers::http_server::SharedState,
+	servers::state::SharedState,
 };
 
 use super::core::get_current_block_number_new_api;
@@ -216,7 +216,7 @@ impl VerificationError {
 	/// * `call` - API call
 	/// * `caller` - Caller of the API
 	/// * `nft_id` - NFT ID
-	/// * `enclave_id` - Enclave ID
+	/// * `enclave_account` - Enclave ID
 	/// # Returns
 	/// * `Json<Value>` - JSON format of the error
 	pub fn express_verification_error(
@@ -224,7 +224,7 @@ impl VerificationError {
 		call: APICALL,
 		caller: String,
 		nft_id: u32,
-		enclave_id: String,
+		enclave_account: String,
 	) -> (StatusCode, Json<Value>) {
 		match self {
 			// SIGNER SIGNATURE FORMAT
@@ -240,7 +240,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -258,7 +258,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -275,7 +275,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -292,7 +292,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -309,7 +309,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -327,7 +327,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -345,7 +345,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -364,7 +364,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -383,7 +383,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -401,7 +401,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -419,7 +419,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -436,7 +436,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -453,7 +453,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -471,7 +471,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -488,7 +488,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -506,7 +506,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -523,7 +523,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -540,7 +540,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -557,7 +557,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -575,7 +575,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
@@ -591,7 +591,7 @@ impl VerificationError {
 					Json(json! ({
 						"status": status,
 						"nft_id": nft_id,
-						"enclave_id": enclave_id,
+						"enclave_account": enclave_account,
 						"description": description,
 					})),
 				)
