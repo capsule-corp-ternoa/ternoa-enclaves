@@ -29,6 +29,11 @@ pub const CHAIN_URL: &str = "wss://alphanet.ternoa.com:443";
 #[cfg(feature = "alphanet")]
 pub const INDEXER_URL: &str = "https://indexer-alphanet.ternoa.dev/";
 
+#[cfg(feature = "dev-0")]
+pub const CHAIN_URL: &str = "wss://dev-0.ternoa.com:443";
+#[cfg(feature = "dev-0")]
+pub const INDEXER_URL: &str = "https://dev-0.ternoa.dev/";
+
 /*  ----------------------------------
 	Convert NFTID to NodeID
 ---------------------------------- */
@@ -144,16 +149,21 @@ pub async fn get_synced_nft(after_nftid: u32) -> Result<Vec<u32>, Box<dyn Error>
 #[cfg(test)]
 mod test {
 	use super::*;
-    
-    #[tokio::test]
-    async fn get_nodeid_test() {
-        let node_id = get_node_from_id(76724).await;
-        println!("Node Id: {}", node_id.unwrap());
-    }
 
-    #[tokio::test]
+	#[tokio::test]
+	async fn get_nodeid_test() {
+		let node_id = get_node_from_id(76724).await;
+		println!("Node Id: {}", node_id.unwrap());
+	}
+
+	#[tokio::test]
 	async fn get_synced_test() {
 		let response = get_synced_nft(75000).await.unwrap();
-		println!("Number of synced: {}\n First NFTID: {}, Last NFTID: {}", response.len(), response[0],response[response.len()-1]);
+		println!(
+			"Number of synced: {}\n First NFTID: {}, Last NFTID: {}",
+			response.len(),
+			response[0],
+			response[response.len() - 1]
+		);
 	}
 }
