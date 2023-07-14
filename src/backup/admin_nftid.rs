@@ -29,7 +29,7 @@ use sp_core::{crypto::PublicError, sr25519::Signature};
 use crate::{
 	backup::zipdir::add_list_zip,
 	chain::core::get_current_block_number,
-	servers::http_server::{SharedState, StateConfig},
+	servers::state::{SharedState, StateConfig},
 };
 
 use super::zipdir::{add_dir_zip, zip_extract};
@@ -246,7 +246,7 @@ pub async fn admin_backup_fetch_id(
 ) -> impl IntoResponse {
 	debug!("3-15 API : backup fetch bulk");
 
-	update_health_status(&state, "Encalve is doing backup, please wait...".to_string()).await;
+	update_health_status(&state, "Enclave is doing backup, please wait...".to_string()).await;
 
 	if !verify_account_id(&backup_request.admin_address) {
 		let message = format!(
@@ -455,7 +455,6 @@ mod test {
 		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 			enclave_keypair,
 			"/tmp/seal".to_owned(),
-			"Test-Enclave".to_string(),
 			String::new(),
 			create_chain_api().await.unwrap(),
 			"0.3.0".to_string(),

@@ -45,118 +45,6 @@ use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 
 use super::server_common;
 
-/// StateConfig shared by all routes
-#[derive(Clone)]
-pub struct StateConfig {
-	enclave_key: sp_core::sr25519::Pair,
-	seal_path: String,
-	identity: String,
-	maintenance: String,
-	rpc_client: DefaultApi,
-	current_block: u32,
-	nonce: u32,
-	clusters: Vec<Cluster>,
-	binary_version: String,
-}
-
-impl StateConfig {
-	pub fn new(
-		enclave_key: sp_core::sr25519::Pair,
-		seal_path: String,
-		identity: String,
-		maintenance: String,
-		rpc_client: DefaultApi,
-		binary_version: String,
-	) -> StateConfig {
-		StateConfig {
-			enclave_key,
-			seal_path,
-			identity,
-			maintenance,
-			rpc_client,
-			current_block: 0,
-			nonce: 0,
-			clusters: Vec::<Cluster>::new(),
-			binary_version,
-		}
-	}
-
-	pub fn get_key(&self) -> sp_core::sr25519::Pair {
-		self.enclave_key.clone()
-	}
-
-	pub fn get_accountid(&self) -> String {
-		let pubkey: [u8; 32] = self.enclave_key.as_ref().to_bytes()[64..].try_into().unwrap();
-		sp_core::sr25519::Public::from_raw(pubkey).to_string()
-	}
-
-	pub fn set_key(&mut self, keypair: sp_core::sr25519::Pair) {
-		self.enclave_key = keypair;
-	}
-
-	pub fn get_seal_path(&self) -> String {
-		self.seal_path.clone()
-	}
-
-	pub fn set_seal_path(&mut self, path: String) {
-		self.seal_path = path;
-	}
-
-	pub fn get_identity(&self) -> String {
-		self.identity.clone()
-	}
-
-	pub fn set_identity(&mut self, id: String) {
-		self.identity = id;
-	}
-
-	pub fn get_maintenance(&self) -> String {
-		self.maintenance.clone()
-	}
-
-	pub fn set_maintenance(&mut self, message: String) {
-		self.maintenance = message;
-	}
-
-	pub fn get_rpc_client(&self) -> DefaultApi {
-		self.rpc_client.clone()
-	}
-
-	pub fn set_current_block(&mut self, block_number: u32) {
-		self.current_block = block_number;
-	}
-
-	pub fn get_current_block(&self) -> u32 {
-		self.current_block
-	}
-
-	pub fn get_nonce(&self) -> u32 {
-		self.nonce
-	}
-
-	pub fn increment_nonce(&mut self) {
-		self.nonce += 1;
-	}
-
-	pub fn reset_nonce(&mut self) {
-		self.nonce = 0;
-	}
-
-	pub fn get_binary_version(&self) -> String {
-		self.binary_version.clone()
-	}
-
-	pub fn set_clusters(&mut self, onchain_clusters: Vec<Cluster>) {
-		self.clusters = onchain_clusters;
-	}
-
-	pub fn get_clusters(&self) -> Vec<Cluster> {
-		self.clusters.clone()
-	}
-}
-
-pub type SharedState = Arc<RwLock<StateConfig>>;
-
 const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024;
 
 /// http server
@@ -223,21 +111,21 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
 		let mut ekfile = match File::create(&encalve_account_file) {
 			Ok(file_handle) => {
-				debug!("2-1-3 created encalve keypair file successfully");
+				debug!("2-1-3 created enclave keypair file successfully");
 				file_handle
 			},
 			Err(err) => {
-				error!("2-1-3 failed to creat encalve keypair file, error : {:?}", err);
+				error!("2-1-3 failed to creat enclave keypair file, error : {:?}", err);
 				return Err(anyhow!(err));
 			},
 		};
 
 		match ekfile.write_all(phrase.as_bytes()) {
 			Ok(_) => {
-				debug!("2-1-4 write encalve keypair to file successfully");
+				debug!("2-1-4 write enclave keypair to file successfully");
 			},
 			Err(err) => {
-				error!("2-1-4 write encalve keypair to file failed, error : {:?}", err);
+				error!("2-1-4 write enclave keypair to file failed, error : {:?}", err);
 				return Err(anyhow!(err));
 			},
 		}
@@ -256,7 +144,6 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 		enclave_keypair,
 		seal_path.to_owned(),
-		identity.to_string(),
 		String::new(),
 		rpc.clone(),
 		"0.4.0".to_string(),
@@ -412,8 +299,8 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 
 	let shared_state = state.read().await;
 	let block_number = shared_state.get_current_block();
-	let enclave_key = shared_state.get_key();
 	let binary_version = shared_state.get_binary_version();
+	let enclave_address = shared_state.get_accountid();
 
 	debug!("3-3-4 healthcheck : get public key.");
 	// TODO: ADD RPC PROBLEM

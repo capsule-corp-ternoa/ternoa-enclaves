@@ -9,7 +9,7 @@ use tracing::{error, debug, info, trace};
 
 use crate::chain::core::ternoa::nft::events::{CapsuleSynced, SecretNFTSynced};
 use crate::chain::core::{get_chain_api, ternoa};
-use crate::servers::http_server::SharedState;
+use crate::servers::state::SharedState;
 use anyhow::{Result, anyhow};
 use subxt::utils::AccountId32;
 
@@ -27,9 +27,11 @@ pub struct Cluster {
 	is_public: bool,
 	enclaves: Vec<Enclave>,
 }
+
 /* ----------------------------
 		CLUSTER DISCOVERY
 ------------------------------ */
+
 // Crawl and parse registered clusters and enclaves on-chain
 pub async fn cluster_discovery(state: SharedState) -> Result<Vec<Cluster>, anyhow::Error> {
 	let api = get_chain_api(state.clone()).await; //create_chain_api().await.unwrap();
@@ -134,10 +136,17 @@ pub async fn self_slot(state: SharedState) -> Option<u32> {
 pub async fn slot_discovery(state: SharedState) -> Vec<String> {
 	let read_state = state.read().await;
 	let chain_clusters = read_state.get_clusters();
-
-	let slot = self_slot(state.clone()).await.unwrap();
-
+	
 	let mut urls = Vec::<String>::new();
+
+	let slot = match self_slot(state.clone()).await {
+		Some(slot) => slot,
+		None => {
+			error!("Error finding self slot in clusters data");
+			return urls
+		},
+	};
+
 	for cluster in chain_clusters {
 		for enclave in cluster.enclaves {
 			if enclave.slot == slot {
@@ -385,7 +394,7 @@ mod test {
 	use tracing::{info, Level};
 	use tracing_subscriber::FmtSubscriber; // for `oneshot` and `ready`
 
-	use crate::{chain::core::create_chain_api, servers::http_server::StateConfig};
+	use crate::{chain::core::create_chain_api, servers::state::StateConfig};
 
 	use super::*;
 
@@ -403,7 +412,6 @@ mod test {
 		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 			enclave_keypair,
 			seal_path.clone(),
-			"Test-Enclave".to_string(),
 			String::new(),
 			create_chain_api().await.unwrap(),
 			"0.3.0".to_string(),
