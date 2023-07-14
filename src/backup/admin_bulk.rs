@@ -26,7 +26,7 @@ use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
 	chain::core::get_current_block_number,
-	servers::http_server::{SharedState, StateConfig},
+	servers::state::{SharedState, StateConfig},
 };
 
 use super::zipdir::{add_dir_zip, zip_extract};
@@ -265,7 +265,7 @@ pub async fn admin_backup_fetch_bulk(
 ) -> impl IntoResponse {
 	debug!("3-15 API : backup fetch bulk");
 
-	update_health_status(&state, "Encalve is doing backup, please wait...".to_string()).await;
+	update_health_status(&state, "Enclave is doing backup, please wait...".to_string()).await;
 
 	if !verify_account_id(&backup_request.admin_address) {
 		let message = format!(
@@ -672,7 +672,7 @@ pub async fn admin_backup_push_bulk(
 	let enclave_account_file = "/nft/enclave_account.key";
 	if !std::path::Path::new(&enclave_account_file).exists() {
 		return Json(json!({
-			"error": format!("Admin restore : Encalve Account file not found"),
+			"error": format!("Admin restore : Enclave Account file not found"),
 		}));
 	};
 
