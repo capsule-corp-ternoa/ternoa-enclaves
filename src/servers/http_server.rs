@@ -55,6 +55,7 @@ pub struct StateConfig {
 	rpc_client: DefaultApi,
 	current_block: u32,
 	nonce: u32,
+	clusters: Vec<Cluster>,
 	binary_version: String,
 }
 
@@ -75,12 +76,18 @@ impl StateConfig {
 			rpc_client,
 			current_block: 0,
 			nonce: 0,
+			clusters: Vec::<Cluster>::new(),
 			binary_version,
 		}
 	}
 
 	pub fn get_key(&self) -> sp_core::sr25519::Pair {
 		self.enclave_key.clone()
+	}
+
+	pub fn get_accountid(&self) -> String {
+		let pubkey: [u8; 32] = self.enclave_key.as_ref().to_bytes()[64..].try_into().unwrap();
+		sp_core::sr25519::Public::from_raw(pubkey).to_string()
 	}
 
 	pub fn set_key(&mut self, keypair: sp_core::sr25519::Pair) {
@@ -139,7 +146,13 @@ impl StateConfig {
 		self.binary_version.clone()
 	}
 
+	pub fn set_clusters(&mut self, onchain_clusters: Vec<Cluster>) {
+		self.clusters = onchain_clusters;
+	}
 
+	pub fn get_clusters(&self) -> Vec<Cluster> {
+		self.clusters.clone()
+	}
 }
 
 pub type SharedState = Arc<RwLock<StateConfig>>;
@@ -294,6 +307,7 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 		.layer(CorsLayer::permissive())
 		.with_state(Arc::clone(&state_config));
 
+	// New thread to track latest block
 	tokio::spawn(async move {
 		// Subscribe to all finalized blocks:
 		let mut blocks_sub = match rpc.blocks().subscribe_finalized().await {
@@ -317,7 +331,7 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 			let block_number = block.header().number;
 
 			let shared_state_write = &mut state_config.write().await;
-			trace!("Block Number Thread : got shared state to write.");
+			debug!("Block Number Thread : got shared state to write.");
 
 			shared_state_write.set_current_block(block_number);
 			debug!("Block Number Thread : block_number state is set to {}", block_number);
@@ -329,8 +343,8 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 		}
 	});
 
-	info!("Wait for 3 seconds to update the block number");
-	tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+	debug!("Wait for 6 seconds to update the block number");
+	tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
 
 	Ok(http_app)
 }

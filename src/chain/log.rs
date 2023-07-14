@@ -148,7 +148,7 @@ fn update_view(
 mod test {
 	use tokio_test::assert_err;
 
-use super::*;
+	use super::*;
 
 	#[tokio::test]
 	async fn read_log_test() {
@@ -198,7 +198,7 @@ use super::*;
 		let mut log_file: LogFile =
 			serde_json::from_str(store_body).expect("error deserailizing json body");
 
-		let nft_second_account_role =  match log_file.secret_nft.get(&1) {
+		let nft_second_account_role = match log_file.secret_nft.get(&1) {
 			Some(event) => event.account.role,
 			None => panic!("There is no second account!"),
 		};

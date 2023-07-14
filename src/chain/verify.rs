@@ -497,7 +497,8 @@ impl VerificationError {
 			// IS NOT ENCRYPTED ENTITY
 			VerificationError::NOTSYNCING => {
 				let status = ReturnStatus::NOTSYNCING;
-				let description = format!("TEE Key-share {call:?}: The nft is not in syncing mode.");
+				let description =
+					format!("TEE Key-share {call:?}: The nft is not in syncing mode.");
 				info!("{}, requester : {}", description, caller);
 
 				(
