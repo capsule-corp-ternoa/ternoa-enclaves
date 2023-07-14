@@ -37,7 +37,7 @@ use tracing::{debug, error, info};
 )]
 
 pub mod ternoa {}
-use crate::servers::http_server::SharedState;
+use crate::servers::state::SharedState;
 
 use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
 pub type DefaultApi = OnlineClient<PolkadotConfig>;
