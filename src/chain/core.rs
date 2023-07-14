@@ -330,7 +330,10 @@ pub async fn nft_keyshare_oracle(
 	//Increment offchain nonce
 	state.write().await.increment_nonce();
 	// Create the extrinsic
-	api.tx().create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?.submit().await
+	api.tx()
+		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
+		.submit()
+		.await
 }
 
 // -------------- CAPSULE SYNC (ORACLE) --------------
@@ -370,7 +373,10 @@ pub async fn capsule_keyshare_oracle(
 	//Increment offchain nonce
 	state.write().await.increment_nonce();
 	// Create the extrinsic
-	api.tx().create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?.submit().await
+	api.tx()
+		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
+		.submit()
+		.await
 }
 
 /* **********************

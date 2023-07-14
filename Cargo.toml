@@ -73,7 +73,7 @@ mime = "0.3"
 hyper = { version = "0.14", features = ["full"] }
 
 [features]
-default = ["alphanet"]
+default = ["dev-0"]
 mainnet = []
 alphanet = []
 dev-1 = []
