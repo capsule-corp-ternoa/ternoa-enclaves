@@ -19,14 +19,6 @@ struct Args {
 	#[arg(short, long)]
 	port: u16,
 
-	/// Path to the location for storing sealed NFT key-shares
-	#[arg(short, long, default_value_t = String::from("/nft/"))]
-	sealpath: String,
-
-	/// Enclave unique name
-	#[arg(short, long, default_value_t = String::from("DEV-C1N1E1"))]
-	identity: String,
-
 	/// Server Port
 	#[arg(short, long, default_value_t = 2)]
 	verbose: u8,
@@ -83,7 +75,7 @@ async fn main() {
 
 	info!("1-4 Staring http-server");
 
-	let http_app = match servers::http_server::http_server(&args.identity, &args.sealpath).await {
+	let http_app = match servers::http_server::http_server().await {
 		Ok(app) => app,
 		Err(_e) => {
 			error!("Error creating http application, exiting.");

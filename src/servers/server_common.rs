@@ -96,7 +96,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 	let sgx_server_handle = axum_server::bind_rustls(socket_addr, config)
 		//.acceptor(acceptor)
-		.serve(app.into_make_service());
+		.serve(app.into_make_service_with_connect_info::<SocketAddr>());
 
 	// TODO:  DOES IT MAKE SENSE? SINCE AXUM IS INSIDE TOKIO THREAD IN MAIN FUNCTION!
 	//let sgx_server = tokio::spawn(sgx_server_handle);

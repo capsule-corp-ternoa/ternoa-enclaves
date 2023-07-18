@@ -5,13 +5,24 @@ use std::{
 	path::Path,
 };
 
-use axum::Json;
+use axum::{extract::State, Json};
 use cached::proc_macro::once;
 use serde_json::{json, Value};
+use sp_core::Pair;
 use tracing::{debug, error, info};
 
+use crate::servers::state::SharedState;
+use anyhow::{anyhow, Result};
+
 #[once(time = 60, sync_writes = false)]
-pub async fn ra_get_quote() -> Json<Value> {
+pub async fn ra_get_quote(State(state): State<SharedState>) -> Json<Value> {
+	let shared_state = &state.read().await;
+	let enclave_id = shared_state.get_accountid();
+	let enclave_account = shared_state.get_key();
+	let signature = enclave_account.sign(enclave_id.as_bytes());
+
+	write_user_report_data(None, &signature.0);
+
 	match generate_quote(None, None) {
 		Ok(quote) => Json(json!({
 			"status": "Success",
@@ -106,15 +117,21 @@ fn read_attestation_type(file_path: Option<String>) -> Result<String, Error> {
 /// * `file_path` - The path to the user report data
 /// # Returns
 /// * `Result<(), Error>` - The result of the user report data
-fn write_user_report_data(file_path: Option<String>) -> Result<(), Error> {
+fn write_user_report_data(
+	file_path: Option<String>,
+	user_data: &[u8; 64],
+) -> Result<(), anyhow::Error> {
 	let default_path = "/dev/attestation/user_report_data";
-	let write_zero = [0u8; 64];
-	OpenOptions::new()
+	if !is_user_report_data_exist(None) {
+		return Err(anyhow!("user_report_data does not exist!"));
+	}
+
+	let res = OpenOptions::new()
 		.write(true)
 		.open(file_path.unwrap_or(String::from(default_path)))
 		.and_then(|mut file| {
 			info!("This is inside Enclave!");
-			file.write_all(&write_zero).map_err(|err| {
+			file.write_all(user_data.as_slice()).map_err(|err| {
 				error!("Error writing to {} {:?}", default_path, err);
 				err
 			})
@@ -123,7 +140,9 @@ fn write_user_report_data(file_path: Option<String>) -> Result<(), Error> {
 			error!("Error writing file: {:?}", err);
 			err
 		})
-		.map(|_| ())
+		.map(|_| ())?;
+
+	Ok(res)
 }
 
 /// Check if file exists with correct permissions or else returns false

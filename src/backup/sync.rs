@@ -1,18 +1,53 @@
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::{
+	collections::HashMap,
+	fs::remove_file,
+	io::{Read, Write},
+	net::{SocketAddr, TcpStream},
+};
 
-use subxt::PolkadotConfig;
-use subxt::blocks::ExtrinsicEvents;
-use subxt::rpc::types::BlockNumber;
-use tracing::{error, debug, info, trace};
+use axum::{
+	body::StreamBody, extract::ConnectInfo, extract::State, http::header, http::StatusCode,
+	response::IntoResponse, Json,
+};
+use hex::{FromHex, FromHexError};
+use reqwest::{tls, Request};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 
-use crate::chain::core::ternoa::nft::events::{CapsuleSynced, SecretNFTSynced};
-use crate::chain::core::{get_chain_api, ternoa};
-use crate::servers::state::SharedState;
-use anyhow::{Result, anyhow};
-use subxt::utils::AccountId32;
+use sp_core::{
+	crypto::{PublicError, Ss58Codec},
+	sr25519::{self, Signature},
+	Pair,
+};
 
+use subxt::{
+	blocks::{BlockBody, ExtrinsicEvents},
+	rpc::types::BlockNumber,
+	storage::Storage,
+	utils::AccountId32,
+	OnlineClient, PolkadotConfig,
+};
+
+use tokio_util::io::ReaderStream;
+
+use tracing::{debug, error, info, trace, warn};
+
+use crate::{
+	backup::zipdir::{add_list_zip, zip_extract},
+	chain::core::{
+		get_chain_api, ternoa,
+		ternoa::nft::events::{CapsuleSynced, SecretNFTSynced},
+	},
+	servers::{http_server::HealthResponse, state::SharedState},
+};
+
+use anyhow::{anyhow, Result};
+
+/* ---------------------------------------
+	SYNCH NEW KEYSHARES TO OTHER ENCLAVES
+------------------------------------------ */
 #[derive(Debug, Clone)]
 pub struct Enclave {
 	slot: u32,
@@ -28,12 +63,498 @@ pub struct Cluster {
 	enclaves: Vec<Enclave>,
 }
 
+const SEALPATH: &str = "/nft/";
+const MAX_VALIDATION_PERIOD: u8 = 20;
+const MAX_BLOCK_VARIATION: u8 = 5;
+const MAX_STREAM_SIZE: usize = 1000 * 3 * 1024; // 3KB is the size of keyshare, 1000 is maximum number of ext in block
+
+/* *************************************
+	FETCH  NFTID DATA STRUCTURES
+**************************************** */
+// Validity time of Keyshare Data
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AuthenticationToken {
+	pub block_number: u32,
+	pub block_validation: u8,
+	pub data_hash: String,
+}
+
+/// Fetch NFTID Data
+#[derive(Serialize, Deserialize, Debug)]
+pub struct FetchIdPacket {
+	enclave_account: String,
+	nftid_vec: String,
+	auth_token: String,
+	signature: String,
+}
+
+/// Fetch NFTID Response
+#[derive(Serialize)]
+pub struct FetchIdResponse {
+	data: String,
+	signature: String,
+}
+
+/* ----------------------------------
+AUTHENTICATION TOKEN IMPLEMENTATION
+----------------------------------*/
+#[derive(Debug)]
+pub enum ValidationResult {
+	Success,
+	ErrorRpcCall,
+	ExpiredBlockNumber,
+	FutureBlockNumber,
+	InvalidPeriod,
+}
+
+/// Retrieving the stored Keyshare
+impl AuthenticationToken {
+	pub async fn is_valid(&self, last_block_number: u32) -> ValidationResult {
+		if last_block_number < self.block_number - (MAX_BLOCK_VARIATION as u32) {
+			// for finalization delay
+			debug!(
+				"last block number = {} < request block number = {}",
+				last_block_number, self.block_number
+			);
+			return ValidationResult::ExpiredBlockNumber;
+		}
+
+		if self.block_validation > MAX_VALIDATION_PERIOD {
+			// A finite validity period
+			return ValidationResult::InvalidPeriod;
+		}
+
+		if last_block_number
+			> self.block_number + ((self.block_validation + MAX_BLOCK_VARIATION) as u32)
+		{
+			// validity period
+			return ValidationResult::FutureBlockNumber;
+		}
+
+		ValidationResult::Success
+	}
+}
+
+/* *************************************
+		 VERIFICATION FUNCTIONS
+**************************************** */
+
+fn verify_account_id(
+	slot_enclaves: &Vec<(u32, Enclave)>,
+	account_id: &String,
+	address: SocketAddr,
+) -> bool {
+	// TODO : can we check requester URL or IP? What if it uses proxy?
+	let registered =
+		slot_enclaves.iter().find(|(_, enclave)| {
+			(enclave.enclave_account.to_string() == *account_id)
+		} /*&& (address == enclave.enclave_url)*/);
+	registered.is_some()
+}
+
+fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
+	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id)
+		.map_err(|err: PublicError| {
+			debug!("Error constructing public key {:?}", err);
+			err
+		});
+
+	pk
+}
+
+fn get_signature(signature: String) -> Result<Signature, FromHexError> {
+	let stripped = match signature.strip_prefix("0x") {
+		Some(sig) => sig,
+		None => signature.as_str(),
+	};
+
+	match <[u8; 64]>::from_hex(stripped) {
+		Ok(s) => {
+			let sig = sr25519::Signature::from_raw(s);
+			Ok(sig)
+		},
+		Err(err) => Err(err),
+	}
+}
+
+fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool {
+	match get_public_key(account_id) {
+		Ok(pk) => match get_signature(signature) {
+			Ok(val) => sr25519::Pair::verify(&val, message, &pk),
+			Err(err) => {
+				debug!("Error get signature {:?}", err);
+				false
+			},
+		},
+		Err(_) => {
+			debug!("Error get public key from account-id");
+			false
+		},
+	}
+}
+
+async fn update_health_status(state: &SharedState, message: String) {
+	let shared_state_write = &mut state.write().await;
+	debug!("got shared state to write.");
+
+	shared_state_write.set_maintenance(message);
+	debug!("Maintenance state is set.");
+}
+
+pub async fn error_handler(message: String, state: &SharedState) -> impl IntoResponse {
+	error!(message);
+	update_health_status(state, String::new()).await;
+	(StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+}
+
+/// Sync Key Shares (Server Side)
+/// This function is used to backup the key shares of the validators
+/// # Arguments
+/// * `state` - StateConfig
+/// * `backup_request` - BackupRequest
+/// # Returns
+/// * `Json` - BackupResponse
+/// # Example
+/// ```
+/// backup_key_shares(state, backup_request)
+/// ```
+#[axum::debug_handler]
+pub async fn sync_keyshares(
+	State(state): State<SharedState>,
+	ConnectInfo(addr): ConnectInfo<SocketAddr>,
+	Json(request): Json<FetchIdPacket>,
+) -> impl IntoResponse {
+	debug!("API : Sync fetch NFTID");
+
+	update_health_status(&state, "Enclave is Syncing Keyshare, please wait...".to_string()).await;
+
+	let shared_state_read = state.read().await;
+	let last_block_number = shared_state_read.get_current_block();
+	drop(shared_state_read);
+
+	let slot_enclaves = slot_discovery(&state).await;
+
+	if !verify_account_id(&slot_enclaves, &request.enclave_account, addr) {
+		let message =
+			format!("Sync Keyshare : Error : Requester is not authorized, address: {}, ", addr);
+
+		return error_handler(message, &state).await.into_response();
+	}
+
+	let mut auth = request.auth_token.clone();
+
+	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
+		auth = match auth.strip_prefix("<Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				return error_handler(
+					"Sync Keyshare : Strip Token prefix error".to_string(),
+					&state,
+				)
+				.await
+				.into_response();
+			},
+		};
+
+		auth = match auth.strip_suffix("</Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				return error_handler(
+					"Sync Keyshare : Strip Token suffix error".to_string(),
+					&state,
+				)
+				.await
+				.into_response();
+			},
+		}
+	}
+
+	let auth_token: AuthenticationToken = match serde_json::from_str(&auth) {
+		Ok(token) => token,
+		Err(e) => {
+			let message =
+				format!("Sync Keyshare : Error : Authentication token is not parsable : {}", e);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+
+	if !verify_signature(
+		&request.enclave_account,
+		request.signature.clone(),
+		request.auth_token.as_bytes(),
+	) {
+		return error_handler("Sync Keyshare : Invalid Signature".to_string(), &state)
+			.await
+			.into_response();
+	}
+
+	debug!("Sync Keyshare : Validating the authentication token");
+	let validity = auth_token.is_valid(last_block_number).await;
+	match validity {
+		ValidationResult::Success => debug!("Sync Keyshare : Authentication token is valid."),
+		_ => {
+			let message = format!(
+				"Sync Keyshare : Authentication Token is not valid, or expired : {:?}",
+				validity
+			);
+			return error_handler(message, &state).await.into_response();
+		},
+	}
+
+	let hash = sha256::digest(request.nftid_vec.as_bytes());
+
+	if auth_token.data_hash != hash {
+		return error_handler("Sync Keyshare : Mismatch Data Hash".to_string(), &state)
+			.await
+			.into_response();
+	}
+
+	// TODO : Get Quote, Do remote-attestation
+
+	let nftidv: Vec<u32> = match serde_json::from_str(&request.nftid_vec) {
+		Ok(v) => v,
+		Err(e) => {
+			let message = format!("Sync Keyshare : unable to deserialize nftid vector : {:?}", e);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+
+	let nftids: Vec<String> = nftidv.iter().map(|x| x.to_string()).collect::<Vec<String>>();
+
+	// TODO::check nftids , is empty, are in range, ...
+
+	let backup_file = "/temporary/backup.zip".to_string();
+	//let counter = 1;
+	// remove previously generated backup
+	while std::path::Path::new(&backup_file.clone()).exists() {
+		match std::fs::remove_file(backup_file.clone()) {
+			Ok(_) => {
+				debug!("Sync Keyshare : Successfully removed previous zip file")
+			},
+			Err(e) => {
+				let message =
+					format!("Sync Keyshare : Error : Can not remove previous backup file : {}", e);
+				warn!(message);
+				//return Json(json!({ "error": message })).into_response()
+				//backup_file = format!("/temporary/backup-{counter}.zip");
+			},
+		}
+	}
+
+	debug!("Sync Keyshare : Start zippping file");
+	add_list_zip(&SEALPATH, nftids, &backup_file);
+
+	// `File` implements `AsyncRead`
+	debug!("Sync Keyshare : Opening backup file");
+	let file = match tokio::fs::File::open(backup_file).await {
+		Ok(file) => file,
+		Err(err) => {
+			return Json(json!({
+				"error": format!("Sync Keyshare : Backup File not found: {}", err)
+			}))
+			.into_response()
+		},
+	};
+
+	// convert the `AsyncRead` into a `Stream`
+	debug!("Sync Keyshare : Create reader-stream");
+	let stream = ReaderStream::new(file);
+
+	// convert the `Stream` into an `axum::body::HttpBody`
+	debug!("Sync Keyshare : Create body-stream");
+	let body = StreamBody::new(stream);
+
+	let headers = [
+		(header::CONTENT_TYPE, "text/toml; charset=utf-8"),
+		(header::CONTENT_DISPOSITION, "attachment; filename=\"Backup.zip\""),
+	];
+
+	update_health_status(&state, String::new()).await;
+
+	debug!("Sync Keyshare : Sending the backup data to the client ...");
+	(headers, body).into_response()
+}
+
+/* --------------------------------
+	FETCH KEYSHARES FROM ENCLAVES
+----------------------------------- */
+
+pub async fn fetch_keyshares(
+	state: &SharedState,
+	new_nft: HashMap<u32, u32>,
+) -> Result<(), anyhow::Error> {
+	debug!("Fetch Keyshares from slot enclaves");
+
+	let shared_state_read = state.read().await;
+	let last_block_number = shared_state_read.get_current_block();
+	let account_id = shared_state_read.get_accountid();
+	let account_keypair = shared_state_read.get_key();
+	let cluster_data = shared_state_read.get_clusters();
+
+	// (clustse, slot)
+	let enclave_identity = match shared_state_read.get_identity() {
+		Some(id) => id,
+		None => {
+			let message = format!(
+				"Fetch Keyshares Error : No identity : Current enclave is not registered yet"
+			);
+			error!(message);
+			return Err(anyhow!(message));
+		},
+	};
+
+	drop(shared_state_read);
+
+	// The available enclaves in the same slot of current enclave, with their clusterid
+	let slot_enclaves = slot_discovery(&state).await;
+	if slot_enclaves.is_empty() {
+		let message = format!("Fetch Keyshares : No other similar slots detected, enclave is not registered or there is no other cluster.");
+		error!(message);
+		return Err(anyhow!(message));
+	}
+
+	// TODO::check nftids , is empty, are in range, ...
+	let nftids: Vec<u32> = new_nft
+		.into_iter()
+		.filter(|(nftid, cluster)| *cluster != enclave_identity.0)
+		.map(|kv| kv.0)
+		.collect();
+
+	// TODO: Check if they are already on the disk and updated.
+
+	// Encode NFTID list
+	let nftids_str = serde_json::to_string(&nftids).unwrap();
+	let hash = sha256::digest(nftids_str.as_bytes());
+
+	let auth = AuthenticationToken {
+		block_number: last_block_number,
+		block_validation: 15,
+		data_hash: hash,
+	};
+
+	let auth_str = serde_json::to_string(&auth).unwrap();
+	let sig = account_keypair.sign(auth_str.as_bytes());
+	let sig_str = format!("{}{:?}", "0x", sig);
+
+	let request = FetchIdPacket {
+		enclave_account: account_id,
+		nftid_vec: nftids_str,
+		auth_token: auth_str,
+		signature: sig_str,
+	};
+
+	let request_body = serde_json::to_string(&request).unwrap();
+	trace!("Fetch Keyshares : Request Body : {:#?}\n", request_body);
+
+	let mut buffer = [0; MAX_STREAM_SIZE];
+
+	// Check other enclaves for new NFT keyshares
+	let nft_clusters: Vec<u32> = new_nft.into_values().collect();
+	let client = reqwest::Client::builder()
+		.https_only(true)
+		.min_tls_version(tls::Version::TLS_1_3)
+		.build()?;
+	for enclave in slot_enclaves {
+		// Is the enclave in the cluster that nftid is originally stored?
+		// We can remove this condition if we want to search whole the slot
+		// It is faster for Runtime synchronization
+		// It may be problematic for First time Synchronization
+		// Because it is possible that original encalve is down now.
+		if !nft_clusters.contains(&enclave.0) {
+			continue;
+		}
+
+		let health_response = client.get(enclave.1.enclave_url + "/api/health").send().await?;
+		// Analyze the Response
+		let health_status = health_response.status();
+		let response_body: HealthResponse = match health_response.json().await {
+			Ok(body) => body,
+			Err(e) => {
+				let message = format!(
+					"Fetch Keyshares : Healthcheck : can not deserialize the body : {}",
+					enclave.1.enclave_url
+				);
+				warn!(message);
+				continue;
+			},
+		};
+
+		trace!(
+			"Fetch Keyshares : Health-Check Result for url : {} is {:#?}",
+			enclave.1.enclave_url,
+			response_body
+		);
+
+		// TODO : Mark and retry later
+		if health_status != StatusCode::OK {
+			let message = format!(
+				"Fetch Keyshares : Healthcheck Failed on url: {}, status : {:?}, reason : {}",
+				enclave.1.enclave_url, health_status, response_body.description
+			);
+			warn!(message);
+			continue;
+		}
+
+		let fetch_response = client
+			.post(enclave.1.enclave_url + "/api/sync-nft")
+			.body(request_body)
+			.send()
+			.await?;
+
+		let backup_file = SEALPATH.to_string() + "backup.zip";
+		let mut zipfile = match std::fs::File::create(backup_file.clone()) {
+			Ok(file) => file,
+			Err(e) => {
+				let message = format!("Fetch Keyshares : Can not create file on disk : {}", e);
+				warn!(message);
+				return Err(anyhow!(message));
+			},
+		};
+
+		// TODO : What if the "right" Enclave is not ready? (low probability for runtime synch)
+
+		match zipfile.write_all(&buffer[..bytes_readed]) {
+			Ok(_) => debug!("Fetch Keyshares : zip file is stored on disk."),
+			Err(e) => {
+				let message =
+					format!("Fetch Keyshares : Error writing received nft zip file to disk{:?}", e);
+				error!(message);
+				return Err(anyhow!(message));
+			},
+		}
+
+		// TODO: Verify fetch data befor writing them on the disk
+		// Check if the enclave_account or keyshares are invalid
+		match zip_extract(&backup_file, &SEALPATH) {
+			Ok(_) => debug!("Fetch Keyshares : zip_extract success"),
+			Err(e) => {
+				let message = format!("Fetch Keyshares : extracting zip file {:?}", e);
+				error!(message);
+				return Err(anyhow!(message));
+			},
+		}
+
+		match remove_file(backup_file) {
+			Ok(_) => debug!("Fetch Keyshares : remove zip file successful"),
+			Err(e) => {
+				let message = format!(
+					"Fetch Keyshares : Backup success with Error in removing zip file, {:?}",
+					e
+				);
+				return Err(anyhow!(message));
+			},
+		};
+	}
+
+	Ok(())
+}
+
 /* ----------------------------
 		CLUSTER DISCOVERY
 ------------------------------ */
 
-// Crawl and parse registered clusters and enclaves on-chain
-pub async fn cluster_discovery(state: SharedState) -> Result<Vec<Cluster>, anyhow::Error> {
+// Crawl and parse registered clusters and enclaves from on-chain data
+pub async fn cluster_discovery(state: &SharedState) -> Result<(), anyhow::Error> {
 	let api = get_chain_api(state.clone()).await; //create_chain_api().await.unwrap();
 
 	let max_cluster_address = ternoa::storage().tee().next_cluster_id();
@@ -50,7 +571,7 @@ pub async fn cluster_discovery(state: SharedState) -> Result<Vec<Cluster>, anyho
 		Some(cluster) => cluster,
 		None => {
 			error!("Cluster Discovery : Failed to fetch next cluster index.");
-			return Err(anyhow!("Cluster Discovery : Failed to fetch next cluster index."))
+			return Err(anyhow!("Cluster Discovery : Failed to fetch next cluster index."));
 		},
 	};
 
@@ -88,9 +609,15 @@ pub async fn cluster_discovery(state: SharedState) -> Result<Vec<Cluster>, anyho
 			let enclave_data = match storage.fetch(&enclave_data_address).await? {
 				Some(data) => data,
 				None => {
-					error!("Cluster Discovery : Failed to fetch enclave data. Operator : {}", operator_account.to_string());
-					return Err(anyhow!("Failed to fetch enclave data. Operator : {}", operator_account.to_string()))
-				} ,
+					error!(
+						"Cluster Discovery : Failed to fetch enclave data. Operator : {}",
+						operator_account.to_string()
+					);
+					return Err(anyhow!(
+						"Failed to fetch enclave data. Operator : {}",
+						operator_account.to_string()
+					));
+				},
 			};
 
 			let enclave_url = String::from_utf8(enclave_data.api_uri.0.to_vec())?;
@@ -108,11 +635,17 @@ pub async fn cluster_discovery(state: SharedState) -> Result<Vec<Cluster>, anyho
 	let write_state = &mut state.write().await;
 	write_state.set_clusters(clusters.clone());
 
-	Ok(clusters)
+	// Update self-identity if changed, for the new enclave is vital, then unlikely.
+	let identity = self_identity(state).await;
+	write_state.set_identity(identity);
+
+	Ok(())
 }
 
-// Find own slot number
-pub async fn self_slot(state: SharedState) -> Option<u32> {
+/* ----------------------
+	Find own slot number
+-------------------------*/
+pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 	let read_state = state.read().await;
 	let chain_clusters = read_state.get_clusters();
 	let self_enclave_account = read_state.get_accountid();
@@ -120,7 +653,7 @@ pub async fn self_slot(state: SharedState) -> Option<u32> {
 	for cluster in chain_clusters {
 		for enclave in cluster.enclaves {
 			if enclave.enclave_account.to_string() == self_enclave_account {
-				return Some(enclave.slot);
+				return Some((cluster.id, enclave.slot));
 			}
 		}
 	}
@@ -133,50 +666,55 @@ pub async fn self_slot(state: SharedState) -> Option<u32> {
 ------------------------------ */
 // List of api_url of all the enclaves in all clusters with the same slot number as current enclave
 // This is essential for Synchronization and backup
-pub async fn slot_discovery(state: SharedState) -> Vec<String> {
+pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
 	let read_state = state.read().await;
 	let chain_clusters = read_state.get_clusters();
-	
-	let mut urls = Vec::<String>::new();
 
-	let slot = match self_slot(state.clone()).await {
-		Some(slot) => slot,
+	let mut slot_enclave = Vec::<(u32, Enclave)>::new();
+
+	let identity = match read_state.get_identity() {
+		Some(id) => id,
 		None => {
-			error!("Error finding self slot in clusters data");
-			return urls
+			error!("Error finding self-identity onchain, this enclave may have not been registered on blockchain yet.");
+			return slot_enclave;
 		},
 	};
 
+	// Search all the clusters
 	for cluster in chain_clusters {
-		for enclave in cluster.enclaves {
-			if enclave.slot == slot {
-				urls.push(enclave.enclave_url);
-				break;
+		// Enclave can not request itself!
+		if cluster.id != identity.0 {
+			// Search enclaves in a cluster
+			for enclave in cluster.enclaves {
+				// Same slot number?
+				if enclave.slot == identity.1 {
+					slot_enclave.push((cluster.id, enclave));
+					break;
+				}
 			}
 		}
 	}
 
-	urls
+	slot_enclave
 }
 
-/* ----------------------------
-		EVENTS CRAWLER
------------------------------- */
+/* --------------------------------------
+	 EVENTS CRAWLER (Maintenace Mode)
+----------------------------------------- */
 // Detect new NFT synced event and look for corresponding enclaves-slot containing the keyshare
 // It is part of "Running Enclave Synchronization"
-pub async fn crawl_sync_events(state: SharedState, from_block_num: u32, to_block_num: u32) -> Result<HashMap::<u32, u32>> {
+// Result : HashMap of all <NFTID, ClusterID>.
+pub async fn crawl_sync_events(
+	state: SharedState,
+	from_block_num: u32,
+	to_block_num: u32,
+) -> Result<HashMap<u32, u32>> {
 	let api = get_chain_api(state).await;
-	
-	// Storage to find the cluster of an enclave which contains specific NFTID
-	let storage = match api.storage().at_latest().await {
-		Ok(storage) => storage,
-		Err(err) => {
-			error!("Cluster Discovery : Failed to get storage: {:?}", err);
-			return Err(err.into());
-		},
-	};
 
-	// Hashmap for fetch nftid-cluste 
+	// Storage to find the cluster of an enclave which contains specific NFTID
+	let storage_api = api.storage().at_latest().await?;
+
+	// Hashmap for fetch nftid-cluste
 	let mut nftid_cluster_map = HashMap::<u32, u32>::new();
 
 	for block_counter in from_block_num..=to_block_num {
@@ -188,25 +726,44 @@ pub async fn crawl_sync_events(state: SharedState, from_block_num: u32, to_block
 			.block_hash(Some(block_number))
 			.await?
 			.expect("Can not find block hash");
-		
+
 		// Read the block from blockchain
 		let block = api.blocks().at(block_hash).await?;
-		
+
 		// Extract block body
 		let body = block.body().await?;
-		
+
 		// Extract block events
 		//let events = block.events().await?;
 
-		// For all extrinsics in the block body
-		for ext in body.extrinsics().iter() {
-			let ext = ext?;
-			let pallet = ext.pallet_name()?;
-			let call = ext.variant_name()?;
-			let events = ext.events().await?;
-			//debug!("  - crawler extrinsic  = {} : {}", pallet, call);
+		let (parsed, _) = parse_block_body(body, &storage_api).await?;
+		nftid_cluster_map.extend(parsed);
+	}
 
-			if pallet == "NFT" {
+	Ok(nftid_cluster_map)
+}
+
+/* --------------------------------------
+			 PARSE BLOCK BODY
+----------------------------------------- */
+
+pub async fn parse_block_body(
+	body: BlockBody<PolkadotConfig, OnlineClient<PolkadotConfig>>,
+	storage: &Storage<PolkadotConfig, OnlineClient<PolkadotConfig>>,
+) -> Result<(HashMap<u32, u32>, bool)> {
+	let mut new_nft = HashMap::<u32, u32>::new();
+	let mut update_cluster_data = false;
+
+	// For all extrinsics in the block body
+	for ext in body.extrinsics().iter() {
+		let ext = ext?;
+		let pallet = ext.pallet_name()?;
+		let call = ext.variant_name()?;
+		//debug!("  - crawler extrinsic  = {} : {}", pallet, call);
+
+		match pallet {
+			"NFT" => {
+				let events = ext.events().await?;
 				match call {
 					// Capsule
 					"add_capsule_shard" => {
@@ -233,16 +790,18 @@ pub async fn crawl_sync_events(state: SharedState, from_block_num: u32, to_block
 												continue
 											},
 										};
-										nftid_cluster_map.insert(nftid, cluster_id);
+										new_nft.insert(nftid, cluster_id);
 										info!("  - Capsule Synced Event Detected, Cluster_ID {}, NFT_ID: {}", cluster_id, nftid);
 									},
 									None => debug!("  - Capsule Synced Event Detected, but there is not corresponding CapsuleShardAdded event for nft_id: {}", nftid),
 								}
 							},
-							None => debug!("  - Capsule Synced Event NOT Detected for addCapsuleShard Extrinsic"),
+							None => debug!(
+							"  - Capsule Synced Event NOT Detected for addCapsuleShard Extrinsic"
+						),
 						}
-					},
-					
+					}, // end - capsule shard
+
 					// Secret
 					"add_secret_shard" => {
 						// Secret-NFT Synced Detected?
@@ -268,7 +827,7 @@ pub async fn crawl_sync_events(state: SharedState, from_block_num: u32, to_block
 												continue
 											},
 										};
-										nftid_cluster_map.insert(nftid, cluster_id);
+										new_nft.insert(nftid, cluster_id);
 										info!("  - Secret-NFT Synced Event Detected, Cluster_ID {}, NFT_ID: {}", cluster_id, nftid);
 									},
 									None => debug!("  - Secret-NFT Synced Event Detected, but there is not corresponding ShardAdded event for nft_id: {}", nftid),
@@ -276,17 +835,51 @@ pub async fn crawl_sync_events(state: SharedState, from_block_num: u32, to_block
 							},
 							None => debug!("  - Secret-NFT Synced Event NOT Detected for addSecretShard Extrinsic"),
 						}
-					},
+					}, // end - secret shard
 
 					_ => debug!("  - NFT extrinsic is not about shards : {}", call),
+				} // end - call
+			}, // end  - NFT pallet
+
+			// If the extrinsic pallet is TC
+			"TechnicalCommittee" => {
+				let events = ext.events().await?;
+				for evnt in events.iter() {
+					let event = evnt?;
+					let pallet = event.pallet_name();
+
+					// If the event is TEE
+					if pallet == "tee" {
+						// TODO : There may be Metric Server updates that we should exclude
+						update_cluster_data = true;
+						debug!("  \t - TechnicalCommittee extrinsic for TEE detected");
+					}
 				}
-			}else {
-				trace!(" - Extrinsic is not about NFT : Pallet: {}, Call: {}", pallet, call);
-			}
-		}
-	}
-	
-	Ok(nftid_cluster_map)
+			},
+
+			// If the extrinsic pallet is TEE and it is successfull
+			"TEE" => {
+				let events = ext.events().await?;
+				for evnt in events.iter() {
+					let event = evnt?;
+					let pallet = event.pallet_name();
+					let variant = event.variant_name();
+					// If the event is successful
+					if pallet == "system" && variant == "ExtrinsicSuccess" {
+						// TODO: Check if this condition is meaningful
+						//update_cluster_data = true;
+						debug!("  \t - TEE extrinsic detected");
+					}
+				}
+			},
+
+			"Timestamp" => continue,
+
+			_ => trace!("  \t ---- [not a nft, tc, tee or timestamp pallet] extrinsic Pallet = {} call = {}", pallet, call),
+		} // end - match pallet
+	} // end - extrinsics loop
+
+	Ok((new_nft, update_cluster_data))
 }
 
 /* -----------------------
@@ -301,7 +894,7 @@ pub fn find_events_capsule_synced(events: &ExtrinsicEvents<PolkadotConfig>) -> O
 		match e {
 			Ok(ev) => {
 				debug!("  - capsule synced: nft_id: {:?}", ev.nft_id);
-				return Some(ev.nft_id)
+				return Some(ev.nft_id);
 			},
 			Err(err) => {
 				debug!("  - error reading capsule synced : {:?}", err);
@@ -315,12 +908,12 @@ pub fn find_events_capsule_synced(events: &ExtrinsicEvents<PolkadotConfig>) -> O
 pub fn find_events_secret_synced(events: &ExtrinsicEvents<PolkadotConfig>) -> Option<u32> {
 	// Get events for the latest block:
 	let sevt = events.find::<SecretNFTSynced>();
-	
+
 	for e in sevt {
 		match e {
 			Ok(ev) => {
 				debug!("  - secret synced: nft_id: {:?}", ev.nft_id);
-				return Some(ev.nft_id)
+				return Some(ev.nft_id);
 			},
 			Err(err) => {
 				debug!("  - error reading secret synced : {:?}", err);
@@ -331,16 +924,18 @@ pub fn find_events_secret_synced(events: &ExtrinsicEvents<PolkadotConfig>) -> Op
 }
 
 // Return enclave Account, it can be used to find the cluster
-pub fn find_event_capsule_shard_added(events: &ExtrinsicEvents<PolkadotConfig>, nftid: u32) -> Option<AccountId32> {
-	
+pub fn find_event_capsule_shard_added(
+	events: &ExtrinsicEvents<PolkadotConfig>,
+	nftid: u32,
+) -> Option<AccountId32> {
 	let acevt = events.find::<ternoa::nft::events::CapsuleShardAdded>();
-	
+
 	for e in acevt {
 		match e {
 			Ok(ev) => {
 				if ev.nft_id == nftid {
 					debug!("  - found a capsule added for given nftid : {}", nftid);
-					return Some(ev.enclave)
+					return Some(ev.enclave);
 				}
 			},
 			Err(err) => {
@@ -353,16 +948,18 @@ pub fn find_event_capsule_shard_added(events: &ExtrinsicEvents<PolkadotConfig>, 
 }
 
 // Return enclave Account, it can be used to find the cluster
-pub fn find_event_secret_shard_added(events: &ExtrinsicEvents<PolkadotConfig>, nftid: u32) -> Option<AccountId32> {
-
+pub fn find_event_secret_shard_added(
+	events: &ExtrinsicEvents<PolkadotConfig>,
+	nftid: u32,
+) -> Option<AccountId32> {
 	let asevt = events.find::<ternoa::nft::events::ShardAdded>();
-	
+
 	for e in asevt {
 		match e {
 			Ok(ev) => {
 				if ev.nft_id == nftid {
 					debug!("  - found a secret added for given nftid : {}", nftid);
-					return Some(ev.enclave)
+					return Some(ev.enclave);
 				}
 			},
 			Err(err) => {
@@ -405,24 +1002,18 @@ mod test {
 			.expect("main: setting default subscriber failed");
 
 		// Test environment
-
+		let api = create_chain_api().await.unwrap();
 		let (enclave_keypair, _, _) = sp_core::sr25519::Pair::generate_with_phrase(None);
 
 		let seal_path = "/tmp/seal".to_owned();
 		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 			enclave_keypair,
-			seal_path.clone(),
 			String::new(),
-			create_chain_api().await.unwrap(),
+			api.clone(),
 			"0.3.0".to_string(),
 		)));
 
-		let mut app = match crate::servers::http_server::http_server(
-			"Test-Enclave",
-			seal_path.as_str(),
-		)
-		.await
-		{
+		let mut app = match crate::servers::http_server::http_server().await {
 			Ok(r) => r,
 			Err(err) => {
 				error!("Error creating http server {}", err);
@@ -456,13 +1047,35 @@ mod test {
 		info!("Wait for 6 seconds to update the block number between requests");
 		tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
 
-		let clusters = cluster_discovery(state_config.clone()).await;
+		let clusters = cluster_discovery(&state_config.clone()).await;
 		println!("{:?}\n", clusters);
 
+		/* ----------------------------
+		   Test Finding NFT add Shard
+		------------------------------*/
 		let cluster_nft_map = crawl_sync_events(state_config, 1323900, 1324200).await;
-		println!("To be fetched from cluster-slot : {:?}", cluster_nft_map.unwrap());
-	}
+		println!("\n To be fetched from cluster-slot : {:?}\n", cluster_nft_map.unwrap());
 
-	#[tokio::test]
-	async fn test_subscribe_sync_events() {}
+		/* ------------------------------
+		  Test Finding TEE update ext.
+		--------------------------------*/
+		let test_block_number: u32 = 1364585;
+		let block_number = BlockNumber::from(test_block_number); // Block contains a failed request
+		let block_hash = api
+			.rpc()
+			.block_hash(Some(block_number))
+			.await
+			.unwrap()
+			.expect("Can not find block hash");
+
+		// Read the block from blockchain
+		let block = api.blocks().at(block_hash).await.unwrap();
+
+		// Extract block body
+		let body = block.body().await.unwrap();
+
+		let storage_api = api.storage().at_latest().await.unwrap();
+		let (_, tee_events) = parse_block_body(body, &storage_api).await.unwrap();
+		println!("\n A tee event has happened, fetch the cluster data? : {}\n", tee_events);
+	}
 }
