@@ -36,7 +36,6 @@ sgx_server.manifest: $(MANIFEST_FILE)
 		-Dcredentials_path=$(SGX_CREDENTIALS_PATH) \
 		-Dcertificates_path=$(SGX_CERT_PATH) \
 		-Dself_exe=$(SELF_EXE) \
-		-Dseal_path=$(SGX_SEAL_PATH) \
 		$< $@
 
 # Make on Ubuntu <= 20.04 doesn't support "Rules with Grouped Targets" (`&:`),
@@ -65,7 +64,6 @@ start-gramine-server: all
 	$(GRAMINE) sgx_server \
 		--domain $(SGX_DOMAIN) \
 		--port $(SGX_PORT) \
-		--sealpath "/nft/" \
 		--identity $(SGX_IDENTITY) \
 		--verbose $(SGX_VERBOSITY) \
 		>> enclave.log 2>&1 &

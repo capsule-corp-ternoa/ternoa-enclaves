@@ -20,10 +20,15 @@ fs.mounts = [
   { path = "/etc", uri = "file:/etc" },
   { path = "/quote", uri = "file:{{ quote_path }}", type = "chroot" },
   { path = "/temporary", type = "tmpfs" },
-  { path = "/certificates", uri = "file:{{ certificates_path }}/", type = "chroot" },
-  { path = "/keys", uri = "file:{{ credentials_path }}/keys", type = "chroot" },
-  { path = "/query", uri = "file:{{ credentials_path }}/query", type = "chroot" },
-  { path = "/nft" , uri = "file:{{ seal_path }}",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
+
+  # ------ TRUSTED
+  { path = "/keys", uri = "file:../credentials/keys", type = "chroot" },
+  { path = "/query", uri = "file:../credentials/query", type = "chroot" },
+  
+  # ------ SEALED
+  { path = "/quote", uri = "file:quote/", type = "_sgx_mrenclave" },
+  { path = "/certificates", uri = "file:certificates/", type = "_sgx_mrenclave" },
+  { path = "/nft" , uri = "file:nft/",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
 ]
 
 # Only for development and debug, it will be replaced with _sgx_mrenclave/_sgx_mrsigner for production
@@ -47,10 +52,12 @@ sgx.trusted_files = [
   "file:/etc/passwd",
   "file:/etc/gai.conf",
   "file:/etc/localtime",
+# TODO : REMOVE
   "file:/etc/ssl/certs/ca-certificates.crt",
+# TODO : REMOVE
   "file:bin/checksum",
   "file:bin/sgx_server.sig",
-  "file:{{ credentials_path }}/keys/dev/cosign.pub",
+  "file:../credentials/keys/dev/cosign.pub",
 ]
 
 # The Tokio runtime requires eventfd, and the Gramine implementation
