@@ -919,6 +919,7 @@ impl StoreKeysharePacket {
 							return Err(VerificationError::IDISNOTSECRETNFT);
 						}
 
+						debug!("nft syncing status : {}", nft_status.is_syncing_secret);
 						if !nft_status.is_syncing_secret {
 							return Err(VerificationError::NOTSYNCING);
 						}
@@ -929,6 +930,7 @@ impl StoreKeysharePacket {
 							return Err(VerificationError::IDISNOTCAPSULE);
 						}
 
+						debug!("capsule syncing status : {}", nft_status.is_syncing_capsule);
 						if !nft_status.is_syncing_capsule {
 							return Err(VerificationError::NOTSYNCING);
 						}
@@ -1111,6 +1113,7 @@ impl RetrieveKeysharePacket {
 						return Err(VerificationError::IDISNOTSECRETNFT);
 					}
 
+					debug!("nft syncing status : {}", nft_status.is_syncing_secret);
 					if nft_status.is_syncing_secret {
 						return Err(VerificationError::NOTSYNCED);
 					}
@@ -1121,6 +1124,7 @@ impl RetrieveKeysharePacket {
 						return Err(VerificationError::IDISNOTCAPSULE);
 					}
 
+					debug!("capsule syncing status : {}", nft_status.is_syncing_capsule);
 					if nft_status.is_syncing_capsule {
 						return Err(VerificationError::NOTSYNCED);
 					}

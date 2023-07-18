@@ -1,11 +1,7 @@
-use tokio::sync::RwLock;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
-use crate::{
-	backup::sync::Cluster,
-	chain::core::DefaultApi,
-};
-
+use crate::{backup::sync::Cluster, chain::core::DefaultApi};
 
 pub type SharedState = Arc<RwLock<StateConfig>>;
 
@@ -14,19 +10,19 @@ pub type SharedState = Arc<RwLock<StateConfig>>;
 pub struct StateConfig {
 	enclave_key: sp_core::sr25519::Pair,
 	enclave_account: String,
-	seal_path: String,
 	maintenance: String,
 	rpc_client: DefaultApi,
 	current_block: u32,
 	nonce: u32,
 	clusters: Vec<Cluster>,
+	// Identity is (ClusterID, SlotID)
+	identity: Option<(u32, u32)>,
 	binary_version: String,
 }
 
 impl StateConfig {
 	pub fn new(
 		enclave_key: sp_core::sr25519::Pair,
-		seal_path: String,
 		maintenance: String,
 		rpc_client: DefaultApi,
 		binary_version: String,
@@ -34,12 +30,12 @@ impl StateConfig {
 		StateConfig {
 			enclave_key: enclave_key.clone(),
 			enclave_account: keypair_to_public(enclave_key).unwrap().to_string(),
-			seal_path,
 			maintenance,
 			rpc_client,
 			current_block: 0,
 			nonce: 0,
 			clusters: Vec::<Cluster>::new(),
+			identity: None,
 			binary_version,
 		}
 	}
@@ -54,10 +50,6 @@ impl StateConfig {
 
 	pub fn set_key(&mut self, keypair: sp_core::sr25519::Pair) {
 		self.enclave_key = keypair;
-	}
-
-	pub fn get_seal_path(&self) -> String {
-		self.seal_path.clone()
 	}
 
 	pub fn get_maintenance(&self) -> String {
@@ -103,19 +95,27 @@ impl StateConfig {
 	pub fn get_clusters(&self) -> Vec<Cluster> {
 		self.clusters.clone()
 	}
+
+	pub fn get_identity(&self) -> Option<(u32, u32)> {
+		// Identity is (ClusterID, SlotID)
+		self.identity
+	}
+
+	pub fn set_identity(&mut self, identity: Option<(u32, u32)>) {
+		// Identity is (ClusterID, SlotID)
+		self.identity = identity;
+	}
 }
 
-
-fn keypair_to_public (keypair: sp_core::sr25519::Pair) -> Option<sp_core::sr25519::Public> {
+fn keypair_to_public(keypair: sp_core::sr25519::Pair) -> Option<sp_core::sr25519::Public> {
 	let pubkey: [u8; 32] = match keypair.as_ref().to_bytes()[64..].try_into() {
 		Ok(pk) => pk,
 		Err(e) => {
-			tracing::error!("converting keypair to public key: {:?}",e);
-			return None
+			tracing::error!("converting keypair to public key: {:?}", e);
+			return None;
 		},
 	};
 
 	let public_key = sp_core::sr25519::Public::from_raw(pubkey);
 	Some(public_key)
-
 }

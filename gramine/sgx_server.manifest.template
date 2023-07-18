@@ -19,10 +19,12 @@ fs.mounts = [
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
   { path = "/etc", uri = "file:/etc" },
   { path = "/temporary", type = "tmpfs" },
-  { path = "/quote", uri = "file:{{ quote_path }}", type = "chroot" },
-  { path = "/keys", uri = "file:{{ credentials_path }}/keys", type = "chroot" },
-  { path = "/certificates", uri = "file:{{ certificates_path }}", type = "encrypted", key_name = "_sgx_mrenclave" },
-  { path = "/nft" , uri = "file:{{ seal_path }}", type = "encrypted", key_name = "_sgx_mrenclave"},
+  # ------ TRUSTED
+  { path = "/keys", uri = "file:../credentials/keys", type = "chroot" },
+  # ------ SEALED
+  { path = "/quote", uri = "file:quote/", type = "_sgx_mrenclave" },
+  { path = "/certificates", uri = "file:certificates/", type = "encrypted", key_name = "_sgx_mrenclave" },
+  { path = "/nft" , uri = "file:nft/", type = "encrypted", key_name = "_sgx_mrenclave"},
 ]
 
 sgx.allowed_files = [
@@ -42,10 +44,12 @@ sgx.trusted_files = [
   "file:/etc/passwd",
   "file:/etc/gai.conf",
   "file:/etc/localtime",
+# TODO : REMOVE
   "file:/etc/ssl/certs/ca-certificates.crt",
+# TODO : REMOVE  
   "file:bin/checksum",
   "file:bin/sgx_server.sig",
-  "file:{{ credentials_path }}/keys/cosign.pub",
+  "./credentials/keys/cosign.pub",
 ]
 
 # TODO: REMOVE INSECURE OPTIONS

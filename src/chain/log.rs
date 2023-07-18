@@ -100,7 +100,9 @@ pub fn update_log_file_view(
 	log_type: LogType,
 	nft_type: &str,
 ) -> bool {
-	if let Err(e) = update_view(block_number, file_path, requester_address, requester_type, log_type, nft_type) {
+	if let Err(e) =
+		update_view(block_number, file_path, requester_address, requester_type, log_type, nft_type)
+	{
 		error!("Unable to update log file view: {}", e);
 		return false;
 	}
