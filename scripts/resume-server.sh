@@ -4,7 +4,6 @@
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )
 SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
-SEAL_PATH=$GRAMINE_PATH/nft
 CERT_PATH=$BASEDIR/credentials/certificates
 QUOTE_PATH=$GRAMINE_PATH/quote
 CREDENTIALS_PATH=$BASEDIR/credentials
@@ -14,7 +13,7 @@ CHAIN=${CHAIN:-alphanet}
 DOMAIN=${DOMIAN:-alphanet-c1n1v2.ternoa.dev}
 PORT=${PORT:-8101}
 MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
-NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEAL_PATH}
+
 # PASSWORD = Test123456
 #TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} 
 ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
@@ -86,7 +85,7 @@ while :; do
 	    fi
 	;;
 	-h|--help)
-	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n [-d | --dev] [-r | --release] \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
+	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n [-d | --dev] [-r | --release] \n -d | --domain <server domain name> \n -p | --port <port-number> \n"
 	    exit 0
 	    ;;
         *) break
@@ -125,7 +124,6 @@ make 	SGX=1 \
 	SGX_DOMAIN=$DOMAIN \
 	SGX_PORT=$PORT \
 	SGX_BASE_PATH=$BASEDIR \
-	SGX_SEAL_PATH=$NFT_SERCRETS_PATH \
 	SGX_QUOTE_PATH=$QUOTE_PATH \
 	SGX_CREDENTIALS_PATH=$CREDENTIALS_PATH \
 	SGX_CERT_PATH=$CERT_PATH \

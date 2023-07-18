@@ -11,6 +11,7 @@ use std::{
 };
 
 use futures::StreamExt;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use axum::{
@@ -45,17 +46,15 @@ use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 
 use super::server_common;
 
-const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024;
+pub const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024;
 
 /// http server
 /// # Arguments
-/// * `identity` - identity
-/// * `seal_path` - seal path
 /// # Example
 /// ```
-/// http_server("identity", "seal_path");
+/// http_server();
 /// ```
-pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Error> {
+pub async fn http_server() -> Result<Router, Error> {
 	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
 	let enclave_account_file = "/nft/enclave_account.key";
 
@@ -133,7 +132,7 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 		keypair
 	};
 
-	let rpc = match create_chain_api().await {
+	let chain_api = match create_chain_api().await {
 		Ok(api) => api,
 		Err(err) => {
 			error!("2-1-5 get online chain api, error : {:?}", err);
@@ -143,9 +142,8 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 
 	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 		enclave_keypair,
-		seal_path.to_owned(),
 		String::new(),
-		rpc.clone(),
+		chain_api.clone(),
 		"0.4.0".to_string(),
 	)));
 
@@ -184,6 +182,8 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 		.route("/api/capsule-nft/set-keyshare", post(capsule_set_keyshare))
 		.route("/api/capsule-nft/retrieve-keyshare", post(capsule_retrieve_keyshare))
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
+		// SYNCHRONIZATION
+		.route("/api/backup/sync-nft", post(sync_keyshares))
 		//.layer(RequestBodyLimitLayer::new(CONTENT_LENGTH_LIMIT))
 		.layer(
 			ServiceBuilder::new()
@@ -197,7 +197,7 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 	// New thread to track latest block
 	tokio::spawn(async move {
 		// Subscribe to all finalized blocks:
-		let mut blocks_sub = match rpc.blocks().subscribe_finalized().await {
+		let mut blocks_sub = match chain_api.blocks().subscribe_finalized().await {
 			Ok(sub) => sub,
 			Err(e) => {
 				error!(" Unable to subscribe to finalized blocks {:?}", e);
@@ -227,6 +227,32 @@ pub async fn http_server(identity: &str, seal_path: &str) -> Result<Router, Erro
 			// It is used as a batch of extrinsics for every block
 			shared_state_write.reset_nonce();
 			debug!("Block Number Thread : nonce has been reset");
+
+			// TODO: can we remove this line?
+			//drop(shared_state_write);
+
+			// Extract block body
+			let body = block.body().await.unwrap();
+
+			let storage_api = chain_api.storage().at_latest().await.unwrap();
+
+			let (new_nft, tee_events) = parse_block_body(body, &storage_api).await.unwrap();
+
+			// A change in clusters/enclaves data detected.
+			if tee_events {
+				match cluster_discovery(&state_config).await {
+					Ok(_) => debug!("Cluster discovery complete."),
+					Err(err) => error!("Error during running-mode cluster discovery {:?}", err),
+				}
+			}
+
+			// New Capsule/Secret are found
+			if !new_nft.is_empty() {
+				match fetch_keyshares(&state_config, new_nft).await {
+					Ok(_) => debug!("Synchronization of Keyshares complete."),
+					Err(err) => error!("Error during running-mode cluster discovery : {:?}", err),
+				}
+			}
 		}
 	});
 
@@ -269,11 +295,21 @@ async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
 /*  ------------------------------
 	HEALTH CHECK
 ------------------------------ */
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct HealthResponse {
+	pub status: u32,
+	pub block_number: u32,
+	pub version: String,
+	pub description: String,
+	pub enclave_address: String,
+}
+
 /// Health check endpoint
 async fn get_health_status(State(state): State<SharedState>) -> impl IntoResponse {
 	debug!("3-3 Healthchek handler.");
 
-	match evalueate_health_status(state).await {
+	match evalueate_health_status(&state).await {
 		Some(response) => {
 			debug!("3-3-1 Healthchek exit successfully .");
 			response.into_response()
@@ -281,12 +317,19 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 
 		_ => {
 			debug!("3-3-1 Healthchek exited with None.");
+			let shared_state = state.read().await;
+			let block_number = shared_state.get_current_block();
+			let binary_version = shared_state.get_binary_version();
+			let enclave_address = shared_state.get_accountid();
 			(
 				StatusCode::INTERNAL_SERVER_ERROR,
-				Json(json!({
-					"status": 666,
-					"description": "Healthcheck returned NONE".to_string()
-				})),
+				Json(HealthResponse {
+					status: 666,
+					description: "Healthcheck returned NONE".to_string(),
+					block_number,
+					version: binary_version,
+					enclave_address,
+				}),
 			)
 				.into_response()
 		},
@@ -321,27 +364,25 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	if !maintenance.is_empty() {
 		return Some((
 			StatusCode::PROCESSING,
-			Json(json!({
-				"status": 500,
-				"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
-				"block_number": block_number,
-				"version": binary_version,
-				"description": maintenance,
-				"enclave_address": enclave_address,
-			})),
+			Json(HealthResponse {
+				status: 500,
+				block_number,
+				version: binary_version,
+				description: maintenance,
+				enclave_address,
+			}),
 		));
 	}
 
 	Some((
 		StatusCode::OK,
-		Json(json!({
-			"status": 200,
-			"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
-			"block_number": block_number,
-			"version": binary_version,
-			"description": "SGX server is running!".to_string(),
-			"enclave_address": enclave_address,
-		})),
+		Json(HealthResponse {
+			status: 200,
+			block_number,
+			version: binary_version,
+			description: "SGX server is running!".to_string(),
+			enclave_address,
+		}),
 	))
 }
 

@@ -45,6 +45,7 @@ const BACKUP_WHITELIST: [&str; 3] = [
 	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
 ];
 
+const SEALPATH: &str = "/nft/";
 const MAX_VALIDATION_PERIOD: u32 = 20;
 const MAX_BLOCK_VARIATION: u32 = 5;
 
@@ -264,7 +265,6 @@ pub async fn admin_backup_fetch_bulk(
 	Json(backup_request): Json<FetchBulkPacket>,
 ) -> impl IntoResponse {
 	debug!("3-15 API : backup fetch bulk");
-
 	update_health_status(&state, "Enclave is doing backup, please wait...".to_string()).await;
 
 	if !verify_account_id(&backup_request.admin_address) {
@@ -316,7 +316,6 @@ pub async fn admin_backup_fetch_bulk(
 	}
 
 	let shared_state_read = state.read().await;
-	let seal_path = shared_state_read.get_seal_path();
 	let last_block_number = shared_state_read.get_current_block();
 	drop(shared_state_read);
 
@@ -353,7 +352,7 @@ pub async fn admin_backup_fetch_bulk(
 	}
 
 	debug!("Start zippping file");
-	add_dir_zip(&seal_path, &backup_file);
+	add_dir_zip(&SEALPATH, &backup_file);
 
 	// `File` implements `AsyncRead`
 	debug!("Opening backup file");
@@ -422,7 +421,6 @@ pub async fn admin_backup_push_bulk(
 ) -> Json<Value> {
 	debug!("3-16 API : backup push bulk");
 	debug!("received request = {:?}", store_request);
-
 	//update_health_status(&state, "Restoring the backups".to_string()).await;
 
 	let mut admin_address = String::new();
@@ -600,7 +598,6 @@ pub async fn admin_backup_push_bulk(
 	};
 
 	let shared_state_read = state.read().await;
-	let seal_path = shared_state_read.get_seal_path();
 	let last_block_number = shared_state_read.get_current_block();
 	drop(shared_state_read);
 
@@ -625,7 +622,7 @@ pub async fn admin_backup_push_bulk(
 		}));
 	}
 
-	let backup_file = seal_path.clone() + "backup.zip";
+	let backup_file = SEALPATH.to_string() + "backup.zip";
 
 	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
 		Ok(file) => file,
@@ -648,7 +645,7 @@ pub async fn admin_backup_push_bulk(
 	}
 	// TODO: Verify backup data befor writing them on the disk
 	// Check if the enclave_account or keyshares are invalid
-	match zip_extract(&backup_file, &seal_path) {
+	match zip_extract(&backup_file, &SEALPATH) {
 		Ok(_) => debug!("zip_extract success"),
 		Err(e) => {
 			let message = format!("Admin restore :  extracting zip file {:?}", e);

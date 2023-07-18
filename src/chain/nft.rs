@@ -23,6 +23,8 @@ use crate::chain::chain::nft_secret_share_oracle;
 
 use serde::{Deserialize, Serialize};
 
+const SEALPATH: String = String::from("/nft/");
+
 /* **********************
    KEYSHARE AVAILABLE API
 ********************** */
@@ -49,7 +51,7 @@ pub async fn is_nft_available(
 
 	let shared_state = &state.read().await;
 	let enclave_account = shared_state.get_accountid();
-	let enclave_sealpath = shared_state.get_seal_path();
+	let enclave_sealpath = SEALPATH;
 	let block_number = shared_state.get_current_block();
 
 	let file_path = enclave_sealpath + "nft_" + &nft_id.to_string() + ".keyshare";
@@ -223,7 +225,7 @@ pub async fn nft_get_views(
 	debug!("3-7 API : nft get views");
 	let shared_state = &state.read().await;
 	let enclave_account = shared_state.get_accountid();
-	let enclave_sealpath = shared_state.get_seal_path();
+	let enclave_sealpath = SEALPATH;
 
 	let nft_state = match get_onchain_nft_data(state.clone(), nft_id).await {
 		Some(data) => data.state,
@@ -379,7 +381,7 @@ pub async fn nft_store_keyshare(
 	debug!("3-8 API nft store keyshare");
 	let shared_state = &state.read().await;
 	let enclave_account = shared_state.get_accountid();
-	let enclave_sealpath = shared_state.get_seal_path();
+	let enclave_sealpath = SEALPATH;
 	let enclave_keypair = shared_state.get_key();
 	let block_number = shared_state.get_current_block();
 
@@ -495,13 +497,8 @@ pub async fn nft_store_keyshare(
 			// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
 			match nft_keyshare_oracle(state.clone(), enclave_keypair, verified_data.nft_id).await {
 				Ok(txh) => {
-					let result = nft_keyshare_oracle_results(
-						block_number,
-						enclave_sealpath,
-						&request,
-						&verified_data,
-						txh,
-					);
+					let result =
+						nft_keyshare_oracle_results(block_number, &request, &verified_data, txh);
 
 					// Log file for tracing the NFT key-share VIEW history in Marketplace.
 					let file_path = state.seal_path + &verified_data.nft_id.to_string() + ".log";
@@ -585,7 +582,6 @@ pub async fn nft_store_keyshare(
 /// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
 fn nft_keyshare_oracle_results(
 	block_number: u32,
-	enclave_sealpath: String,
 	request: &StoreKeysharePacket,
 	verified_data: &StoreKeyshareData,
 	txh: H256,
@@ -596,7 +592,7 @@ fn nft_keyshare_oracle_results(
     );
 
 	// Log file for tracing the NFT key-share VIEW history in Marketplace.
-	let file_path = enclave_sealpath + &verified_data.nft_id.to_string() + ".log";
+	let file_path = SEALPATH + &verified_data.nft_id.to_string() + ".log";
 
 	let mut file = match File::create(file_path) {
 		Ok(file) => file,
@@ -652,7 +648,7 @@ pub async fn nft_retrieve_keyshare(
 	debug!("3-9 API : nft retrieve keyshare");
 	let shared_state = &state.read().await;
 	let enclave_account = shared_state.get_accountid();
-	let enclave_sealpath = shared_state.get_seal_path();
+	let enclave_sealpath = SEALPATH;
 	let block_number = shared_state.get_current_block();
 
 	match request.verify_retrieve_request(state.clone(), "secret-nft").await {
@@ -776,7 +772,6 @@ pub async fn nft_retrieve_keyshare(
 					"description": description,
 				})),
 			)
-	
 		},
 
 		Err(err) => {
@@ -826,7 +821,7 @@ pub async fn nft_remove_keyshare(
 	debug!("3-10 API : nft remove keyshare");
 	let shared_state = &state.read().await;
 	let enclave_account = shared_state.get_accountid();
-	let enclave_sealpath = shared_state.get_seal_path();
+	let enclave_sealpath = SEALPATH;
 
 	let nft_status = match get_onchain_nft_data(state.clone(), request.nft_id).await {
 		Some(_) => true, // not burnt

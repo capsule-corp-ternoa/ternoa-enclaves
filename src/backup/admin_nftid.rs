@@ -48,11 +48,12 @@ const BACKUP_WHITELIST: [&str; 3] = [
 	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
 ];
 
+const SEALPATH: &str = "/nft/";
 const MAX_VALIDATION_PERIOD: u8 = 20;
 const MAX_BLOCK_VARIATION: u8 = 5;
 
 /* *************************************
-		FETCH  BULK DATA STRUCTURES
+	FETCH  NFTID DATA STRUCTURES
 **************************************** */
 
 // Validity time of Keyshare Data
@@ -63,7 +64,7 @@ pub struct AuthenticationToken {
 	pub data_hash: String,
 }
 
-/// Fetch Bulk Data
+/// Fetch NFTID Data
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FetchIdPacket {
 	admin_address: String,
@@ -72,7 +73,7 @@ pub struct FetchIdPacket {
 	signature: String,
 }
 
-/// Fetch Bulk Response
+/// Fetch NFTID Response
 #[derive(Serialize)]
 pub struct FetchIdResponse {
 	data: String,
@@ -244,7 +245,7 @@ pub async fn admin_backup_fetch_id(
 	State(state): State<SharedState>,
 	Json(backup_request): Json<FetchIdPacket>,
 ) -> impl IntoResponse {
-	debug!("3-15 API : backup fetch bulk");
+	debug!("3-15 API : backup fetch NFTID");
 
 	update_health_status(&state, "Enclave is doing backup, please wait...".to_string()).await;
 
@@ -297,7 +298,6 @@ pub async fn admin_backup_fetch_id(
 	}
 
 	let shared_state_read = state.read().await;
-	let seal_path = shared_state_read.get_seal_path();
 	let last_block_number = shared_state_read.get_current_block();
 	drop(shared_state_read);
 
@@ -352,7 +352,7 @@ pub async fn admin_backup_fetch_id(
 	}
 
 	debug!("Start zippping file");
-	add_list_zip(&seal_path, nftids, &backup_file);
+	add_list_zip(&SEALPATH, nftids, &backup_file);
 
 	// `File` implements `AsyncRead`
 	debug!("Opening backup file");
@@ -454,21 +454,19 @@ mod test {
 
 		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 			enclave_keypair,
-			"/tmp/seal".to_owned(),
 			String::new(),
 			create_chain_api().await.unwrap(),
 			"0.3.0".to_string(),
 		)));
 
 		//let app = Router::new().route("/admin_backup_fetch_id", post(admin_backup_fetch_id)).with_state(state_config);
-		let mut app =
-			match crate::servers::http_server::http_server("Test-Enclave", "/tmp/seal").await {
-				Ok(r) => r,
-				Err(err) => {
-					error!("Error creating http server {}", err);
-					return;
-				},
-			};
+		let mut app = match crate::servers::http_server::http_server().await {
+			Ok(r) => r,
+			Err(err) => {
+				error!("Error creating http server {}", err);
+				return;
+			},
+		};
 
 		let request1 = Request::builder()
 			.method(http::Method::GET)
