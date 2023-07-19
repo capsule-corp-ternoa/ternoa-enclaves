@@ -214,11 +214,11 @@ pub async fn http_server() -> Result<Router, Error> {
 					continue;
 				},
 			};
-
+			
 			let block_number = block.header().number;
 
 			let shared_state_write = &mut state_config.write().await;
-			debug!("Block Number Thread : got shared state to write.");
+			trace!("Block Number Thread : got shared state to write.");
 
 			shared_state_write.set_current_block(block_number);
 			debug!("Block Number Thread : block_number state is set to {}", block_number);
@@ -226,7 +226,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			// For block number update, we should reset the nonce as well
 			// It is used as a batch of extrinsics for every block
 			shared_state_write.reset_nonce();
-			debug!("Block Number Thread : nonce has been reset");
+			trace!("Block Number Thread : nonce has been reset");
 
 			// TODO: can we remove this line?
 			//drop(shared_state_write);
@@ -234,7 +234,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			// Extract block body
 			let body = block.body().await.unwrap();
 
-			let storage_api = chain_api.storage().at_latest().await.unwrap();
+			let storage_api = block.storage();
 
 			let (new_nft, tee_events) = parse_block_body(body, &storage_api).await.unwrap();
 
