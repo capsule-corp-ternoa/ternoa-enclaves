@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{collections::HashMap, fs::remove_file, io::Write, net::SocketAddr};
+use std::{collections::HashMap, fs::{remove_file, self}, io::Write, net::SocketAddr};
 
 use axum::{
 	body::StreamBody, extract::ConnectInfo, extract::State, http::header, http::StatusCode,
@@ -30,6 +30,7 @@ use tokio_util::io::ReaderStream;
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
+	attestation::ra::QuoteResponse,
 	backup::zipdir::{add_list_zip, zip_extract},
 	chain::core::{
 		get_chain_api, ternoa,
@@ -138,7 +139,7 @@ fn verify_account_id(
 	slot_enclaves: Vec<(u32, Enclave)>,
 	account_id: &String,
 	address: SocketAddr,
-) -> bool {
+) -> Option<(u32, Enclave)> {
 	// TODO : can we check requester URL or IP? What if it uses proxy?
 	debug!("Verify Accound Id : Requester Address : {}", address);
 
@@ -147,7 +148,7 @@ fn verify_account_id(
 			enclave.enclave_account.to_string() == *account_id
 		} /*&& (address == enclave.enclave_url)*/);
 
-	registered.is_some()
+	registered.cloned()
 }
 
 fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
@@ -227,12 +228,15 @@ pub async fn sync_keyshares(
 
 	let slot_enclaves = slot_discovery(&state).await;
 
-	if !verify_account_id(slot_enclaves, &request.enclave_account, addr) {
-		let message =
-			format!("Sync Keyshare : Error : Requester is not authorized, address: {}, ", addr);
+	let requester = match verify_account_id(slot_enclaves, &request.enclave_account, addr) {
+		Some(enclave) => enclave,
+		None => {
+			let message =
+				format!("Sync Keyshare : Error : Requester is not authorized, address: {}, ", addr);
 
-		return error_handler(message, &state).await.into_response();
-	}
+			return error_handler(message, &state).await.into_response();
+		},
+	};
 
 	let mut auth = request.auth_token.clone();
 
@@ -302,9 +306,7 @@ pub async fn sync_keyshares(
 			.into_response();
 	}
 
-	// TODO : Get Quote, Do remote-attestation
-
-	let nftidv: Vec<u32> = match serde_json::from_str(&request.nftid_vec) {
+	let nftidv: Vec<String> = match serde_json::from_str(&request.nftid_vec) {
 		Ok(v) => v,
 		Err(e) => {
 			let message = format!("Sync Keyshare : unable to deserialize nftid vector : {:?}", e);
@@ -312,9 +314,82 @@ pub async fn sync_keyshares(
 		},
 	};
 
-	let nftids: Vec<String> = nftidv.iter().map(|x| x.to_string()).collect::<Vec<String>>();
+	//let nftids: Vec<String> = nftidv.iter().map(|x| x.to_string()).collect::<Vec<String>>();
 
 	// TODO::check nftids , is empty, are in range, ...
+
+	// Create a client
+	let client = reqwest::Client::builder()
+		.https_only(true)
+		.min_tls_version(tls::Version::TLS_1_3)
+		.build()
+		.unwrap();
+
+	let health_response = client
+		.get(requester.1.enclave_url.clone() + "/api/health")
+		.send()
+		.await
+		.unwrap();
+	// Analyze the Response
+	let health_status = health_response.status();
+
+	// TODO : Should it be OK or Synching?
+
+	// if health_status != StatusCode::OK {
+	// 	let message = format!(
+	// 		"Synch Keyshares : Healthcheck : requester enclave {} is not ready for synching",
+	// 		requester.1.enclave_url
+	// 	);
+	// 	return error_handler(message, &state).await.into_response();
+	// }
+
+	let health_body: HealthResponse = match health_response.json().await {
+		Ok(body) => body,
+		Err(e) => {
+			let message = format!(
+				"Synch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
+				requester.1.enclave_url, e
+			);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+
+	debug!(
+		"Fetch Keyshares : Health-Check Result for url : {}, Status: {:?}, \n body: {:#?}",
+		requester.1.enclave_url, health_status, health_body
+	);
+
+	let quote_response =
+		client.get(requester.1.enclave_url.clone() + "/api/quote").send().await.unwrap();
+
+	let quote_body: QuoteResponse = match quote_response.json().await {
+		Ok(body) => body,
+		Err(e) => {
+			let message = format!(
+				"Synch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
+				requester.1.enclave_url, e
+			);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+
+	debug!(
+		"Fetch Keyshares : Quote Result for url : {} is {:#?}",
+		requester.1.enclave_url, quote_body
+	);
+
+	let attest_response = client
+		.post("https://dev-c1n1.ternoa.network:9100/attest")
+		.body(quote_body.data)
+		.send()
+		.await
+		.unwrap();
+	// TODO : extract user_data and verify the signature and block_number
+	debug!(
+		"Fetch Keyshares : Attestation Result for url : {} is {:#?}",
+		requester.1.enclave_url,
+		attest_response.text().await.unwrap()
+	);
 
 	let backup_file = "/temporary/backup.zip".to_string();
 	//let counter = 1;
@@ -335,7 +410,7 @@ pub async fn sync_keyshares(
 	}
 
 	debug!("Sync Keyshare : Start zippping file");
-	add_list_zip(SEALPATH, nftids, &backup_file);
+	add_list_zip(SEALPATH, nftidv, &backup_file);
 
 	// `File` implements `AsyncRead`
 	debug!("Sync Keyshare : Opening backup file");
@@ -415,9 +490,14 @@ pub async fn fetch_keyshares(
 
 	// TODO: Check if they are already on the disk and updated.
 
-
 	// Encode NFTID list
-	let nftids_str = serde_json::to_string(&nftids).unwrap();
+	let nftids_str = if nftids.is_empty() {
+		// It is the first time running enclave
+		serde_json::to_string(&vec!["*".to_string()]).unwrap() // All nfts are needed!
+	} else {
+		serde_json::to_string(&nftids).unwrap()
+	};
+	
 	let hash = sha256::digest(nftids_str.as_bytes());
 
 	let auth = AuthenticationToken {
@@ -489,7 +569,7 @@ pub async fn fetch_keyshares(
 		}
 
 		let fetch_response = client
-			.post(enclave.1.enclave_url + "/api/sync-nft")
+			.post(enclave.1.enclave_url + "/api/sync-keyshare")
 			.body(request_body.clone())
 			.header(hyper::http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
 			.send()
@@ -638,10 +718,10 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<(), anyhow::Error>
 		let write_state = &mut state.write().await;
 		write_state.set_clusters(clusters);
 	}
-	
+
 	// Update self-identity if changed, for the new enclave is vital, then unlikely.
 	let identity = self_identity(state).await;
-	
+
 	{
 		// Open for write
 		let write_state = &mut state.write().await;
@@ -658,10 +738,17 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 	let read_state = state.read().await;
 	let chain_clusters = read_state.get_clusters();
 	let self_enclave_account = read_state.get_accountid();
+	let self_identity = read_state.get_identity();
 
 	for cluster in chain_clusters {
 		for enclave in cluster.enclaves {
 			if enclave.enclave_account.to_string() == self_enclave_account {
+				// TODO : Should we check that TC may move the Encalve to other cluster or slot?!!
+				// Is this the registeration time?
+				if self_identity.is_none() {
+					fs::write("/nft/sync.state", "maintenance").expect("Unable to write in sync.state file");
+				} 
+				
 				return Some((cluster.id, enclave.slot));
 			}
 		}
