@@ -144,7 +144,7 @@ fn verify_account_id(
 
 	let registered =
 		slot_enclaves.iter().find(|(_, enclave)| {
-			(enclave.enclave_account.to_string() == *account_id)
+			enclave.enclave_account.to_string() == *account_id
 		} /*&& (address == enclave.enclave_url)*/);
 
 	registered.is_some()
@@ -319,7 +319,7 @@ pub async fn sync_keyshares(
 	let backup_file = "/temporary/backup.zip".to_string();
 	//let counter = 1;
 	// remove previously generated backup
-	while std::path::Path::new(&backup_file.clone()).exists() {
+	if std::path::Path::new(&backup_file.clone()).exists() {
 		match std::fs::remove_file(backup_file.clone()) {
 			Ok(_) => {
 				debug!("Sync Keyshare : Successfully removed previous zip file")
@@ -414,6 +414,7 @@ pub async fn fetch_keyshares(
 		.collect();
 
 	// TODO: Check if they are already on the disk and updated.
+
 
 	// Encode NFTID list
 	let nftids_str = serde_json::to_string(&nftids).unwrap();
@@ -631,12 +632,21 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<(), anyhow::Error>
 		clusters.push(Cluster { id: index, enclaves, is_public });
 	}
 
-	let write_state = &mut state.write().await;
-	write_state.set_clusters(clusters.clone());
-
+	// TODO : Is there other way for alternating between state READ/WRITE
+	{
+		// Open for write
+		let write_state = &mut state.write().await;
+		write_state.set_clusters(clusters);
+	}
+	
 	// Update self-identity if changed, for the new enclave is vital, then unlikely.
 	let identity = self_identity(state).await;
-	write_state.set_identity(identity);
+	
+	{
+		// Open for write
+		let write_state = &mut state.write().await;
+		write_state.set_identity(identity);
+	}
 
 	Ok(())
 }
