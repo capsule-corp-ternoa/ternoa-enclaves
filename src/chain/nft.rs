@@ -824,13 +824,8 @@ pub async fn nft_remove_keyshare(
 	let enclave_account = shared_state.get_accountid();
 	let enclave_sealpath = SEALPATH.to_string();
 
-	let nft_status = match get_onchain_nft_data(state.clone(), request.nft_id).await {
-		Some(_) => true, // not burnt
-		_ => false,      // burntd
-	};
-
-	// BAD-REQUEST
-	if nft_status {
+	// Is nft burnt?
+	if get_onchain_nft_data(state.clone(), request.nft_id).await.is_some() {
 		error!("Error removing NFT key-share from TEE : nft is not in burnt state, nft-id.{}, requester : {}", request.nft_id, request.requester_address);
 		return Json(RemoveKeyshareResponse {
 			status: ReturnStatus::NOTBURNT,

@@ -5,33 +5,42 @@ use std::{
 	path::Path,
 };
 
-use axum::{extract::State, Json};
-use cached::proc_macro::once;
-use serde_json::{json, Value};
+use axum::{extract::State, Json, http::StatusCode, response::IntoResponse};
+//use cached::proc_macro::once;
+use serde_json::json;
 use sp_core::Pair;
 use tracing::{debug, error, info};
 
 use crate::servers::state::SharedState;
 use anyhow::{anyhow, Result};
 
-#[once(time = 60, sync_writes = false)]
-pub async fn ra_get_quote(State(state): State<SharedState>) -> Json<Value> {
+// TODO : Rate Limit or Cache the Quote API
+//#[once(time = 60, sync_writes = false)]
+pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse {
 	let shared_state = &state.read().await;
+	
+	// Make a dynamic user data
 	let enclave_id = shared_state.get_accountid();
+	let block_number = shared_state.get_current_block();
+	let sign_data = enclave_id + "_" + &block_number.to_string();
+	
+	// Signer
 	let enclave_account = shared_state.get_key();
-	let signature = enclave_account.sign(enclave_id.as_bytes());
-
+	
+	let signature = enclave_account.sign(sign_data.as_bytes());
+	
 	write_user_report_data(None, &signature.0).unwrap();
 
 	match generate_quote(None, None) {
-		Ok(quote) => Json(json!({
-			"status": "Success",
+		Ok(quote) => (StatusCode::OK, Json(json!({
+			"block_number": block_number,
 			"data": hex::encode(quote),
-		})),
-		Err(e) => Json(json!({
-			"status": "Failed",
+		}))),
+		
+		Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
+			"block_number": block_number,
 			"error": e.to_string(),
-		})),
+		}))),
 	}
 }
 
