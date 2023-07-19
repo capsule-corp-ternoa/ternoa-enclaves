@@ -703,12 +703,7 @@ pub async fn capsule_remove_keyshare(
 	let enclave_sealpath = SEALPATH;
 
 	// Check if CAPSULE is burnt
-	let capsule_status = match get_onchain_nft_data(state.clone(), request.nft_id).await {
-		Some(_) => true, // not burnt
-		_ => false,      // burnt
-	};
-
-	if capsule_status {
+	if get_onchain_nft_data(state.clone(), request.nft_id).await.is_some() {
 		return Json(RemoveKeyshareResponse {
 			status: ReturnStatus::NOTBURNT,
 			nft_id: request.nft_id,
