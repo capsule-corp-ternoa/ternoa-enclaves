@@ -21,7 +21,7 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> Json<Value> {
 	let enclave_account = shared_state.get_key();
 	let signature = enclave_account.sign(enclave_id.as_bytes());
 
-	write_user_report_data(None, &signature.0);
+	write_user_report_data(None, &signature.0).unwrap();
 
 	match generate_quote(None, None) {
 		Ok(quote) => Json(json!({
@@ -126,7 +126,7 @@ fn write_user_report_data(
 		return Err(anyhow!("user_report_data does not exist!"));
 	}
 
-	let res = OpenOptions::new()
+	Ok(OpenOptions::new()
 		.write(true)
 		.open(file_path.unwrap_or(String::from(default_path)))
 		.and_then(|mut file| {
@@ -140,9 +140,7 @@ fn write_user_report_data(
 			error!("Error writing file: {:?}", err);
 			err
 		})
-		.map(|_| ())?;
-
-	Ok(res)
+		.map(|_| ())?)
 }
 
 /// Check if file exists with correct permissions or else returns false
