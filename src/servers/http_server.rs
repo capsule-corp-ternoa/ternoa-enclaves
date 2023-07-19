@@ -183,7 +183,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		.route("/api/capsule-nft/retrieve-keyshare", post(capsule_retrieve_keyshare))
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
 		// SYNCHRONIZATION
-		.route("/api/backup/sync-nft", post(sync_keyshares))
+		.route("/api/backup/sync-keyshare", post(sync_keyshares))
 		//.layer(RequestBodyLimitLayer::new(CONTENT_LENGTH_LIMIT))
 		.layer(
 			ServiceBuilder::new()
@@ -214,7 +214,7 @@ pub async fn http_server() -> Result<Router, Error> {
 					continue;
 				},
 			};
-			
+
 			let block_number = block.header().number;
 
 			let shared_state_write = &mut state_config.write().await;
@@ -241,7 +241,19 @@ pub async fn http_server() -> Result<Router, Error> {
 			// A change in clusters/enclaves data detected.
 			if tee_events {
 				match cluster_discovery(&state_config).await {
-					Ok(_) => debug!("Cluster discovery complete."),
+					Ok(_) => {
+						// New Capsule/Secret are found
+						let sync_state = std::fs::read("/nft/sync.state").expect("Unable to read file");
+						// Here is First Identity discovery and synchronization of all files.
+						if String::from_utf8(sync_state).unwrap() == "maintenance" {
+							match fetch_keyshares(&state_config, std::collections::HashMap::<u32,u32>::new()).await {
+								Ok(_) => debug!("First Synchronization of Keyshares complete."),
+								Err(err) => error!("Error during running-mode cluster discovery : {:?}", err),
+							}
+						}
+						debug!("Cluster discovery complete.");
+					},
+					
 					Err(err) => error!("Error during running-mode cluster discovery {:?}", err),
 				}
 			}

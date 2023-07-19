@@ -55,11 +55,23 @@ where
 		let path = entry.path();
 		let name = path.strip_prefix(Path::new(prefix)).unwrap();
 
+		// NFTID-based backup?
 		if !list.is_empty() {
-			let name_parts: Vec<&str> = name.to_str().unwrap().split('_').collect();
-			// Keyshare file name  = [nft/capsule]_[nftid]_[blocknumber].keyshare
-			if name_parts.len() < 2 || !list.contains(&name_parts[1].to_string()) {
-				continue;
+			// Wildcard for Synching in maintenacne mode
+			if list[0] == "*" {
+				// Filter out the enclave_account.key and log files
+				let name_parts: Vec<&str> = name.to_str().unwrap().split('.').collect();
+				if name_parts[1] == "log" || name_parts[1] == "key" {
+					continue;
+				}
+			}
+			// Synching in Runtime mode Or Admin NFTID backup
+			else {
+				let name_parts: Vec<&str> = name.to_str().unwrap().split('_').collect();
+				// Keyshare file name  = [nft/capsule]_[nftid]_[blocknumber].keyshare
+				if name_parts.len() < 2 || !list.contains(&name_parts[1].to_string()) {
+					continue;
+				}
 			}
 		}
 
