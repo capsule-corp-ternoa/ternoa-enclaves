@@ -352,7 +352,7 @@ pub async fn admin_backup_fetch_id(
 	}
 
 	debug!("Start zippping file");
-	add_list_zip(&SEALPATH, nftids, &backup_file);
+	add_list_zip(SEALPATH, nftids, &backup_file);
 
 	// `File` implements `AsyncRead`
 	debug!("Opening backup file");

@@ -19,7 +19,7 @@ use crate::chain::{
 };
 use serde::Serialize;
 
-const SEALPATH: String = String::from("/nft/");
+const SEALPATH: &str = "/nft/";
 
 /* **********************
    KEY-SHARE AVAILABLE API
@@ -49,7 +49,7 @@ pub async fn is_capsule_available(
 	let enclave_sealpath = SEALPATH;
 	let block_number = shared_state.get_current_block();
 
-	let file_path = enclave_sealpath + "capsule_" + &nft_id.to_string() + ".keyshare";
+	let file_path = enclave_sealpath.to_string() + "capsule_" + &nft_id.to_string() + ".keyshare";
 
 	if std::path::Path::new(&file_path).exists() {
 		info!("Availability check : path checked, path: {}", file_path);
@@ -144,7 +144,7 @@ pub async fn capsule_get_views(
 		);
 	}
 
-	let file_path = enclave_sealpath + &nft_id.to_string() + ".log";
+	let file_path = enclave_sealpath.to_string() + &nft_id.to_string() + ".log";
 
 	// CHECK LOG-FILE PATH
 	if !std::path::Path::new(&file_path).exists() {
@@ -293,7 +293,7 @@ pub async fn capsule_set_keyshare(
 				);
 			};
 
-			let file_path = enclave_sealpath.clone()
+			let file_path = enclave_sealpath.to_string()
 				+ "capsule_" + &verified_data.nft_id.to_string()
 				+ ".keyshare";
 
@@ -371,7 +371,8 @@ pub async fn capsule_set_keyshare(
 					);
 
 					// Log file for tracing the capsule key-share VIEW history in Marketplace.
-					let file_path = enclave_sealpath + &verified_data.nft_id.to_string() + ".log";
+					let file_path =
+						enclave_sealpath.to_string() + &verified_data.nft_id.to_string() + ".log";
 
 					if !std::path::Path::new(&file_path).exists() {
 						let mut file = std::fs::File::create(file_path).unwrap(); // TODO: manage unwrap()
@@ -517,7 +518,7 @@ pub async fn capsule_retrieve_keyshare(
 	match request.verify_retrieve_request(state.clone(), "capsule").await {
 		Ok(verified_data) => {
 			// DOES KEY-SHARE EXIST?
-			let file_path = enclave_sealpath.clone()
+			let file_path = enclave_sealpath.to_string()
 				+ "capsule_" + &verified_data.nft_id.to_string()
 				+ ".keyshare";
 			if !std::path::Path::new(&file_path).is_file() {
@@ -605,7 +606,8 @@ pub async fn capsule_retrieve_keyshare(
 			};
 
 			// Put a VIEWING history log
-			let file_path = enclave_sealpath + &verified_data.nft_id.to_string() + ".log";
+			let file_path =
+				enclave_sealpath.to_string() + &verified_data.nft_id.to_string() + ".log";
 
 			match get_current_block_number(state.clone()).await {
 				Ok(block_number) => {
@@ -730,7 +732,7 @@ pub async fn capsule_remove_keyshare(
 	};
 
 	let file_path =
-		enclave_sealpath.clone() + "capsule_" + &request.nft_id.to_string() + ".keyshare";
+		enclave_sealpath.to_string() + "capsule_" + &request.nft_id.to_string() + ".keyshare";
 	let exist = std::path::Path::new(file_path.as_str()).exists();
 
 	if !exist {
@@ -751,7 +753,7 @@ pub async fn capsule_remove_keyshare(
 
 	match std::fs::remove_file(file_path) {
 		Ok(_) => {
-			let file_path = enclave_sealpath.clone() + &request.nft_id.to_string() + ".log";
+			let file_path = enclave_sealpath.to_string() + &request.nft_id.to_string() + ".log";
 
 			match std::fs::remove_file(file_path) {
 				Ok(_) => info!("Successfully removed capsule log-file."),

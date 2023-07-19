@@ -1,20 +1,15 @@
 #![allow(dead_code)]
 
-use std::{
-	collections::HashMap,
-	fs::remove_file,
-	io::{Read, Write},
-	net::{SocketAddr, TcpStream},
-};
+use std::{collections::HashMap, fs::remove_file, io::Write, net::SocketAddr};
 
 use axum::{
 	body::StreamBody, extract::ConnectInfo, extract::State, http::header, http::StatusCode,
 	response::IntoResponse, Json,
 };
 use hex::{FromHex, FromHexError};
-use reqwest::{tls, Request};
+use reqwest::tls;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 
 use sp_core::{
 	crypto::{PublicError, Ss58Codec},
@@ -140,15 +135,18 @@ impl AuthenticationToken {
 **************************************** */
 
 fn verify_account_id(
-	slot_enclaves: &Vec<(u32, Enclave)>,
+	slot_enclaves: Vec<(u32, Enclave)>,
 	account_id: &String,
 	address: SocketAddr,
 ) -> bool {
 	// TODO : can we check requester URL or IP? What if it uses proxy?
+	debug!("Verify Accound Id : Requester Address : {}", address);
+
 	let registered =
 		slot_enclaves.iter().find(|(_, enclave)| {
 			(enclave.enclave_account.to_string() == *account_id)
 		} /*&& (address == enclave.enclave_url)*/);
+
 	registered.is_some()
 }
 
@@ -212,12 +210,7 @@ pub async fn error_handler(message: String, state: &SharedState) -> impl IntoRes
 /// # Arguments
 /// * `state` - StateConfig
 /// * `backup_request` - BackupRequest
-/// # Returns
-/// * `Json` - BackupResponse
-/// # Example
-/// ```
-/// backup_key_shares(state, backup_request)
-/// ```
+
 #[axum::debug_handler]
 pub async fn sync_keyshares(
 	State(state): State<SharedState>,
@@ -234,7 +227,7 @@ pub async fn sync_keyshares(
 
 	let slot_enclaves = slot_discovery(&state).await;
 
-	if !verify_account_id(&slot_enclaves, &request.enclave_account, addr) {
+	if !verify_account_id(slot_enclaves, &request.enclave_account, addr) {
 		let message =
 			format!("Sync Keyshare : Error : Requester is not authorized, address: {}, ", addr);
 
@@ -342,7 +335,7 @@ pub async fn sync_keyshares(
 	}
 
 	debug!("Sync Keyshare : Start zippping file");
-	add_list_zip(&SEALPATH, nftids, &backup_file);
+	add_list_zip(SEALPATH, nftids, &backup_file);
 
 	// `File` implements `AsyncRead`
 	debug!("Sync Keyshare : Opening backup file");
@@ -389,15 +382,14 @@ pub async fn fetch_keyshares(
 	let last_block_number = shared_state_read.get_current_block();
 	let account_id = shared_state_read.get_accountid();
 	let account_keypair = shared_state_read.get_key();
-	let cluster_data = shared_state_read.get_clusters();
 
 	// (clustse, slot)
 	let enclave_identity = match shared_state_read.get_identity() {
 		Some(id) => id,
 		None => {
-			let message = format!(
+			let message =
 				"Fetch Keyshares Error : No identity : Current enclave is not registered yet"
-			);
+					.to_string();
 			error!(message);
 			return Err(anyhow!(message));
 		},
@@ -406,17 +398,18 @@ pub async fn fetch_keyshares(
 	drop(shared_state_read);
 
 	// The available enclaves in the same slot of current enclave, with their clusterid
-	let slot_enclaves = slot_discovery(&state).await;
+	let slot_enclaves = slot_discovery(state).await;
 	if slot_enclaves.is_empty() {
-		let message = format!("Fetch Keyshares : No other similar slots detected, enclave is not registered or there is no other cluster.");
+		let message = "Fetch Keyshares : No other similar slots detected, enclave is not registered or there is no other cluster.".to_string();
 		error!(message);
 		return Err(anyhow!(message));
 	}
 
 	// TODO::check nftids , is empty, are in range, ...
 	let nftids: Vec<u32> = new_nft
+		.clone()
 		.into_iter()
-		.filter(|(nftid, cluster)| *cluster != enclave_identity.0)
+		.filter(|(_, cluster)| *cluster != enclave_identity.0)
 		.map(|kv| kv.0)
 		.collect();
 
@@ -446,8 +439,6 @@ pub async fn fetch_keyshares(
 	let request_body = serde_json::to_string(&request).unwrap();
 	trace!("Fetch Keyshares : Request Body : {:#?}\n", request_body);
 
-	let mut buffer = [0; MAX_STREAM_SIZE];
-
 	// Check other enclaves for new NFT keyshares
 	let nft_clusters: Vec<u32> = new_nft.into_values().collect();
 	let client = reqwest::Client::builder()
@@ -464,15 +455,16 @@ pub async fn fetch_keyshares(
 			continue;
 		}
 
-		let health_response = client.get(enclave.1.enclave_url + "/api/health").send().await?;
+		let health_response =
+			client.get(enclave.1.enclave_url.clone() + "/api/health").send().await?;
 		// Analyze the Response
 		let health_status = health_response.status();
 		let response_body: HealthResponse = match health_response.json().await {
 			Ok(body) => body,
 			Err(e) => {
 				let message = format!(
-					"Fetch Keyshares : Healthcheck : can not deserialize the body : {}",
-					enclave.1.enclave_url
+					"Fetch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
+					enclave.1.enclave_url, e
 				);
 				warn!(message);
 				continue;
@@ -485,7 +477,7 @@ pub async fn fetch_keyshares(
 			response_body
 		);
 
-		// TODO : Mark and retry later
+		// TODO : Mark and retry later if health is not ready
 		if health_status != StatusCode::OK {
 			let message = format!(
 				"Fetch Keyshares : Healthcheck Failed on url: {}, status : {:?}, reason : {}",
@@ -497,9 +489,16 @@ pub async fn fetch_keyshares(
 
 		let fetch_response = client
 			.post(enclave.1.enclave_url + "/api/sync-nft")
-			.body(request_body)
+			.body(request_body.clone())
+			.header(hyper::http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
 			.send()
 			.await?;
+
+		//let fetch_headers = fetch_response.headers();
+		//debug!("response header: {:?}", fetch_headers);
+
+		let fetch_body_bytes = fetch_response.bytes().await?;
+		debug!("body length : {}", fetch_body_bytes.len());
 
 		let backup_file = SEALPATH.to_string() + "backup.zip";
 		let mut zipfile = match std::fs::File::create(backup_file.clone()) {
@@ -513,7 +512,7 @@ pub async fn fetch_keyshares(
 
 		// TODO : What if the "right" Enclave is not ready? (low probability for runtime synch)
 
-		match zipfile.write_all(&buffer[..bytes_readed]) {
+		match zipfile.write_all(&fetch_body_bytes) {
 			Ok(_) => debug!("Fetch Keyshares : zip file is stored on disk."),
 			Err(e) => {
 				let message =
@@ -525,7 +524,7 @@ pub async fn fetch_keyshares(
 
 		// TODO: Verify fetch data befor writing them on the disk
 		// Check if the enclave_account or keyshares are invalid
-		match zip_extract(&backup_file, &SEALPATH) {
+		match zip_extract(&backup_file, SEALPATH) {
 			Ok(_) => debug!("Fetch Keyshares : zip_extract success"),
 			Err(e) => {
 				let message = format!("Fetch Keyshares : extracting zip file {:?}", e);
@@ -1005,7 +1004,6 @@ mod test {
 		let api = create_chain_api().await.unwrap();
 		let (enclave_keypair, _, _) = sp_core::sr25519::Pair::generate_with_phrase(None);
 
-		let seal_path = "/tmp/seal".to_owned();
 		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 			enclave_keypair,
 			String::new(),
