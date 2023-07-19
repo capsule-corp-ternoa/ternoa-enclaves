@@ -23,7 +23,7 @@ use crate::chain::chain::nft_secret_share_oracle;
 
 use serde::{Deserialize, Serialize};
 
-const SEALPATH: String = String::from("/nft/");
+const SEALPATH: &str = "/nft/";
 
 /* **********************
    KEYSHARE AVAILABLE API
@@ -51,7 +51,7 @@ pub async fn is_nft_available(
 
 	let shared_state = &state.read().await;
 	let enclave_account = shared_state.get_accountid();
-	let enclave_sealpath = SEALPATH;
+	let enclave_sealpath = SEALPATH.to_string();
 	let block_number = shared_state.get_current_block();
 
 	let file_path = enclave_sealpath + "nft_" + &nft_id.to_string() + ".keyshare";
@@ -225,7 +225,7 @@ pub async fn nft_get_views(
 	debug!("3-7 API : nft get views");
 	let shared_state = &state.read().await;
 	let enclave_account = shared_state.get_accountid();
-	let enclave_sealpath = SEALPATH;
+	let enclave_sealpath = SEALPATH.to_string();
 
 	let nft_state = match get_onchain_nft_data(state.clone(), nft_id).await {
 		Some(data) => data.state,
@@ -381,7 +381,7 @@ pub async fn nft_store_keyshare(
 	debug!("3-8 API nft store keyshare");
 	let shared_state = &state.read().await;
 	let enclave_account = shared_state.get_accountid();
-	let enclave_sealpath = SEALPATH;
+	let enclave_sealpath = SEALPATH.to_string();
 	let enclave_keypair = shared_state.get_key();
 	let block_number = shared_state.get_current_block();
 
@@ -592,7 +592,7 @@ fn nft_keyshare_oracle_results(
     );
 
 	// Log file for tracing the NFT key-share VIEW history in Marketplace.
-	let file_path = SEALPATH + &verified_data.nft_id.to_string() + ".log";
+	let file_path = SEALPATH.to_string() + &verified_data.nft_id.to_string() + ".log";
 
 	let mut file = match File::create(file_path) {
 		Ok(file) => file,
@@ -648,7 +648,7 @@ pub async fn nft_retrieve_keyshare(
 	debug!("3-9 API : nft retrieve keyshare");
 	let shared_state = &state.read().await;
 	let enclave_account = shared_state.get_accountid();
-	let enclave_sealpath = SEALPATH;
+	let enclave_sealpath = SEALPATH.to_string();
 	let block_number = shared_state.get_current_block();
 
 	match request.verify_retrieve_request(state.clone(), "secret-nft").await {
@@ -738,7 +738,8 @@ pub async fn nft_retrieve_keyshare(
 			// TODO: handle the errors for log file : Reject the request
 
 			// Put a VIEWING history log
-			let file_path = enclave_sealpath + &verified_data.nft_id.to_string() + ".log";
+			let file_path =
+				enclave_sealpath.to_string() + &verified_data.nft_id.to_string() + ".log";
 			update_log_file_view(
 				block_number,
 				file_path,
@@ -821,7 +822,7 @@ pub async fn nft_remove_keyshare(
 	debug!("3-10 API : nft remove keyshare");
 	let shared_state = &state.read().await;
 	let enclave_account = shared_state.get_accountid();
-	let enclave_sealpath = SEALPATH;
+	let enclave_sealpath = SEALPATH.to_string();
 
 	let nft_status = match get_onchain_nft_data(state.clone(), request.nft_id).await {
 		Some(_) => true, // not burnt

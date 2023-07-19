@@ -5275,6 +5275,7 @@ dependencies = [
  "graphql_client",
  "hex",
  "hyper",
+ "lazy_static",
  "mime",
  "parity-scale-codec",
  "rand 0.8.5",
