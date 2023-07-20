@@ -196,6 +196,9 @@ pub async fn http_server() -> Result<Router, Error> {
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
 		// SYNCHRONIZATION
 		.route("/api/backup/sync-keyshare", post(sync_keyshares))
+		// METRIC SERVER
+		// List of all nfts in an Interval [block1,block2] (Migration needed!)
+
 		//.layer(RequestBodyLimitLayer::new(CONTENT_LENGTH_LIMIT))
 		.layer(
 			ServiceBuilder::new()
@@ -259,7 +262,9 @@ pub async fn http_server() -> Result<Router, Error> {
 						if sync_state == "setup" {
 							// Here is First Identity discovery, thus the first synchronization of all files.
 							// TODO: it may be a long process here, more than new block time, and new nft event may happen.
-							// An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
+							// 		An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
+							// TODO : use crawler here for setup (not subscribing)
+							// TODO : Retry Logic 
 							match fetch_keyshares(
 								&state_config,
 								std::collections::HashMap::<u32, u32>::new(),
@@ -285,6 +290,10 @@ pub async fn http_server() -> Result<Router, Error> {
 			}
 
 			// New Capsule/Secret are found
+			// TODO : do not put enclave health-check to maintenace for this condition
+			// What to do about missing NFTs?! (with any reason)
+			// TODO : use crawler here for power-off cases
+			// TODO : Retry Logic 
 			if !new_nft.is_empty() {
 				match fetch_keyshares(&state_config, new_nft).await {
 					Ok(_) => {
