@@ -47,6 +47,7 @@ use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 use super::server_common;
 
 pub const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024;
+pub const ENCLAVE_ACCOUNT_FILE: &str = "/nft/enclave_account.key";
 
 /// http server
 /// # Arguments
@@ -56,12 +57,12 @@ pub const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024;
 /// ```
 pub async fn http_server() -> Result<Router, Error> {
 	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
-	let enclave_account_file = "/nft/enclave_account.key";
+	
 
 	let enclave_keypair = if std::path::Path::new(enclave_account_file).exists() {
 		info!("Enclave Account Exists, Importing it! :, path: {}", enclave_account_file);
 
-		let phrase = match std::fs::read_to_string(enclave_account_file) {
+		let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
 			Ok(phrase) => phrase,
 			Err(err) => {
 				error!("Error reading enclave account file: {:?}", err);
@@ -144,8 +145,19 @@ pub async fn http_server() -> Result<Router, Error> {
 		enclave_keypair,
 		String::new(),
 		chain_api.clone(),
-		"0.4.0".to_string(),
+		"0.4.1".to_string(),
 	)));
+
+	let _ = match File::create(SYNC_STATE_FILE) {
+		Ok(file_handle) => {
+			debug!("created sync.state file successfully");
+			file_handle
+		},
+		Err(err) => {
+			error!("failed to creat sync.state file, error : {:?}", err);
+			return Err(anyhow!(err));
+		},
+	};
 
 	let _ = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
@@ -217,43 +229,57 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			let block_number = block.header().number;
 
-			let shared_state_write = &mut state_config.write().await;
-			trace!("Block Number Thread : got shared state to write.");
+			// Write to ShareState block, necessary to prevent Read SharedState
+			{
+				let shared_state_write = &mut state_config.write().await;
+				trace!("Block Number Thread : got shared state to write.");
 
-			shared_state_write.set_current_block(block_number);
-			debug!("Block Number Thread : block_number state is set to {}", block_number);
+				shared_state_write.set_current_block(block_number);
+				debug!("Block Number Thread : block_number state is set to {}", block_number);
 
-			// For block number update, we should reset the nonce as well
-			// It is used as a batch of extrinsics for every block
-			shared_state_write.reset_nonce();
-			trace!("Block Number Thread : nonce has been reset");
-
-			// TODO: can we remove this line?
-			//drop(shared_state_write);
+				// For block number update, we should reset the nonce as well
+				// It is used as a batch of extrinsics for every block
+				shared_state_write.reset_nonce();
+				trace!("Block Number Thread : nonce has been reset");
+			}
 
 			// Extract block body
 			let body = block.body().await.unwrap();
 
 			let storage_api = block.storage();
 
-			let (new_nft, tee_events) = parse_block_body(body, &storage_api).await.unwrap();
+			let (new_nft, is_tee_events) = parse_block_body(body, &storage_api).await.unwrap();
 
-			// A change in clusters/enclaves data detected.
-			if tee_events {
+			// A change in clusters/enclaves data is detected.
+			if is_tee_events {
 				match cluster_discovery(&state_config).await {
 					Ok(_) => {
-						// New Capsule/Secret are found
-						let sync_state = std::fs::read("/nft/sync.state").expect("Unable to read file");
-						// Here is First Identity discovery and synchronization of all files.
-						if String::from_utf8(sync_state).unwrap() == "maintenance" {
-							match fetch_keyshares(&state_config, std::collections::HashMap::<u32,u32>::new()).await {
-								Ok(_) => debug!("First Synchronization of Keyshares complete."),
-								Err(err) => error!("Error during running-mode cluster discovery : {:?}", err),
+						// New enclave/cluster is found
+						let sync_state = get_sync_state().unwrap();
+						if sync_state == "setup" {
+							// Here is First Identity discovery, thus the first synchronization of all files.
+							// TODO: it may be a long process here, more than new block time, and new nft event may happen.
+							// An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
+							match fetch_keyshares(
+								&state_config,
+								std::collections::HashMap::<u32, u32>::new(),
+							)
+							.await
+							{
+								Ok(_) => {
+									// TODO : should not Blindly putting current block_number as the last updated keyshare's block_number
+									let _ = set_sync_state(block_number.to_string());
+									debug!("First Synchronization of Keyshares complete.");
+								},
+								Err(err) => error!(
+									"Error during running-mode cluster discovery : {:?}",
+									err
+								),
 							}
 						}
 						debug!("Cluster discovery complete.");
 					},
-					
+
 					Err(err) => error!("Error during running-mode cluster discovery {:?}", err),
 				}
 			}
@@ -261,7 +287,10 @@ pub async fn http_server() -> Result<Router, Error> {
 			// New Capsule/Secret are found
 			if !new_nft.is_empty() {
 				match fetch_keyshares(&state_config, new_nft).await {
-					Ok(_) => debug!("Synchronization of Keyshares complete."),
+					Ok(_) => {
+						let _ = set_sync_state(block_number.to_string());
+						debug!("Synchronization of Keyshares complete.")
+					},
 					Err(err) => error!("Error during running-mode cluster discovery : {:?}", err),
 				}
 			}
@@ -310,8 +339,8 @@ async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HealthResponse {
-	pub status: u32,
 	pub block_number: u32,
+	pub sync_state: String,
 	pub version: String,
 	pub description: String,
 	pub enclave_address: String,
@@ -333,10 +362,12 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 			let block_number = shared_state.get_current_block();
 			let binary_version = shared_state.get_binary_version();
 			let enclave_address = shared_state.get_accountid();
+			let sync_state = get_sync_state().unwrap();
+
 			(
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(HealthResponse {
-					status: 666,
+					sync_state,
 					description: "Healthcheck returned NONE".to_string(),
 					block_number,
 					version: binary_version,
@@ -377,7 +408,7 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 		return Some((
 			StatusCode::PROCESSING,
 			Json(HealthResponse {
-				status: 500,
+				sync_state,
 				block_number,
 				version: binary_version,
 				description: maintenance,
@@ -389,7 +420,7 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	Some((
 		StatusCode::OK,
 		Json(HealthResponse {
-			status: 200,
+			sync_state,
 			block_number,
 			version: binary_version,
 			description: "SGX server is running!".to_string(),

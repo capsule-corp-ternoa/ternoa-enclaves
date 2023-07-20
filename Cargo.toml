@@ -1,6 +1,6 @@
 [package]
 name = "sgx_server"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 
 [[bin]]
@@ -65,14 +65,19 @@ sp-core = { version = "21.0.0", default-features = false, features = ["full_cryp
 # Crypto / Keys
 rand = "0.8.5"
 sha256 = "1.1.1"
-sequoia-openpgp = "1.13.0"
 sigstore = "0.6.0"
-
 rustls-acme = {version = "0.5.2", features = ["axum"]}
-lazy_static = "1.4.0"
+
+# Anti-Analysis
+#debugoff = { version = "0.2.1", features = ["obfuscate", "syscallobf"] }
+
+[profile.release]
+debug = false
+strip = "symbols"
+panic = "abort"
 
 [dev-dependencies]
-
+sequoia-openpgp = "1.13.0"
 
 [features]
 default = ["dev-0"]
