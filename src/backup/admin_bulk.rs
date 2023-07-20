@@ -26,7 +26,7 @@ use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
 	chain::core::get_current_block_number,
-	servers::state::{SharedState, StateConfig},
+	servers::{state::{SharedState, StateConfig}, http_server::ENCLAVE_ACCOUNT_FILE},
 };
 
 use super::zipdir::{add_dir_zip, zip_extract};
@@ -665,17 +665,16 @@ pub async fn admin_backup_push_bulk(
 		},
 	};
 
-	// Update Enclave Account, if it is updated.
-	let enclave_account_file = "/nft/enclave_account.key";
-	if !std::path::Path::new(&enclave_account_file).exists() {
+	// Update Enclave Account, if it is updated.;
+	if !std::path::Path::new(&ENCLAVE_ACCOUNT_FILE).exists() {
 		return Json(json!({
 			"error": format!("Admin restore : Enclave Account file not found"),
 		}));
 	};
 
-	debug!("Admin restore : Found Enclave Account, Importing it! : path: {}", enclave_account_file);
+	debug!("Admin restore : Found Enclave Account, Importing it! : path: {}", ENCLAVE_ACCOUNT_FILE);
 
-	let phrase = match std::fs::read_to_string(enclave_account_file) {
+	let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
 		Ok(phrase) => phrase,
 		Err(err) => {
 			let message = format!("Admin restore : Error reading enclave account file: {:?}", err);
