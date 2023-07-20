@@ -1,6 +1,11 @@
 #![allow(dead_code)]
 
-use std::{collections::HashMap, fs::{remove_file, self}, io::Write, net::SocketAddr};
+use std::{
+	collections::HashMap,
+	fs::remove_file,
+	io::Write,
+	net::SocketAddr,
+};
 
 use axum::{
 	body::StreamBody, extract::ConnectInfo, extract::State, http::header, http::StatusCode,
@@ -63,6 +68,8 @@ const SEALPATH: &str = "/nft/";
 const MAX_VALIDATION_PERIOD: u8 = 20;
 const MAX_BLOCK_VARIATION: u8 = 5;
 const MAX_STREAM_SIZE: usize = 1000 * 3 * 1024; // 3KB is the size of keyshare, 1000 is maximum number of ext in block
+
+pub const SYNC_STATE_FILE: &str = "/nft/sync.state";
 
 /* *************************************
 	FETCH  NFTID DATA STRUCTURES
@@ -472,32 +479,33 @@ pub async fn fetch_keyshares(
 
 	drop(shared_state_read);
 
-	// The available enclaves in the same slot of current enclave, with their clusterid
-	let slot_enclaves = slot_discovery(state).await;
-	if slot_enclaves.is_empty() {
-		let message = "Fetch Keyshares : No other similar slots detected, enclave is not registered or there is no other cluster.".to_string();
-		error!(message);
-		return Err(anyhow!(message));
-	}
+	// TODO::check nftids , if they are in range, ...
+	// TODO: Check if new nfts are already on the disk and updated.
 
-	// TODO::check nftids , is empty, are in range, ...
+	// Convert HashMap to Vector of nftid
 	let nftids: Vec<u32> = new_nft
 		.clone()
 		.into_iter()
+		// Ignore it, if it is in current cluster
 		.filter(|(_, cluster)| *cluster != enclave_identity.0)
 		.map(|kv| kv.0)
 		.collect();
 
-	// TODO: Check if they are already on the disk and updated.
-
-	// Encode NFTID list
-	let nftids_str = if nftids.is_empty() {
+	// Encode nftid to String
+	// If HashMap is empty, then it is called by a setup syncronization
+	let nftids_str = if new_nft.is_empty() {
+		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard
 		// It is the first time running enclave
-		serde_json::to_string(&vec!["*".to_string()]).unwrap() // All nfts are needed!
+		// TODO : Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
+		serde_json::to_string(&vec!["*".to_string()]).unwrap()
+	} else if nftids.is_empty() {
+		let message = "Fetch Keyshares : the new nft is already stored on this cluster".to_string();
+		debug!(message);
+		return Ok(());
 	} else {
 		serde_json::to_string(&nftids).unwrap()
 	};
-	
+
 	let hash = sha256::digest(nftids_str.as_bytes());
 
 	let auth = AuthenticationToken {
@@ -520,12 +528,23 @@ pub async fn fetch_keyshares(
 	let request_body = serde_json::to_string(&request).unwrap();
 	trace!("Fetch Keyshares : Request Body : {:#?}\n", request_body);
 
+	// The available enclaves in the same slot of current enclave, with their clusterid
+	let slot_enclaves = slot_discovery(state).await;
+	if slot_enclaves.is_empty() {
+		let message = "Fetch Keyshares : No other similar slots detected, enclave is not registered or there is no other cluster.".to_string();
+		error!(message);
+		return Err(anyhow!(message));
+	}
+
 	// Check other enclaves for new NFT keyshares
 	let nft_clusters: Vec<u32> = new_nft.into_values().collect();
+
 	let client = reqwest::Client::builder()
 		.https_only(true)
 		.min_tls_version(tls::Version::TLS_1_3)
 		.build()?;
+
+	// TODO : use metric-server ranking instead of simple loop
 	for enclave in slot_enclaves {
 		// Is the enclave in the cluster that nftid is originally stored?
 		// We can remove this condition if we want to search whole the slot
@@ -603,8 +622,8 @@ pub async fn fetch_keyshares(
 			},
 		}
 
-		// TODO: Verify fetch data befor writing them on the disk
-		// Check if the enclave_account or keyshares are invalid
+		// TODO: Verify fetch data before writing them on the disk
+		// Check if keyshares are invalid
 		match zip_extract(&backup_file, SEALPATH) {
 			Ok(_) => debug!("Fetch Keyshares : zip_extract success"),
 			Err(e) => {
@@ -734,6 +753,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<(), anyhow::Error>
 /* ----------------------
 	Find own slot number
 -------------------------*/
+// Result is Option((cluster.id, enclave.slot))
 pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 	let read_state = state.read().await;
 	let chain_clusters = read_state.get_clusters();
@@ -746,9 +766,9 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 				// TODO : Should we check that TC may move the Encalve to other cluster or slot?!!
 				// Is this the registeration time?
 				if self_identity.is_none() {
-					fs::write("/nft/sync.state", "maintenance").expect("Unable to write in sync.state file");
-				} 
-				
+					let _ = set_sync_state("setup".to_owned());
+				}
+
 				return Some((cluster.id, enclave.slot));
 			}
 		}
@@ -1067,6 +1087,27 @@ pub fn find_event_secret_shard_added(
 	None
 }
 
+// Read Sync State File
+pub fn get_sync_state() -> Result<String> {
+	let bytes = std::fs::read(SYNC_STATE_FILE)?;
+	match String::from_utf8(bytes) {
+		Ok(state) => Ok(state),
+		Err(e) => Err(e.into()),
+	}
+}
+
+// Write to Sync State File
+pub fn set_sync_state(state: String) -> Result<()>{
+	let mut statefile = std::fs::OpenOptions::new()
+		.write(true)
+		.truncate(true)
+		.open(SYNC_STATE_FILE)?;
+	
+	let _len = statefile.write(state.as_bytes())?;
+
+	Ok(())
+}
+
 /* -----------------------------
 			TESTS
 --------------------------------*/
@@ -1105,7 +1146,7 @@ mod test {
 			enclave_keypair,
 			String::new(),
 			api.clone(),
-			"0.3.0".to_string(),
+			"0.4.1".to_string(),
 		)));
 
 		let mut app = match crate::servers::http_server::http_server().await {
@@ -1169,7 +1210,8 @@ mod test {
 		// Extract block body
 		let body = block.body().await.unwrap();
 
-		let storage_api = api.storage().at_latest().await.unwrap();
+		let storage_api = block.storage();
+		//(new_nft, update_cluster_data)
 		let (_, tee_events) = parse_block_body(body, &storage_api).await.unwrap();
 		println!("\n A tee event has happened, fetch the cluster data? : {}\n", tee_events);
 	}
