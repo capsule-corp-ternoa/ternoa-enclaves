@@ -340,7 +340,7 @@ pub async fn sync_keyshares(
 	// Analyze the Response
 	let health_status = health_response.status();
 
-	// TODO : Should it be OK or Synching?
+	// TODO : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
 
 	// if health_status != StatusCode::OK {
 	// 	let message = format!(
@@ -765,6 +765,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 			if enclave.enclave_account.to_string() == self_enclave_account {
 				// TODO : Should we check that TC may move the Encalve to other cluster or slot?!!
 				// Is this the registeration time?
+				// TODO : Prevent others from accessing enclave during setup mode.
 				if self_identity.is_none() {
 					let _ = set_sync_state("setup".to_owned());
 				}
@@ -824,7 +825,7 @@ pub async fn crawl_sync_events(
 	state: SharedState,
 	from_block_num: u32,
 	to_block_num: u32,
-) -> Result<HashMap<u32, u32>> {
+) -> Result<HashMap<u32, u32>, anyhow::Error> {
 	let api = get_chain_api(state).await;
 
 	// Storage to find the cluster of an enclave which contains specific NFTID
@@ -837,11 +838,13 @@ pub async fn crawl_sync_events(
 		// Find block hash
 		debug!("crawler : block number  = {}", block_counter);
 		let block_number = BlockNumber::from(block_counter);
-		let block_hash = api
+		let block_hash = match api
 			.rpc()
 			.block_hash(Some(block_number))
-			.await?
-			.expect("Can not find block hash");
+			.await? {
+				Some(hash) => hash,
+				None => return Err(anyhow!("crawler : error getting block hash.")),
+			};
 
 		// Read the block from blockchain
 		let block = api.blocks().at(block_hash).await?;
