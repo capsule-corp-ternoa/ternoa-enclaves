@@ -228,7 +228,7 @@ pub async fn get_onchain_rent_contract(state: SharedState, nft_id: u32) -> Optio
 
 // Concurrent NFT Data
 
-/* TODO : use TAIT (Type Alias Implementation Trait) when rust start supporting it https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html#whats-in-1640-stable
+/* TODO [future rust compiler update] : use TAIT (Type Alias Implementation Trait) when rust start supporting it https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html#whats-in-1640-stable
 
 type NFTDataType = Result<Option<<<AddressType as subxt::storage::StorageAddress>::Target as subxt::metadata::DecodeWithMetadata>::Target>, subxt::Error>;
 
@@ -298,9 +298,9 @@ impl fmt::Display for NFTData<AccountId32> {
 
 // -------------- SECRET-NFT SYNC (ORACLE) --------------
 
-// TODO: Define macro for nft/capsule
-// TODO: Proof of storage (through heart-beats)
-// TODO: Proof of decryption (i.e This key-share belongs to the key for decrypting the corresponding
+// TODO [code style] : Define macro for nft/capsule
+// TODO [future metric server] : Proof of storage (through heart-beats)
+// TODO [idea - future ZK]: Proof of decryption (i.e This key-share belongs to the key for decrypting the corresponding
 // nft media file on IPFS)
 
 /// Add a secret shard to the NFT/Capsule
@@ -337,11 +337,6 @@ pub async fn nft_keyshare_oracle(
 }
 
 // -------------- CAPSULE SYNC (ORACLE) --------------
-
-// TODO: Define macro for nft/capsule
-// TODO: Proof of storage (through heart-beats)
-// TODO: Proof of decryption (i.e This key-share belongs to the key for decrypting the corresponding
-// nft media file on IPFS)
 
 /// Add a secret shard to the NFT/Capsule
 /// # Arguments

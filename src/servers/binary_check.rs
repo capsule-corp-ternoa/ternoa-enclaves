@@ -49,7 +49,7 @@ pub fn self_checksig() -> Result<String, String> {
 		},
 	};
 
-	// TODO: Read from github release path
+	// Read from github release path
 	let sigfile = binary_path.to_string_lossy().to_string() + ".sig";
 
 	debug!("3-4-3 healthcheck : reading signature file.");
@@ -114,7 +114,7 @@ fn self_checksum() -> Result<String, String> {
 
 	let hash = sha256::digest(bytes.as_slice());
 
-	// TODO: Get checksum from github release
+	// Get checksum from github release
 	binary_path.pop(); // remove binary name
 	binary_path.push("checksum");
 

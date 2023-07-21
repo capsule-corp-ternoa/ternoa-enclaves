@@ -329,8 +329,6 @@ pub async fn admin_backup_fetch_id(
 
 	let nftids: Vec<String> = nftidv.iter().map(|x| x.to_string()).collect::<Vec<String>>();
 
-	// TODO::check nftids , is empty, are in range, ...
-
 	let mut backup_file = "/temporary/backup.zip".to_string();
 	let counter = 1;
 	// remove previously generated backup

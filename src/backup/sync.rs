@@ -46,6 +46,8 @@ use crate::{
 
 use anyhow::{anyhow, Result};
 
+//TODO [code style - reliability] : manage unwrap()
+
 /* ---------------------------------------
 	SYNCH NEW KEYSHARES TO OTHER ENCLAVES
 ------------------------------------------ */
@@ -147,7 +149,7 @@ fn verify_account_id(
 	account_id: &String,
 	address: SocketAddr,
 ) -> Option<(u32, Enclave)> {
-	// TODO : can we check requester URL or IP? What if it uses proxy?
+	// TODO [future security] : can we check requester URL or IP? What if it uses proxy?
 	debug!("Verify Accound Id : Requester Address : {}", address);
 
 	let registered =
@@ -323,7 +325,7 @@ pub async fn sync_keyshares(
 
 	//let nftids: Vec<String> = nftidv.iter().map(|x| x.to_string()).collect::<Vec<String>>();
 
-	// TODO::check nftids , is empty, are in range, ...
+	// TODO [future reliability] check nftids , is empty, are in range, ...
 
 	// Create a client
 	let client = reqwest::Client::builder()
@@ -340,7 +342,7 @@ pub async fn sync_keyshares(
 	// Analyze the Response
 	let health_status = health_response.status();
 
-	// TODO : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
+	// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
 
 	// if health_status != StatusCode::OK {
 	// 	let message = format!(
@@ -391,7 +393,7 @@ pub async fn sync_keyshares(
 		.send()
 		.await
 		.unwrap();
-	// TODO : extract user_data and verify the signature and block_number
+	// TODO [development : attestation] : extract user_data and verify the signature and block_number
 	debug!(
 		"Fetch Keyshares : Attestation Result for url : {} is {:#?}",
 		requester.1.enclave_url,
@@ -479,9 +481,8 @@ pub async fn fetch_keyshares(
 
 	drop(shared_state_read);
 
-	// TODO::check nftids , if they are in range, ...
-	// TODO: Check if new nfts are already on the disk and updated.
-
+	// TODO [future reliability] Check if new nfts are already on the disk and updated, check nftids , if they are in range, ...
+	
 	// Convert HashMap to Vector of nftid
 	let nftids: Vec<u32> = new_nft
 		.clone()
@@ -496,7 +497,7 @@ pub async fn fetch_keyshares(
 	let nftids_str = if new_nft.is_empty() {
 		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard
 		// It is the first time running enclave
-		// TODO : Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
+		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
 		serde_json::to_string(&vec!["*".to_string()]).unwrap()
 	} else if nftids.is_empty() {
 		let message = "Fetch Keyshares : the new nft is already stored on this cluster".to_string();
@@ -544,7 +545,7 @@ pub async fn fetch_keyshares(
 		.min_tls_version(tls::Version::TLS_1_3)
 		.build()?;
 
-	// TODO : use metric-server ranking instead of simple loop
+	// TODO [future reliability] : use metric-server ranking instead of simple loop
 	for enclave in slot_enclaves {
 		// Is the enclave in the cluster that nftid is originally stored?
 		// We can remove this condition if we want to search whole the slot
@@ -577,7 +578,7 @@ pub async fn fetch_keyshares(
 			response_body
 		);
 
-		// TODO : Mark and retry later if health is not ready
+		// TODO [developmet - reliability] : Mark and retry later if health is not ready
 		if health_status != StatusCode::OK {
 			let message = format!(
 				"Fetch Keyshares : Healthcheck Failed on url: {}, status : {:?}, reason : {}",
@@ -610,7 +611,7 @@ pub async fn fetch_keyshares(
 			},
 		};
 
-		// TODO : What if the "right" Enclave is not ready? (low probability for runtime synch)
+		// TODO [decision - reliability] : What if the "right" Enclave is not ready? (low probability for runtime synch)
 
 		match zipfile.write_all(&fetch_body_bytes) {
 			Ok(_) => debug!("Fetch Keyshares : zip file is stored on disk."),
@@ -622,7 +623,7 @@ pub async fn fetch_keyshares(
 			},
 		}
 
-		// TODO: Verify fetch data before writing them on the disk
+		// TODO [future reliability] : Verify fetch data before writing them on the disk
 		// Check if keyshares are invalid
 		match zip_extract(&backup_file, SEALPATH) {
 			Ok(_) => debug!("Fetch Keyshares : zip_extract success"),
@@ -731,7 +732,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<(), anyhow::Error>
 		clusters.push(Cluster { id: index, enclaves, is_public });
 	}
 
-	// TODO : Is there other way for alternating between state READ/WRITE
+	// TODO [code style] : Is there other way for alternating between state READ/WRITE
 	{
 		// Open for write
 		let write_state = &mut state.write().await;
@@ -763,9 +764,9 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 	for cluster in chain_clusters {
 		for enclave in cluster.enclaves {
 			if enclave.enclave_account.to_string() == self_enclave_account {
-				// TODO : Should we check that TC may move the Encalve to other cluster or slot?!!
+				// TODO [decision - development] : Should we check that TC may move the Encalve to other cluster or slot?!!
 				// Is this the registeration time?
-				// TODO : Prevent others from accessing enclave during setup mode.
+				// TODO [decision - development] : Prevent others from accessing enclave during setup mode.
 				if self_identity.is_none() {
 					let _ = set_sync_state("setup".to_owned());
 				}
@@ -969,7 +970,7 @@ pub async fn parse_block_body(
 
 					// If the event is TEE
 					if pallet == "tee" {
-						// TODO : There may be Metric Server updates that we should exclude
+						// TODO [decision] : There may be Metric Server updates that we should exclude
 						update_cluster_data = true;
 						debug!("  \t - TechnicalCommittee extrinsic for TEE detected");
 					}
@@ -985,9 +986,9 @@ pub async fn parse_block_body(
 					let variant = event.variant_name();
 					// If the event is successful
 					if pallet == "system" && variant == "ExtrinsicSuccess" {
-						// TODO: Check if this condition is meaningful
+						// TODO [question] : Check if this condition is meaningful
 						//update_cluster_data = true;
-						debug!("  \t - TEE extrinsic detected");
+						debug!("  \t - TEE extrinsic detected, it should wait for TC.");
 					}
 				}
 			},

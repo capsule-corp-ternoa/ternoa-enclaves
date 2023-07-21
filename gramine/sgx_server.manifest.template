@@ -19,12 +19,16 @@ fs.mounts = [
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
   { path = "/etc", uri = "file:/etc" },
   { path = "/temporary", type = "tmpfs" },
+  
   # ------ TRUSTED
   { path = "/keys", uri = "file:../credentials/keys", type = "chroot" },
+  
+  # ------ ALLOWED
+  { path = "/quote", uri = "file:./quote", type = "chroot" },
+
   # ------ SEALED
-  { path = "/quote", uri = "file:quote/", type = "_sgx_mrenclave" },
-  { path = "/certificates", uri = "file:certificates/", type = "encrypted", key_name = "_sgx_mrenclave" },
-  { path = "/nft" , uri = "file:nft/", type = "encrypted", key_name = "_sgx_mrenclave"},
+  { path = "/certificates", uri = "file:./certificates", type = "encrypted", key_name = "_sgx_mrenclave" },
+  { path = "/nft" , uri = "file:./nft", type = "encrypted", key_name = "_sgx_mrenclave"},
 ]
 
 sgx.allowed_files = [
@@ -44,15 +48,17 @@ sgx.trusted_files = [
   "file:/etc/passwd",
   "file:/etc/gai.conf",
   "file:/etc/localtime",
-# TODO : REMOVE
+
+# TODO [security] : REMOVE, IT MUST BE GENERATED INSIDE ENCLAVE
   "file:/etc/ssl/certs/ca-certificates.crt",
-# TODO : REMOVE  
+
+# TODO [deployment] : REMOVE, THEY WILL BE DOWNLOADED FROM GITHUB
   "file:bin/checksum",
   "file:bin/sgx_server.sig",
   "./credentials/keys/cosign.pub",
 ]
 
-# TODO: REMOVE INSECURE OPTIONS
+# TODO [deployment] : REMOVE INSECURE OPTIONS
 
 # The Tokio runtime requires eventfd, and the Gramine implementation
 # currently relies on the host in an insecure manner. This setting isn't
@@ -84,5 +90,5 @@ sgx.remote_attestation = "epid"
 sgx.ra_client_spid = "B6941ED89BCD7301A08739845B3B865A"
 sgx.ra_client_linkable = true
 
-sgx.isvprodid = 11
-sgx.isvsvn    = 102
+sgx.isvprodid = 12
+sgx.isvsvn    = 103

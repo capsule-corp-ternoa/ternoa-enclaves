@@ -297,7 +297,7 @@ mod tests {
 	fn test_generate_keys() {
 		pgp_generate_key();
 	}
-	/* TODO : define test files.
+	/* Define test files.
 	#[test]
 	fn test_get_keys() {
 		let f = std::fs::File::open("public.key").expect("can not open test file");

@@ -170,7 +170,7 @@ pub struct StoreKeysharePacket {
 	signersig: String,
 
 	// Signed by signer
-	pub data: String, // TODO: Replace by "SecretData" JWT/JWS
+	pub data: String,
 	pub signature: String,
 }
 
@@ -192,7 +192,7 @@ pub enum RequesterType {
 pub struct RetrieveKeysharePacket {
 	pub requester_address: sr25519::Public,
 	pub requester_type: RequesterType,
-	pub data: String, // TODO: Replace by "SecretData" JWT/JWS
+	pub data: String,
 	pub signature: String,
 }
 
@@ -680,7 +680,6 @@ pub enum ValidationResult {
 
 // Retrieving the stored Keyshare
 impl AuthenticationToken {
-	// TODO: use json canonicalization of JOSE/JWT encoder
 	/// Serialize AuthenticationToken
 	pub fn serialize(self) -> String {
 		self.block_number.to_string() + "_" + &self.block_validation.to_string()
@@ -774,7 +773,6 @@ impl StoreKeysharePacket {
 		})
 	}
 
-	// TODO: use json canonicalization of JOSE/JWT decoder
 	pub fn parse_store_data(&self) -> Result<StoreKeyshareData, VerificationError> {
 		let mut data = self.data.clone();
 
@@ -1015,8 +1013,7 @@ impl RetrieveKeysharePacket {
 
 		Ok(sr25519::Signature::from_raw(sig_bytes))
 	}
-
-	// TODO: use json canonicalization of JOSE/JWT decoder
+	
 	pub fn parse_retrieve_data(&self) -> Result<RetrieveKeyshareData, VerificationError> {
 		let mut data = self.data.clone();
 
