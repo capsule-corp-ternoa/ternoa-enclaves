@@ -56,7 +56,7 @@ pub const ENCLAVE_ACCOUNT_FILE: &str = "/nft/enclave_account.key";
 /// http_server();
 /// ```
 pub async fn http_server() -> Result<Router, Error> {
-	// TODO: publish the key to release folder of sgx_server repository after being open-sourced.
+	// TODO [future deployment] : publish the key to release folder of sgx_server repository after being open-sourced.
 	
 
 	let enclave_keypair = if std::path::Path::new(enclave_account_file).exists() {
@@ -261,10 +261,10 @@ pub async fn http_server() -> Result<Router, Error> {
 						let sync_state = get_sync_state().unwrap();
 						if sync_state == "setup" {
 							// Here is First Identity discovery, thus the first synchronization of all files.
-							// TODO: it may be a long process here, more than new block time, and new nft event may happen.
+							// TODO [decision-development] : it may be a long process here, more than new block time, and new nft event may happen.
 							// 		An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
-							// TODO : use crawler here for setup (not subscribing)
-							// TODO : Retry Logic 
+							// TODO [decision-development] : use crawler here for setup (not subscribing)
+							// TODO [decision-development] : Retry Logic 
 							match fetch_keyshares(
 								&state_config,
 								std::collections::HashMap::<u32, u32>::new(),
@@ -272,7 +272,7 @@ pub async fn http_server() -> Result<Router, Error> {
 							.await
 							{
 								Ok(_) => {
-									// TODO : should not Blindly putting current block_number as the last updated keyshare's block_number
+									// TODO [discussion] : should not Blindly putting current block_number as the last updated keyshare's block_number
 									let _ = set_sync_state(block_number.to_string());
 									debug!("First Synchronization of Keyshares complete.");
 								},
@@ -290,10 +290,10 @@ pub async fn http_server() -> Result<Router, Error> {
 			}
 
 			// New Capsule/Secret are found
-			// TODO : do not put enclave health-check to maintenace for this condition
+			// TODO [decision-development]: do not put enclave health-check to maintenace for this condition
 			// What to do about missing NFTs?! (with any reason)
-			// TODO : use crawler here for power-off cases
-			// TODO : Retry Logic 
+			// TODO [decision-development]: use crawler here for power-off cases
+			// TODO [decision-development]: Retry Logic 
 			if !new_nft.is_empty() {
 				match fetch_keyshares(&state_config, new_nft).await {
 					Ok(_) => {

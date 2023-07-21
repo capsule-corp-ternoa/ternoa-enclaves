@@ -643,7 +643,7 @@ pub async fn admin_backup_push_bulk(
 			}));
 		},
 	}
-	// TODO: Verify backup data befor writing them on the disk
+
 	// Check if the enclave_account or keyshares are invalid
 	match zip_extract(&backup_file, SEALPATH) {
 		Ok(_) => debug!("zip_extract success"),
@@ -708,7 +708,6 @@ pub async fn admin_backup_push_bulk(
 
 	//update_health_status(&state, String::new()).await;
 
-	// TODO : self-check extracted data
 	Json(json!({
 		"success": format!("Success restoring backups"),
 	}))

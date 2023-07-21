@@ -210,7 +210,6 @@ pub struct NFTViewResponse {
 	description: String,
 }
 
-// TODO: check the request for signed data and prevent flooding requests.
 /// get views per nft
 /// # Arguments
 /// * `state` - StateConfig
@@ -735,11 +734,10 @@ pub async fn nft_retrieve_keyshare(
 				},
 			};
 
-			// TODO: handle the errors for log file : Reject the request
-
 			// Put a VIEWING history log
 			let file_path =
 				enclave_sealpath.to_string() + &verified_data.nft_id.to_string() + ".log";
+			
 			update_log_file_view(
 				block_number,
 				file_path,

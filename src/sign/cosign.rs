@@ -55,7 +55,7 @@ fn import_vkey() -> Result<CosignVerificationKey, anyhow::Error> {
 /// # Returns
 /// * `Result<bool, anyhow::Error>` - The result of the verification
 pub fn verify(signed_data: &[u8], signature_data: &str) -> Result<bool, anyhow::Error> {
-	// TODO: from github release
+	// TODO [release deployment] : from github release
 	let verification_key = match import_vkey() {
 		Ok(key) => key,
 		Err(e) => return Err(e),
