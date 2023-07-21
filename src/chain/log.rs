@@ -295,8 +295,9 @@ mod test {
 		let new_log = LogStruct::new(100000, log_account, LogType::STORE);
 		log_file_struct.insert_new_nft_log(new_log);
 
-		let log_buf = serde_json::to_vec(&log_file_struct).unwrap(); // TODO: manage unwrap()
-		file.write_all(&log_buf).unwrap(); // TODO: manage unwrap()
+		let log_buf = serde_json::to_vec(&log_file_struct).unwrap();
+		
+		file.write_all(&log_buf).unwrap();
 		std::mem::drop(file);
 
 		// Simulating Retrive keyshare
