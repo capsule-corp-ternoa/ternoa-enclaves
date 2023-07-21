@@ -63,8 +63,10 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 		"wss://alphanet.ternoa.com:443".to_string()
 	} else if cfg!(feature = "dev-1") {
 		"wss://dev-1.ternoa.network:443".to_string()
-	} else {
+	} else if cfg!(feature = "dev-0") {
 		"wss://dev-0.ternoa.network:443".to_string()
+	} else {
+		"wss://localhost:443".to_string()
 	};
 
 	DefaultApi::from_url(rpc_endoint).await

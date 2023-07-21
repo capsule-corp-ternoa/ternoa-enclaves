@@ -64,7 +64,6 @@ start-gramine-server: all
 	$(GRAMINE) sgx_server \
 		--domain $(SGX_DOMAIN) \
 		--port $(SGX_PORT) \
-		--identity $(SGX_IDENTITY) \
 		--verbose $(SGX_VERBOSITY) \
 		>> enclave.log 2>&1 &
 
