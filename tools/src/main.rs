@@ -310,7 +310,7 @@ pub struct StoreKeysharePacket {
 	signersig: String,
 
 	// Signed by signer
-	pub data: String, // TODO: Replace by "SecretData" JWT/JWS
+	pub data: String,
 	pub signature: String,
 }
 
@@ -372,7 +372,7 @@ pub enum RequesterType {
 pub struct RetrieveKeysharePacket {
 	pub requester_address: sr25519::Public,
 	pub requester_type: RequesterType,
-	pub data: String, // TODO: Replace by "SecretData" JWT/JWS
+	pub data: String,
 	pub signature: String,
 }
 

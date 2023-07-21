@@ -87,7 +87,7 @@ pub struct CapsuleViewResponse {
 	description: String,
 }
 
-// TODO: check the request for signed data and prevent flooding requests.
+// TODO [future rate-limiting] : check the request for signed data and prevent flooding requests.
 
 /// get the capsule key-share
 /// # Arguments
@@ -626,7 +626,7 @@ pub async fn capsule_retrieve_keyshare(
 						auth_token: AuthenticationToken { block_number, block_validation: 15 },
 					}
 					.serialize();
-					// TODO : SIGN the response
+					// TODO [future - security] : SIGN the response
 					(
 						StatusCode::OK,
 						Json(json!({

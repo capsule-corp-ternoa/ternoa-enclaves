@@ -20,7 +20,7 @@ pub struct QuoteResponse {
 	pub data: String,
 }
 
-// TODO : Rate Limit or Cache the Quote API
+// TODO [performace] : Rate Limit or Cache the Quote API
 //#[once(time = 60, sync_writes = false)]
 pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse {
 	let shared_state = &state.read().await;

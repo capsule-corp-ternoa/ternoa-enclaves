@@ -40,8 +40,8 @@ pub const INDEXER_URL: &str = "https://dev-0.ternoa.dev/";
 
 #[derive(GraphQLQuery)]
 #[graphql(
-	schema_path = "credentials/query/schema.graphql",
-	query_path = "credentials/query/secrets.graphql",
+	schema_path = "./query/schema.graphql",
+	query_path = "./query/secrets.graphql",
 	response_derives = "Debug",
 	variable_derives = "Clone",
 	normalization = "rust"
@@ -71,8 +71,8 @@ Get the Total Number of Synced NFT
 
 #[derive(GraphQLQuery)]
 #[graphql(
-	schema_path = "credentials/query/schema.graphql",
-	query_path = "credentials/query/secrets.graphql",
+	schema_path = "./query/schema.graphql",
+	query_path = "./query/secrets.graphql",
 	response_derives = "Debug",
 	variable_derives = "Clone",
 	normalization = "rust"
@@ -100,8 +100,8 @@ pub async fn get_total_synced(after_nftid: u32) -> Result<i64, Box<dyn Error>> {
 
 #[derive(GraphQLQuery)]
 #[graphql(
-	schema_path = "credentials/query/schema.graphql",
-	query_path = "credentials/query/secrets.graphql",
+	schema_path = "./query/schema.graphql",
+	query_path = "./query/secrets.graphql",
 	response_derives = "Debug",
 	variable_derives = "Clone",
 	normalization = "rust"
