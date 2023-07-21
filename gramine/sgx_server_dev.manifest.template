@@ -25,11 +25,11 @@ fs.mounts = [
   { path = "/keys", uri = "file:../credentials/keys", type = "chroot" },
   
   # ------ ALLOWED 
-  { path = "/quote", uri = "file:./quote", type = "chroot" },
+  { path = "/quote", uri = "file:quote", type = "chroot" },
 
   # ------ SEALED
-  { path = "/certificates", uri = "file:./certificates", type = "_sgx_mrenclave" },
-  { path = "/nft" , uri = "file:./nft",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
+  { path = "/certificates", uri = "file:certificates", type = "encrypted", "key_name" = "_sgx_mrenclave" },
+  { path = "/nft" , uri = "file:nft",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
 ]
 
 # Only for development and debug, it will be replaced with _sgx_mrenclave/_sgx_mrsigner for production

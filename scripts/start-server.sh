@@ -149,9 +149,9 @@ BIWhite='\033[1;97m'      # White
 
 echo -e "\nport:\t\t ${IGreen}$PORT${NC}"
 echo -e "domain name:\t ${IGreen}$DOMAIN${NC}"
-echo -e "nft secrets:\t ${IGreen}$NFT_SERCRETS_PATH${NC}"
-echo -e "enclave name:\t ${IGreen}$ENCLAVE_IDENTITY${NC}"
-echo -e "account key:\t ${IGreen}$TERNOA_ACCOUNT_PATH${NC}" # WILL BE REPLACED BY GITHUB SCRIPT
+#echo -e "nft secrets:\t ${IGreen}$NFT_SERCRETS_PATH${NC}"
+#echo -e "enclave name:\t ${IGreen}$ENCLAVE_IDENTITY${NC}"
+#echo -e "account key:\t ${IGreen}$TERNOA_ACCOUNT_PATH${NC}" # WILL BE REPLACED BY GITHUB SCRIPT
 
 # Create Enclave using Makefile
 cd $GRAMINE_PATH
@@ -163,7 +163,6 @@ make 	SGX=1 \
 	SGX_QUOTE_PATH=$QUOTE_PATH \
 	SGX_CREDENTIALS_PATH=$CREDENTIALS_PATH \
 	SGX_CERT_PATH=$CERT_PATH \
-	SGX_IDENTITY=$ENCLAVE_IDENTITY \
 	SGX_VERBOSITY=$VERBOSITY_LEVLE\
 	SGX_DEV_BUILD=$DEV_BUILD\
 	start-gramine-server >> $GRAMINE_PATH/make.log 2>&1 &
