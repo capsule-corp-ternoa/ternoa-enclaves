@@ -28,11 +28,11 @@ fs.mounts = [
 
   # ------ SEALED
   { path = "/certificates", uri = "file:certificates", type = "encrypted", key_name = "_sgx_mrenclave" },
-  { path = "/nft" , uri = "file:./nft", type = "encrypted", key_name = "_sgx_mrenclave"},
+  { path = "/nft" , uri = "file:nft", type = "encrypted", key_name = "_sgx_mrenclave"},
 ]
 
 sgx.allowed_files = [
-  "file:{{ quote_path }}/",
+  "file:quote/",
 ]
 
 sgx.trusted_files = [

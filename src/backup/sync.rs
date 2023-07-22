@@ -71,7 +71,9 @@ const MAX_VALIDATION_PERIOD: u8 = 20;
 const MAX_BLOCK_VARIATION: u8 = 5;
 const MAX_STREAM_SIZE: usize = 1000 * 3 * 1024; // 3KB is the size of keyshare, 1000 is maximum number of ext in block
 
-pub const SYNC_STATE_FILE: &str = "/nft/sync.state";
+// only for dev
+//pub const SYNC_STATE_FILE: &str = "/nft/sync.state";
+pub const SYNC_STATE_FILE: &str = "/sync.state";
 
 /* *************************************
 	FETCH  NFTID DATA STRUCTURES
@@ -1093,8 +1095,7 @@ pub fn find_event_secret_shard_added(
 
 // Read Sync State File
 pub fn get_sync_state() -> Result<String> {
-	let bytes = std::fs::read(SYNC_STATE_FILE)?;
-	match String::from_utf8(bytes) {
+	match std::fs::read_to_string(SYNC_STATE_FILE) {
 		Ok(state) => Ok(state),
 		Err(e) => Err(e.into()),
 	}
@@ -1193,7 +1194,7 @@ mod test {
 		/* ----------------------------
 		   Test Finding NFT add Shard
 		------------------------------*/
-		let cluster_nft_map = crawl_sync_events(state_config, 1323900, 1324200).await;
+		let cluster_nft_map = crawl_sync_events(state_config, 550, 560).await;
 		println!("\n To be fetched from cluster-slot : {:?}\n", cluster_nft_map.unwrap());
 
 		/* ------------------------------
