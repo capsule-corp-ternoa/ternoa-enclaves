@@ -21,10 +21,12 @@ fs.mounts = [
   
   { path = "/temporary", type = "tmpfs" },
 
-  # ------ TRUSTED
+  # ------ TRUSTED (only dev)
   { path = "/keys", uri = "file:../credentials/keys", type = "chroot" },
   
-  # ------ ALLOWED 
+  # ------ ALLOWED (only dev)
+  { path = "/sync.state", uri = "file:./sync.state", type = "chroot" },
+
   { path = "/quote", uri = "file:quote", type = "chroot" },
 
   # ------ SEALED
@@ -36,8 +38,8 @@ fs.mounts = [
 # fs.insecure__keys."DevOnlyKey" = "0123456789ABCDEF0123456789ABCDEF"
 
 sgx.allowed_files = [
-  "file:{{ quote_path }}/",
-  "file:{{ certificates_path }}/",
+  "file:quote/",
+  "file:./sync.state",
 ]
 
 sgx.trusted_files = [

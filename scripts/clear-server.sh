@@ -6,7 +6,7 @@ SEALPATH="$GRAMINEPATH/nft/"
 CERTPATH="$BASEDIR/credentials/certificates/"
 
 # DEFAULT VALUES
-PORT=${PORT:-8101}
+PORT=
 HTTPS_PUBLIC_KEY=${HTTPS_PUBLIC_KEY:-$CERTPATH/server_cert.pem}
 HTTPS_PRIVATE_KEY=${HTTPS_PRIVATE_KEY:-$CERTPATH/server_key.pem}
 NFT_SERCRETS_PATH=${NFT_SERCRETS_PATH:-$SEALPATH}
@@ -16,7 +16,7 @@ ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
 
 stop_enclave() {
     printf 'stop enclave with identifier : "%s"\n' "$1" >&2
-    ps aux | grep "$1" | awk '{ print $2}' | xargs kill -9
+    ps aux | grep "$1" | grep -v grep | awk '{ print $2}' | xargs kill -9
 }
 
 die () {
@@ -49,9 +49,8 @@ while :; do
     shift
 done
 
-find . -name *~ | xargs rm
+#find . -name *~ | xargs rm
 rm -rf $GRAMINEPATH/quote/*
-rm 0rf $GRAMINEPATH/bin/*
 rm -rf $SEALPATH/*
 
 cd $GRAMINEPATH

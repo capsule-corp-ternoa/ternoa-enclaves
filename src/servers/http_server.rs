@@ -148,16 +148,27 @@ pub async fn http_server() -> Result<Router, Error> {
 		"0.4.1".to_string(),
 	)));
 
-	let _ = match File::create(SYNC_STATE_FILE) {
-		Ok(file_handle) => {
-			debug!("created sync.state file successfully");
-			file_handle
-		},
-		Err(err) => {
-			error!("failed to creat sync.state file, error : {:?}", err);
-			return Err(anyhow!(err));
-		},
-	};
+	// Check the previous Sync State
+	if std::path::Path::new(&SYNC_STATE_FILE).exists() {
+		let state = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
+			Ok(state) => state,
+			Err(err) => {
+				error!("Error reading enclave's last state file: {:?}", err);
+				return Err(anyhow!(err));
+			},
+		};
+	}else{
+		let _ = match File::create(SYNC_STATE_FILE) {
+			Ok(file_handle) => {
+				debug!("created sync.state file successfully");
+				file_handle
+			},
+			Err(err) => {
+				error!("failed to creat sync.state file, error : {:?}", err);
+				return Err(anyhow!(err));
+			},
+		};
+	}
 
 	let _ = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
