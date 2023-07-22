@@ -32,9 +32,6 @@ sgx_server.manifest: $(MANIFEST_FILE)
 	gramine-manifest \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
 		-Darch_libdir=$(ARCH_LIBDIR) \
-		-Dquote_path=$(SGX_QUOTE_PATH) \
-		-Dcredentials_path=$(SGX_CREDENTIALS_PATH) \
-		-Dcertificates_path=$(SGX_CERT_PATH) \
 		-Dself_exe=$(SELF_EXE) \
 		$< $@
 

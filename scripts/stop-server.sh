@@ -15,7 +15,7 @@ ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
 
 stop_enclave() {
     printf 'stop enclave with identifier : "%s"\n' "$1" >&2
-    ps aux | grep "$1" | awk '{ print $2}' | xargs kill -9
+    ps aux | grep "$1" | grep -v grep | awk '{ print $2}' | xargs kill -9
 }
 
 die () {
