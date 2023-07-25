@@ -35,7 +35,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 				.map(|e| format!("mailto:{}", e.to_owned())),
 		)
 		.cache_option(Some(DirCache::new(PathBuf::from(r"/certificates/"))))
-		.directory_lets_encrypt(false)
+		.directory_lets_encrypt(cfg!(any(feature = "mainnet", feature = "alphanet")))
 		.state();
 
 	debug!("3-5-2 Startng server : define rust-TLS config.");

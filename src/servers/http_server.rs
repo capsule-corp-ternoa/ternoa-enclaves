@@ -298,7 +298,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		.layer(
 			ServiceBuilder::new()
 				.layer(HandleErrorLayer::new(handle_timeout_error))
-				.timeout(Duration::from_secs(20)),
+				.timeout(Duration::from_secs(10)),
 		)
 		.layer(monitor_layer)
 		.layer(CorsLayer::permissive())
