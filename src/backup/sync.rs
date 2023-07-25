@@ -656,6 +656,7 @@ pub async fn fetch_keyshares(
 
 // Crawl and parse registered clusters and enclaves from on-chain data
 pub async fn cluster_discovery(state: &SharedState) -> Result<(), anyhow::Error> {
+	debug!("Start Cluster Discovery");
 	let api = get_chain_api(state.clone()).await; //create_chain_api().await.unwrap();
 
 	let max_cluster_address = ternoa::storage().tee().next_cluster_id();
@@ -879,12 +880,12 @@ pub async fn parse_block_body(
 		let call = ext.variant_name()?;
 		//debug!("  - crawler extrinsic  = {} : {}", pallet, call);
 
-		match pallet {
+		match pallet.to_uppercase().as_str() {
 			"NFT" => {
 				let events = ext.events().await?;
-				match call {
+				match call.to_uppercase().as_str() {
 					// Capsule
-					"add_capsule_shard" => {
+					"ADD_CAPSULE_SHARD" => {
 						// Capsule Synced Detected?
 						match find_events_capsule_synced(&events) {
 							Some(nftid) => {
@@ -921,7 +922,7 @@ pub async fn parse_block_body(
 					}, // end - capsule shard
 
 					// Secret
-					"add_secret_shard" => {
+					"ADD_SECRET_SHARD" => {
 						// Secret-NFT Synced Detected?
 						match find_events_secret_synced(&events) {
 							Some(nftid) => {
@@ -960,14 +961,14 @@ pub async fn parse_block_body(
 			}, // end  - NFT pallet
 
 			// If the extrinsic pallet is TC
-			"TechnicalCommittee" => {
+			"TECHNICALCOMMITTEE" => {
 				let events = ext.events().await?;
 				for evnt in events.iter() {
 					let event = evnt?;
 					let pallet = event.pallet_name();
 
 					// If the event is TEE
-					if pallet == "tee" {
+					if pallet.to_uppercase().as_str() == "TEE" {
 						// TODO [decision] : There may be Metric Server updates that we should exclude
 						update_cluster_data = true;
 						debug!("  \t - TechnicalCommittee extrinsic for TEE detected");
@@ -983,15 +984,15 @@ pub async fn parse_block_body(
 					let pallet = event.pallet_name();
 					let variant = event.variant_name();
 					// If the event is successful
-					if pallet == "system" && variant == "ExtrinsicSuccess" {
+					if pallet.to_uppercase().as_str() == "SYSTEM" && variant.to_uppercase().as_str() == "EXTRINSICSUCCESS" {
 						// TODO [question] : Check if this condition is meaningful
-						//update_cluster_data = true;
+						update_cluster_data = true;
 						debug!("  \t - TEE extrinsic detected, it should wait for TC.");
 					}
 				}
 			},
 
-			"Timestamp" => continue,
+			"TIMESTAMP" => continue,
 
 			_ => trace!("  \t ---- [not a nft, tc, tee or timestamp pallet] extrinsic Pallet = {} call = {}", pallet, call),
 		} // end - match pallet

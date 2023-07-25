@@ -49,9 +49,13 @@ while :; do
     shift
 done
 
-#find . -name *~ | xargs rm
+#find . -name "*~" | xargs rm
 rm -rf $GRAMINEPATH/quote/*
-rm -rf $SEALPATH/*
+rm -rf $SEALPATH/*.keyshare
+rm -rf $SEALPATH/*.log
+#rm -rf $SEALPATH/*.key
+#$rm -rf $SEALPATH/*.state
+
 
 cd $GRAMINEPATH
 make clean
