@@ -737,7 +737,7 @@ pub async fn nft_retrieve_keyshare(
 			// Put a VIEWING history log
 			let file_path =
 				enclave_sealpath.to_string() + &verified_data.nft_id.to_string() + ".log";
-			
+
 			update_log_file_view(
 				block_number,
 				file_path,

@@ -26,7 +26,10 @@ use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
 	chain::core::get_current_block_number,
-	servers::{state::{SharedState, StateConfig}, http_server::ENCLAVE_ACCOUNT_FILE},
+	servers::{
+		http_server::ENCLAVE_ACCOUNT_FILE,
+		state::{SharedState, StateConfig},
+	},
 };
 
 use super::zipdir::{add_dir_zip, zip_extract};

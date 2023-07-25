@@ -42,6 +42,9 @@ use crate::servers::state::SharedState;
 use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
 pub type DefaultApi = OnlineClient<PolkadotConfig>;
 
+const RETRY_COUNT: u8 = 12;
+const RETRY_DELAY: u64 = 7;
+
 #[derive(Serialize)]
 pub enum ReturnStatus {
 	RETRIEVESUCCESS,
@@ -66,9 +69,20 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	} else if cfg!(feature = "dev-0") {
 		"wss://dev-0.ternoa.network:443".to_string()
 	} else {
-		"wss://localhost:443".to_string()
+		"ws://localhost:9944".to_string()
 	};
 
+	// RE-TRY MECHANISM
+	for retry in 0..RETRY_COUNT {
+		match DefaultApi::from_url(rpc_endoint.clone()).await {
+			Ok(api) => return Ok(api),
+			Err(e) => error!("Error acquiring chain api, re-try num.{}, {:?}", retry, e),
+		}
+		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	}
+
+	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
+	// LAST NORMAL TRY
 	DefaultApi::from_url(rpc_endoint).await
 }
 
@@ -90,6 +104,19 @@ pub async fn get_current_block_number(state: SharedState) -> Result<u32, Error> 
 	let api = get_chain_api(state).await;
 
 	debug!("current_block : get block number");
+
+	// RE-TRY MECHANISM
+	for retry in 0..RETRY_COUNT {
+		match api.blocks().at_latest().await {
+			Ok(last_block) => return Ok(last_block.number()),
+			Err(e) => error!("core : unable to get latest block, re-try num.{}, {:?}", retry, e),
+		}
+		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	}
+
+	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
+
+	// LAST NORMAL TRY
 	let last_block = match api.blocks().at_latest().await {
 		Ok(last_block) => last_block,
 		Err(err) => {
@@ -145,13 +172,36 @@ pub async fn get_onchain_nft_data(state: SharedState, nft_id: u32) -> Option<NFT
 
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
 
-	let storage = match api.storage().at_latest().await {
-		Ok(storage) => storage,
-		Err(err) => {
-			error!("Failed to get storage: {:?}", err);
-			return None;
-		},
-	};
+	// RETRY
+	for retry in 0..RETRY_COUNT {
+		let storage: subxt::storage::Storage<PolkadotConfig, OnlineClient<PolkadotConfig>> =
+			match api.storage().at_latest().await {
+				Ok(storage) => storage,
+				Err(err) => {
+					error!("Failed to get nft storagem, retry num.{}: {:?}", retry, err);
+					continue;
+				},
+			};
+
+		match storage.fetch(&storage_address).await {
+			Ok(nft_data) => return nft_data,
+			Err(err) => error!("Failed to fetch NFT data, retry num.{} : {:?}", retry, err),
+		}
+
+		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	}
+
+	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
+
+	// LAST NORMAL TRY
+	let storage: subxt::storage::Storage<PolkadotConfig, OnlineClient<PolkadotConfig>> =
+		match api.storage().at_latest().await {
+			Ok(storage) => storage,
+			Err(err) => {
+				error!("Failed to get nft storage: {:?}", err);
+				return None;
+			},
+		};
 
 	match storage.fetch(&storage_address).await {
 		Ok(nft_data) => nft_data,
@@ -168,16 +218,37 @@ pub async fn get_onchain_nft_data(state: SharedState, nft_id: u32) -> Option<NFT
 /// # Arguments
 /// * `nft_id` - The NFT/Capsule ID
 pub async fn get_onchain_delegatee(state: SharedState, nft_id: u32) -> Option<AccountId32> {
-	debug!("4-2 get chain API");
+	debug!("4-2 Delgate");
 
 	let api = get_chain_api(state).await;
 
 	let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
 
+	for retry in 0..RETRY_COUNT {
+		let storage = match api.storage().at_latest().await {
+			Ok(storage) => storage,
+			Err(err) => {
+				error!("Failed to get storage for delegatee, retry num.{}: {:?}", retry, err);
+				continue;
+			},
+		};
+
+		match storage.fetch(&storage_address).await {
+			Ok(delegated) => return delegated,
+			Err(err) => {
+				error!("Failed to fetch NFT data for delegatee, retry num.{} : {:?}", retry, err)
+			},
+		}
+
+		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	}
+
+	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
+
 	let storage = match api.storage().at_latest().await {
 		Ok(storage) => storage,
 		Err(err) => {
-			error!("Failed to get storage: {:?}", err);
+			error!("Failed to get storage for delegatee: {:?}", err);
 			return None;
 		},
 	};
@@ -185,7 +256,7 @@ pub async fn get_onchain_delegatee(state: SharedState, nft_id: u32) -> Option<Ac
 	match storage.fetch(&storage_address).await {
 		Ok(delegated) => delegated,
 		Err(err) => {
-			error!("Failed to fetch NFT data: {:?}", err);
+			error!("Failed to fetch NFT data for delegatee : {:?}", err);
 			None
 		},
 	}
@@ -197,16 +268,44 @@ pub async fn get_onchain_delegatee(state: SharedState, nft_id: u32) -> Option<Ac
 /// # Returns
 /// * `Option<AccountId32>` - The rent contract
 pub async fn get_onchain_rent_contract(state: SharedState, nft_id: u32) -> Option<AccountId32> {
-	debug!("4-3 get chain API");
+	debug!("4-3 Rent contract");
 
 	let api = get_chain_api(state).await;
 
 	let storage_address = ternoa::storage().rent().contracts(nft_id);
 
+	for retry in 0..RETRY_COUNT {
+		let storage = match api.storage().at_latest().await {
+			Ok(storage) => storage,
+			Err(err) => {
+				error!("Failed to get storage for rentee, retry num.{} : {:?}", retry, err);
+				continue;
+			},
+		};
+
+		match storage.fetch(&storage_address).await {
+			Ok(rent_contract) => match rent_contract {
+				Some(data) => return data.rentee,
+				_ => error!(
+					"Failed to parse NFT data for rentee, retry num.{} : {:?}",
+					retry, rent_contract
+				),
+			},
+
+			Err(err) => {
+				error!("Failed to fetch NFT data for rentee, retry num.{} : {:?}", retry, err);
+			},
+		}
+
+		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	}
+
+	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
+
 	let storage = match api.storage().at_latest().await {
 		Ok(storage) => storage,
 		Err(err) => {
-			error!("Failed to get storage: {:?}", err);
+			error!("Failed to get storage for rentee: {:?}", err);
 			return None;
 		},
 	};
@@ -215,7 +314,7 @@ pub async fn get_onchain_rent_contract(state: SharedState, nft_id: u32) -> Optio
 		Ok(rent_contract) => match rent_contract {
 			Some(data) => data.rentee,
 			_ => {
-				error!("Failed to fetch NFT data: {:?}", rent_contract);
+				error!("Failed to fetch NFT data for rentee : {:?}", rent_contract);
 				None
 			},
 		},
@@ -320,11 +419,31 @@ pub async fn nft_keyshare_oracle(
 
 	let api = get_chain_api(state.clone()).await;
 
-	// Submit Extrinsic
+	// Enclave as the Signer
 	let signer = PairSigner::new(keypair);
 
 	// Create a transaction to submit:
 	let tx = ternoa::tx().nft().add_secret_shard(nft_id);
+
+	for retry in 0..RETRY_COUNT {
+		// With nonce
+		//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
+		let offchain_nonce = state.read().await.get_nonce();
+		//Increment offchain nonce
+		state.write().await.increment_nonce();
+		// Create the extrinsic
+		match api.tx()
+			.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
+			.submit()
+			.await {
+				Ok(h) => return Ok(h),
+				Err(e) => error!("Error sending NFT oracle extrinsic for NFTID.{} to chain, retry num.{} : error : {:?}", nft_id, retry, e),
+			}
+
+		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	}
+
+	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
 
 	// With nonce
 	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
@@ -355,14 +474,31 @@ pub async fn capsule_keyshare_oracle(
 
 	let api = get_chain_api(state.clone()).await;
 
-	// Submit Extrinsic
+	// Enclave as the Signer
 	let signer = PairSigner::new(keypair);
 
 	// Create a transaction to submit:
 	let tx = ternoa::tx().nft().add_capsule_shard(nft_id);
 
-	// submit the transaction with default params:
-	//api.tx().sign_and_submit_default(&tx, &signer).await
+	for retry in 0..RETRY_COUNT {
+		// With nonce
+		//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
+		let offchain_nonce = state.read().await.get_nonce();
+		//Increment offchain nonce
+		state.write().await.increment_nonce();
+		// Create the extrinsic
+		match api.tx()
+			.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
+			.submit()
+			.await {
+				Ok(h) => return Ok(h),
+				Err(e) => error!("Error sending CAPSULE oracle extrinsic for NFTID.{} to chain, retry num.{} : error : {:?}", nft_id, retry, e),
+			}
+
+		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	}
+
+	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
 
 	// With nonce
 	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
