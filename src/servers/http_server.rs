@@ -141,6 +141,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		},
 	};
 
+	// Shared-State between APIs
 	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 		enclave_keypair,
 		String::new(),
@@ -148,16 +149,100 @@ pub async fn http_server() -> Result<Router, Error> {
 		"0.4.1".to_string(),
 	)));
 
-	// Check the previous Sync State
+	// Check the previous Sync-State
 	if std::path::Path::new(&SYNC_STATE_FILE).exists() {
-		let state = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
+		// Resuming enclave
+		let past_state = match std::fs::read_to_string(SYNC_STATE_FILE) {
 			Ok(state) => state,
 			Err(err) => {
 				error!("Error reading enclave's last state file: {:?}", err);
 				return Err(anyhow!(err));
 			},
 		};
-	}else{
+
+		if !past_state.is_empty() {
+			if past_state == "setup" {
+				// Th enclave has been stopped at the middle of fetching data from another enclave
+				// Do it again!
+				match fetch_keyshares(&state_config, std::collections::HashMap::<u32, u32>::new())
+					.await
+				{
+					Ok(_) => {
+						let current_block_hash = chain_api.rpc().finalized_head().await?;
+						let current_block =
+							chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
+						let current_block_number = current_block.block.header.number;
+						let _ = set_sync_state(current_block_number.to_string());
+						info!(
+							"First Synchronization of Keyshares complete up to block number : {}.",
+							current_block_number
+						);
+					},
+					Err(err) => {
+						error!("Error during maintenance-mode fetching keys-hares : {:?}", err)
+					},
+				}
+			} else {
+				// Th enclave has been stopped after being synced to a recent block number
+				// Now should crawl the blocks to the current finalized block.
+
+				let synced_block_number = match past_state.parse::<u32>() {
+					Ok(number) => number,
+					Err(err) => {
+						error!("Error parsing enclave's last state content: {:?}", err);
+						return Err(anyhow!(err));
+					},
+				};
+
+				let _ = cluster_discovery(&state_config.clone()).await;
+
+				// Retry if syncing failed
+				let mut sync_success = false;
+
+				while !sync_success {
+					let current_block_hash = chain_api.rpc().finalized_head().await?;
+					let current_block = chain_api.rpc().block(Some(current_block_hash)).await?;
+					let current_block_number = current_block.unwrap().block.header.number;
+
+					// Changes may happen in clusters and enclaves while this encalve has been down.
+					// TODO [future] : use Indexer if the difference between current_block >> past_block is large
+					match crawl_sync_events(
+						state_config.clone(),
+						synced_block_number,
+						current_block_number,
+					)
+					.await
+					{
+						Ok(cluste_nftid_map) => {
+							match fetch_keyshares(&state_config.clone(), cluste_nftid_map).await {
+								Ok(_) => {
+									let _ = set_sync_state(current_block_number.to_string());
+									info!("Synchronization is complete up to current block");
+									sync_success = true;
+								},
+
+								Err(fetch_err) => {
+									error!("Error etching new nftids after resuming the enclave : {:?}", fetch_err);
+								},
+							}; // FETCH
+						},
+
+						Err(crawl_err) => {
+							error!(
+								"Error crawling new blocks after resuming the enclave : {:?}",
+								crawl_err
+							);
+							//return Err(anyhow!(crawl_err));
+						},
+					} // CRAWL
+
+					// Wait 5 seconds, then retry
+					std::thread::sleep(std::time::Duration::from_secs(7));
+				} // WHILE - RETRY
+			} // PAST STATE IS A NUMBER
+		} // PAST STATE EXISTS
+	} else {
+		// It is first time starting encalve
 		let _ = match File::create(SYNC_STATE_FILE) {
 			Ok(file_handle) => {
 				debug!("created sync.state file successfully");
@@ -168,7 +253,7 @@ pub async fn http_server() -> Result<Router, Error> {
 				return Err(anyhow!(err));
 			},
 		};
-	}
+	};
 
 	let _ = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
@@ -209,7 +294,6 @@ pub async fn http_server() -> Result<Router, Error> {
 		.route("/api/backup/sync-keyshare", post(sync_keyshares))
 		// METRIC SERVER
 		// List of all nfts in an Interval [block1,block2] (Migration needed!)
-
 		//.layer(RequestBodyLimitLayer::new(CONTENT_LENGTH_LIMIT))
 		.layer(
 			ServiceBuilder::new()
@@ -218,7 +302,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		)
 		.layer(monitor_layer)
 		.layer(CorsLayer::permissive())
-		.with_state(Arc::clone(&state_config));
+		.with_state(Arc::clone(&state_config.clone()));
 
 	// New thread to track latest block
 	tokio::spawn(async move {
@@ -245,7 +329,8 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			// Write to ShareState block, necessary to prevent Read SharedState
 			{
-				let shared_state_write = &mut state_config.write().await;
+				let write_state = state_config.clone();
+				let shared_state_write = &mut write_state.write().await;
 				trace!("Block Number Thread : got shared state to write.");
 
 				shared_state_write.set_current_block(block_number);
@@ -266,18 +351,16 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			// A change in clusters/enclaves data is detected.
 			if is_tee_events {
-				match cluster_discovery(&state_config).await {
+				match cluster_discovery(&state_config.clone()).await {
 					Ok(_) => {
 						// New enclave/cluster is found
 						let sync_state = get_sync_state().unwrap();
 						if sync_state == "setup" {
 							// Here is First Identity discovery, thus the first synchronization of all files.
-							// TODO [decision-development] : it may be a long process here, more than new block time, and new nft event may happen.
+							// TODO [decision-development] : it can not be a a long process here, because it is done on the start-time once, unless there;s been a long network disconnection on runtime!
 							// 		An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
-							// TODO [decision-development] : use crawler here for setup (not subscribing)
-							// TODO [decision-development] : Retry Logic 
 							match fetch_keyshares(
-								&state_config,
+								&state_config.clone(),
 								std::collections::HashMap::<u32, u32>::new(),
 							)
 							.await
@@ -285,35 +368,82 @@ pub async fn http_server() -> Result<Router, Error> {
 								Ok(_) => {
 									// TODO [discussion] : should not Blindly putting current block_number as the last updated keyshare's block_number
 									let _ = set_sync_state(block_number.to_string());
-									debug!("First Synchronization of Keyshares complete.");
+									info!("First Synchronization of Keyshares complete to the block number: {} .",block_number);
 								},
 								Err(err) => error!(
-									"Error during running-mode cluster discovery : {:?}",
+									"Error during maintenance-mode cluster discovery : {:?}",
 									err
 								),
 							}
 						}
-						debug!("Cluster discovery complete.");
+						info!("Cluster discovery complete.");
 					},
 
 					Err(err) => error!("Error during running-mode cluster discovery {:?}", err),
 				}
 			}
 
+			// CRAWL
+			let sync_state = get_sync_state().unwrap();
+			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
+				if (block_number - last_sync_block) > 2 {
+					match crawl_sync_events(state_config.clone(), last_sync_block, block_number)
+						.await
+					{
+						Ok(cluster_nft_map) => {
+							info!(
+								"Success crawling from {} to {} .",
+								last_sync_block, block_number
+							);
+							match fetch_keyshares(&state_config.clone(), cluster_nft_map).await {
+								Ok(_) => {
+									info!("Success runtime-mode fetching crawled blocks from {} to {} .", last_sync_block, block_number);
+								},
+
+								Err(err) => {
+									error!(
+										"Error during running-mode nft-based syncing : {:?}",
+										err
+									);
+									// We can not proceed to next nft-based sync.
+									// Because it'll update the syncing state
+									// A re-try id needed in next block
+									continue;
+								},
+							}
+						},
+
+						Err(e) => {
+							error!(
+								"Error runtime-mode crawling from {} to {} .",
+								last_sync_block, block_number
+							);
+							// We can not proceed to next nft-based sync.
+							// Because it'll update the syncing state
+							// A re-try id needed in next block
+							continue;
+						},
+					}
+				}
+			} else {
+				// We are in setup or unregistered mode
+				// wait until enclave get registered and go to runtime-mode
+				continue;
+			}
+
 			// New Capsule/Secret are found
-			// TODO [decision-development]: do not put enclave health-check to maintenace for this condition
-			// What to do about missing NFTs?! (with any reason)
-			// TODO [decision-development]: use crawler here for power-off cases
-			// TODO [decision-development]: Retry Logic 
 			if !new_nft.is_empty() {
-				match fetch_keyshares(&state_config, new_nft).await {
+				match fetch_keyshares(&state_config.clone(), new_nft).await {
 					Ok(_) => {
 						let _ = set_sync_state(block_number.to_string());
 						debug!("Synchronization of Keyshares complete.")
 					},
-					Err(err) => error!("Error during running-mode cluster discovery : {:?}", err),
+					Err(err) => error!("Error during running-mode nft-based syncing : {:?}", err),
 				}
 			}
+
+			// TODO : Regular check to use Indexer for missing NFTs?! (with any reason)
+			// Maybe in another thread
 		}
 	});
 
