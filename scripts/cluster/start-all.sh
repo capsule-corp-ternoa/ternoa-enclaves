@@ -30,6 +30,8 @@ do
     start_enclave "$enclave" "$1"
     shift
     echo -e "\n--------------\n"
+    echo "Wait for 30 seconds to avoid conflicts accessing 'Lets Encrypt' API"
+    sleep 30
 done
 
 cd ..
