@@ -1,11 +1,6 @@
 #![allow(dead_code)]
 
-use std::{
-	collections::HashMap,
-	fs::remove_file,
-	io::Write,
-	net::SocketAddr,
-};
+use std::{collections::HashMap, fs::remove_file, io::Write, net::SocketAddr};
 
 use axum::{
 	body::StreamBody, extract::ConnectInfo, extract::State, http::header, http::StatusCode,
@@ -67,12 +62,16 @@ pub struct Cluster {
 }
 
 const SEALPATH: &str = "/nft/";
+const RETRY_COUNT: u8 = 12;
 const MAX_VALIDATION_PERIOD: u8 = 20;
 const MAX_BLOCK_VARIATION: u8 = 5;
 const MAX_STREAM_SIZE: usize = 1000 * 3 * 1024; // 3KB is the size of keyshare, 1000 is maximum number of ext in block
 
 // only for dev
-//pub const SYNC_STATE_FILE: &str = "/nft/sync.state";
+#[cfg(any(feature = "mainnet", feature = "alphanet"))]
+pub const SYNC_STATE_FILE: &str = "/nft/sync.state";
+
+#[cfg(any(feature = "dev-1", feature = "dev-0"))]
 pub const SYNC_STATE_FILE: &str = "/sync.state";
 
 /* *************************************
@@ -231,7 +230,7 @@ pub async fn sync_keyshares(
 ) -> impl IntoResponse {
 	debug!("API : Sync fetch NFTID");
 
-	update_health_status(&state, "Enclave is Syncing Keyshare, please wait...".to_string()).await;
+	//update_health_status(&state, "Enclave is Syncing Keyshare, please wait...".to_string()).await;
 
 	let shared_state_read = state.read().await;
 	let last_block_number = shared_state_read.get_current_block();
@@ -448,7 +447,7 @@ pub async fn sync_keyshares(
 		(header::CONTENT_DISPOSITION, "attachment; filename=\"Backup.zip\""),
 	];
 
-	update_health_status(&state, String::new()).await;
+	//update_health_status(&state, String::new()).await;
 
 	debug!("Sync Keyshare : Sending the backup data to the client ...");
 	(headers, body).into_response()
@@ -484,7 +483,7 @@ pub async fn fetch_keyshares(
 	drop(shared_state_read);
 
 	// TODO [future reliability] Check if new nfts are already on the disk and updated, check nftids , if they are in range, ...
-	
+
 	// Convert HashMap to Vector of nftid
 	let nftids: Vec<u32> = new_nft
 		.clone()
@@ -841,13 +840,10 @@ pub async fn crawl_sync_events(
 		// Find block hash
 		debug!("crawler : block number  = {}", block_counter);
 		let block_number = BlockNumber::from(block_counter);
-		let block_hash = match api
-			.rpc()
-			.block_hash(Some(block_number))
-			.await? {
-				Some(hash) => hash,
-				None => return Err(anyhow!("crawler : error getting block hash.")),
-			};
+		let block_hash = match api.rpc().block_hash(Some(block_number)).await? {
+			Some(hash) => hash,
+			None => return Err(anyhow!("crawler : error getting block hash.")),
+		};
 
 		// Read the block from blockchain
 		let block = api.blocks().at(block_hash).await?;
@@ -1102,12 +1098,10 @@ pub fn get_sync_state() -> Result<String> {
 }
 
 // Write to Sync State File
-pub fn set_sync_state(state: String) -> Result<()>{
-	let mut statefile = std::fs::OpenOptions::new()
-		.write(true)
-		.truncate(true)
-		.open(SYNC_STATE_FILE)?;
-	
+pub fn set_sync_state(state: String) -> Result<()> {
+	let mut statefile =
+		std::fs::OpenOptions::new().write(true).truncate(true).open(SYNC_STATE_FILE)?;
+
 	let _len = statefile.write(state.as_bytes())?;
 
 	Ok(())
