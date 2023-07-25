@@ -351,6 +351,7 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			// A change in clusters/enclaves data is detected.
 			if is_tee_events {
+				debug!("TEE Event processing");
 				match cluster_discovery(&state_config.clone()).await {
 					Ok(_) => {
 						// New enclave/cluster is found
@@ -387,6 +388,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			let sync_state = get_sync_state().unwrap();
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
 				if (block_number - last_sync_block) > 2 {
+					debug!("Difference between last sync state detected, block number  = {}, last synced = {}", block_number, last_sync_block);
 					match crawl_sync_events(state_config.clone(), last_sync_block, block_number)
 						.await
 					{
@@ -398,6 +400,7 @@ pub async fn http_server() -> Result<Router, Error> {
 							match fetch_keyshares(&state_config.clone(), cluster_nft_map).await {
 								Ok(_) => {
 									info!("Success runtime-mode fetching crawled blocks from {} to {} .", last_sync_block, block_number);
+									let _ = set_sync_state(block_number.to_string());
 								},
 
 								Err(err) => {
@@ -433,6 +436,7 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			// New Capsule/Secret are found
 			if !new_nft.is_empty() {
+				debug!("New nft/capsul event detected, block number = {}",block_number);
 				match fetch_keyshares(&state_config.clone(), new_nft).await {
 					Ok(_) => {
 						let _ = set_sync_state(block_number.to_string());
