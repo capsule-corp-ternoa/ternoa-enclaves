@@ -29,16 +29,20 @@ fs.mounts = [
 
   { path = "/quote", uri = "file:quote", type = "chroot" },
 
-  # ------ SEALED
-  { path = "/certificates", uri = "file:certificates", type = "encrypted", "key_name" = "_sgx_mrenclave" },
-  { path = "/nft" , uri = "file:nft",  type = "encrypted", "key_name" = "_sgx_mrenclave"},
+  # ------ SEALED!
+  { path = "/certificates", uri = "file:certificates", type = "chroot" },
+  { path = "/nft" , uri = "file:nft",  type =  = "chroot"},
 ]
 
 # Only for development and debug, it will be replaced with _sgx_mrenclave/_sgx_mrsigner for production
 # fs.insecure__keys."DevOnlyKey" = "0123456789ABCDEF0123456789ABCDEF"
 
+// ONLY for DEV!
+// THEY all be SEALED for production
 sgx.allowed_files = [
   "file:quote/",
+  "file:nft/",
+  "file:certificates/",
   "file:./sync.state",
 ]
 

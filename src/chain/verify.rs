@@ -1013,7 +1013,7 @@ impl RetrieveKeysharePacket {
 
 		Ok(sr25519::Signature::from_raw(sig_bytes))
 	}
-	
+
 	pub fn parse_retrieve_data(&self) -> Result<RetrieveKeyshareData, VerificationError> {
 		let mut data = self.data.clone();
 
