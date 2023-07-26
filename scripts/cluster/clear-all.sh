@@ -8,6 +8,7 @@ clear_enclave() {
   cd "$1"
   ./scripts/clear-server.sh
   echo "" > ./gramine/sync.state
+  rm start.log
   cd ..
 }
 
