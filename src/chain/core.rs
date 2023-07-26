@@ -415,7 +415,7 @@ pub async fn nft_keyshare_oracle(
 	keypair: sp_core::sr25519::Pair,
 	nft_id: u32,
 ) -> Result<sp_core::H256, subxt::Error> {
-	debug!("4-5 NFT ORACLE");
+	debug!("NFT ORACLE");
 
 	let api = get_chain_api(state.clone()).await;
 
@@ -425,36 +425,50 @@ pub async fn nft_keyshare_oracle(
 	// Create a transaction to submit:
 	let tx = ternoa::tx().nft().add_secret_shard(nft_id);
 
-	for retry in 0..RETRY_COUNT {
-		// With nonce
-		//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
-		let offchain_nonce = state.read().await.get_nonce();
-		//Increment offchain nonce
-		state.write().await.increment_nonce();
-		// Create the extrinsic
-		match api.tx()
-			.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
-			.submit()
-			.await {
-				Ok(h) => return Ok(h),
-				Err(e) => error!("Error sending NFT oracle extrinsic for NFTID.{} to chain, retry num.{} : error : {:?}", nft_id, retry, e),
-			}
+	// for retry in 0..RETRY_COUNT {
+	// 	// With nonce
+	// 	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
+	// 	let offchain_nonce = state.read().await.get_nonce();
+	// 	//Increment offchain nonce
+	// 	state.write().await.increment_nonce();
+	// 	// Create the extrinsic
+	// 	match api.tx()
+	// 		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
+	// 		.submit()
+	// 		.await {
+	// 			Ok(h) => return Ok(h),
+	// 			Err(e) => error!("Error sending NFT oracle extrinsic for NFTID.{} to chain, retry num.{} : error : {:?}", nft_id, retry, e),
+	// 		}
 
-		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
-	}
+	// 	std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	// }
 
-	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
+	// std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
 
 	// With nonce
 	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
-	let offchain_nonce = state.read().await.get_nonce();
-	//Increment offchain nonce
-	state.write().await.increment_nonce();
+
+	{
+		let mut write_state = state.write().await;
+		write_state.increment_nonce();
+		debug!("\tSecret-nft : nonce incremented");
+	}
+
+	let read_state = state.read().await;
+	let offchain_nonce = read_state.get_nonce();
+
+	debug!("\tSecret-nft : nonce = {:?}", offchain_nonce);
+
 	// Create the extrinsic
-	api.tx()
-		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
-		.submit()
-		.await
+	let result = api.tx()
+	.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
+	.submit()
+	.await;
+
+	debug!("\tSecret-nft Oracle : extrinsic sent : {:?}", result);
+	
+	result
+	
 }
 
 // -------------- CAPSULE SYNC (ORACLE) --------------
@@ -470,7 +484,7 @@ pub async fn capsule_keyshare_oracle(
 	keypair: sp_core::sr25519::Pair,
 	nft_id: u32,
 ) -> Result<sp_core::H256, subxt::Error> {
-	debug!("4-6 CAPSULE ORACLE");
+	debug!("CAPSULE ORACLE");
 
 	let api = get_chain_api(state.clone()).await;
 
@@ -480,36 +494,48 @@ pub async fn capsule_keyshare_oracle(
 	// Create a transaction to submit:
 	let tx = ternoa::tx().nft().add_capsule_shard(nft_id);
 
-	for retry in 0..RETRY_COUNT {
-		// With nonce
-		//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
-		let offchain_nonce = state.read().await.get_nonce();
-		//Increment offchain nonce
-		state.write().await.increment_nonce();
-		// Create the extrinsic
-		match api.tx()
-			.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
-			.submit()
-			.await {
-				Ok(h) => return Ok(h),
-				Err(e) => error!("Error sending CAPSULE oracle extrinsic for NFTID.{} to chain, retry num.{} : error : {:?}", nft_id, retry, e),
-			}
+	// for retry in 0..RETRY_COUNT {
+	// 	// With nonce
+	// 	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
+	// 	let offchain_nonce = state.read().await.get_nonce();
+	// 	//Increment offchain nonce
+	// 	state.write().await.increment_nonce();
+	// 	// Create the extrinsic
+	// 	match api.tx()
+	// 		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
+	// 		.submit()
+	// 		.await {
+	// 			Ok(h) => return Ok(h),
+	// 			Err(e) => error!("Error sending CAPSULE oracle extrinsic for NFTID.{} to chain, retry num.{} : error : {:?}", nft_id, retry, e),
+	// 		}
 
-		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
-	}
+	// 	std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	// }
 
-	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
+	// std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
 
 	// With nonce
 	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
-	let offchain_nonce = state.clone().read().await.get_nonce();
-	//Increment offchain nonce
-	state.write().await.increment_nonce();
+	{
+		let mut write_state = state.write().await;
+		write_state.increment_nonce();
+		debug!("\tCapusle Oracle : nonce incremented");
+	}
+
+	let read_state = state.read().await;
+	let offchain_nonce = read_state.get_nonce();
+
+	debug!("\tCapsule Oracle : nonce = {:?}", offchain_nonce);
+
 	// Create the extrinsic
-	api.tx()
+	let result = api.tx()
 		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
 		.submit()
-		.await
+		.await;
+
+	debug!("\tCapusle Oracle : extrinsic sent : {:?}", result);
+	
+	result
 }
 
 /* **********************
