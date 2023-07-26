@@ -7,6 +7,7 @@ clear_enclave() {
   printf 'Cleaning : "%s"\n' "$1" >&2
   cd "$1"
   ./scripts/clear-server.sh
+  echo "" > ./gramine/sync.state
   cd ..
 }
 
