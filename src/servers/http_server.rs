@@ -423,7 +423,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
 				debug!(" > Runtime mode : Crawl check : last_sync_block = {}", last_sync_block);
 				// If no event has detected in 10 blocks, network disconnections happened, ...
-				if (last_processed_block - block_number) > 1 {
+				if (block_number - last_processed_block) > 1 {
 					debug!(" > Runtime mode : Crawl check : Lagging last processed block : block number = {} > last processed = {}, last synced = {}", block_number, last_processed_block, last_sync_block);
 					match crawl_sync_events(state_config.clone(), last_processed_block, block_number)
 						.await
