@@ -1,6 +1,6 @@
-echo -e "\nWARN! You may need to run with SUDO ."
-echo -e "Input argument to this script is the name of the cluster folder."
-echo -e "Example: sudo ./clear-all.sh ./cluster_old_0\n"
+echo "WARN! You may need to run with SUDO."
+echo "Input argument to this script is the name of the cluster folder."
+echo "Example: sudo ./clear-all.sh ./cluster_old_0\n"
 
 
 clear_enclave() {
@@ -21,7 +21,7 @@ fi
 for enclave in *
 do
     clear_enclave "$enclave"
-    echo -e "\n"
+    echo "------"
 done
 
 
