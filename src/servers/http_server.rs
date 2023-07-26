@@ -65,7 +65,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
 			Ok(phrase) => phrase,
 			Err(err) => {
-				error!("Error reading enclave account file: {:?}", err);
+				error!("Enclave Start : Error reading enclave account file: {:?}", err);
 				return Err(anyhow!(err));
 			},
 		};
@@ -106,26 +106,26 @@ pub async fn http_server() -> Result<Router, Error> {
 
 		keypair
 	} else {
-		info!("Creating new Enclave Account, Remember to send 1 CAPS to it!");
+		info!("Enclave Start : Creating new Enclave Account, Remember to send 1 CAPS to it!");
 
 		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
 		let mut ekfile = match File::create(&encalve_account_file) {
 			Ok(file_handle) => {
-				debug!("2-1-3 created enclave keypair file successfully");
+				debug!("Enclave Start : created enclave keypair file successfully");
 				file_handle
 			},
 			Err(err) => {
-				error!("2-1-3 failed to creat enclave keypair file, error : {:?}", err);
+				error!("Enclave Start : Failed to creat enclave keypair file, error : {:?}", err);
 				return Err(anyhow!(err));
 			},
 		};
 
 		match ekfile.write_all(phrase.as_bytes()) {
 			Ok(_) => {
-				debug!("2-1-4 write enclave keypair to file successfully");
+				debug!("Enclave Start : Write enclave keypair to file successfully");
 			},
 			Err(err) => {
-				error!("2-1-4 write enclave keypair to file failed, error : {:?}", err);
+				error!("Enclave Start : Write enclave keypair to file failed, error : {:?}", err);
 				return Err(anyhow!(err));
 			},
 		}
@@ -136,7 +136,7 @@ pub async fn http_server() -> Result<Router, Error> {
 	let chain_api = match create_chain_api().await {
 		Ok(api) => api,
 		Err(err) => {
-			error!("2-1-5 get online chain api, error : {:?}", err);
+			error!("Enclave Start : get online chain api, error : {:?}", err);
 			return Err(anyhow!(err));
 		},
 	};
@@ -148,20 +148,34 @@ pub async fn http_server() -> Result<Router, Error> {
 		chain_api.clone(),
 		"0.4.1".to_string(),
 	)));
+	
+	// Get all cluster and registered encalves from the chain
+	// Also checks if this enclave has been registered.
+	debug!("Enclave start : Cluster discovery.");
+	while let Err(e) = cluster_discovery(&state_config.clone()).await {
+
+		error!("Enclave start : cluster discovery {:?}", e);
+
+		// Wait 7 seconds, then retry
+		std::thread::sleep(std::time::Duration::from_secs(7));
+	};
 
 	// Check the previous Sync-State
 	if std::path::Path::new(&SYNC_STATE_FILE).exists() {
+		debug!("Enclave start : previous sync.state file exists");
 		// Resuming enclave
 		let past_state = match std::fs::read_to_string(SYNC_STATE_FILE) {
 			Ok(state) => state,
 			Err(err) => {
-				error!("Error reading enclave's last state file: {:?}", err);
+				error!("Enclave start : Error reading enclave's last state file: {:?}", err);
 				return Err(anyhow!(err));
 			},
 		};
 
 		if !past_state.is_empty() {
+			debug!("Enclave start : previous sync.state is not empty ...");
 			if past_state == "setup" {
+				debug!("Enclave start : previous sync.state was in setup-mode.");
 				// Th enclave has been stopped at the middle of fetching data from another enclave
 				// Do it again!
 				match fetch_keyshares(&state_config, std::collections::HashMap::<u32, u32>::new())
@@ -174,27 +188,26 @@ pub async fn http_server() -> Result<Router, Error> {
 						let current_block_number = current_block.block.header.number;
 						let _ = set_sync_state(current_block_number.to_string());
 						info!(
-							"First Synchronization of Keyshares complete up to block number : {}.",
+							"Enclave start :First Synchronization of Keyshares complete up to block number : {}.",
 							current_block_number
 						);
 					},
 					Err(err) => {
-						error!("Error during maintenance-mode fetching keys-hares : {:?}", err)
+						error!("Enclave start :Error during maintenance-mode fetching keys-hares : {:?}", err)
 					},
 				}
 			} else {
 				// Th enclave has been stopped after being synced to a recent block number
 				// Now should crawl the blocks to the current finalized block.
-
+				debug!("Enclave start : previous sync.state was in runtime-mode.");
 				let synced_block_number = match past_state.parse::<u32>() {
 					Ok(number) => number,
 					Err(err) => {
-						error!("Error parsing enclave's last state content: {:?}", err);
+						error!("Enclave start :Error parsing enclave's last state content: {:?}", err);
 						return Err(anyhow!(err));
 					},
 				};
-
-				let _ = cluster_discovery(&state_config.clone()).await;
+				debug!("Enclave start : previous sync.state had been synced to block {}", synced_block_number);
 
 				// Retry if syncing failed
 				let mut sync_success = false;
@@ -204,6 +217,7 @@ pub async fn http_server() -> Result<Router, Error> {
 					let current_block = chain_api.rpc().block(Some(current_block_hash)).await?;
 					let current_block_number = current_block.unwrap().block.header.number;
 
+					debug!("Enclave start : Crawl to current block {}", current_block_number);
 					// Changes may happen in clusters and enclaves while this encalve has been down.
 					// TODO [future] : use Indexer if the difference between current_block >> past_block is large
 					match crawl_sync_events(
@@ -217,26 +231,26 @@ pub async fn http_server() -> Result<Router, Error> {
 							match fetch_keyshares(&state_config.clone(), cluste_nftid_map).await {
 								Ok(_) => {
 									let _ = set_sync_state(current_block_number.to_string());
-									info!("Synchronization is complete up to current block");
+									info!("Enclave start : Synchronization is complete up to current block");
 									sync_success = true;
 								},
 
 								Err(fetch_err) => {
-									error!("Error etching new nftids after resuming the enclave : {:?}", fetch_err);
+									error!("Enclave start : Error fetching new nftids after resuming the enclave : {:?}", fetch_err);
 								},
 							}; // FETCH
 						},
 
 						Err(crawl_err) => {
 							error!(
-								"Error crawling new blocks after resuming the enclave : {:?}",
+								"Enclave start : Error crawling new blocks after resuming the enclave : {:?}",
 								crawl_err
 							);
 							//return Err(anyhow!(crawl_err));
 						},
 					} // CRAWL
 
-					// Wait 5 seconds, then retry
+					// Wait 7 seconds, then retry
 					std::thread::sleep(std::time::Duration::from_secs(7));
 				} // WHILE - RETRY
 			} // PAST STATE IS A NUMBER
@@ -245,11 +259,11 @@ pub async fn http_server() -> Result<Router, Error> {
 		// It is first time starting encalve
 		let _ = match File::create(SYNC_STATE_FILE) {
 			Ok(file_handle) => {
-				debug!("created sync.state file successfully");
+				debug!("Enclave start : created sync.state file successfully");
 				file_handle
 			},
 			Err(err) => {
-				error!("failed to creat sync.state file, error : {:?}", err);
+				error!("Enclave start : failed to creat sync.state file, error : {:?}", err);
 				return Err(anyhow!(err));
 			},
 		};

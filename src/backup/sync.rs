@@ -655,7 +655,7 @@ pub async fn fetch_keyshares(
 ------------------------------ */
 
 // Crawl and parse registered clusters and enclaves from on-chain data
-pub async fn cluster_discovery(state: &SharedState) -> Result<(), anyhow::Error> {
+pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Error> {
 	debug!("Start Cluster Discovery");
 	let api = get_chain_api(state.clone()).await; //create_chain_api().await.unwrap();
 
@@ -750,7 +750,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<(), anyhow::Error>
 		write_state.set_identity(identity);
 	}
 
-	Ok(())
+	Ok(identity.is_some())
 }
 
 /* ----------------------
