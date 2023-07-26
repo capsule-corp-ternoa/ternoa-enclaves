@@ -191,6 +191,7 @@ pub async fn http_server() -> Result<Router, Error> {
 						let current_block =
 							chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
 						let current_block_number = current_block.block.header.number;
+						// TODO [Disaster recovery] : What if all clusters are down, What block_number should be set as last_sync_block
 						let _ = set_sync_state(current_block_number.to_string());
 						info!(
 							"Enclave start : First Synchronization of Keyshares complete up to block number : {}.",
@@ -328,7 +329,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		.layer(
 			ServiceBuilder::new()
 				.layer(HandleErrorLayer::new(handle_timeout_error))
-				.timeout(Duration::from_secs(10)),
+				.timeout(Duration::from_secs(30)),
 		)
 		.layer(monitor_layer)
 		.layer(CorsLayer::permissive())
