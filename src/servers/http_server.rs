@@ -141,6 +141,12 @@ pub async fn http_server() -> Result<Router, Error> {
 		},
 	};
 
+	// Initialize runtime tracking blocks
+	let current_block_hash = chain_api.rpc().finalized_head().await?;
+	let current_block =
+		chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
+	let mut last_processed_block = current_block.block.header.number;
+
 	// Shared-State between APIs
 	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 		enclave_keypair,
@@ -334,7 +340,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		let mut blocks_sub = match chain_api.blocks().subscribe_finalized().await {
 			Ok(sub) => sub,
 			Err(e) => {
-				error!(" Unable to subscribe to finalized blocks {:?}", e);
+				error!(" > Unable to subscribe to finalized blocks {:?}", e);
 				return;
 			},
 		};
@@ -344,7 +350,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			let block = match block {
 				Ok(blk) => blk,
 				Err(e) => {
-					error!(" Unable to get finalized block {:?}", e);
+					error!(" > Unable to get finalized block {:?}", e);
 					continue;
 				},
 			};
@@ -355,27 +361,30 @@ pub async fn http_server() -> Result<Router, Error> {
 			{
 				let write_state = state_config.clone();
 				let shared_state_write = &mut write_state.write().await;
-				trace!("Block Number Thread : got shared state to write.");
+				trace!(" > Block Number Thread : got shared state to write.");
 
 				shared_state_write.set_current_block(block_number);
-				debug!("Block Number Thread : block_number state is set to {}", block_number);
+				debug!("new block = {}", block_number);
+				trace!(" > Block Number Thread : block_number state is set to {}", block_number);
 
 				// For block number update, we should reset the nonce as well
 				// It is used as a batch of extrinsics for every block
 				shared_state_write.reset_nonce();
-				trace!("Block Number Thread : nonce has been reset");
+				trace!(" > Block Number Thread : nonce has been reset");
 			}
 
 			// Extract block body
 			let body = block.body().await.unwrap();
+			trace!(" > Block Number Thread : got block body.");
 
 			let storage_api = block.storage();
 
 			let (new_nft, is_tee_events) = parse_block_body(body, &storage_api).await.unwrap();
+			trace!(" > Block Number Thread : parsed the block body.");
 
 			// A change in clusters/enclaves data is detected.
 			if is_tee_events {
-				debug!("TEE Event processing");
+				debug!(" > TEE Event processing");
 				match cluster_discovery(&state_config.clone()).await {
 					Ok(_) => {
 						// New enclave/cluster is found
@@ -393,15 +402,15 @@ pub async fn http_server() -> Result<Router, Error> {
 								Ok(_) => {
 									// TODO [discussion] : should not Blindly putting current block_number as the last updated keyshare's block_number
 									let _ = set_sync_state(block_number.to_string());
-									info!("\t\tFirst Synchronization of Keyshares complete to the block number: {} .",block_number);
+									info!("\t\t > First Synchronization of Keyshares complete to the block number: {} .",block_number);
 								},
 								Err(err) => error!(
-									"\t\tError during maintenance-mode cluster discovery : {:?}",
+									"\t\t > Error during maintenance-mode cluster discovery : {:?}",
 									err
 								),
 							}
 						}
-						info!("\tCluster discovery complete.");
+						info!("\t > Cluster discovery complete.");
 					},
 
 					Err(err) => error!("\tError during running-mode cluster discovery {:?}", err),
@@ -410,31 +419,32 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			// Regular CRAWL Check
 			let sync_state = get_sync_state().unwrap();
+			// Check for Runtime mode
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
-				debug!("Runtime mode : Crawl check : last_sync_block = {}", last_sync_block);
+				debug!(" > Runtime mode : Crawl check : last_sync_block = {}", last_sync_block);
 				// If no event has detected in 10 blocks, network disconnections happened, ...
-				if (block_number - last_sync_block) > 9 {
-					debug!("Runtime mode : Crawl check : Difference between last sync state detected, block number  = {}, last synced = {}", block_number, last_sync_block);
-					match crawl_sync_events(state_config.clone(), last_sync_block, block_number)
+				if (last_processed_block - block_number) > 1 {
+					debug!(" > Runtime mode : Crawl check : Lagging last processed block : block number = {} > last processed = {}, last synced = {}", block_number, last_processed_block, last_sync_block);
+					match crawl_sync_events(state_config.clone(), last_processed_block, block_number)
 						.await
 					{
 						Ok(cluster_nft_map) => {
 							info!(
-								"\tRuntime mode : Crawl check : Success crawling from {} to {} .",
-								last_sync_block, block_number
+								"\t > Runtime mode : Crawl check : Success crawling from {} to {} .",
+								last_processed_block, block_number
 							);
 
 							if !cluster_nft_map.is_empty() {
 								match fetch_keyshares(&state_config.clone(), cluster_nft_map).await
 								{
 									Ok(_) => {
-										info!("\tRuntime mode : Crawl check : Success runtime-mode fetching crawled blocks from {} to {} .", last_sync_block, block_number);
+										info!("\t > Runtime mode : Crawl check : Success runtime-mode fetching crawled blocks from {} to {} .", last_processed_block, block_number);
 										let _ = set_sync_state(block_number.to_string());
 									},
 
 									Err(err) => {
 										error!(
-											"\tRuntime mode : Crawl check : Error during running-mode nft-based syncing : {:?}",
+											"\t > Runtime mode : Crawl check : Error during running-mode nft-based syncing : {:?}",
 											err
 										);
 										// We can not proceed to next nft-based sync.
@@ -444,15 +454,15 @@ pub async fn http_server() -> Result<Router, Error> {
 									},
 								}
 							} else {
-								debug!("\tRuntime mode : Crawl check : no new event detected in pas blocks");
-								let _ = set_sync_state(block_number.to_string());
+								debug!("\t > Runtime mode : Crawl check : no new event detected in pas blocks");
+								let _ = set_sync_state(last_processed_block.to_string());
 							}
 						},
 
 						Err(e) => {
 							error!(
-								"\tRuntime mode : Crawl check : Error runtime-mode crawling from {} to {} .",
-								last_sync_block, block_number
+								"\t > Runtime mode : Crawl check : Error runtime-mode crawling from {} to {} .",
+								last_processed_block, block_number
 							);
 							// We can not proceed to next nft-based sync.
 							// Because it'll update the syncing state
@@ -462,7 +472,7 @@ pub async fn http_server() -> Result<Router, Error> {
 					}
 				}
 			} else {
-				debug!("\tRuntime mode : Crawl check : non-numeric sync-state, something wrong has happened.");
+				debug!("\t > Runtime mode : Crawl check : non-numeric sync-state, something wrong has happened.");
 				// We are in setup or unregistered mode, again?
 				// wait until enclave get registered and go to runtime-mode
 				continue;
@@ -471,20 +481,25 @@ pub async fn http_server() -> Result<Router, Error> {
 			// New Capsule/Secret are found
 			if !new_nft.is_empty() {
 				debug!(
-					"Runtime mode : NEW-NFT : New nft/capsul event detected, block number = {}",
+					" > Runtime mode : NEW-NFT : New nft/capsul event detected, block number = {}",
 					block_number
 				);
 				match fetch_keyshares(&state_config.clone(), new_nft).await {
 								Ok(_) => {
 									let _ = set_sync_state(block_number.to_string());
-									debug!("\tRuntime mode : NEW-NFT : Synchronization of Keyshares complete.")
+									debug!("\t > Runtime mode : NEW-NFT : Synchronization of Keyshares complete.")
 								},
-								Err(err) => error!("\tRuntime mode : NEW-NFT : Error during running-mode nft-based syncing : {:?}", err),
+								Err(err) => error!("\t > Runtime mode : NEW-NFT : Error during running-mode nft-based syncing : {:?}", err),
 							}
 			}
 			// TODO : Regular check to use Indexer for missing NFTs?! (with any reason)
 			// Maybe in another thread
-		}
+
+
+			// Update runtime block tracking variable
+			last_processed_block = block_number;
+
+		}// While blocks
 	});
 
 	debug!("Wait for 6 seconds to update the block number");
