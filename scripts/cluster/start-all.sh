@@ -1,6 +1,7 @@
-echo -e "\nWARN! You may need to run with SUDO ."
-echo -e "Input argument to this script is the path to the cluster as well as five port number."
-echo -e "Example: sudo ./start-all.sh ./cluster_old_0 8000 8001 8002 8003 8004 \n"
+echo ""
+echo "WARN! You may need to run with SUDO ."
+echo "Input argument to this script is the path to the cluster as well as five port number."
+echo "Example: sudo ./start-all.sh ./cluster_old_0 8000 8001 8002 8003 8004 \n"
 
 
 start_enclave() {
@@ -29,8 +30,11 @@ do
 
     start_enclave "$enclave" "$1"
     shift
-    echo -e "\n--------------\n"
+    echo ""
+    echo "--------------"
+    echo ""
     echo "Wait for 30 seconds to avoid conflicts accessing 'Lets Encrypt' API"
+    echo ""
     sleep 30
 done
 
