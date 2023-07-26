@@ -331,7 +331,11 @@ pub async fn sync_keyshares(
 	// Create a client
 	let client = reqwest::Client::builder()
 		.https_only(true)
-		.min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {tls::Version::TLS_1_3} else {tls::Version::TLS_1_0})
+		.min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
+			tls::Version::TLS_1_3
+		} else {
+			tls::Version::TLS_1_0
+		})
 		.build()
 		.unwrap();
 
@@ -543,11 +547,16 @@ pub async fn fetch_keyshares(
 
 	let client = reqwest::Client::builder()
 		.https_only(true)
-		.min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {tls::Version::TLS_1_3} else {tls::Version::TLS_1_0})
+		.min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
+			tls::Version::TLS_1_3
+		} else {
+			tls::Version::TLS_1_0
+		})
 		.build()?;
 
 	// TODO [future reliability] : use metric-server ranking instead of simple loop
 	for enclave in slot_enclaves {
+		debug!("Fetch from enclave {:?}", enclave);
 		// Is the enclave in the cluster that nftid is originally stored?
 		// We can remove this condition if we want to search whole the slot
 		// It is faster for Runtime synchronization
@@ -612,7 +621,7 @@ pub async fn fetch_keyshares(
 			},
 		};
 
-		// TODO [decision - reliability] : What if the "right" Enclave is not ready? (low probability for runtime synch)
+		// TODO [decision - reliability] : What if the "chosen" Enclave is not ready? (low probability for runtime sync)
 
 		match zipfile.write_all(&fetch_body_bytes) {
 			Ok(_) => debug!("Fetch Keyshares : zip file is stored on disk."),
@@ -839,11 +848,11 @@ pub async fn crawl_sync_events(
 
 	for block_counter in from_block_num..=to_block_num {
 		// Find block hash
-		debug!("crawler : block number  = {}", block_counter);
+		debug!(" crawler : block number  = {}", block_counter);
 		let block_number = BlockNumber::from(block_counter);
 		let block_hash = match api.rpc().block_hash(Some(block_number)).await? {
 			Some(hash) => hash,
-			None => return Err(anyhow!("crawler : error getting block hash.")),
+			None => return Err(anyhow!("\tcrawler : error getting block hash.")),
 		};
 
 		// Read the block from blockchain
