@@ -1,6 +1,7 @@
-echo -e "\nWARN! You may need to run with SUDO ."
-echo -e "Input arguments to this script are unique identifiers (i.e port) of enclaves to be stopped."
-echo -e "Example: sudo ./stop-all.sh 8101 8102 8103 8104\n" 
+echo ""
+echo "WARN! You may need to run with SUDO ."
+echo "Input arguments to this script are unique identifiers (i.e port) of enclaves to be stopped."
+echo "Example: sudo ./stop-all.sh 8101 8102 8103 8104\n" 
 
 stop_enclave() {
     printf 'Stopping enclave with identifier : "%s"\n' "$1" >&2

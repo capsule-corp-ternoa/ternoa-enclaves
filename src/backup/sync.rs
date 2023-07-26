@@ -331,7 +331,7 @@ pub async fn sync_keyshares(
 	// Create a client
 	let client = reqwest::Client::builder()
 		.https_only(true)
-		.min_tls_version(tls::Version::TLS_1_3)
+		.min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {tls::Version::TLS_1_3} else {tls::Version::TLS_1_0})
 		.build()
 		.unwrap();
 
@@ -543,7 +543,7 @@ pub async fn fetch_keyshares(
 
 	let client = reqwest::Client::builder()
 		.https_only(true)
-		.min_tls_version(tls::Version::TLS_1_3)
+		.min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {tls::Version::TLS_1_3} else {tls::Version::TLS_1_0})
 		.build()?;
 
 	// TODO [future reliability] : use metric-server ranking instead of simple loop
