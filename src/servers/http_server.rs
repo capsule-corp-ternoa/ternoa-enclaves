@@ -65,7 +65,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
 			Ok(phrase) => phrase,
 			Err(err) => {
-				error!("Enclave Start : Error reading enclave account file: {:?}", err);
+				error!("\tEnclave Start : Error reading enclave account file: {:?}", err);
 				return Err(anyhow!(err));
 			},
 		};
@@ -111,21 +111,21 @@ pub async fn http_server() -> Result<Router, Error> {
 		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
 		let mut ekfile = match File::create(&encalve_account_file) {
 			Ok(file_handle) => {
-				debug!("Enclave Start : created enclave keypair file successfully");
+				debug!("\tEnclave Start : created enclave keypair file successfully");
 				file_handle
 			},
 			Err(err) => {
-				error!("Enclave Start : Failed to creat enclave keypair file, error : {:?}", err);
+				error!("\tEnclave Start : Failed to creat enclave keypair file, error : {:?}", err);
 				return Err(anyhow!(err));
 			},
 		};
 
 		match ekfile.write_all(phrase.as_bytes()) {
 			Ok(_) => {
-				debug!("Enclave Start : Write enclave keypair to file successfully");
+				debug!("\tEnclave Start : Write enclave keypair to file successfully");
 			},
 			Err(err) => {
-				error!("Enclave Start : Write enclave keypair to file failed, error : {:?}", err);
+				error!("\tEnclave Start : Write enclave keypair to file failed, error : {:?}", err);
 				return Err(anyhow!(err));
 			},
 		}
@@ -148,17 +148,16 @@ pub async fn http_server() -> Result<Router, Error> {
 		chain_api.clone(),
 		"0.4.1".to_string(),
 	)));
-	
+
 	// Get all cluster and registered encalves from the chain
 	// Also checks if this enclave has been registered.
 	debug!("Enclave start : Cluster discovery.");
 	while let Err(e) = cluster_discovery(&state_config.clone()).await {
-
 		error!("Enclave start : cluster discovery {:?}", e);
 
 		// Wait 7 seconds, then retry
 		std::thread::sleep(std::time::Duration::from_secs(7));
-	};
+	}
 
 	// Check the previous Sync-State
 	if std::path::Path::new(&SYNC_STATE_FILE).exists() {
@@ -175,7 +174,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		if !past_state.is_empty() {
 			debug!("Enclave start : previous sync.state is not empty ...");
 			if past_state == "setup" {
-				debug!("Enclave start : previous sync.state was in setup-mode.");
+				debug!("Enclave start : sync.state is in setup-mode, now fetching keyshares ...");
 				// Th enclave has been stopped at the middle of fetching data from another enclave
 				// Do it again!
 				match fetch_keyshares(&state_config, std::collections::HashMap::<u32, u32>::new())
@@ -188,26 +187,33 @@ pub async fn http_server() -> Result<Router, Error> {
 						let current_block_number = current_block.block.header.number;
 						let _ = set_sync_state(current_block_number.to_string());
 						info!(
-							"Enclave start :First Synchronization of Keyshares complete up to block number : {}.",
+							"Enclave start : First Synchronization of Keyshares complete up to block number : {}.",
 							current_block_number
 						);
 					},
 					Err(err) => {
-						error!("Enclave start :Error during maintenance-mode fetching keys-hares : {:?}", err)
+						error!("Enclave start : Error during maintenance-mode fetching keys-hares : {:?}", err)
 					},
 				}
 			} else {
 				// Th enclave has been stopped after being synced to a recent block number
 				// Now should crawl the blocks to the current finalized block.
 				debug!("Enclave start : previous sync.state was in runtime-mode.");
+
 				let synced_block_number = match past_state.parse::<u32>() {
 					Ok(number) => number,
 					Err(err) => {
-						error!("Enclave start :Error parsing enclave's last state content: {:?}", err);
+						error!(
+							"Enclave start : Error parsing enclave's last state content: {:?}",
+							err
+						);
 						return Err(anyhow!(err));
 					},
 				};
-				debug!("Enclave start : previous sync.state had been synced to block {}", synced_block_number);
+				debug!(
+					"Enclave start : previous sync.state had been synced to block {}",
+					synced_block_number
+				);
 
 				// Retry if syncing failed
 				let mut sync_success = false;
@@ -254,7 +260,11 @@ pub async fn http_server() -> Result<Router, Error> {
 					std::thread::sleep(std::time::Duration::from_secs(7));
 				} // WHILE - RETRY
 			} // PAST STATE IS A NUMBER
-		} // PAST STATE EXISTS
+		}
+		// PAST STATE EXISTS
+		else {
+			debug!("Enclave start : sync.state file exists, but it is empty : enclave is not registered yet.");
+		}
 	} else {
 		// It is first time starting encalve
 		let _ = match File::create(SYNC_STATE_FILE) {
@@ -383,56 +393,65 @@ pub async fn http_server() -> Result<Router, Error> {
 								Ok(_) => {
 									// TODO [discussion] : should not Blindly putting current block_number as the last updated keyshare's block_number
 									let _ = set_sync_state(block_number.to_string());
-									info!("First Synchronization of Keyshares complete to the block number: {} .",block_number);
+									info!("\t\tFirst Synchronization of Keyshares complete to the block number: {} .",block_number);
 								},
 								Err(err) => error!(
-									"Error during maintenance-mode cluster discovery : {:?}",
+									"\t\tError during maintenance-mode cluster discovery : {:?}",
 									err
 								),
 							}
 						}
-						info!("Cluster discovery complete.");
+						info!("\tCluster discovery complete.");
 					},
 
-					Err(err) => error!("Error during running-mode cluster discovery {:?}", err),
+					Err(err) => error!("\tError during running-mode cluster discovery {:?}", err),
 				}
 			}
 
-			// CRAWL
+			// Regular CRAWL Check
 			let sync_state = get_sync_state().unwrap();
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
-				if (block_number - last_sync_block) > 2 {
-					debug!("Difference between last sync state detected, block number  = {}, last synced = {}", block_number, last_sync_block);
+				debug!("Runtime mode : Crawl check : last_sync_block = {}", last_sync_block);
+				// If no event has detected in 10 blocks, network disconnections happened, ...
+				if (block_number - last_sync_block) > 9 {
+					debug!("Runtime mode : Crawl check : Difference between last sync state detected, block number  = {}, last synced = {}", block_number, last_sync_block);
 					match crawl_sync_events(state_config.clone(), last_sync_block, block_number)
 						.await
 					{
 						Ok(cluster_nft_map) => {
 							info!(
-								"Success crawling from {} to {} .",
+								"\tRuntime mode : Crawl check : Success crawling from {} to {} .",
 								last_sync_block, block_number
 							);
-							match fetch_keyshares(&state_config.clone(), cluster_nft_map).await {
-								Ok(_) => {
-									info!("Success runtime-mode fetching crawled blocks from {} to {} .", last_sync_block, block_number);
-									let _ = set_sync_state(block_number.to_string());
-								},
 
-								Err(err) => {
-									error!(
-										"Error during running-mode nft-based syncing : {:?}",
-										err
-									);
-									// We can not proceed to next nft-based sync.
-									// Because it'll update the syncing state
-									// A re-try id needed in next block
-									continue;
-								},
+							if !cluster_nft_map.is_empty() {
+								match fetch_keyshares(&state_config.clone(), cluster_nft_map).await
+								{
+									Ok(_) => {
+										info!("\tRuntime mode : Crawl check : Success runtime-mode fetching crawled blocks from {} to {} .", last_sync_block, block_number);
+										let _ = set_sync_state(block_number.to_string());
+									},
+
+									Err(err) => {
+										error!(
+											"\tRuntime mode : Crawl check : Error during running-mode nft-based syncing : {:?}",
+											err
+										);
+										// We can not proceed to next nft-based sync.
+										// Because it'll update the syncing state
+										// A re-try id needed in next block
+										continue;
+									},
+								}
+							} else {
+								debug!("\tRuntime mode : Crawl check : no new event detected in pas blocks");
+								let _ = set_sync_state(block_number.to_string());
 							}
 						},
 
 						Err(e) => {
 							error!(
-								"Error runtime-mode crawling from {} to {} .",
+								"\tRuntime mode : Crawl check : Error runtime-mode crawling from {} to {} .",
 								last_sync_block, block_number
 							);
 							// We can not proceed to next nft-based sync.
@@ -443,23 +462,26 @@ pub async fn http_server() -> Result<Router, Error> {
 					}
 				}
 			} else {
-				// We are in setup or unregistered mode
+				debug!("\tRuntime mode : Crawl check : non-numeric sync-state, something wrong has happened.");
+				// We are in setup or unregistered mode, again?
 				// wait until enclave get registered and go to runtime-mode
 				continue;
 			}
 
 			// New Capsule/Secret are found
 			if !new_nft.is_empty() {
-				debug!("New nft/capsul event detected, block number = {}",block_number);
+				debug!(
+					"Runtime mode : NEW-NFT : New nft/capsul event detected, block number = {}",
+					block_number
+				);
 				match fetch_keyshares(&state_config.clone(), new_nft).await {
-					Ok(_) => {
-						let _ = set_sync_state(block_number.to_string());
-						debug!("Synchronization of Keyshares complete.")
-					},
-					Err(err) => error!("Error during running-mode nft-based syncing : {:?}", err),
-				}
+								Ok(_) => {
+									let _ = set_sync_state(block_number.to_string());
+									debug!("\tRuntime mode : NEW-NFT : Synchronization of Keyshares complete.")
+								},
+								Err(err) => error!("\tRuntime mode : NEW-NFT : Error during running-mode nft-based syncing : {:?}", err),
+							}
 			}
-
 			// TODO : Regular check to use Indexer for missing NFTs?! (with any reason)
 			// Maybe in another thread
 		}
