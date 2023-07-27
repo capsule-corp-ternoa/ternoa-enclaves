@@ -584,7 +584,7 @@ pub async fn fetch_keyshares(
 		let health_status = health_response.status();
 		
 		debug!("\t - FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response);
-
+		
 		// let response_body: HealthResponse = match health_response.json().await {
 		// 	Ok(body) => body,
 		// 	Err(e) => {
@@ -614,7 +614,7 @@ pub async fn fetch_keyshares(
 
 		debug!("\t - FETCH KEYSHARES : request for nft-keyshares");
 		let fetch_response = client
-			.post(enclave.1.enclave_url + "/api/sync-keyshare")
+			.post(enclave.1.enclave_url + "/api/backup/sync-keyshare")
 			.body(request_body.clone())
 			.header(hyper::http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
 			.send()
