@@ -236,8 +236,10 @@ pub async fn sync_keyshares(
 	let last_block_number = shared_state_read.get_current_block();
 	drop(shared_state_read);
 
+	debug!("\t - SYNC KEYSHARES : START CLOT DISCOVERY");
 	let slot_enclaves = slot_discovery(&state).await;
 
+	debug!("\t - SYNC KEYSHARES : VERIFY ACCOUNT ID");
 	let requester = match verify_account_id(slot_enclaves, &request.enclave_account, addr) {
 		Some(enclave) => enclave,
 		None => {
@@ -285,6 +287,7 @@ pub async fn sync_keyshares(
 		},
 	};
 
+	debug!("\t - SYNC KEYSHARES : VERIFY SIGNATURE");
 	if !verify_signature(
 		&request.enclave_account,
 		request.signature.clone(),
@@ -339,6 +342,7 @@ pub async fn sync_keyshares(
 		.build()
 		.unwrap();
 
+		debug!("\t - SYNC KEYSHARES : HEALTH-CHECK");
 	let health_response = client
 		.get(requester.1.enclave_url.clone() + "/api/health")
 		.send()
@@ -373,6 +377,7 @@ pub async fn sync_keyshares(
 		requester.1.enclave_url, health_status, health_body
 	);
 
+	debug!("\t - SYNC KEYSHARES : REQEST QUOTE");
 	let quote_response =
 		client.get(requester.1.enclave_url.clone() + "/api/quote").send().await.unwrap();
 
@@ -532,9 +537,10 @@ pub async fn fetch_keyshares(
 	};
 
 	let request_body = serde_json::to_string(&request).unwrap();
-	trace!("Fetch Keyshares : Request Body : {:#?}\n", request_body);
+	debug!("Fetch Keyshares : Request Body : {:#?}\n", request_body);
 
 	// The available enclaves in the same slot of current enclave, with their clusterid
+	debug!("\t - FETCH KEYSHARES : START SLOT DISCOVERY");
 	let slot_enclaves = slot_discovery(state).await;
 	if slot_enclaves.is_empty() {
 		let message = "Fetch Keyshares : No other similar slots detected, enclave is not registered or there is no other cluster.".to_string();
@@ -566,6 +572,7 @@ pub async fn fetch_keyshares(
 			continue;
 		}
 
+		debug!("\t - FETCH KEYSHARES : HEALTH CHECK");
 		let health_response =
 			client.get(enclave.1.enclave_url.clone() + "/api/health").send().await?;
 		// Analyze the Response
@@ -582,7 +589,7 @@ pub async fn fetch_keyshares(
 			},
 		};
 
-		trace!(
+		debug!(
 			"Fetch Keyshares : Health-Check Result for url : {} is {:#?}",
 			enclave.1.enclave_url,
 			response_body
@@ -598,15 +605,24 @@ pub async fn fetch_keyshares(
 			continue;
 		}
 
+		debug!("\t - FETCH KEYSHARES : request for nft-keyshares");
 		let fetch_response = client
 			.post(enclave.1.enclave_url + "/api/sync-keyshare")
 			.body(request_body.clone())
 			.header(hyper::http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
 			.send()
-			.await?;
+			.await;
+		
+		let fetch_response = match fetch_response {
+			Ok(res) => res, 
+			Err(err) => {
+				error!("Fetch response error: {:?}", err);
+				return Err(anyhow!(err));
+			}
+		};
 
-		//let fetch_headers = fetch_response.headers();
-		//debug!("response header: {:?}", fetch_headers);
+		let fetch_headers = fetch_response.headers();
+		debug!("response header: {:?}", fetch_headers);
 
 		let fetch_body_bytes = fetch_response.bytes().await?;
 		debug!("body length : {}", fetch_body_bytes.len());
