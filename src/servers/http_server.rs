@@ -145,7 +145,8 @@ pub async fn http_server() -> Result<Router, Error> {
 	let current_block_hash = chain_api.rpc().finalized_head().await?;
 	let current_block =
 		chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
-	let mut last_processed_block = current_block.block.header.number;
+	let current_block_number = current_block.block.header.number;
+	let mut last_processed_block = current_block_number;
 
 	// Shared-State between APIs
 	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
@@ -211,8 +212,8 @@ pub async fn http_server() -> Result<Router, Error> {
 					Ok(number) => number,
 					Err(err) => {
 						error!(
-							"Enclave start : Error parsing enclave's last state content: {:?}",
-							err
+							"Enclave start : Error parsing enclave's last state content: {:?}, state = {:?}",
+							err, past_state
 						);
 						return Err(anyhow!(err));
 					},
@@ -323,6 +324,9 @@ pub async fn http_server() -> Result<Router, Error> {
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
 		// SYNCHRONIZATION
 		.route("/api/backup/sync-keyshare", post(sync_keyshares))
+		// DEV
+		.route("/api/set-block/:blocknumber", get(dev_set_block))
+
 		// METRIC SERVER
 		// List of all nfts in an Interval [block1,block2] (Migration needed!)
 		//.layer(RequestBodyLimitLayer::new(CONTENT_LENGTH_LIMIT))
@@ -424,6 +428,11 @@ pub async fn http_server() -> Result<Router, Error> {
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
 				debug!(" > Runtime mode : Crawl check : last_sync_block = {}", last_sync_block);
 				// If no event has detected in 10 blocks, network disconnections happened, ...
+				
+				let read_state = state_config.read().await;
+				last_processed_block = read_state.get_processed_block();
+				
+				
 				if (block_number - last_processed_block) > 1 {
 					debug!(" > Runtime mode : Crawl check : Lagging last processed block : block number = {} > last processed = {}, last synced = {}", block_number, last_processed_block, last_sync_block);
 					match crawl_sync_events(state_config.clone(), last_processed_block, block_number)
@@ -472,13 +481,14 @@ pub async fn http_server() -> Result<Router, Error> {
 						},
 					}
 				}
+				drop(read_state);
 			} else {
 				debug!("\t > Runtime mode : Crawl check : non-numeric sync-state, something wrong has happened.");
 				// We are in setup or unregistered mode, again?
 				// wait until enclave get registered and go to runtime-mode
 				continue;
 			}
-
+			
 			// New Capsule/Secret are found
 			if !new_nft.is_empty() {
 				debug!(
@@ -498,7 +508,13 @@ pub async fn http_server() -> Result<Router, Error> {
 
 
 			// Update runtime block tracking variable
-			last_processed_block = block_number;
+			//last_processed_block = block_number;
+			{
+				debug!("\t > Runtime mode : update last processed block");
+				let write_state = &mut state_config.write().await;
+				write_state.set_processed_block(block_number);
+			}
+
 
 		}// While blocks
 	});
