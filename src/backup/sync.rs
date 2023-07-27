@@ -558,12 +558,12 @@ pub async fn fetch_keyshares(
 
 	let client = reqwest::Client::builder()
 		.danger_accept_invalid_certs(true)
-		.https_only(true)
-		.min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
-			tls::Version::TLS_1_3
-		} else {
-			tls::Version::TLS_1_0
-		})
+		.https_only(false)
+		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
+		// 	tls::Version::TLS_1_3
+		// } else {
+		// 	tls::Version::TLS_1_0
+		// })
 		.build()?;
 
 	// TODO [future reliability] : use metric-server ranking instead of simple loop
@@ -578,13 +578,19 @@ pub async fn fetch_keyshares(
 			continue;
 		}
 
-		// debug!("\t - FETCH KEYSHARES : HEALTH CHECK");
-		// let health_response =
-		// 	client.clone().get(enclave.1.enclave_url.clone() + "/api/health").send().await?;
-		// // Analyze the Response
-		// let health_status = health_response.status();
+		let test_response =
+			client.clone().get("https://www.goolge.com").send().await?;
+		debug!("\t - TEST CHECK : test response : {:?}\n", test_response);
+
+		debug!("\t - FETCH KEYSHARES : HEALTH CHECK");
+		debug!("\t - FETCH KEYSHARES : request url : {}", enclave.1.enclave_url.clone() + "/api/health");
+		let health_response =
+			client.clone().get(enclave.1.enclave_url.clone() + "/api/health").send().await?;
+		// Analyze the Response
+		let health_status = health_response.status();
 		
-		// debug!("\t - FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response);
+		debug!("\t - FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response);
+		debug!("\t - FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response.text().await?);
 		
 		// let response_body: HealthResponse = match health_response.json().await {
 		// 	Ok(body) => body,
@@ -614,8 +620,9 @@ pub async fn fetch_keyshares(
 		// }
 
 		debug!("\t - FETCH KEYSHARES : request for nft-keyshares");
+		debug!("\t - FETCH KEYSHARES : request url : {}", enclave.1.enclave_url.clone() + "/api/backup/sync-keyshare");
 		let fetch_response = client.clone()
-			.post(enclave.1.enclave_url + "/api/backup/sync-keyshare")
+			.post(enclave.1.enclave_url.clone() + "/api/backup/sync-keyshare")
 			.body(request_body.clone())
 			.header(hyper::http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
 			.send()
