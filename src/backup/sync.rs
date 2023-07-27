@@ -342,7 +342,7 @@ pub async fn sync_keyshares(
 		.build()
 		.unwrap();
 
-		debug!("\t - SYNC KEYSHARES : HEALTH-CHECK");
+	debug!("\t - SYNC KEYSHARES : HEALTH-CHECK");
 	let health_response = client
 		.get(requester.1.enclave_url.clone() + "/api/health")
 		.send()
@@ -549,7 +549,8 @@ pub async fn fetch_keyshares(
 	}
 
 	// Check other enclaves for new NFT keyshares
-	let nft_clusters: Vec<u32> = new_nft.into_values().collect();
+	let nft_clusters: Vec<u32> = new_nft.clone().into_values().collect();
+	debug!(" - FETCH KEYSHARES : nft cluster {:?}\n", nft_clusters);
 
 	let client = reqwest::Client::builder()
 		.https_only(true)
@@ -562,13 +563,13 @@ pub async fn fetch_keyshares(
 
 	// TODO [future reliability] : use metric-server ranking instead of simple loop
 	for enclave in slot_enclaves {
-		debug!("Fetch from enclave {:?}", enclave);
-		// Is the enclave in the cluster that nftid is originally stored?
+		debug!("Fetch from enclave {:?}\n", enclave);
+		// Is the 'enclave' of 'slot_enclave' in the cluster that nftid is "originally" stored?
 		// We can remove this condition if we want to search whole the slot
 		// It is faster for Runtime synchronization
 		// It may be problematic for First time Synchronization
 		// Because it is possible that original encalve is down now.
-		if !nft_clusters.contains(&enclave.0) {
+		if !new_nft.is_empty() && !nft_clusters.contains(&enclave.0) {
 			continue;
 		}
 
@@ -591,8 +592,7 @@ pub async fn fetch_keyshares(
 
 		debug!(
 			"Fetch Keyshares : Health-Check Result for url : {} is {:#?}",
-			enclave.1.enclave_url,
-			response_body
+			enclave.1.enclave_url, response_body
 		);
 
 		// TODO [developmet - reliability] : Mark and retry later if health is not ready
@@ -612,13 +612,13 @@ pub async fn fetch_keyshares(
 			.header(hyper::http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
 			.send()
 			.await;
-		
+
 		let fetch_response = match fetch_response {
-			Ok(res) => res, 
+			Ok(res) => res,
 			Err(err) => {
 				error!("Fetch response error: {:?}", err);
 				return Err(anyhow!(err));
-			}
+			},
 		};
 
 		let fetch_headers = fetch_response.headers();
@@ -1172,6 +1172,7 @@ mod test {
 			String::new(),
 			api.clone(),
 			"0.4.1".to_string(),
+			0,
 		)));
 
 		let mut app = match crate::servers::http_server::http_server().await {

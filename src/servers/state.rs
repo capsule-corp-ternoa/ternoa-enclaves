@@ -28,6 +28,7 @@ impl StateConfig {
 		maintenance: String,
 		rpc_client: DefaultApi,
 		binary_version: String,
+		last_processed_block: u32,
 	) -> StateConfig {
 		StateConfig {
 			enclave_key: enclave_key.clone(),
