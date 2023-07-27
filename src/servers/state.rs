@@ -18,6 +18,8 @@ pub struct StateConfig {
 	// Identity is (ClusterID, SlotID)
 	identity: Option<(u32, u32)>,
 	binary_version: String,
+	// only for dev
+	last_processed_block: u32,
 }
 
 impl StateConfig {
@@ -33,6 +35,7 @@ impl StateConfig {
 			maintenance,
 			rpc_client,
 			current_block: 0,
+			last_processed_block: 0,
 			nonce: 0,
 			clusters: Vec::<Cluster>::new(),
 			identity: None,
@@ -70,6 +73,14 @@ impl StateConfig {
 
 	pub fn get_current_block(&self) -> u32 {
 		self.current_block
+	}
+
+	pub fn set_processed_block(&mut self, last_processed_block: u32) {
+		self.last_processed_block = last_processed_block;
+	}
+
+	pub fn get_processed_block(&self) -> u32 {
+		self.last_processed_block
 	}
 
 	pub fn get_nonce(&self) -> u32 {

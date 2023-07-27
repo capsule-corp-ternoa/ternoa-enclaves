@@ -448,11 +448,11 @@ pub async fn nft_keyshare_oracle(
 	// With nonce
 	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
 
-	{
-		let mut write_state = state.write().await;
-		write_state.increment_nonce();
-		debug!("\tSecret-nft : nonce incremented");
-	}
+	// {
+	// 	let write_state = &mut state.write().await;
+	// 	write_state.increment_nonce();
+	// 	debug!("\tSecret-nft : nonce incremented");
+	// }
 
 	let read_state = state.read().await;
 	let offchain_nonce = read_state.get_nonce();
@@ -515,21 +515,23 @@ pub async fn capsule_keyshare_oracle(
 	// std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
 
 	// With nonce
-	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
-	{
-		let mut write_state = state.write().await;
-		write_state.increment_nonce();
-		debug!("\tCapusle Oracle : nonce incremented");
-	}
+	let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
 
-	let read_state = state.read().await;
-	let offchain_nonce = read_state.get_nonce();
+	// {
+	// 	let write_state = &mut state.write().await;
+	// 	write_state.increment_nonce();
+	// 	debug!("\tCapusle Oracle : nonce incremented");
+	// }
 
-	debug!("\tCapsule Oracle : nonce = {:?}", offchain_nonce);
+	//let read_state = state.read().await;
+	//let offchain_nonce = read_state.get_nonce();
+
+	//debug!("\tCapsule Oracle : nonce = {:?}", offchain_nonce);
+	debug!("\tCapsule Oracle : nonce = {:?}", onchain_nonce);
 
 	// Create the extrinsic
 	let result = api.tx()
-		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
+		.create_signed_with_nonce(&tx, &signer, onchain_nonce, Default::default())?
 		.submit()
 		.await;
 
