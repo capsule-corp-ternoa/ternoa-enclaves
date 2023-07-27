@@ -634,7 +634,8 @@ pub async fn fetch_keyshares(
 			Ok(res) => res,
 			Err(err) => {
 				error!("Fetch response error: {:?}", err);
-				return Err(anyhow!(err));
+				continue;
+				//return Err(anyhow!(err));
 			},
 		};
 
@@ -673,7 +674,8 @@ pub async fn fetch_keyshares(
 			Err(e) => {
 				let message = format!("Fetch Keyshares : extracting zip file {:?}", e);
 				error!(message);
-				return Err(anyhow!(message));
+				// TODO : return the error to sentry or other places.
+				//return Err(anyhow!(message));
 			},
 		}
 
