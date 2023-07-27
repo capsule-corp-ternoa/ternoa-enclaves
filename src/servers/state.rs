@@ -36,7 +36,7 @@ impl StateConfig {
 			maintenance,
 			rpc_client,
 			current_block: 0,
-			last_processed_block: 0,
+			last_processed_block,
 			nonce: 0,
 			clusters: Vec::<Cluster>::new(),
 			identity: None,
