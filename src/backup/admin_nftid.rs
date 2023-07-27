@@ -455,6 +455,7 @@ mod test {
 			String::new(),
 			create_chain_api().await.unwrap(),
 			"0.3.0".to_string(),
+			0
 		)));
 
 		//let app = Router::new().route("/admin_backup_fetch_id", post(admin_backup_fetch_id)).with_state(state_config);
