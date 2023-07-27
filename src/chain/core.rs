@@ -460,15 +460,15 @@ pub async fn nft_keyshare_oracle(
 	debug!("\tSecret-nft : nonce = {:?}", offchain_nonce);
 
 	// Create the extrinsic
-	let result = api.tx()
-	.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
-	.submit()
-	.await;
+	let result = api
+		.tx()
+		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
+		.submit()
+		.await;
 
 	debug!("\tSecret-nft Oracle : extrinsic sent : {:?}", result);
-	
+
 	result
-	
 }
 
 // -------------- CAPSULE SYNC (ORACLE) --------------
@@ -530,13 +530,14 @@ pub async fn capsule_keyshare_oracle(
 	debug!("\tCapsule Oracle : nonce = {:?}", onchain_nonce);
 
 	// Create the extrinsic
-	let result = api.tx()
+	let result = api
+		.tx()
 		.create_signed_with_nonce(&tx, &signer, onchain_nonce, Default::default())?
 		.submit()
 		.await;
 
 	debug!("\tCapusle Oracle : extrinsic sent : {:?}", result);
-	
+
 	result
 }
 

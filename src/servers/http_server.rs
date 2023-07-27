@@ -143,8 +143,7 @@ pub async fn http_server() -> Result<Router, Error> {
 
 	// Initialize runtime tracking blocks
 	let current_block_hash = chain_api.rpc().finalized_head().await?;
-	let current_block =
-		chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
+	let current_block = chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
 	let current_block_number = current_block.block.header.number;
 	let mut last_processed_block = current_block_number;
 
@@ -154,6 +153,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		String::new(),
 		chain_api.clone(),
 		"0.4.1".to_string(),
+		last_processed_block,
 	)));
 
 	// Get all cluster and registered encalves from the chain
@@ -326,7 +326,6 @@ pub async fn http_server() -> Result<Router, Error> {
 		.route("/api/backup/sync-keyshare", post(sync_keyshares))
 		// DEV
 		.route("/api/set-block/:blocknumber", get(dev_set_block))
-
 		// METRIC SERVER
 		// List of all nfts in an Interval [block1,block2] (Migration needed!)
 		//.layer(RequestBodyLimitLayer::new(CONTENT_LENGTH_LIMIT))
@@ -428,15 +427,18 @@ pub async fn http_server() -> Result<Router, Error> {
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
 				debug!(" > Runtime mode : Crawl check : last_sync_block = {}", last_sync_block);
 				// If no event has detected in 10 blocks, network disconnections happened, ...
-				
+
 				let read_state = state_config.read().await;
 				last_processed_block = read_state.get_processed_block();
-				
-				
+
 				if (block_number - last_processed_block) > 1 {
 					debug!(" > Runtime mode : Crawl check : Lagging last processed block : block number = {} > last processed = {}, last synced = {}", block_number, last_processed_block, last_sync_block);
-					match crawl_sync_events(state_config.clone(), last_processed_block, block_number)
-						.await
+					match crawl_sync_events(
+						state_config.clone(),
+						last_processed_block,
+						block_number,
+					)
+					.await
 					{
 						Ok(cluster_nft_map) => {
 							info!(
@@ -488,7 +490,7 @@ pub async fn http_server() -> Result<Router, Error> {
 				// wait until enclave get registered and go to runtime-mode
 				continue;
 			}
-			
+
 			// New Capsule/Secret are found
 			if !new_nft.is_empty() {
 				debug!(
@@ -506,7 +508,6 @@ pub async fn http_server() -> Result<Router, Error> {
 			// TODO : Regular check to use Indexer for missing NFTs?! (with any reason)
 			// Maybe in another thread
 
-
 			// Update runtime block tracking variable
 			//last_processed_block = block_number;
 			{
@@ -514,9 +515,7 @@ pub async fn http_server() -> Result<Router, Error> {
 				let write_state = &mut state_config.write().await;
 				write_state.set_processed_block(block_number);
 			}
-
-
-		}// While blocks
+		} // While blocks
 	});
 
 	debug!("Wait for 6 seconds to update the block number");
