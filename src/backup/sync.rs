@@ -356,29 +356,29 @@ pub async fn sync_keyshares(
 
 	// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
 
-	// if health_status != StatusCode::OK {
-	// 	let message = format!(
-	// 		"Synch Keyshares : Healthcheck : requester enclave {} is not ready for synching",
-	// 		requester.1.enclave_url
-	// 	);
-	// 	return error_handler(message, &state).await.into_response();
-	// }
+	if health_status != StatusCode::OK {
+		let message = format!(
+			"Synch Keyshares : Healthcheck : requester enclave {} is not ready for synching",
+			requester.1.enclave_url
+		);
+		return error_handler(message, &state).await.into_response();
+	}
 
-	let health_body: HealthResponse = match health_response.json().await {
-		Ok(body) => body,
-		Err(e) => {
-			let message = format!(
-				"Synch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
-				requester.1.enclave_url, e
-			);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
+	// let health_body: HealthResponse = match health_response.json().await {
+	// 	Ok(body) => body,
+	// 	Err(e) => {
+	// 		let message = format!(
+	// 			"Synch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
+	// 			requester.1.enclave_url, e
+	// 		);
+	// 		return error_handler(message, &state).await.into_response();
+	// 	},
+	// };
 
-	debug!(
-		"Fetch Keyshares : Health-Check Result for url : {}, Status: {:?}, \n body: {:#?}",
-		requester.1.enclave_url, health_status, health_body
-	);
+	// debug!(
+	// 	"Fetch Keyshares : Health-Check Result for url : {}, Status: {:?}, \n body: {:#?}",
+	// 	requester.1.enclave_url, health_status, health_body
+	// );
 
 	debug!("\t - SYNC KEYSHARES : REQEST QUOTE");
 	let quote_response =
@@ -582,32 +582,35 @@ pub async fn fetch_keyshares(
 			client.get(enclave.1.enclave_url.clone() + "/api/health").send().await?;
 		// Analyze the Response
 		let health_status = health_response.status();
-		let response_body: HealthResponse = match health_response.json().await {
-			Ok(body) => body,
-			Err(e) => {
-				let message = format!(
-					"Fetch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
-					enclave.1.enclave_url, e
-				);
-				warn!(message);
-				continue;
-			},
-		};
+		
+		debug!("\t - FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response);
 
-		debug!(
-			"Fetch Keyshares : Health-Check Result for url : {} is {:#?}",
-			enclave.1.enclave_url, response_body
-		);
+		// let response_body: HealthResponse = match health_response.json().await {
+		// 	Ok(body) => body,
+		// 	Err(e) => {
+		// 		let message = format!(
+		// 			"Fetch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
+		// 			enclave.1.enclave_url, e
+		// 		);
+		// 		warn!(message);
+		// 		continue;
+		// 	},
+		// };
 
-		// TODO [developmet - reliability] : Mark and retry later if health is not ready
-		if health_status != StatusCode::OK {
-			let message = format!(
-				"Fetch Keyshares : Healthcheck Failed on url: {}, status : {:?}, reason : {}",
-				enclave.1.enclave_url, health_status, response_body.description
-			);
-			warn!(message);
-			continue;
-		}
+		// debug!(
+		// 	"Fetch Keyshares : Health-Check Result for url : {} is {:#?}",
+		// 	enclave.1.enclave_url, response_body
+		// );
+
+		// // TODO [developmet - reliability] : Mark and retry later if health is not ready
+		// if health_status != StatusCode::OK {
+		// 	let message = format!(
+		// 		"Fetch Keyshares : Healthcheck Failed on url: {}, status : {:?}, reason : {}",
+		// 		enclave.1.enclave_url, health_status, response_body.description
+		// 	);
+		// 	warn!(message);
+		// 	continue;
+		// }
 
 		debug!("\t - FETCH KEYSHARES : request for nft-keyshares");
 		let fetch_response = client
