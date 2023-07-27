@@ -333,6 +333,9 @@ pub async fn sync_keyshares(
 
 	// Create a client
 	let client = reqwest::Client::builder()
+		// TODO : only for dev
+		.danger_accept_invalid_certs(true)
+		
 		.https_only(true)
 		.min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 			tls::Version::TLS_1_3
