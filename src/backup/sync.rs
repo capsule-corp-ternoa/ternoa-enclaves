@@ -347,7 +347,7 @@ pub async fn sync_keyshares(
 
 	debug!("\t - SYNC KEYSHARES : HEALTH-CHECK");
 	let health_response = client
-		.get(requester.1.enclave_url.clone() + "/api/health")
+		.get(requester.1.enclave_url.clone() + "api/health")
 		.send()
 		.await
 		.unwrap();
@@ -382,7 +382,7 @@ pub async fn sync_keyshares(
 
 	debug!("\t - SYNC KEYSHARES : REQEST QUOTE");
 	let quote_response =
-		client.get(requester.1.enclave_url.clone() + "/api/quote").send().await.unwrap();
+		client.get(requester.1.enclave_url.clone() + "api/quote").send().await.unwrap();
 
 	let quote_body: QuoteResponse = match quote_response.json().await {
 		Ok(body) => body,
