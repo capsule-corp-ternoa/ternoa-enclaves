@@ -492,7 +492,6 @@ pub async fn fetch_keyshares(
 		},
 	};
 
-	drop(shared_state_read);
 
 	// TODO [future reliability] Check if new nfts are already on the disk and updated, check nftids , if they are in range, ...
 
@@ -521,7 +520,9 @@ pub async fn fetch_keyshares(
 	};
 
 	let hash = sha256::digest(nftids_str.as_bytes());
-
+	
+	debug!("Fetch Keyshares : Request Body : Block Number {}\n", last_block_number);
+	
 	let auth = AuthenticationToken {
 		block_number: last_block_number,
 		block_validation: 15,
@@ -577,13 +578,13 @@ pub async fn fetch_keyshares(
 			continue;
 		}
 
-		debug!("\t - FETCH KEYSHARES : HEALTH CHECK");
-		let health_response =
-			client.get(enclave.1.enclave_url.clone() + "/api/health").send().await?;
-		// Analyze the Response
-		let health_status = health_response.status();
+		// debug!("\t - FETCH KEYSHARES : HEALTH CHECK");
+		// let health_response =
+		// 	client.clone().get(enclave.1.enclave_url.clone() + "/api/health").send().await?;
+		// // Analyze the Response
+		// let health_status = health_response.status();
 		
-		debug!("\t - FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response);
+		// debug!("\t - FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response);
 		
 		// let response_body: HealthResponse = match health_response.json().await {
 		// 	Ok(body) => body,
@@ -613,7 +614,7 @@ pub async fn fetch_keyshares(
 		// }
 
 		debug!("\t - FETCH KEYSHARES : request for nft-keyshares");
-		let fetch_response = client
+		let fetch_response = client.clone()
 			.post(enclave.1.enclave_url + "/api/backup/sync-keyshare")
 			.body(request_body.clone())
 			.header(hyper::http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
