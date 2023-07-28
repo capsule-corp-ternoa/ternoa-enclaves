@@ -343,9 +343,15 @@ pub async fn sync_keyshares(
 		.build()
 		.unwrap();
 
-	debug!("\t - SYNC KEYSHARES : HEALTH-CHECK");
+	
+	let mut enclave_url = requester.1.enclave_url.clone();
+	while enclave_url.ends_with('/') { enclave_url.pop(); }
+	
+	let health_request_url = enclave_url.clone() + "/api/health";
+	
+	debug!("\t - SYNC KEYSHARES : HEALTH-CHECK the requester {}", health_request_url);
 	let health_response = client
-		.get(requester.1.enclave_url.clone() + "api/health")
+		.get(health_request_url)
 		.send()
 		.await
 		.unwrap();
@@ -379,8 +385,10 @@ pub async fn sync_keyshares(
 	);
 
 	debug!("\t - SYNC KEYSHARES : REQEST QUOTE");
+	let quote_request_url = enclave_url.clone() + "/api/quote";
+
 	let quote_response =
-		client.get(requester.1.enclave_url.clone() + "api/quote").send().await.unwrap();
+		client.get(quote_request_url).send().await.unwrap();
 
 	let quote_body: QuoteResponse = match quote_response.json().await {
 		Ok(body) => body,
@@ -575,16 +583,15 @@ pub async fn fetch_keyshares(
 			continue;
 		}
 
-		// TODO: Check for trailing slash in url and trim it!
-
-		let test_response =
-			client.clone().get("https://www.goolge.com").send().await?;
-		debug!("\t - TEST CHECK : test response : {:?}\n", test_response.text().await?);
+		let mut enclave_url = enclave.1.enclave_url.clone();
+		while enclave_url.ends_with('/') { enclave_url.pop(); }
+		
+		let request_url = enclave_url.clone() + "/api/health";
 
 		debug!("\t - FETCH KEYSHARES : HEALTH CHECK");
-		debug!("\t - FETCH KEYSHARES : request url : {}", enclave.1.enclave_url.clone() + "api/health");
+		debug!("\t - FETCH KEYSHARES : request url : {}", request_url);
 		let health_response =
-			client.clone().get(enclave.1.enclave_url.clone() + "api/health").send().await?;
+			client.clone().get(request_url).send().await?;
 		// Analyze the Response
 		let health_status = health_response.status();
 		
@@ -618,11 +625,13 @@ pub async fn fetch_keyshares(
 			//continue;
 		}
 
+		let request_url = enclave_url.clone() + "/api/backup/sync-keyshare";
+
 		debug!("\t - FETCH KEYSHARES : request for nft-keyshares");
-		debug!("\t - FETCH KEYSHARES : request url : {}", enclave.1.enclave_url.clone() + "api/backup/sync-keyshare");
+		debug!("\t - FETCH KEYSHARES : request url : {}", request_url);
 
 		let fetch_response = client.clone()
-			.post(enclave.1.enclave_url.clone() + "api/backup/sync-keyshare")
+			.post(request_url)
 			.body(request_body.clone())
 			.header(hyper::http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
 			.send()
