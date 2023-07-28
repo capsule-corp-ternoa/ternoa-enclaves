@@ -1,4 +1,4 @@
-use crate::servers::state::SharedState;
+use crate::servers::state::{SharedState, get_accountid, get_blocknumber};
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 
@@ -49,10 +49,9 @@ pub async fn is_nft_available(
 ) -> Json<NFTExistsResponse> {
 	debug!("3-6 API : is nft available");
 
-	let shared_state = &state.read().await;
-	let enclave_account = shared_state.get_accountid();
+	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
-	let block_number = shared_state.get_current_block();
+	let block_number = get_blocknumber(&state).await;
 
 	let file_path = enclave_sealpath + "nft_" + &nft_id.to_string() + ".keyshare";
 
@@ -222,11 +221,10 @@ pub async fn nft_get_views(
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> impl IntoResponse {
 	debug!("3-7 API : nft get views");
-	let shared_state = &state.read().await;
-	let enclave_account = shared_state.get_accountid();
+	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
 
-	let nft_state = match get_onchain_nft_data(state.clone(), nft_id).await {
+	let nft_state = match get_onchain_nft_data(&state, nft_id).await {
 		Some(data) => data.state,
 		_ => {
 			error!(
@@ -378,13 +376,11 @@ pub async fn nft_store_keyshare(
 	Json(request): Json<StoreKeysharePacket>,
 ) -> impl IntoResponse {
 	debug!("3-8 API nft store keyshare");
-	let shared_state = &state.read().await;
-	let enclave_account = shared_state.get_accountid();
+	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
-	let enclave_keypair = shared_state.get_key();
-	let block_number = shared_state.get_current_block();
+	let block_number = get_blocknumber(&state).await;
 
-	match request.verify_store_request(state.clone(), "secret-nft").await {
+	match request.verify_store_request(&state, "secret-nft").await {
 		Ok(verified_data) => {
 			if !std::path::Path::new(&enclave_sealpath).exists() {
 				let status = ReturnStatus::DATABASEFAILURE;
@@ -494,7 +490,7 @@ pub async fn nft_store_keyshare(
 			};
 
 			// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
-			match nft_keyshare_oracle(state.clone(), enclave_keypair, verified_data.nft_id).await {
+			match nft_keyshare_oracle(&state, verified_data.nft_id).await {
 				Ok(txh) => {
 					let result =
 						nft_keyshare_oracle_results(block_number, &request, &verified_data, txh);
@@ -645,12 +641,11 @@ pub async fn nft_retrieve_keyshare(
 	Json(request): Json<RetrieveKeysharePacket>,
 ) -> impl IntoResponse {
 	debug!("3-9 API : nft retrieve keyshare");
-	let shared_state = &state.read().await;
-	let enclave_account = shared_state.get_accountid();
+	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
-	let block_number = shared_state.get_current_block();
+	let block_number = get_blocknumber(&state).await;
 
-	match request.verify_retrieve_request(state.clone(), "secret-nft").await {
+	match request.verify_retrieve_request(&state, "secret-nft").await {
 		Ok(verified_data) => {
 			let file_path =
 				enclave_sealpath.clone() + "nft_" + &verified_data.nft_id.to_string() + ".keyshare";
@@ -818,12 +813,11 @@ pub async fn nft_remove_keyshare(
 	Json(request): Json<RemoveKeysharePacket>,
 ) -> impl IntoResponse {
 	debug!("3-10 API : nft remove keyshare");
-	let shared_state = &state.read().await;
-	let enclave_account = shared_state.get_accountid();
+	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
 
 	// Is nft burnt?
-	if get_onchain_nft_data(state.clone(), request.nft_id).await.is_some() {
+	if get_onchain_nft_data(&state, request.nft_id).await.is_some() {
 		error!("Error removing NFT key-share from TEE : nft is not in burnt state, nft-id.{}, requester : {}", request.nft_id, request.requester_address);
 		return Json(RemoveKeyshareResponse {
 			status: ReturnStatus::NOTBURNT,

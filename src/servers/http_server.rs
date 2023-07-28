@@ -235,7 +235,7 @@ pub async fn http_server() -> Result<Router, Error> {
 					// Changes may happen in clusters and enclaves while this encalve has been down.
 					// TODO [future] : use Indexer if the difference between current_block >> past_block is large
 					match crawl_sync_events(
-						state_config.clone(),
+						&state_config,
 						synced_block_number,
 						current_block_number,
 					)
@@ -362,20 +362,14 @@ pub async fn http_server() -> Result<Router, Error> {
 			let block_number = block.header().number;
 
 			// Write to ShareState block, necessary to prevent Read SharedState
-			{
-				let write_state = state_config.clone();
-				let shared_state_write = &mut write_state.write().await;
-				trace!(" > Block Number Thread : got shared state to write.");
+			set_blocknumber(&state_config, block_number).await;
+			debug!("new block = {}", block_number);
+			trace!(" > Block Number Thread : block_number state is set to {}", block_number);
 
-				shared_state_write.set_current_block(block_number);
-				debug!("new block = {}", block_number);
-				trace!(" > Block Number Thread : block_number state is set to {}", block_number);
-
-				// For block number update, we should reset the nonce as well
-				// It is used as a batch of extrinsics for every block
-				shared_state_write.reset_nonce();
-				trace!(" > Block Number Thread : nonce has been reset");
-			}
+			// For block number update, we should reset the nonce as well
+			// It is used as a batch of extrinsics for every block
+			reset_nonce(&state_config).await;
+			trace!(" > Block Number Thread : nonce has been reset");
 
 			// Extract block body
 			let body = block.body().await.unwrap();
@@ -428,13 +422,12 @@ pub async fn http_server() -> Result<Router, Error> {
 				debug!(" > Runtime mode : Crawl check : last_sync_block = {}", last_sync_block);
 				// If no event has detected in 10 blocks, network disconnections happened, ...
 
-				let read_state = state_config.read().await;
-				last_processed_block = read_state.get_processed_block();
+				last_processed_block = get_processed_block(&state_config).await;
 
 				if (block_number - last_processed_block) > 1 {
 					debug!(" > Runtime mode : Crawl check : Lagging last processed block : block number = {} > last processed = {}, last synced = {}", block_number, last_processed_block, last_sync_block);
 					match crawl_sync_events(
-						state_config.clone(),
+						&state_config,
 						last_processed_block,
 						block_number,
 					)
@@ -483,7 +476,6 @@ pub async fn http_server() -> Result<Router, Error> {
 						},
 					}
 				}
-				drop(read_state);
 			} else {
 				debug!("\t > Runtime mode : Crawl check : non-numeric sync-state, something wrong has happened.");
 				// We are in setup or unregistered mode, again?
@@ -512,8 +504,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			//last_processed_block = block_number;
 			{
 				debug!("\t > Runtime mode : update last processed block");
-				let write_state = &mut state_config.write().await;
-				write_state.set_processed_block(block_number);
+				set_processed_block(&state_config, block_number).await;
 			}
 		} // While blocks
 	});
@@ -579,10 +570,9 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 
 		_ => {
 			debug!("3-3-1 Healthchek exited with None.");
-			let shared_state = state.read().await;
-			let block_number = shared_state.get_current_block();
-			let binary_version = shared_state.get_binary_version();
-			let enclave_address = shared_state.get_accountid();
+			let block_number = get_blocknumber(&state).await;
+			let binary_version = get_version(&state).await;
+			let enclave_address = get_accountid(&state).await;
 			let sync_state = get_sync_state().unwrap();
 
 			(
@@ -604,10 +594,9 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 
-	let shared_state = state.read().await;
-	let block_number = shared_state.get_current_block();
-	let binary_version = shared_state.get_binary_version();
-	let enclave_address = shared_state.get_accountid();
+	let block_number = get_blocknumber(state).await;
+	let binary_version = get_version(state).await;
+	let enclave_address = get_accountid(state).await;
 
 	debug!("3-3-4 healthcheck : get public key.");
 	// TODO: ADD RPC PROBLEM
@@ -790,3 +779,4 @@ pub fn downloader(url: &str) -> Result<String, Error> {
 
 	Ok(content)
 }
+

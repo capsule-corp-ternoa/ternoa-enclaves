@@ -29,7 +29,7 @@ use sp_core::{crypto::PublicError, sr25519::Signature};
 use crate::{
 	backup::zipdir::add_list_zip,
 	chain::core::get_current_block_number,
-	servers::state::{SharedState, StateConfig},
+	servers::state::{SharedState, StateConfig, get_blocknumber},
 };
 
 use super::zipdir::{add_dir_zip, zip_extract};
@@ -297,9 +297,7 @@ pub async fn admin_backup_fetch_id(
 		return error_handler("Invalid Signature".to_string(), &state).await.into_response();
 	}
 
-	let shared_state_read = state.read().await;
-	let last_block_number = shared_state_read.get_current_block();
-	drop(shared_state_read);
+	let last_block_number = get_blocknumber(&state).await;
 
 	debug!("Validating the authentication token");
 	let validity = auth_token.is_valid(last_block_number).await;
@@ -387,7 +385,7 @@ pub async fn admin_backup_fetch_id(
 
 #[cfg(test)]
 mod test {
-	use crate::chain::core::{create_chain_api, get_chain_api, get_current_block_number_new_api};
+	use crate::chain::core::{create_chain_api, get_current_block_number_new_api};
 
 	use super::*;
 
