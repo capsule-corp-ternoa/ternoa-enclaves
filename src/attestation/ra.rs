@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use sp_core::Pair;
 use tracing::{debug, error, info};
 
-use crate::servers::state::SharedState;
+use crate::servers::state::{SharedState, get_keypair, get_accountid, get_blocknumber};
 use anyhow::{anyhow, Result};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -23,15 +23,14 @@ pub struct QuoteResponse {
 // TODO [performace] : Rate Limit or Cache the Quote API
 //#[once(time = 60, sync_writes = false)]
 pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse {
-	let shared_state = &state.read().await;
 
 	// Make a dynamic user data
-	let enclave_id = shared_state.get_accountid();
-	let block_number = shared_state.get_current_block();
+	let enclave_id = get_accountid(&state).await;
+	let block_number = get_blocknumber(&state).await;
 	let sign_data = enclave_id + "_" + &block_number.to_string();
 
 	// Signer
-	let enclave_account = shared_state.get_key();
+	let enclave_account = get_keypair(&state).await;
 
 	let signature = enclave_account.sign(sign_data.as_bytes());
 

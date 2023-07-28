@@ -33,10 +33,10 @@ use crate::{
 	attestation::ra::QuoteResponse,
 	backup::zipdir::{add_list_zip, zip_extract},
 	chain::core::{
-		get_chain_api, ternoa,
+		ternoa,
 		ternoa::nft::events::{CapsuleSynced, SecretNFTSynced},
 	},
-	servers::{http_server::HealthResponse, state::SharedState},
+	servers::{http_server::HealthResponse, state::{SharedState, get_chain_api, set_identity, set_clusters, get_clusters, get_identity, get_accountid, get_blocknumber, get_keypair}},
 };
 
 use anyhow::{anyhow, Result};
@@ -232,9 +232,7 @@ pub async fn sync_keyshares(
 
 	//update_health_status(&state, "Enclave is Syncing Keyshare, please wait...".to_string()).await;
 
-	let shared_state_read = state.read().await;
-	let last_block_number = shared_state_read.get_current_block();
-	drop(shared_state_read);
+	let last_block_number = get_blocknumber(&state).await;
 
 	debug!("\t - SYNC KEYSHARES : START CLOT DISCOVERY");
 	let slot_enclaves = slot_discovery(&state).await;
@@ -364,21 +362,21 @@ pub async fn sync_keyshares(
 		return error_handler(message, &state).await.into_response();
 	}
 
-	// let health_body: HealthResponse = match health_response.json().await {
-	// 	Ok(body) => body,
-	// 	Err(e) => {
-	// 		let message = format!(
-	// 			"Synch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
-	// 			requester.1.enclave_url, e
-	// 		);
-	// 		return error_handler(message, &state).await.into_response();
-	// 	},
-	// };
+	let health_body: HealthResponse = match health_response.json().await {
+		Ok(body) => body,
+		Err(e) => {
+			let message = format!(
+				"Synch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
+				requester.1.enclave_url, e
+			);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
 
-	// debug!(
-	// 	"Fetch Keyshares : Health-Check Result for url : {}, Status: {:?}, \n body: {:#?}",
-	// 	requester.1.enclave_url, health_status, health_body
-	// );
+	debug!(
+		"Fetch Keyshares : Health-Check Result for url : {}, Status: {:?}, \n body: {:#?}",
+		requester.1.enclave_url, health_status, health_body
+	);
 
 	debug!("\t - SYNC KEYSHARES : REQEST QUOTE");
 	let quote_response =
@@ -475,13 +473,12 @@ pub async fn fetch_keyshares(
 ) -> Result<(), anyhow::Error> {
 	debug!("Fetch Keyshares from slot enclaves");
 
-	let shared_state_read = state.read().await;
-	let last_block_number = shared_state_read.get_current_block();
-	let account_id = shared_state_read.get_accountid();
-	let account_keypair = shared_state_read.get_key();
+	let last_block_number = get_blocknumber(state).await;
+	let account_id = get_accountid(state).await;
+	let account_keypair = get_keypair(state).await;
 
 	// (clustse, slot)
-	let enclave_identity = match shared_state_read.get_identity() {
+	let enclave_identity = match get_identity(state).await {
 		Some(id) => id,
 		None => {
 			let message =
@@ -491,7 +488,6 @@ pub async fn fetch_keyshares(
 			return Err(anyhow!(message));
 		},
 	};
-
 
 	// TODO [future reliability] Check if new nfts are already on the disk and updated, check nftids , if they are in range, ...
 
@@ -575,6 +571,7 @@ pub async fn fetch_keyshares(
 		// It may be problematic for First time Synchronization
 		// Because it is possible that original encalve is down now.
 		if !new_nft.is_empty() && !nft_clusters.contains(&enclave.0) {
+			debug!("\t - FETCH KEYSHARES : NFTs are not belong to cluster {}, continue to next cluster", enclave.0);
 			continue;
 		}
 
@@ -592,37 +589,38 @@ pub async fn fetch_keyshares(
 		let health_status = health_response.status();
 		
 		debug!("\t - FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response);
-		debug!("\t - FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response.text().await?);
+		//debug!("\t - FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response.text().await?);
 		
-		// let response_body: HealthResponse = match health_response.json().await {
-		// 	Ok(body) => body,
-		// 	Err(e) => {
-		// 		let message = format!(
-		// 			"Fetch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
-		// 			enclave.1.enclave_url, e
-		// 		);
-		// 		warn!(message);
-		// 		continue;
-		// 	},
-		// };
+		let response_body: HealthResponse = match health_response.json().await {
+			Ok(body) => body,
+			Err(e) => {
+				let message = format!(
+					"Fetch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
+					enclave.1.enclave_url, e
+				);
+				warn!(message);
+				continue;
+			},
+		};
 
-		// debug!(
-		// 	"Fetch Keyshares : Health-Check Result for url : {} is {:#?}",
-		// 	enclave.1.enclave_url, response_body
-		// );
+		debug!(
+			"Fetch Keyshares : Health-Check Result for url : {} is {:#?}",
+			enclave.1.enclave_url, response_body
+		);
 
-		// // TODO [developmet - reliability] : Mark and retry later if health is not ready
-		// if health_status != StatusCode::OK {
-		// 	let message = format!(
-		// 		"Fetch Keyshares : Healthcheck Failed on url: {}, status : {:?}, reason : {}",
-		// 		enclave.1.enclave_url, health_status, response_body.description
-		// 	);
-		// 	warn!(message);
-		// 	continue;
-		// }
+		// TODO [developmet - reliability] : Mark and retry later if health is not ready
+		if health_status != StatusCode::OK {
+			let message = format!(
+				"Fetch Keyshares : Healthcheck Failed on url: {}, status : {:?}, reason : {}",
+				enclave.1.enclave_url, health_status, response_body.description
+			);
+			warn!(message);
+			//continue;
+		}
 
 		debug!("\t - FETCH KEYSHARES : request for nft-keyshares");
 		debug!("\t - FETCH KEYSHARES : request url : {}", enclave.1.enclave_url.clone() + "api/backup/sync-keyshare");
+
 		let fetch_response = client.clone()
 			.post(enclave.1.enclave_url.clone() + "api/backup/sync-keyshare")
 			.body(request_body.clone())
@@ -701,7 +699,7 @@ pub async fn fetch_keyshares(
 // Crawl and parse registered clusters and enclaves from on-chain data
 pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Error> {
 	debug!("Start Cluster Discovery");
-	let api = get_chain_api(state.clone()).await; //create_chain_api().await.unwrap();
+	let api = get_chain_api(state).await; //create_chain_api().await.unwrap();
 
 	let max_cluster_address = ternoa::storage().tee().next_cluster_id();
 
@@ -778,21 +776,12 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 		clusters.push(Cluster { id: index, enclaves, is_public });
 	}
 
-	// TODO [code style] : Is there other way for alternating between state READ/WRITE
-	{
-		// Open for write
-		let write_state = &mut state.write().await;
-		write_state.set_clusters(clusters);
-	}
+	set_clusters(state, clusters).await;
 
 	// Update self-identity if changed, for the new enclave is vital, then unlikely.
 	let identity = self_identity(state).await;
 
-	{
-		// Open for write
-		let write_state = &mut state.write().await;
-		write_state.set_identity(identity);
-	}
+	set_identity(state, identity).await;
 
 	Ok(identity.is_some())
 }
@@ -802,10 +791,10 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 -------------------------*/
 // Result is Option((cluster.id, enclave.slot))
 pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
-	let read_state = state.read().await;
-	let chain_clusters = read_state.get_clusters();
-	let self_enclave_account = read_state.get_accountid();
-	let self_identity = read_state.get_identity();
+
+	let chain_clusters = get_clusters(state).await;
+	let self_enclave_account = get_accountid(state).await;
+	let self_identity = get_identity(state).await;
 
 	for cluster in chain_clusters {
 		for enclave in cluster.enclaves {
@@ -831,12 +820,11 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 // List of api_url of all the enclaves in all clusters with the same slot number as current enclave
 // This is essential for Synchronization and backup
 pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
-	let read_state = state.read().await;
-	let chain_clusters = read_state.get_clusters();
+	let chain_clusters = get_clusters(state).await;
 
 	let mut slot_enclave = Vec::<(u32, Enclave)>::new();
 
-	let identity = match read_state.get_identity() {
+	let identity = match get_identity(state).await {
 		Some(id) => id,
 		None => {
 			error!("Error finding self-identity onchain, this enclave may have not been registered on blockchain yet.");
@@ -869,7 +857,7 @@ pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
 // It is part of "Running Enclave Synchronization"
 // Result : HashMap of all <NFTID, ClusterID>.
 pub async fn crawl_sync_events(
-	state: SharedState,
+	state: &SharedState,
 	from_block_num: u32,
 	to_block_num: u32,
 ) -> Result<HashMap<u32, u32>, anyhow::Error> {
@@ -1234,7 +1222,7 @@ mod test {
 		/* ----------------------------
 		   Test Finding NFT add Shard
 		------------------------------*/
-		let cluster_nft_map = crawl_sync_events(state_config, 550, 560).await;
+		let cluster_nft_map = crawl_sync_events(&state_config, 550, 560).await;
 		println!("\n To be fetched from cluster-slot : {:?}\n", cluster_nft_map.unwrap());
 
 		/* ------------------------------
