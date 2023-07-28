@@ -1,4 +1,4 @@
-use crate::servers::state::SharedState;
+use crate::servers::state::{SharedState, get_accountid, get_blocknumber};
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
@@ -44,10 +44,9 @@ pub async fn is_capsule_available(
 ) -> impl IntoResponse {
 	debug!("3-11 API : is capsule available");
 
-	let shared_state = &state.read().await;
-	let enclave_account = shared_state.get_accountid();
+	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH;
-	let block_number = shared_state.get_current_block();
+	let block_number = get_blocknumber(&state).await;
 
 	let file_path = enclave_sealpath.to_string() + "capsule_" + &nft_id.to_string() + ".keyshare";
 
@@ -104,11 +103,10 @@ pub async fn capsule_get_views(
 ) -> impl IntoResponse {
 	debug!("3-12 API : get capsule views");
 
-	let shared_state = &state.read().await;
-	let enclave_account = shared_state.get_accountid();
+	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH;
 
-	let capsule_state = match get_onchain_nft_data(state.clone(), nft_id).await {
+	let capsule_state = match get_onchain_nft_data(&state, nft_id).await {
 		Some(data) => data.state,
 		_ => {
 			error!(
@@ -261,13 +259,11 @@ pub async fn capsule_set_keyshare(
 ) -> impl IntoResponse {
 	debug!("3-13 API : capsule set keyshare");
 
-	let shared_state = &state.read().await;
-	let enclave_account = shared_state.get_accountid();
+		let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH;
-	let enclave_keypair = shared_state.get_key();
-	let block_number = shared_state.get_current_block();
+	let block_number = get_blocknumber(&state).await;
 
-	match request.verify_store_request(state.clone(), "capsule").await {
+	match request.verify_store_request(&state, "capsule").await {
 		// DATA-FILED IS VALID
 		Ok(verified_data) => {
 			// IS ENCLAVE SEAL-PATH READY?
@@ -358,8 +354,7 @@ pub async fn capsule_set_keyshare(
 
 			// Send extrinsic to Capsule-Pallet as Storage-Oracle
 			match capsule_keyshare_oracle(
-				state.clone(),
-				enclave_keypair.clone(),
+				&state,
 				verified_data.nft_id,
 			)
 			.await
@@ -511,11 +506,10 @@ pub async fn capsule_retrieve_keyshare(
 ) -> impl IntoResponse {
 	debug!("3-14 API : capsule retrieve keyshare");
 
-	let shared_state = &state.read().await;
-	let enclave_account = shared_state.get_accountid();
+	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH;
 
-	match request.verify_retrieve_request(state.clone(), "capsule").await {
+	match request.verify_retrieve_request(&state, "capsule").await {
 		Ok(verified_data) => {
 			// DOES KEY-SHARE EXIST?
 			let file_path = enclave_sealpath.to_string()
@@ -609,7 +603,7 @@ pub async fn capsule_retrieve_keyshare(
 			let file_path =
 				enclave_sealpath.to_string() + &verified_data.nft_id.to_string() + ".log";
 
-			match get_current_block_number(state.clone()).await {
+			match get_current_block_number(&state).await {
 				Ok(block_number) => {
 					update_log_file_view(
 						block_number,
@@ -698,12 +692,11 @@ pub async fn capsule_remove_keyshare(
 ) -> impl IntoResponse {
 	debug!("3-11 API : capsule remove keyshare");
 
-	let shared_state = &state.read().await;
-	let enclave_account = shared_state.get_accountid();
+	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH;
 
 	// Check if CAPSULE is burnt
-	if get_onchain_nft_data(state.clone(), request.nft_id).await.is_some() {
+	if get_onchain_nft_data(&state, request.nft_id).await.is_some() {
 		return Json(RemoveKeyshareResponse {
 			status: ReturnStatus::NOTBURNT,
 			nft_id: request.nft_id,

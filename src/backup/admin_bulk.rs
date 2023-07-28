@@ -28,7 +28,7 @@ use crate::{
 	chain::core::get_current_block_number,
 	servers::{
 		http_server::ENCLAVE_ACCOUNT_FILE,
-		state::{SharedState, StateConfig},
+		state::{SharedState, StateConfig, set_keypair, get_blocknumber},
 	},
 };
 
@@ -318,9 +318,7 @@ pub async fn admin_backup_fetch_bulk(
 		return Json(json!({"error": "Invalid Signature".to_string()})).into_response();
 	}
 
-	let shared_state_read = state.read().await;
-	let last_block_number = shared_state_read.get_current_block();
-	drop(shared_state_read);
+	let last_block_number = get_blocknumber(&state).await;
 
 	debug!("Validating the authentication token");
 	let validation = auth_token.is_valid(last_block_number);
@@ -600,9 +598,7 @@ pub async fn admin_backup_push_bulk(
 		},
 	};
 
-	let shared_state_read = state.read().await;
-	let last_block_number = shared_state_read.get_current_block();
-	drop(shared_state_read);
+	let last_block_number = get_blocknumber(&state).await;	
 
 	let validation = token.is_valid(last_block_number);
 	match validation {
@@ -703,11 +699,8 @@ pub async fn admin_backup_push_bulk(
 
 	debug!("Admin restore : Keypair success");
 
-	let mut shared_state_write = state.write().await;
-	debug!("Admin restore : share-state is taken");
-	shared_state_write.set_key(enclave_keypair);
+	set_keypair(&state, enclave_keypair).await;
 	debug!("share-state Enclave Account updated");
-	drop(shared_state_write);
 
 	//update_health_status(&state, String::new()).await;
 
