@@ -25,7 +25,7 @@ use crate::{
 		get_current_block_number, get_onchain_delegatee, get_onchain_nft_data,
 		get_onchain_rent_contract,
 	},
-	servers::state::SharedState,
+	servers::state::{SharedState, get_blocknumber},
 };
 
 use super::core::get_current_block_number_new_api;
@@ -609,7 +609,7 @@ impl VerificationError {
 /// * `nft_id` - nft/capsule id
 /// # Returns
 /// * `KeyshareHolder` - KeyshareHolder enum
-pub async fn get_onchain_delegatee_account(state: SharedState, nft_id: u32) -> KeyshareHolder {
+pub async fn get_onchain_delegatee_account(state: &SharedState, nft_id: u32) -> KeyshareHolder {
 	let delegatee_data = get_onchain_delegatee(state, nft_id).await;
 
 	match delegatee_data {
@@ -623,7 +623,7 @@ pub async fn get_onchain_delegatee_account(state: SharedState, nft_id: u32) -> K
 /// * `nft_id` - nft/capsule id
 /// # Returns
 /// * `KeyshareHolder` - KeyshareHolder enum
-pub async fn get_onchain_rentee_account(state: SharedState, nft_id: u32) -> KeyshareHolder {
+pub async fn get_onchain_rentee_account(state: &SharedState, nft_id: u32) -> KeyshareHolder {
 	let rentee_data = get_onchain_rent_contract(state, nft_id).await;
 
 	match rentee_data {
@@ -641,7 +641,7 @@ pub async fn get_onchain_rentee_account(state: SharedState, nft_id: u32) -> Keys
 /// # Returns
 /// * `bool` - true if requester is owner/rentee/delegatee
 pub async fn verify_requester_type(
-	state: SharedState,
+	state: &SharedState,
 	requester_address: String,
 	nft_id: u32,
 	owner: AccountId32,
@@ -889,12 +889,10 @@ impl StoreKeysharePacket {
 	/// Verify store request
 	pub async fn verify_store_request(
 		&self,
-		state: SharedState,
+		state: &SharedState,
 		nft_type: &str,
 	) -> Result<StoreKeyshareData, VerificationError> {
-		let shared_state_read = state.read().await;
-		let last_block_number = shared_state_read.get_current_block();
-		drop(shared_state_read);
+		let last_block_number = get_blocknumber(state).await;
 
 		match self.verify_signer(last_block_number) {
 			Ok(true) => match self.verify_data() {
@@ -905,7 +903,7 @@ impl StoreKeysharePacket {
 					};
 
 					let onchain_nft_data =
-						match get_onchain_nft_data(state.clone(), parsed_data.nft_id).await {
+						match get_onchain_nft_data(state, parsed_data.nft_id).await {
 							Some(nftdata) => nftdata,
 							_ => return Err(VerificationError::INVALIDNFTID),
 						};
@@ -1083,12 +1081,10 @@ impl RetrieveKeysharePacket {
 	/// Verify the requester is the owner of the NFT
 	pub async fn verify_retrieve_request(
 		&self,
-		state: SharedState,
+		state: &SharedState,
 		nft_type: &str,
 	) -> Result<RetrieveKeyshareData, VerificationError> {
-		let shared_state_read = state.read().await;
-		let last_block_number = shared_state_read.get_current_block();
-		drop(shared_state_read);
+		let last_block_number = get_blocknumber(state).await;
 
 		match self.verify_data(last_block_number) {
 			Ok(true) => {
@@ -1098,7 +1094,7 @@ impl RetrieveKeysharePacket {
 				};
 
 				let onchain_nft_data =
-					match get_onchain_nft_data(state.clone(), parsed_data.nft_id).await {
+					match get_onchain_nft_data(state, parsed_data.nft_id).await {
 						Some(nftdata) => nftdata,
 						_ => return Err(VerificationError::INVALIDNFTID),
 					};

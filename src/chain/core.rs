@@ -37,13 +37,13 @@ use tracing::{debug, error, info};
 )]
 
 pub mod ternoa {}
-use crate::servers::state::SharedState;
+use crate::servers::state::*;
 
 use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
 pub type DefaultApi = OnlineClient<PolkadotConfig>;
 
-const RETRY_COUNT: u8 = 12;
-const RETRY_DELAY: u64 = 7;
+const RETRY_COUNT: u8 = 3;
+const RETRY_DELAY: u64 = 3;
 
 #[derive(Serialize)]
 pub enum ReturnStatus {
@@ -81,25 +81,17 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 	}
 
-	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
 	// LAST NORMAL TRY
 	DefaultApi::from_url(rpc_endoint).await
 }
 
-/// Get the current block number
-/// # Returns
-/// * `u32` - The current block number
-pub async fn get_chain_api(state: SharedState) -> DefaultApi {
-	let shared_state_read = state.read().await;
-	shared_state_read.get_rpc_client()
-}
 
 // -------------- BLOCK NUMBER --------------
 
 /// Get the current block number
 /// # Returns
 /// * `u32` - The current block number
-pub async fn get_current_block_number(state: SharedState) -> Result<u32, Error> {
+pub async fn get_current_block_number(state: &SharedState) -> Result<u32, Error> {
 	debug!("current_block : get api");
 	let api = get_chain_api(state).await;
 
@@ -113,8 +105,6 @@ pub async fn get_current_block_number(state: SharedState) -> Result<u32, Error> 
 		}
 		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 	}
-
-	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
 
 	// LAST NORMAL TRY
 	let last_block = match api.blocks().at_latest().await {
@@ -166,7 +156,7 @@ pub async fn get_current_block_number_new_api() -> Result<u32, Error> {
 /// Get the NFT/Capsule data
 /// # Arguments
 /// * `nft_id` - The NFT/Capsule ID
-pub async fn get_onchain_nft_data(state: SharedState, nft_id: u32) -> Option<NFTData<AccountId32>> {
+pub async fn get_onchain_nft_data(state: &SharedState, nft_id: u32) -> Option<NFTData<AccountId32>> {
 	debug!("4-1 get chain NFT DATA");
 	let api = get_chain_api(state).await;
 
@@ -190,8 +180,6 @@ pub async fn get_onchain_nft_data(state: SharedState, nft_id: u32) -> Option<NFT
 
 		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 	}
-
-	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
 
 	// LAST NORMAL TRY
 	let storage: subxt::storage::Storage<PolkadotConfig, OnlineClient<PolkadotConfig>> =
@@ -217,7 +205,7 @@ pub async fn get_onchain_nft_data(state: SharedState, nft_id: u32) -> Option<NFT
 /// Get the NFT/Capsule delegatee
 /// # Arguments
 /// * `nft_id` - The NFT/Capsule ID
-pub async fn get_onchain_delegatee(state: SharedState, nft_id: u32) -> Option<AccountId32> {
+pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<AccountId32> {
 	debug!("4-2 Delgate");
 
 	let api = get_chain_api(state).await;
@@ -243,8 +231,6 @@ pub async fn get_onchain_delegatee(state: SharedState, nft_id: u32) -> Option<Ac
 		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 	}
 
-	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
-
 	let storage = match api.storage().at_latest().await {
 		Ok(storage) => storage,
 		Err(err) => {
@@ -267,7 +253,7 @@ pub async fn get_onchain_delegatee(state: SharedState, nft_id: u32) -> Option<Ac
 /// * `nft_id` - The NFT/Capsule ID
 /// # Returns
 /// * `Option<AccountId32>` - The rent contract
-pub async fn get_onchain_rent_contract(state: SharedState, nft_id: u32) -> Option<AccountId32> {
+pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Option<AccountId32> {
 	debug!("4-3 Rent contract");
 
 	let api = get_chain_api(state).await;
@@ -299,8 +285,6 @@ pub async fn get_onchain_rent_contract(state: SharedState, nft_id: u32) -> Optio
 
 		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 	}
-
-	std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
 
 	let storage = match api.storage().at_latest().await {
 		Ok(storage) => storage,
@@ -411,58 +395,54 @@ impl fmt::Display for NFTData<AccountId32> {
 /// # Returns
 /// * `Result<sp_core::H256, subxt::Error>` - The transaction hash
 pub async fn nft_keyshare_oracle(
-	state: SharedState,
-	keypair: sp_core::sr25519::Pair,
+	state: &SharedState,
 	nft_id: u32,
 ) -> Result<sp_core::H256, subxt::Error> {
 	debug!("NFT ORACLE");
 
-	let api = get_chain_api(state.clone()).await;
+	let api = get_chain_api(state).await;
 
 	// Enclave as the Signer
-	let signer = PairSigner::new(keypair);
-
+	let shared_state_read = state.read().await;
+	let signer = shared_state_read.get_signer();
+	
 	// Create a transaction to submit:
 	let tx = ternoa::tx().nft().add_secret_shard(nft_id);
 
-	// for retry in 0..RETRY_COUNT {
-	// 	// With nonce
-	// 	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
-	// 	let offchain_nonce = state.read().await.get_nonce();
-	// 	//Increment offchain nonce
-	// 	state.write().await.increment_nonce();
-	// 	// Create the extrinsic
-	// 	match api.tx()
-	// 		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
-	// 		.submit()
-	// 		.await {
-	// 			Ok(h) => return Ok(h),
-	// 			Err(e) => error!("Error sending NFT oracle extrinsic for NFTID.{} to chain, retry num.{} : error : {:?}", nft_id, retry, e),
-	// 		}
+	for retry in 0..RETRY_COUNT {
+		//Increment offchain nonce
+		increment_nonce(state).await;
+		debug!("\tSecret-nft : nonce incremented");
 
-	// 	std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
-	// }
+		// With nonce
+		let offchain_nonce = get_nonce(state).await;
+		debug!("\tSecret-nft : nonce = {:?}", offchain_nonce);
+		
+		// Create the extrinsic
+		match api.tx()
+			.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
+			.submit()
+			.await {
+				Ok(h) => return Ok(h),
+				Err(e) => error!("Error sending NFT oracle extrinsic for NFTID.{} to chain, retry num.{} : error : {:?}", nft_id, retry, e),
+			}
 
-	// std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
+		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	}
 
 	// With nonce
 	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
 
-	// {
-	// 	let write_state = &mut state.write().await;
-	// 	write_state.increment_nonce();
-	// 	debug!("\tSecret-nft : nonce incremented");
-	// }
+	increment_nonce(state).await;
+	debug!("\tSecret-nft : nonce incremented");
 
-	let read_state = state.read().await;
-	let offchain_nonce = read_state.get_nonce();
-
+	let offchain_nonce = get_nonce(state).await;
 	debug!("\tSecret-nft : nonce = {:?}", offchain_nonce);
 
 	// Create the extrinsic
 	let result = api
 		.tx()
-		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
+		.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
 		.submit()
 		.await;
 
@@ -480,59 +460,55 @@ pub async fn nft_keyshare_oracle(
 /// # Returns
 /// * `Result<sp_core::H256, subxt::Error>` - The transaction hash
 pub async fn capsule_keyshare_oracle(
-	state: SharedState,
-	keypair: sp_core::sr25519::Pair,
+	state: &SharedState,
 	nft_id: u32,
 ) -> Result<sp_core::H256, subxt::Error> {
 	debug!("CAPSULE ORACLE");
 
-	let api = get_chain_api(state.clone()).await;
+	let api = get_chain_api(state).await;
 
 	// Enclave as the Signer
-	let signer = PairSigner::new(keypair);
+	let shared_state_read = state.read().await;
+	let signer = shared_state_read.get_signer();
 
 	// Create a transaction to submit:
 	let tx = ternoa::tx().nft().add_capsule_shard(nft_id);
 
-	// for retry in 0..RETRY_COUNT {
-	// 	// With nonce
-	// 	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
-	// 	let offchain_nonce = state.read().await.get_nonce();
-	// 	//Increment offchain nonce
-	// 	state.write().await.increment_nonce();
-	// 	// Create the extrinsic
-	// 	match api.tx()
-	// 		.create_signed_with_nonce(&tx, &signer, offchain_nonce, Default::default())?
-	// 		.submit()
-	// 		.await {
-	// 			Ok(h) => return Ok(h),
-	// 			Err(e) => error!("Error sending CAPSULE oracle extrinsic for NFTID.{} to chain, retry num.{} : error : {:?}", nft_id, retry, e),
-	// 		}
+	for retry in 0..RETRY_COUNT {
+		//Increment offchain nonce
+		increment_nonce(state).await;
+		debug!("\tSecret-nft : nonce incremented");
 
-	// 	std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
-	// }
+		// With nonce
+		let offchain_nonce = get_nonce(state).await;
+		debug!("\tSecret-nft : nonce = {:?}", offchain_nonce);
 
-	// std::thread::sleep(std::time::Duration::from_secs(3 * RETRY_DELAY));
+		// Create the extrinsic
+		match api.tx()
+			.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
+			.submit()
+			.await {
+				Ok(h) => return Ok(h),
+				Err(e) => error!("Error sending CAPSULE oracle extrinsic for NFTID.{} to chain, retry num.{} : error : {:?}", nft_id, retry, e),
+			}
+
+		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	}
 
 	// With nonce
-	let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
+	//let onchain_nonce = api.rpc().system_account_next_index(&signer.account_id()).await?;
+	//debug!("\tCapsule Oracle : nonce = {:?}", onchain_nonce);
 
-	// {
-	// 	let write_state = &mut state.write().await;
-	// 	write_state.increment_nonce();
-	// 	debug!("\tCapusle Oracle : nonce incremented");
-	// }
+	increment_nonce(state).await;
+	debug!("\tSecret-nft : nonce incremented");
 
-	//let read_state = state.read().await;
-	//let offchain_nonce = read_state.get_nonce();
-
-	//debug!("\tCapsule Oracle : nonce = {:?}", offchain_nonce);
-	debug!("\tCapsule Oracle : nonce = {:?}", onchain_nonce);
+	let offchain_nonce = get_nonce(state).await;
+	debug!("\tSecret-nft : nonce = {:?}", offchain_nonce);
 
 	// Create the extrinsic
 	let result = api
 		.tx()
-		.create_signed_with_nonce(&tx, &signer, onchain_nonce, Default::default())?
+		.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
 		.submit()
 		.await;
 
