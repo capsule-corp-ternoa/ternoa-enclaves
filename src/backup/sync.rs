@@ -766,10 +766,12 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 						"Cluster Discovery : Failed to fetch enclave data. Operator : {}",
 						operator_account.to_string()
 					);
-					return Err(anyhow!(
-						"Failed to fetch enclave data. Operator : {}",
-						operator_account.to_string()
-					));
+					// TODO : it is because of temporary error on dev-0 
+					continue;
+					// return Err(anyhow!(
+					// 	"Failed to fetch enclave data. Operator : {}",
+					// 	operator_account.to_string()
+					// ));
 				},
 			};
 
