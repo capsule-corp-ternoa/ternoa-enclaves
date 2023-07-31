@@ -552,16 +552,21 @@ pub async fn fetch_keyshares(
 	debug!("\t - FETCH KEYSHARES : START SLOT DISCOVERY");
 	let slot_enclaves = slot_discovery(state).await;
 	if slot_enclaves.is_empty() {
-		let message = "Fetch Keyshares : No other similar slots detected, enclave is not registered or there is no other cluster.".to_string();
-		error!(message);
 		// TODO : What about first cluster? should it continue as the Primary cluster in running-mode?
-		// TODO : otherwise we should have two clusters registered befor starting enclaves with sync capability.
-		return Err(anyhow!(message));
+		// TODO : otherwise we should have two clusters registered before starting enclaves with sync capability.
+		if get_identity(state).await.is_some() {
+			warn!("No other similar slots found in other clusters, is this primary cluster?");
+			return Ok(())
+		}else { // not registered
+			error!("This enclave is not registered yet.");
+			return Err(anyhow!("Slot discovery failed"));
+		}
+		
 	}
 
 	// Check other enclaves for new NFT keyshares
 	let nft_clusters: Vec<u32> = new_nft.clone().into_values().collect();
-	debug!(" - FETCH KEYSHARES : nft cluster {:?}\n", nft_clusters);
+	debug!(" - FETCH KEYSHARES : nfts-cluster {:?}\n", nft_clusters);
 
 	let client = reqwest::Client::builder()
 		.danger_accept_invalid_certs(true)
@@ -594,7 +599,14 @@ pub async fn fetch_keyshares(
 		debug!("\t - FETCH KEYSHARES : HEALTH CHECK");
 		debug!("\t - FETCH KEYSHARES : request url : {}", request_url);
 		let health_response =
-			client.clone().get(request_url).send().await?;
+			match client.clone().get(request_url.clone()).send().await {
+				Ok(res) => res,
+				Err(err) => {
+					error!("Error getting health-check response from syncing target enclave : {} : {:?}", request_url, err);
+					debug!("continue with next syncing target enclave");
+					continue;
+				}, 
+			};
 		// Analyze the Response
 		let health_status = health_response.status();
 		
@@ -696,7 +708,8 @@ pub async fn fetch_keyshares(
 					"Fetch Keyshares : Backup success with Error in removing zip file, {:?}",
 					e
 				);
-				return Err(anyhow!(message));
+				error!(message);
+				//return Err(anyhow!(message));
 			},
 		};
 	}
