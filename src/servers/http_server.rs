@@ -156,6 +156,9 @@ pub async fn http_server() -> Result<Router, Error> {
 		last_processed_block,
 	)));
 
+	set_blocknumber(&state_config, current_block_number).await;
+	set_processed_block(&state_config, last_processed_block).await;
+
 	// Get all cluster and registered encalves from the chain
 	// Also checks if this enclave has been registered.
 	debug!("Enclave start : Start Cluster Discovery.");
@@ -485,7 +488,7 @@ pub async fn http_server() -> Result<Router, Error> {
 					}
 				}
 			} else {
-				debug!("\t <<< Enclaved is Unregistered >>>");
+				debug!("\t <<< Enclaved is not registered >>>");
 				// wait until enclave get registered and go to runtime-mode
 				continue;
 			}
