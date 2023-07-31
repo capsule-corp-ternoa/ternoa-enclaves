@@ -3,7 +3,7 @@ use std::{
 	io::{self, prelude::*, Seek, Write},
 	iter::Iterator,
 };
-use tracing::{error, info};
+use tracing::{error, info, debug};
 use zip::{result::ZipError, write::FileOptions};
 
 use std::{fs::File, path::Path};
@@ -49,7 +49,8 @@ where
 {
 	let mut zip = zip::ZipWriter::new(writer);
 	let options = FileOptions::default().compression_method(method).unix_permissions(0o755);
-
+	debug!("\t ZIPDIR => nft-list = {:?}\n",list);
+	
 	let mut buffer = Vec::new();
 	for entry in it {
 		let path = entry.path();
@@ -61,7 +62,8 @@ where
 			if list[0] == "*" {
 				// Filter out the enclave_account.key and log files
 				let name_parts: Vec<&str> = name.to_str().unwrap().split('.').collect();
-				if name_parts[1] == "log" || name_parts[1] == "key" {
+				debug!("\t ZIPDIR => name = {:?}, name-parts = {:?}",name, name_parts);
+				if name_parts.len() != 2 || name_parts[1] == "log" || name_parts[1] == "key" {
 					continue;
 				}
 			}

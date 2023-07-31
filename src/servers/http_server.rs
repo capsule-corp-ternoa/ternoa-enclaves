@@ -158,9 +158,9 @@ pub async fn http_server() -> Result<Router, Error> {
 
 	// Get all cluster and registered encalves from the chain
 	// Also checks if this enclave has been registered.
-	debug!("Enclave start : Cluster discovery.");
+	debug!("Enclave start : Start Cluster Discovery.");
 	while let Err(e) = cluster_discovery(&state_config.clone()).await {
-		error!("Enclave start : cluster discovery {:?}", e);
+		error!("Enclave start : cluster discovery error : {:?}", e);
 
 		// Wait 7 seconds, then retry
 		std::thread::sleep(std::time::Duration::from_secs(7));
@@ -200,7 +200,8 @@ pub async fn http_server() -> Result<Router, Error> {
 						);
 					},
 					Err(err) => {
-						error!("Enclave start : Error during maintenance-mode fetching keys-hares : {:?}", err)
+						// TODO : for the primary cluster it should work fine.
+						error!("Enclave start : Error during maintenance-mode fetch-keyshares : {:?}", err)
 					},
 				}
 			} else {
@@ -241,8 +242,8 @@ pub async fn http_server() -> Result<Router, Error> {
 					)
 					.await
 					{
-						Ok(cluste_nftid_map) => {
-							match fetch_keyshares(&state_config.clone(), cluste_nftid_map).await {
+						Ok(cluster_nftid_map) => {
+							match fetch_keyshares(&state_config.clone(), cluster_nftid_map).await {
 								Ok(_) => {
 									let _ = set_sync_state(current_block_number.to_string());
 									info!("Enclave start : Synchronization is complete up to current block");
@@ -351,6 +352,7 @@ pub async fn http_server() -> Result<Router, Error> {
 
 		// For each new finalized block, get block number
 		while let Some(block) = blocks_sub.next().await {
+			
 			let block = match block {
 				Ok(blk) => blk,
 				Err(e) => {
@@ -403,21 +405,27 @@ pub async fn http_server() -> Result<Router, Error> {
 									info!("\t\t > First Synchronization of Keyshares complete to the block number: {} .",block_number);
 								},
 								Err(err) => error!(
-									"\t\t > Error during maintenance-mode cluster discovery : {:?}",
+									"\t\t > Error during maintenance-mode fetching keyshares : {:?}",
 									err
 								),
 							}
 						}
 						info!("\t > Cluster discovery complete.");
 					},
-
-					Err(err) => error!("\tError during running-mode cluster discovery {:?}", err),
+					
+					// Cluster discovery Error
+					Err(err) => {
+						error!("\tError during running-mode cluster discovery {:?}", err);
+						// TODO [decision] : Integrity of clusters is corrupted. what to do?
+						//let _ = set_sync_state("setup".to_string());
+						continue;
+					},
 				}
 			}
 
 			// Regular CRAWL Check
 			let sync_state = get_sync_state().unwrap();
-			// Check for Runtime mode
+			// IMPORTANT : Check for Runtime mode : if integrity of clusters fails, we'll wait and go back to setup-mode
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
 				debug!(" > Runtime mode : Crawl check : last_sync_block = {}", last_sync_block);
 				// If no event has detected in 10 blocks, network disconnections happened, ...
@@ -477,8 +485,7 @@ pub async fn http_server() -> Result<Router, Error> {
 					}
 				}
 			} else {
-				debug!("\t > Runtime mode : Crawl check : non-numeric sync-state, something wrong has happened.");
-				// We are in setup or unregistered mode, again?
+				debug!("\t <<< Enclaved is Unregistered >>>");
 				// wait until enclave get registered and go to runtime-mode
 				continue;
 			}
@@ -497,15 +504,15 @@ pub async fn http_server() -> Result<Router, Error> {
 								Err(err) => error!("\t > Runtime mode : NEW-NFT : Error during running-mode nft-based syncing : {:?}", err),
 							}
 			}
-			// TODO : Regular check to use Indexer for missing NFTs?! (with any reason)
+			
+			// TODO : Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
 			// Maybe in another thread
 
 			// Update runtime block tracking variable
-			//last_processed_block = block_number;
-			{
-				debug!("\t > Runtime mode : update last processed block");
-				set_processed_block(&state_config, block_number).await;
-			}
+			debug!("\t > Runtime mode : update last processed block");
+			set_processed_block(&state_config, block_number).await;
+
+
 		} // While blocks
 	});
 
