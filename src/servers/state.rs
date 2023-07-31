@@ -76,6 +76,10 @@ impl StateConfig {
 		self.rpc_client.clone()
 	}
 
+	pub fn set_rpc_client(&mut self, new_client: DefaultApi) {
+		self.rpc_client = new_client;
+	}
+
 	pub fn set_current_block(&mut self, block_number: u32) {
 		self.current_block = block_number;
 	}
@@ -102,7 +106,6 @@ impl StateConfig {
 
 	pub async fn reset_nonce(&mut self) {
 		let account_id = self.enclave_signer.account_id();
-		tracing::debug!("is signer accountid == enclave accounis? : {}", account_id.to_string() == self.enclave_account);
 		self.nonce = self.rpc_client.rpc().system_account_next_index(account_id).await.unwrap();
 	}
 
@@ -148,6 +151,9 @@ fn keypair_to_public(keypair: sp_core::sr25519::Pair) -> Option<sp_core::sr25519
 	
 pub async fn get_chain_api(state: &SharedState) -> DefaultApi {
 	let shared_state_read = state.read().await;
+	
+	// If connection is lost, will be very hard to reconnect: https://github.com/paritytech/subxt/issues/551
+	// All the subscriptions and waiting extrinsics should be done agian.
 	shared_state_read.get_rpc_client()
 }
 
@@ -210,7 +216,6 @@ pub async fn set_processed_block(state: &SharedState, block_number: u32) {
 	shared_state_write.set_processed_block(block_number);
 }
 
-
 pub async fn set_keypair(state: &SharedState, keypair: sp_core::sr25519::Pair) {
 	let shared_state_write = &mut state.write().await;
 	shared_state_write.set_key(keypair);
@@ -234,4 +239,10 @@ pub async fn set_clusters(state: &SharedState, clusters: Vec<Cluster>) {
 pub async fn set_identity(state: &SharedState, id: Option<(u32, u32)>) {
 	let shared_state_write = &mut state.write().await;
 	shared_state_write.set_identity(id);
+}
+
+
+pub async fn set_chain_api(state: &SharedState, api: DefaultApi) {
+	let shared_state_write = &mut state.write().await;
+	shared_state_write.set_rpc_client(api);
 }

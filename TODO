@@ -1,0 +1,38 @@
+DEPLOYMENT :   
+  - GENERATE CA-CERTS INSIDE ENCLAVE
+  - REMOVE or DOWNLOAD BINARY CHECKSHUM FROM GITHUB
+  - REMOVE INS1ECURE COMMAND-LINE OPTIONS 
+  - DOCUMENTATION
+
+SECURITY : 
+  - extract user_data from attestation report and verify the signature and block_number (consult with gramine)
+  - wipe everything if TC move the Encalve to other cluster or slot?!!
+  
+  - [FUTURE] SIGN the responses from enclave 
+  - [FUTURE] can we check requester URL or IP? What if it uses proxy?
+
+RELIABILITY / ERROR-HANDLING / PERFORMANCE:
+  - Rate Limit Quote API
+  - manage unwrap()
+  - ADD RPC PROBLEM/TIMEOUT handler (middleware)
+  - Syncing wildcard Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
+  - return the error to sentry or other places.
+  - Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
+  
+  - [FUTURE] migrate the file-name of keyshares to contain last block-number they've been updated
+  - [FUTURE] check nftids during sync or bacup, if it is empty, are in range, Check if new nfts are already on the disk and updated.
+  - [FUTURE] use metric-server ranking instead of simple loop as Retry mechanism
+  - [FUTURE] use Indexer if the difference between current_block >> past_block is large
+  
+  - [ANALYSIS] during backups or sync, should state of enclave be OK or Synching? [Solution = (Specific StatusCode for Wildcard)]
+  - [ANALYSIS] Retry mechanism : Mark and retry later if health is not ready
+  - [ANALYSIS] What if the "chosen" Enclave is not ready? (observed in dev-0)
+  - [ANALYSIS] What if all clusters are down, What block_number should be set as last_sync_block
+  - [ANALYSIS] Integrity of clusters is corrupted. what to do? (observed on dev-0)
+  - [ANALYSIS] We are in setup or unregistered mode after being in runtime-mode, again! (observed on dev-0)
+ 
+IDEAS : 
+  - [code style] : Define macro for nft/capsule
+  - [future metric server] : Proof of storage (through heart-beats)
+  - [idea - future ZK]: Proof of decryption (i.e This key-share belongs to the key for decrypting the corresponding nft media file on IPFS)
+

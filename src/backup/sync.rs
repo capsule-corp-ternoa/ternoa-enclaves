@@ -234,7 +234,7 @@ pub async fn sync_keyshares(
 
 	let last_block_number = get_blocknumber(&state).await;
 
-	debug!("\t - SYNC KEYSHARES : START CLOT DISCOVERY");
+	debug!("\t - SYNC KEYSHARES : START CLUSTER DISCOVERY");
 	let slot_enclaves = slot_discovery(&state).await;
 
 	debug!("\t - SYNC KEYSHARES : VERIFY ACCOUNT ID");
@@ -409,6 +409,7 @@ pub async fn sync_keyshares(
 	let attest_response = client
 		.post("https://dev-c1n1.ternoa.network:9100/attest")
 		.body(quote_body.data)
+		.header(header::CONTENT_TYPE, "application/json")
 		.send()
 		.await
 		.unwrap();
@@ -553,6 +554,8 @@ pub async fn fetch_keyshares(
 	if slot_enclaves.is_empty() {
 		let message = "Fetch Keyshares : No other similar slots detected, enclave is not registered or there is no other cluster.".to_string();
 		error!(message);
+		// TODO : What about first cluster? should it continue as the Primary cluster in running-mode?
+		// TODO : otherwise we should have two clusters registered befor starting enclaves with sync capability.
 		return Err(anyhow!(message));
 	}
 
