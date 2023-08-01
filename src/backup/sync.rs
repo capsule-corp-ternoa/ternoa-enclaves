@@ -333,17 +333,15 @@ pub async fn sync_keyshares(
 	let client = reqwest::Client::builder()
 		// TODO : only for dev
 		.danger_accept_invalid_certs(true)
-		
 		.https_only(true)
-		.min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
-			tls::Version::TLS_1_3
-		} else {
-			tls::Version::TLS_1_0
-		})
+		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
+		// 	tls::Version::TLS_1_3
+		// } else {
+		// 	tls::Version::TLS_1_0
+		// })
 		.build()
 		.unwrap();
 
-	
 	let mut enclave_url = requester.1.enclave_url.clone();
 	while enclave_url.ends_with('/') { enclave_url.pop(); }
 	
