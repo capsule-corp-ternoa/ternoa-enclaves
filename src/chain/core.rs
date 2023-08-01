@@ -439,11 +439,8 @@ pub async fn nft_keyshare_oracle(
 
 	{
 		increment_nonce(state).await;
-		debug!("\tSecret-nft : nonce incremented");
+		debug!("\tSecret-nft : nonce incremented for next extrinsic");
 	}
-	
-	let offchain_nonce = get_nonce(state).await;
-	debug!("\tSecret-nft : nonce = {:?}", offchain_nonce);
 
 	// Enclave as the Signer
 	let shared_state_read = state.read().await;
@@ -513,12 +510,9 @@ pub async fn capsule_keyshare_oracle(
 	
 	{
 		increment_nonce(state).await;
-		debug!("\tSecret-nft : nonce incremented");
+		debug!("\tSecret-nft : nonce incremented for next extrinsic");
 	}
 	
-	let offchain_nonce = get_nonce(state).await;
-	debug!("\tSecret-nft : nonce = {:?}", offchain_nonce);
-
 	// Enclave as the Signer
 	let shared_state_read = state.read().await;
 	let signer = shared_state_read.get_signer();
