@@ -373,9 +373,9 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			// For block number update, we should reset the nonce as well
 			// It is used as a batch of extrinsics for every block
-			debug!(" > Block Number Thread : nonce before reset is {}", get_nonce(&state_config).await);
+			trace!(" > Block Number Thread : nonce before reset is {}", get_nonce(&state_config).await);
 			reset_nonce(&state_config).await;
-			debug!(" > Block Number Thread : nonce has been reset to {}", get_nonce(&state_config).await);
+			trace!(" > Block Number Thread : nonce has been reset to {}", get_nonce(&state_config).await);
 
 			// Extract block body
 			let body = block.body().await.unwrap();
