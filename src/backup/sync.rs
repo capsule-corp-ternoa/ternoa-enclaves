@@ -631,6 +631,7 @@ pub async fn fetch_keyshares(
 		);
 
 		// TODO [developmet - reliability] : Mark and retry later if health is not ready
+		// TODO : for initial wild-card, get the last_synced filed from health-check body and set it as fetch_keyshare successful update state (instead of current_block)
 		if health_status != StatusCode::OK {
 			let message = format!(
 				"Fetch Keyshares : Healthcheck Failed on url: {}, status : {:?}, reason : {}",
