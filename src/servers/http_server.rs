@@ -373,8 +373,9 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			// For block number update, we should reset the nonce as well
 			// It is used as a batch of extrinsics for every block
+			debug!(" > Block Number Thread : nonce before reset is {}", get_nonce(&state_config).await);
 			reset_nonce(&state_config).await;
-			trace!(" > Block Number Thread : nonce has been reset");
+			debug!(" > Block Number Thread : nonce has been reset to {}", get_nonce(&state_config).await);
 
 			// Extract block body
 			let body = block.body().await.unwrap();
@@ -470,7 +471,7 @@ pub async fn http_server() -> Result<Router, Error> {
 									},
 								}
 							} else {
-								debug!("\t > Runtime mode : Crawl check : no new event detected in pas blocks");
+								debug!("\t > Runtime mode : Crawl check : no new event detected in past blocks");
 								let _ = set_sync_state(last_processed_block.to_string());
 							}
 						},
