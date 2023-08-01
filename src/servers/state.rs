@@ -76,7 +76,7 @@ impl StateConfig {
 		self.rpc_client.clone()
 	}
 
-	pub fn set_rpc_client(&mut self, new_client: DefaultApi) {
+	pub fn _set_rpc_client(&mut self, new_client: DefaultApi) {
 		self.rpc_client = new_client;
 	}
 
@@ -242,7 +242,7 @@ pub async fn set_identity(state: &SharedState, id: Option<(u32, u32)>) {
 }
 
 
-pub async fn set_chain_api(state: &SharedState, api: DefaultApi) {
+pub async fn _set_chain_api(state: &SharedState, api: DefaultApi) {
 	let shared_state_write = &mut state.write().await;
-	shared_state_write.set_rpc_client(api);
+	shared_state_write._set_rpc_client(api);
 }
