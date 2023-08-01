@@ -350,11 +350,16 @@ pub async fn sync_keyshares(
 	let health_request_url = enclave_url.clone() + "/api/health";
 	
 	debug!("\t - SYNC KEYSHARES : HEALTH-CHECK the requester {}", health_request_url);
-	let health_response = client
-		.get(health_request_url)
+	let health_response = match client
+		.get(health_request_url.clone())
 		.send()
-		.await
-		.unwrap();
+		.await {
+			Ok(res) => res,
+			Err(err) => {
+				let message = format!("Error getting health-check response from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
+				return error_handler(message, &state).await.into_response();
+			}, 
+		};
 	// Analyze the Response
 	let health_status = health_response.status();
 
@@ -375,7 +380,16 @@ pub async fn sync_keyshares(
 				"Synch Keyshares : Healthcheck : can not deserialize the body : {} : {:?}",
 				requester.1.enclave_url, e
 			);
-			return error_handler(message, &state).await.into_response();
+			error!(message);
+			
+			HealthResponse {
+				block_number: 0,
+				sync_state: "0".to_string(),
+				version: "0.0".to_string(),
+				description: "Error".to_string(),
+				enclave_address: "0000".to_string(),
+			}
+			//return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -387,8 +401,15 @@ pub async fn sync_keyshares(
 	debug!("\t - SYNC KEYSHARES : REQEST QUOTE");
 	let quote_request_url = enclave_url.clone() + "/api/quote";
 
-	let quote_response =
-		client.get(quote_request_url).send().await.unwrap();
+	let quote_response = match
+		client.get(quote_request_url).send().await {
+			Ok(resp) => resp,
+			Err(err) => {
+				let message = format!("Error reading quote from the enclave requesting for syncing : {:?}",err);
+				return error_handler(message, &state).await.into_response();
+			}
+
+		};
 
 	let quote_body: QuoteResponse = match quote_response.json().await {
 		Ok(body) => body,
@@ -406,18 +427,25 @@ pub async fn sync_keyshares(
 		requester.1.enclave_url, quote_body
 	);
 
-	let attest_response = client
+	let attest_response = match client
 		.post("https://dev-c1n1.ternoa.network:9100/attest")
 		.body(quote_body.data)
 		.header(header::CONTENT_TYPE, "application/json")
 		.send()
-		.await
-		.unwrap();
+		.await {
+			Ok(resp) => resp,
+			Err(err) => {
+				let message = format!(
+					"Synch Keyshares : Attestation : can not get response from attestation server : {:?}", err);
+				return error_handler(message, &state).await.into_response();
+			},
+		};
+
 	// TODO [development : attestation] : extract user_data and verify the signature and block_number
 	debug!(
 		"Fetch Keyshares : Attestation Result for url : {} is {:#?}",
 		requester.1.enclave_url,
-		attest_response.text().await.unwrap()
+		match attest_response.text().await { Ok(resp) => resp, Err(e) => format!("Error getting attestation response {:?}", e)}
 	);
 
 	let backup_file = "/temporary/backup.zip".to_string();
