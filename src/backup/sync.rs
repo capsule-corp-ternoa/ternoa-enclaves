@@ -529,12 +529,12 @@ pub async fn fetch_keyshares(
 	// TODO [future reliability] Check if new nfts are already on the disk and updated, check nftids , if they are in range, ...
 
 	// Convert HashMap to Vector of nftid
-	let nftids: Vec<u32> = new_nft
+	let nftids: Vec<String> = new_nft
 		.clone()
 		.into_iter()
 		// Ignore it, if it is in current cluster
 		.filter(|(_, cluster)| *cluster != enclave_identity.0)
-		.map(|kv| kv.0)
+		.map(|kv| kv.0.to_string())
 		.collect();
 
 	// Encode nftid to String

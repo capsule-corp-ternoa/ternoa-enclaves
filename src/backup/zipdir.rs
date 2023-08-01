@@ -54,6 +54,7 @@ where
 	let mut buffer = Vec::new();
 	for entry in it {
 		let path = entry.path();
+		let pure_name = path.file_stem();
 		let name = path.strip_prefix(Path::new(prefix)).unwrap();
 
 		// NFTID-based backup?
@@ -69,8 +70,10 @@ where
 			}
 			// Synching in Runtime mode Or Admin NFTID backup
 			else {
+				let name = pure_name.unwrap();
 				let name_parts: Vec<&str> = name.to_str().unwrap().split('_').collect();
 				// Keyshare file name  = [nft/capsule]_[nftid]_[blocknumber].keyshare
+				debug!("zip nameparts = {:?}, list = {:?}", name_parts, list);
 				if name_parts.len() < 2 || !list.contains(&name_parts[1].to_string()) {
 					continue;
 				}
