@@ -27,9 +27,9 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 	let enclave_id = get_accountid(&state).await;
 	let block_number = get_blocknumber(&state).await;
 	let sign_data = enclave_id + "_" + &block_number.to_string();
-	
+
 	debug!("QUOTE : report_data token  = {}", sign_data);
-	
+
 	// Signer
 	let enclave_account = get_keypair(&state).await;
 
