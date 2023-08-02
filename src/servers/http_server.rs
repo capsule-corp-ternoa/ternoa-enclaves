@@ -184,7 +184,7 @@ pub async fn http_server() -> Result<Router, Error> {
 	let current_block_hash = chain_api.rpc().finalized_head().await?;
 	let current_block = chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
 	let current_block_number = current_block.block.header.number;
-	let mut last_processed_block = current_block_number;
+	let last_processed_block = current_block_number;
 
 	// Shared-State between APIs
 	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
