@@ -1,4 +1,4 @@
-use crate::servers::state::{SharedState, get_accountid, get_blocknumber};
+use crate::servers::state::{get_accountid, get_blocknumber, SharedState};
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 
