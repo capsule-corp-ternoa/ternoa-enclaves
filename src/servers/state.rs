@@ -54,7 +54,7 @@ impl StateConfig {
 		self.enclave_account.clone()
 	}
 
-	pub fn get_signer(&self) ->  &PairSigner<subxt::PolkadotConfig, sp_core::sr25519::Pair> {
+	pub fn get_signer(&self) -> &PairSigner<subxt::PolkadotConfig, sp_core::sr25519::Pair> {
 		&self.enclave_signer
 	}
 
@@ -146,13 +146,14 @@ fn keypair_to_public(keypair: sp_core::sr25519::Pair) -> Option<sp_core::sr25519
 }
 
 /* ---------------
-	READ HELPERS
-  ----------------*/
-	
+  READ HELPERS
+----------------*/
+
 pub async fn get_chain_api(state: &SharedState) -> DefaultApi {
 	let shared_state_read = state.read().await;
-	
+
 	// If connection is lost, will be very hard to reconnect: https://github.com/paritytech/subxt/issues/551
+	// a solution to WS reconnection problem : https://github.com/AcalaNetwork/subway/blob/master/src/client/mod.rs
 	// All the subscriptions and waiting extrinsics should be done agian.
 	shared_state_read.get_rpc_client()
 }
@@ -203,10 +204,10 @@ pub async fn get_maintenance(state: &SharedState) -> String {
 }
 
 /* ---------------
-	WRITE HELPERS
-  ----------------*/
+  WRITE HELPERS
+----------------*/
 
- pub async fn set_blocknumber(state: &SharedState, block_number: u32) {
+pub async fn set_blocknumber(state: &SharedState, block_number: u32) {
 	let shared_state_write = &mut state.write().await;
 	shared_state_write.set_current_block(block_number);
 }
@@ -240,7 +241,6 @@ pub async fn set_identity(state: &SharedState, id: Option<(u32, u32)>) {
 	let shared_state_write = &mut state.write().await;
 	shared_state_write.set_identity(id);
 }
-
 
 pub async fn _set_chain_api(state: &SharedState, api: DefaultApi) {
 	let shared_state_write = &mut state.write().await;

@@ -33,7 +33,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use anyhow::{anyhow, Error};
 use serde_json::{json, Value};
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
 use std::time::{Duration, SystemTime};
 
@@ -62,12 +62,51 @@ pub async fn http_server() -> Result<Router, Error> {
 	let enclave_keypair = if std::path::Path::new(enclave_account_file).exists() {
 		info!("Enclave Account Exists, Importing it! :, path: {}", enclave_account_file);
 
-		let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
-			Ok(phrase) => phrase,
-			Err(err) => {
-				error!("\tEnclave Start : Error reading enclave account file: {:?}", err);
-				return Err(anyhow!(err));
-			},
+			let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
+				Ok(phrase) => phrase,
+				Err(err) => {
+					error!("\t\nENCLAVE START : ERROR reading enclave account file: {:?}", err);
+					return Err(anyhow!(err));
+				},
+			};
+
+			match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
+				Ok((keypair, _seed)) => keypair,
+				Err(err) => {
+					error!("\t\nENCLAVE START : ERROR creating keypair from phrase: {:?}", err);
+					return Err(anyhow!(err));
+				},
+			}
+		} else {
+			info!("\nENCLAVE START : Creating new Enclave Account, Remember to send 1 CAPS to it!");
+
+			let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
+			let mut ekfile =
+				match File::create(ENCLAVE_ACCOUNT_FILE) {
+					Ok(file_handle) => {
+						debug!("\t\nENCLAVE START : created enclave keypair file successfully");
+						file_handle
+					},
+					Err(err) => {
+						error!("\t\nENCLAVE START : Failed to creat enclave keypair file, error : {:?}", err);
+						return Err(anyhow!(err));
+					},
+				};
+
+			match ekfile.write_all(phrase.as_bytes()) {
+				Ok(_) => {
+					debug!("\t\nENCLAVE START : Write enclave keypair to file successfully");
+				},
+				Err(err) => {
+					error!(
+						"\t\nENCLAVE START : Write enclave keypair to file failed, error : {:?}",
+						err
+					);
+					return Err(anyhow!(err));
+				},
+			}
+
+			keypair
 		};
 
 
@@ -136,7 +175,7 @@ pub async fn http_server() -> Result<Router, Error> {
 	let chain_api = match create_chain_api().await {
 		Ok(api) => api,
 		Err(err) => {
-			error!("Enclave Start : get online chain api, error : {:?}", err);
+			error!("\nENCLAVE START : get online chain api, error : {:?}", err);
 			return Err(anyhow!(err));
 		},
 	};
@@ -159,71 +198,76 @@ pub async fn http_server() -> Result<Router, Error> {
 	set_blocknumber(&state_config, current_block_number).await;
 	set_processed_block(&state_config, last_processed_block).await;
 
-	// Get all cluster and registered encalves from the chain
+	// Get all cluster and registered enclaves from the chain
 	// Also checks if this enclave has been registered.
-	debug!("Enclave start : Start Cluster Discovery.");
+	info!("\nENCLAVE START : Initialization Cluster Discovery.");
 	while let Err(e) = cluster_discovery(&state_config.clone()).await {
-		error!("Enclave start : cluster discovery error : {:?}", e);
-
+		error!("\nENCLAVE START : cluster discovery error : {:?}", e);
+		debug!("\nENCLAVE START : Retry Cluster Discovery after a delay...");
 		// Wait 7 seconds, then retry
 		std::thread::sleep(std::time::Duration::from_secs(7));
 	}
 
+	info!("\nENCLAVE START : Cluster Discovery successfull.");
+
 	// Check the previous Sync-State
+	info!("\nENCLAVE START : check for sync.state file from previous run ...");
 	if std::path::Path::new(&SYNC_STATE_FILE).exists() {
-		debug!("Enclave start : previous sync.state file exists");
+		debug!("\nENCLAVE START : previous sync.state file exists");
 		// Resuming enclave
 		let past_state = match std::fs::read_to_string(SYNC_STATE_FILE) {
 			Ok(state) => state,
 			Err(err) => {
-				error!("Enclave start : Error reading enclave's last state file: {:?}", err);
+				error!("\nENCLAVE START : Error reading enclave's last state file: {:?}", err);
 				return Err(anyhow!(err));
 			},
 		};
 
+		debug!("\nENCLAVE START : previous sync.state file content : '{}'", past_state);
+
 		if !past_state.is_empty() {
-			debug!("Enclave start : previous sync.state is not empty ...");
+			debug!("\nENCLAVE START : previous sync.state is not empty ...");
 			if past_state == "setup" {
-				debug!("Enclave start : sync.state is in setup-mode, now fetching keyshares ...");
+				debug!("\nENCLAVE START : SETUP-MODE : fetching keyshares ...");
 				// Th enclave has been stopped at the middle of fetching data from another enclave
 				// Do it again!
 				match fetch_keyshares(&state_config, std::collections::HashMap::<u32, u32>::new())
 					.await
 				{
 					Ok(_) => {
-						let current_block_hash = chain_api.rpc().finalized_head().await?;
-						let current_block =
-							chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
-						let current_block_number = current_block.block.header.number;
+						// let current_block_hash = chain_api.rpc().finalized_head().await?;
+						// let current_block =
+						// 	chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
+						// let current_block_number = current_block.block.header.number;
 						// TODO [Disaster recovery] : What if all clusters are down, What block_number should be set as last_sync_block
 						let _ = set_sync_state(current_block_number.to_string());
 						info!(
-							"Enclave start : First Synchronization of Keyshares complete up to block number : {}.",
+							"\nENCLAVE START : SETUP-MODE : First Synchronization of Keyshares complete up to block number : {}.",
 							current_block_number
 						);
 					},
 					Err(err) => {
 						// TODO : for the primary cluster it should work fine.
-						error!("Enclave start : Error during maintenance-mode fetch-keyshares : {:?}", err)
+						error!("\nENCLAVE START : SETUP-MODE : Error during setup-mode fetch-keyshares : {:?}", err)
 					},
 				}
 			} else {
 				// Th enclave has been stopped after being synced to a recent block number
 				// Now should crawl the blocks to the current finalized block.
-				debug!("Enclave start : previous sync.state was in runtime-mode.");
+				debug!("\nENCLAVE START : RUNTIME-MODE : previous sync.state was in runtime-mode.");
 
 				let synced_block_number = match past_state.parse::<u32>() {
 					Ok(number) => number,
 					Err(err) => {
 						error!(
-							"Enclave start : Error parsing enclave's last state content: {:?}, state = {:?}",
+							"\nENCLAVE START : Error parsing enclave's last state content: {:?}, state = {:?}",
 							err, past_state
 						);
 						return Err(anyhow!(err));
 					},
 				};
 				debug!(
-					"Enclave start : previous sync.state had been synced to block {}",
+					"\nENCLAVE START : RUNTIME-MODE : previous sync.state had been synced to block {}",
 					synced_block_number
 				);
 
@@ -235,8 +279,8 @@ pub async fn http_server() -> Result<Router, Error> {
 					let current_block = chain_api.rpc().block(Some(current_block_hash)).await?;
 					let current_block_number = current_block.unwrap().block.header.number;
 
-					debug!("Enclave start : Crawl to current block {}", current_block_number);
-					// Changes may happen in clusters and enclaves while this encalve has been down.
+					debug!("\nENCLAVE START : CRAWL : Crawl to current block {}", current_block_number);
+					// Changes may happen in clusters and enclaves while this enclave has been down.
 					// TODO [future] : use Indexer if the difference between current_block >> past_block is large
 					match crawl_sync_events(
 						&state_config,
@@ -249,19 +293,19 @@ pub async fn http_server() -> Result<Router, Error> {
 							match fetch_keyshares(&state_config.clone(), cluster_nftid_map).await {
 								Ok(_) => {
 									let _ = set_sync_state(current_block_number.to_string());
-									info!("Enclave start : Synchronization is complete up to current block");
+									info!("\nENCLAVE START : CRAWL : Synchronization is complete up to current block");
 									sync_success = true;
 								},
 
 								Err(fetch_err) => {
-									error!("Enclave start : Error fetching new nftids after resuming the enclave : {:?}", fetch_err);
+									error!("\nENCLAVE START : CRAWL : Error fetching new nftids after resuming the enclave : {:?}", fetch_err);
 								},
 							}; // FETCH
 						},
 
 						Err(crawl_err) => {
 							error!(
-								"Enclave start : Error crawling new blocks after resuming the enclave : {:?}",
+								"\nENCLAVE START : Error crawling new blocks after resuming the enclave : {:?}",
 								crawl_err
 							);
 							//return Err(anyhow!(crawl_err));
@@ -269,28 +313,31 @@ pub async fn http_server() -> Result<Router, Error> {
 					} // CRAWL
 
 					// Wait 7 seconds, then retry
+					debug!("ENCLAVE START : CRAWL : wait 7 seconds before retry");
 					std::thread::sleep(std::time::Duration::from_secs(7));
 				} // WHILE - RETRY
 			} // PAST STATE IS A NUMBER
 		}
 		// PAST STATE EXISTS
 		else {
-			debug!("Enclave start : sync.state file exists, but it is empty : enclave is not registered yet.");
+			warn!("\nENCLAVE START : sync.state file exists, but it is empty : enclave is not registered yet.");
 		}
 	} else {
-		// It is first time starting encalve
+		// It is first time starting enclave
+		debug!("\nENCLAVE START : sync.state file does not exist.");
 		let _ = match File::create(SYNC_STATE_FILE) {
 			Ok(file_handle) => {
-				debug!("Enclave start : created sync.state file successfully");
+				info!("\nENCLAVE START : created sync.state file successfully");
 				file_handle
 			},
 			Err(err) => {
-				error!("Enclave start : failed to creat sync.state file, error : {:?}", err);
+				error!("\nENCLAVE START : failed to creat sync.state file, error : {:?}", err);
 				return Err(anyhow!(err));
 			},
 		};
 	};
 
+	info!("\nENCLAVE START : define the CORS layer.");
 	let _ = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
 		.allow_methods([Method::GET, Method::POST])
@@ -299,11 +346,12 @@ pub async fn http_server() -> Result<Router, Error> {
 		.allow_headers(Any)
 		.allow_credentials(true);
 
+	info!("\nENCLAVE START : define the monitor layer : Sentry.");
 	let monitor_layer = ServiceBuilder::new()
 		.layer(NewSentryLayer::new_from_top())
 		.layer(SentryHttpLayer::with_transaction());
 
-	debug!("2-2 Defining Routes");
+	info!("\nENCLAVE START : define the end-points");
 	let http_app = Router::new()
 		.fallback(fallback)
 		// STATE API
@@ -342,6 +390,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		.layer(CorsLayer::permissive())
 		.with_state(Arc::clone(&state_config.clone()));
 
+	info!("\nENCLAVE START : New Thread for run-time block subscription.");
 	// New thread to track latest block
 	tokio::spawn(async move {
 		// Subscribe to all finalized blocks:
@@ -355,7 +404,6 @@ pub async fn http_server() -> Result<Router, Error> {
 
 		// For each new finalized block, get block number
 		while let Some(block) = blocks_sub.next().await {
-			
 			let block = match block {
 				Ok(blk) => blk,
 				Err(e) => {
@@ -368,14 +416,20 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			// Write to ShareState block, necessary to prevent Read SharedState
 			set_blocknumber(&state_config, block_number).await;
-			debug!("new block = {}", block_number);
+			debug!("New Block : {}", block_number);
 			trace!(" > Block Number Thread : block_number state is set to {}", block_number);
 
 			// For block number update, we should reset the nonce as well
 			// It is used as a batch of extrinsics for every block
-			trace!(" > Block Number Thread : nonce before reset is {}", get_nonce(&state_config).await);
+			trace!(
+				" > Block Number Thread : nonce before reset is {}",
+				get_nonce(&state_config).await
+			);
 			reset_nonce(&state_config).await;
-			trace!(" > Block Number Thread : nonce has been reset to {}", get_nonce(&state_config).await);
+			trace!(
+				" > Block Number Thread : nonce has been reset to {}",
+				get_nonce(&state_config).await
+			);
 
 			// Extract block body
 			let body = block.body().await.unwrap();
@@ -391,12 +445,12 @@ pub async fn http_server() -> Result<Router, Error> {
 				debug!(" > TEE Event processing");
 				match cluster_discovery(&state_config.clone()).await {
 					Ok(_) => {
-						// New enclave/cluster is found
+						info!("\t > Cluster discovery complete.");
+						// New self-identity is found?
 						let sync_state = get_sync_state().unwrap();
 						if sync_state == "setup" {
-							// Here is First Identity discovery, thus the first synchronization of all files.
-							// TODO [decision-development] : it can not be a a long process here, because it is done on the start-time once, unless there;s been a long network disconnection on runtime!
-							// 		An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
+							// Here is Identity discovery, thus the first synchronization of all files.
+							// An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
 							match fetch_keyshares(
 								&state_config.clone(),
 								std::collections::HashMap::<u32, u32>::new(),
@@ -408,20 +462,19 @@ pub async fn http_server() -> Result<Router, Error> {
 									let _ = set_sync_state(block_number.to_string());
 									info!("\t\t > First Synchronization of Keyshares complete to the block number: {} .",block_number);
 								},
+
 								Err(err) => error!(
-									"\t\t > Error during maintenance-mode fetching keyshares : {:?}",
+									"\t\t > Error during setup-mode fetching keyshares : {:?}",
 									err
 								),
 							}
 						}
-						info!("\t > Cluster discovery complete.");
 					},
-					
+
 					// Cluster discovery Error
 					Err(err) => {
-						error!("\tError during running-mode cluster discovery {:?}", err);
-						// TODO [decision] : Integrity of clusters is corrupted. what to do?
-						//let _ = set_sync_state("setup".to_string());
+						error!("\t > Error during running-mode cluster discovery {:?}", err);
+						// TODO [decision] : Integrity of clusters is corrupted. what to do? Going to maintenace mode and stop serving to API calls? Wipe?
 						continue;
 					},
 				}
@@ -429,21 +482,17 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			// Regular CRAWL Check
 			let sync_state = get_sync_state().unwrap();
+
 			// IMPORTANT : Check for Runtime mode : if integrity of clusters fails, we'll wait and go back to setup-mode
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
 				debug!(" > Runtime mode : Crawl check : last_sync_block = {}", last_sync_block);
 				// If no event has detected in 10 blocks, network disconnections happened, ...
-
-				last_processed_block = get_processed_block(&state_config).await;
+				
+				let last_processed_block = get_processed_block(&state_config).await;
 
 				if (block_number - last_processed_block) > 1 {
 					debug!(" > Runtime mode : Crawl check : Lagging last processed block : block number = {} > last processed = {}, last synced = {}", block_number, last_processed_block, last_sync_block);
-					match crawl_sync_events(
-						&state_config,
-						last_processed_block,
-						block_number,
-					)
-					.await
+					match crawl_sync_events(&state_config, last_processed_block, block_number).await
 					{
 						Ok(cluster_nft_map) => {
 							info!(
@@ -508,20 +557,18 @@ pub async fn http_server() -> Result<Router, Error> {
 								Err(err) => error!("\t > Runtime mode : NEW-NFT : Error during running-mode nft-based syncing : {:?}", err),
 							}
 			}
-			
+
 			// TODO : Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
 			// Maybe in another thread
 
 			// Update runtime block tracking variable
 			debug!("\t > Runtime mode : update last processed block");
 			set_processed_block(&state_config, block_number).await;
-
-
 		} // While blocks
 	});
 
-	debug!("Wait for 6 seconds to update the block number");
-	tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
+	// debug!("\nENCLAVE START : wait 6 seconds to get new block.");
+	// tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
 
 	Ok(http_app)
 }
@@ -790,4 +837,3 @@ pub fn downloader(url: &str) -> Result<String, Error> {
 
 	Ok(content)
 }
-

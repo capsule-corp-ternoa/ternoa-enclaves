@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use sp_core::Pair;
 use tracing::{debug, error, info};
 
-use crate::servers::state::{SharedState, get_keypair, get_accountid, get_blocknumber};
+use crate::servers::state::{get_accountid, get_blocknumber, get_keypair, SharedState};
 use anyhow::{anyhow, Result};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -23,12 +23,13 @@ pub struct QuoteResponse {
 // TODO [performace] : Rate Limit or Cache the Quote API
 //#[once(time = 60, sync_writes = false)]
 pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse {
-
 	// Make a dynamic user data
 	let enclave_id = get_accountid(&state).await;
 	let block_number = get_blocknumber(&state).await;
 	let sign_data = enclave_id + "_" + &block_number.to_string();
-
+	
+	debug!("QUOTE : report_data token  = {}", sign_data);
+	
 	// Signer
 	let enclave_account = get_keypair(&state).await;
 
