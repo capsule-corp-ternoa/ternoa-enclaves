@@ -1,4 +1,4 @@
-use crate::servers::state::{SharedState, get_accountid, get_blocknumber};
+use crate::servers::state::{get_accountid, get_blocknumber, SharedState};
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
@@ -259,7 +259,7 @@ pub async fn capsule_set_keyshare(
 ) -> impl IntoResponse {
 	debug!("3-13 API : capsule set keyshare");
 
-		let enclave_account = get_accountid(&state).await;
+	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH;
 	let block_number = get_blocknumber(&state).await;
 
@@ -353,12 +353,7 @@ pub async fn capsule_set_keyshare(
 			};
 
 			// Send extrinsic to Capsule-Pallet as Storage-Oracle
-			match capsule_keyshare_oracle(
-				&state,
-				verified_data.nft_id,
-			)
-			.await
-			{
+			match capsule_keyshare_oracle(&state, verified_data.nft_id).await {
 				Ok(txh) => {
 					info!(
 						"Proof of storage has been sent to blockchain nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",

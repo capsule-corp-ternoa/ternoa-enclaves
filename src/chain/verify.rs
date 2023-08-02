@@ -25,7 +25,7 @@ use crate::{
 		get_current_block_number, get_onchain_delegatee, get_onchain_nft_data,
 		get_onchain_rent_contract,
 	},
-	servers::state::{SharedState, get_blocknumber},
+	servers::state::{get_blocknumber, SharedState},
 };
 
 use super::core::get_current_block_number_new_api;
@@ -1093,11 +1093,10 @@ impl RetrieveKeysharePacket {
 					Err(e) => return Err(e),
 				};
 
-				let onchain_nft_data =
-					match get_onchain_nft_data(state, parsed_data.nft_id).await {
-						Some(nftdata) => nftdata,
-						_ => return Err(VerificationError::INVALIDNFTID),
-					};
+				let onchain_nft_data = match get_onchain_nft_data(state, parsed_data.nft_id).await {
+					Some(nftdata) => nftdata,
+					_ => return Err(VerificationError::INVALIDNFTID),
+				};
 
 				let nft_status = onchain_nft_data.state;
 

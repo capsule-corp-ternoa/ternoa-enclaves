@@ -6,7 +6,7 @@ DEPLOYMENT :
 
 SECURITY : 
   - extract user_data from attestation report and verify the signature and block_number (consult with gramine)
-  - wipe everything if TC move the Encalve to other cluster or slot?!!
+  - wipe everything if TC move the Enclave to other cluster or slot?!!
   
   - [FUTURE] SIGN the responses from enclave 
   - [FUTURE] can we check requester URL or IP? What if it uses proxy?

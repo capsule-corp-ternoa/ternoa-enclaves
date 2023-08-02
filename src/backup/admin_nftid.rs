@@ -29,7 +29,7 @@ use sp_core::{crypto::PublicError, sr25519::Signature};
 use crate::{
 	backup::zipdir::add_list_zip,
 	chain::core::get_current_block_number,
-	servers::state::{SharedState, StateConfig, get_blocknumber},
+	servers::state::{get_blocknumber, SharedState, StateConfig},
 };
 
 use super::zipdir::{add_dir_zip, zip_extract};
@@ -453,7 +453,7 @@ mod test {
 			String::new(),
 			create_chain_api().await.unwrap(),
 			"0.3.0".to_string(),
-			0
+			0,
 		)));
 
 		//let app = Router::new().route("/admin_backup_fetch_id", post(admin_backup_fetch_id)).with_state(state_config);

@@ -3,7 +3,7 @@ use std::{
 	io::{self, prelude::*, Seek, Write},
 	iter::Iterator,
 };
-use tracing::{error, info, debug};
+use tracing::{debug, error, info};
 use zip::{result::ZipError, write::FileOptions};
 
 use std::{fs::File, path::Path};
@@ -49,8 +49,8 @@ where
 {
 	let mut zip = zip::ZipWriter::new(writer);
 	let options = FileOptions::default().compression_method(method).unix_permissions(0o755);
-	debug!("\t ZIPDIR => nft-list = {:?}\n",list);
-	
+	debug!("\t ZIPDIR => nft-list = {:?}\n", list);
+
 	let mut buffer = Vec::new();
 	for entry in it {
 		let path = entry.path();
@@ -63,7 +63,10 @@ where
 			if list[0] == "*" {
 				// Filter out the enclave_account.key and log files
 				let name_parts: Vec<&str> = name.to_str().unwrap().split('.').collect();
-				debug!("\t ZIPDIR => name = {:?}, name-parts = {:?}",name, name_parts);
+				debug!(
+					"\t ZIPDIR : Wildcard => file-name = {:?}, name-parts = {:?}",
+					name, name_parts
+				);
 				if name_parts.len() != 2 || name_parts[1] == "log" || name_parts[1] == "key" {
 					continue;
 				}
@@ -73,7 +76,7 @@ where
 				let name = pure_name.unwrap();
 				let name_parts: Vec<&str> = name.to_str().unwrap().split('_').collect();
 				// Keyshare file name  = [nft/capsule]_[nftid]_[blocknumber].keyshare
-				debug!("zip nameparts = {:?}, list = {:?}", name_parts, list);
+				debug!("\t ZIPDIR => nameparts = {:?}, list = {:?}", name_parts, list);
 				if name_parts.len() < 2 || !list.contains(&name_parts[1].to_string()) {
 					continue;
 				}
