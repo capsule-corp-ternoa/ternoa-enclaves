@@ -28,7 +28,7 @@ use crate::{
 	chain::core::get_current_block_number,
 	servers::{
 		http_server::ENCLAVE_ACCOUNT_FILE,
-		state::{SharedState, StateConfig, set_keypair, get_blocknumber},
+		state::{get_blocknumber, set_keypair, SharedState, StateConfig},
 	},
 };
 
@@ -598,7 +598,7 @@ pub async fn admin_backup_push_bulk(
 		},
 	};
 
-	let last_block_number = get_blocknumber(&state).await;	
+	let last_block_number = get_blocknumber(&state).await;
 
 	let validation = token.is_valid(last_block_number);
 	match validation {

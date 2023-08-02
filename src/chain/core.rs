@@ -85,7 +85,6 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	DefaultApi::from_url(rpc_endoint).await
 }
 
-
 // -------------- BLOCK NUMBER --------------
 
 /// Get the current block number
@@ -156,7 +155,10 @@ pub async fn get_current_block_number_new_api() -> Result<u32, Error> {
 /// Get the NFT/Capsule data
 /// # Arguments
 /// * `nft_id` - The NFT/Capsule ID
-pub async fn get_onchain_nft_data(state: &SharedState, nft_id: u32) -> Option<NFTData<AccountId32>> {
+pub async fn get_onchain_nft_data(
+	state: &SharedState,
+	nft_id: u32,
+) -> Option<NFTData<AccountId32>> {
 	debug!("4-1 get chain NFT DATA");
 	let api = get_chain_api(state).await;
 
@@ -417,7 +419,7 @@ pub async fn nft_keyshare_oracle(
 	// 		// Enclave as the Signer
 	// 		let shared_state_read = state.read().await;
 	// 		let signer = shared_state_read.get_signer();
-			
+
 	// 		// Create the extrinsic
 	// 		match api.tx()
 	// 			.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
@@ -489,7 +491,7 @@ pub async fn capsule_keyshare_oracle(
 	// 		// Enclave as the Signer
 	// 		let shared_state_read = state.read().await;
 	// 		let signer = shared_state_read.get_signer();
-	
+
 	// 		// Create the extrinsic
 	// 		match api.tx()
 	// 			.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
@@ -507,16 +509,16 @@ pub async fn capsule_keyshare_oracle(
 	//debug!("\tCapsule Oracle : nonce = {:?}", onchain_nonce);
 	let offchain_nonce = get_nonce(state).await;
 	debug!("\tSecret-nft : nonce = {:?}", offchain_nonce);
-	
+
 	{
 		increment_nonce(state).await;
 		debug!("\tSecret-nft : nonce incremented for next extrinsic");
 	}
-	
+
 	// Enclave as the Signer
 	let shared_state_read = state.read().await;
 	let signer = shared_state_read.get_signer();
-	
+
 	// Create the extrinsic
 	let result = api
 		.tx()
