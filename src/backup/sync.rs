@@ -69,7 +69,7 @@ pub struct Enclave {
 #[derive(Debug, Clone)]
 pub struct Cluster {
 	id: u32,
-	is_public: bool,
+	is_public: bool, // TODO : ENUM
 	enclaves: Vec<Enclave>,
 }
 
@@ -253,8 +253,10 @@ pub async fn sync_keyshares(
 	let requester = match verify_account_id(slot_enclaves, &request.enclave_account, addr) {
 		Some(enclave) => enclave,
 		None => {
-			let message =
-				format!("SYNC KEYSHARES : Error : Requester is not authorized, address: {}, ", addr);
+			let message = format!(
+				"SYNC KEYSHARES : Error : Requester is not authorized, address: {}, ",
+				addr
+			);
 
 			return error_handler(message, &state).await.into_response();
 		},
@@ -345,33 +347,34 @@ pub async fn sync_keyshares(
 	let client = reqwest::Client::builder()
 		// TODO : only for dev
 		.danger_accept_invalid_certs(true)
-		.https_only(false)
+		.https_only(true)
 		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
 		// 	tls::Version::TLS_1_0
 		// })
-		.connection_verbose(true)
 		.build()
 		.unwrap();
 
 	let mut enclave_url = requester.1.enclave_url.clone();
-	while enclave_url.ends_with('/') { enclave_url.pop(); }
+	while enclave_url.ends_with('/') {
+		enclave_url.pop();
+	}
 
 	let health_request_url = enclave_url.clone() + "/api/health";
 	debug!("SYNC KEYSHARES : HEALTH-CHECK the requester {}", health_request_url);
 
 	let health_response = match client
 		.get(health_request_url.clone())
-		.fetch_mode_no_cors()
 		.send()
-		.await {
-			Ok(res) => res,
-			Err(err) => {
-				let message = format!("Error getting health-check response from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
-				return error_handler(message, &state).await.into_response();
-			},
-		};
+		.await
+	{
+		Ok(res) => res,
+		Err(err) => {
+			let message = format!("Error getting health-check response from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
 	// Analyze the Response
 	let health_status = health_response.status();
 
@@ -414,15 +417,14 @@ pub async fn sync_keyshares(
 	let quote_request_url = enclave_url.clone() + "/api/quote";
 	debug!("SYNC KEYSHARES : REQUEST QUOTE the requester {}", quote_request_url);
 
-	let quote_response = match
-		client.get(quote_request_url).send().await {
-			Ok(resp) => resp,
-			Err(err) => {
-				let message = format!("Error reading quote from the enclave requesting for syncing : {:?}",err);
-				return error_handler(message, &state).await.into_response();
-			}
-
-		};
+	let quote_response = match client.get(quote_request_url).send().await {
+		Ok(resp) => resp,
+		Err(err) => {
+			let message =
+				format!("Error reading quote from the enclave requesting for syncing : {:?}", err);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
 
 	let quote_body: QuoteResponse = match quote_response.json().await {
 		Ok(body) => body,
@@ -445,17 +447,18 @@ pub async fn sync_keyshares(
 		.body(quote_body.data)
 		.header(header::CONTENT_TYPE, "application/json")
 		.send()
-		.await {
-			Ok(resp) => resp,
-			Err(err) => {
-				let message = format!(
+		.await
+	{
+		Ok(resp) => resp,
+		Err(err) => {
+			let message = format!(
 					"SYNC KEYSHARES : Attestation : can not get response from attestation server : {:?}", err);
-				return error_handler(message, &state).await.into_response();
-			},
-		};
+			return error_handler(message, &state).await.into_response();
+		},
+	};
 
-	let attestation_json = match attest_response.text().await { 
-		Ok(resp) => resp, 
+	let attestation_json = match attest_response.text().await {
+		Ok(resp) => resp,
 		Err(e) => {
 			let message = format!("Error getting attestation response {:?}", e);
 			return error_handler(message, &state).await.into_response();
@@ -464,14 +467,14 @@ pub async fn sync_keyshares(
 
 	debug!(
 		"SYNC KEYSHARES : Attestation Result for url : {} is {:#?}",
-		requester.1.enclave_url,
-		attestation_json,
+		requester.1.enclave_url, attestation_json,
 	);
-	
+
 	let attest_dynamic_json: Value = match serde_json::from_str::<Value>(&attestation_json) {
 		Ok(dj) => dj,
 		Err(e) => {
-			let message = format!("SYNC KEYSHARES : Error deserializing attestation response {:?}", e);
+			let message =
+				format!("SYNC KEYSHARES : Error deserializing attestation response {:?}", e);
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -479,7 +482,8 @@ pub async fn sync_keyshares(
 	let report: Value = match serde_json::from_value(attest_dynamic_json["report"].clone()) {
 		Ok(report) => report,
 		Err(e) => {
-			let message = format!("SYNC KEYSHARES : Error deserializing attestation report {:?}", e);
+			let message =
+				format!("SYNC KEYSHARES : Error deserializing attestation report {:?}", e);
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -490,15 +494,17 @@ pub async fn sync_keyshares(
 		let quote: Value = match serde_json::from_value(attest_dynamic_json["quote"].clone()) {
 			Ok(quote) => quote,
 			Err(e) => {
-				let message = format!("SYNC KEYSHARES : Error deserializing attestation quote {:?}", e);
+				let message =
+					format!("SYNC KEYSHARES : Error deserializing attestation quote {:?}", e);
 				return error_handler(message, &state).await.into_response();
 			},
 		};
-		
+
 		debug!("SYNC KEYSHARES : quote['report_data'] = {}", quote["report_data"]);
 
 		if let Some(report_data) = quote["report_data"].as_str() {
-			let token = request.enclave_account.clone() + "_" + &auth_token.block_number.to_string();
+			let token =
+				request.enclave_account.clone() + "_" + &auth_token.block_number.to_string();
 			debug!("SYNC KEYSHARES : report_data token  = {}", token);
 
 			if !verify_signature(
@@ -510,16 +516,15 @@ pub async fn sync_keyshares(
 					.await
 					.into_response();
 			}
-		}else {
-			let message = format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
-			return error_handler(message, &state).await.into_response();	
+		} else {
+			let message =
+				format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
+			return error_handler(message, &state).await.into_response();
 		}
-
-	}else{
+	} else {
 		let message = format!("SYNC KEYSHARES : Attestation IAS report failed : {}", report);
 		return error_handler(message, &state).await.into_response();
 	}
-
 
 	let backup_file = "/temporary/backup.zip".to_string();
 	//let counter = 1;
@@ -616,7 +621,7 @@ pub async fn fetch_keyshares(
 		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard
 		// It is the first time running enclave
 		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
-		// TODO : for pagination, a new endpoint needed to report the number of keyshares stored on target enclave. 
+		// TODO : for pagination, a new endpoint needed to report the number of keyshares stored on target enclave.
 		serde_json::to_string(&vec!["*".to_string()]).unwrap()
 	} else if nftids.is_empty() {
 		let message = "FETCH KEYSHARES : the new nft is already stored on this cluster".to_string();
@@ -660,7 +665,9 @@ pub async fn fetch_keyshares(
 		} else {
 			// not registered
 			error!("FETCH KEYSHARES : This enclave is not registered yet.");
-			return Err(anyhow!("FETCH KEYSHARES : Slot discovery failed because of not-registered enclave"));
+			return Err(anyhow!(
+				"FETCH KEYSHARES : Slot discovery failed because of not-registered enclave"
+			));
 		}
 	}
 
@@ -670,7 +677,7 @@ pub async fn fetch_keyshares(
 
 	let client = reqwest::Client::builder()
 		.danger_accept_invalid_certs(true)
-		.https_only(false)
+		.https_only(true)
 		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
@@ -680,14 +687,18 @@ pub async fn fetch_keyshares(
 
 	// TODO [future reliability] : use metric-server ranking instead of simple loop
 	for enclave in slot_enclaves {
-		debug!("FETCH KEYSHARES : Fetch from enclave {:?}\n", enclave);
+		debug!("FETCH KEYSHARES : Fetch from enclave : \n Cluster: {} \n Slot: {}\n Operator: {}\n Enclave_Account: {}\n URL: {}\n\n", 
+			enclave.0, enclave.1.slot,enclave.1.operator_account,enclave.1.enclave_account,enclave.1.enclave_url);
 		// Is the 'enclave' of 'slot_enclave' in the cluster that nftid is "originally" stored?
 		// We can remove this condition if we want to search whole the slot
 		// It is faster for Runtime synchronization
 		// It may be problematic for First time Synchronization
 		// Because it is possible that original enclave is down now.
 		if !new_nft.is_empty() && !nft_clusters.contains(&enclave.0) {
-			debug!("FETCH KEYSHARES : NFTs are not belong to cluster {}, continue to next cluster", enclave.0);
+			debug!(
+				"FETCH KEYSHARES : NFTs are not belong to cluster {}, continue to next cluster",
+				enclave.0
+			);
 			continue;
 		}
 
@@ -704,7 +715,7 @@ pub async fn fetch_keyshares(
 			Ok(res) => res,
 			Err(err) => {
 				error!(
-					"FETCH KEYSHARES : Error getting health-check response from syncing target enclave : {} : {:?}",
+					"FETCH KEYSHARES : Error getting health-check response from syncing target enclave : {} : \n{:#?}",
 					request_url, err
 				);
 				debug!("FETCH KEYSHARES : continue with next syncing target enclave");
@@ -714,14 +725,14 @@ pub async fn fetch_keyshares(
 		// Analyze the Response
 		let health_status = health_response.status();
 
-		debug!("FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response);
+		debug!("FETCH KEYSHARES : HEALTH CHECK : health response : {:#?}\n", health_response);
 		//debug!("FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response.text().await?);
 
 		let response_body: HealthResponse = match health_response.json().await {
 			Ok(body) => body,
 			Err(e) => {
 				let message = format!(
-					"FETCH KEYSHARES : Healthcheck : can not deserialize the body : {} : {:?}",
+					"FETCH KEYSHARES : Healthcheck : can not deserialize the body : {} : {:#?}",
 					enclave.1.enclave_url, e
 				);
 				warn!(message);
@@ -738,7 +749,7 @@ pub async fn fetch_keyshares(
 		// TODO : for initial wild-card, get the last_synced filed from health-check body and set it as fetch_keyshare successful update state (instead of current_block)
 		if health_status != StatusCode::OK {
 			let message = format!(
-				"FETCH KEYSHARES : Healthcheck Failed on url: {}, status : {:?}, reason : {}",
+				"FETCH KEYSHARES : Healthcheck Failed on url: {}, status : {:#?}, reason : {}",
 				enclave.1.enclave_url, health_status, response_body.description
 			);
 			warn!(message);
@@ -761,7 +772,7 @@ pub async fn fetch_keyshares(
 		let fetch_response = match fetch_response {
 			Ok(res) => res,
 			Err(err) => {
-				error!("FETCH KEYSHARES : Fetch response error: {:?}", err);
+				error!("FETCH KEYSHARES : Fetch response error: {:#?}", err);
 				continue;
 				//return Err(anyhow!(err));
 			},
@@ -789,7 +800,7 @@ pub async fn fetch_keyshares(
 			Ok(_) => debug!("FETCH KEYSHARES : zip file is stored on disk."),
 			Err(e) => {
 				let message =
-					format!("FETCH KEYSHARES : Error writing received nft zip file to disk{:?}", e);
+					format!("FETCH KEYSHARES : Error writing received nft zip file to disk{:#?}", e);
 				error!(message);
 				return Err(anyhow!(message));
 			},
@@ -860,14 +871,17 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 		debug!("\t\tCLUSTER DISCOVERY : get cluster data of cluster {}", index);
 		let cluster_data = match storage.fetch(&cluster_data_address).await {
 			Ok(data) => {
-				debug!("\n\tCLUSTER DISCOVERY : cluster[{}] data = {:#?}\n", index, data);
 				match data {
-					Some(clstr) => clstr,
+					Some(clstr) => {
+						debug!("\nCLUSTER DISCOVERY : cluster[{}] : data = {:?}\n", index, clstr);
+						clstr
+					},
 					None => {
 						error!(
 							"\t\tCLUSTER DISCOVERY : Failed to 'open' the fetched Cluster Data, Cluster Num.{}",
 							index
 						);
+						debug!("CLUSTER DISCOVERY : cluster[{}] data = {:?}\n", index, data);
 						debug!("\t\tCLUSTER DISCOVERY : continue to next cluster (because of previous error)");
 						continue;
 					},
@@ -975,7 +989,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 									let _ = fs::remove_file(path);
 								}
 							}
-							
+
 							debug!("SELF-IDENTITY : back to setup mode with new identity");
 							let _ = set_sync_state("setup".to_owned());
 							return Some((cluster.id, enclave.slot));
@@ -1044,7 +1058,7 @@ pub async fn crawl_sync_events(
 	from_block_num: u32,
 	to_block_num: u32,
 ) -> Result<HashMap<u32, u32>, anyhow::Error> {
-	debug!("\nCRAWLING ...");
+	debug!("CRAWLING ...");
 
 	let api = get_chain_api(state).await;
 
@@ -1276,7 +1290,10 @@ pub fn find_event_capsule_shard_added(
 				}
 			},
 			Err(err) => {
-				debug!("\t\tFIND_EVENT_CAPSULE_SHARD_ADDED - error reading capsule added : {:?}", err);
+				debug!(
+					"\t\tFIND_EVENT_CAPSULE_SHARD_ADDED - error reading capsule added : {:?}",
+					err
+				);
 			},
 		}
 	}
@@ -1300,7 +1317,10 @@ pub fn find_event_secret_shard_added(
 				}
 			},
 			Err(err) => {
-				debug!("\t\tFIND_EVENT_SECRET_SHARD_ADDED - error reading secret added : {:?}", err);
+				debug!(
+					"\t\tFIND_EVENT_SECRET_SHARD_ADDED - error reading secret added : {:?}",
+					err
+				);
 			},
 		}
 	}
