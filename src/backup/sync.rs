@@ -362,56 +362,65 @@ pub async fn sync_keyshares(
 	}
 
 	let health_request_url = enclave_url.clone() + "/api/health";
-	debug!("SYNC KEYSHARES : HEALTH-CHECK the requester {}", health_request_url);
+	debug!("SYNC KEYSHARES : Healthcheck the requester {}", health_request_url);
 
-	let health_response = match client
-		.get(health_request_url.clone())
-		.send()
-		.await
-	{
-		Ok(res) => res,
-		Err(err) => {
-			let message = format!("Error getting health-check response from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
-	// Analyze the Response
-	let health_status = health_response.status();
+	let mut health_check = false;
+	while !health_check {
+		let health_response = match client
+			.get(health_request_url.clone())
+			.send()
+			.await
+		{
+			Ok(res) => res,
+			Err(err) => {
+				let message = format!("SYNC KEYSHARES : Healthcheck : Error getting health-check response from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
+				error!(message);
+				warn!("SYNC KEYSHARES : Healthcheck : Delay and Retry ");
+				// A delay to prevent conflict
+				tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+				continue;
+				//return error_handler(message, &state).await.into_response();
+			},
+		};
+		// Analyze the Response
+		let health_status = health_response.status();
 
-	// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
+		// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
 
-	if health_status != StatusCode::OK {
-		let message = format!(
-			"SYNC KEYSHARES : Healthcheck : requester enclave {} is not ready for syncing",
-			requester.1.enclave_url
-		);
-		return error_handler(message, &state).await.into_response();
-	}
-
-	let health_body: HealthResponse = match health_response.json().await {
-		Ok(body) => body,
-		Err(e) => {
+		if health_status != StatusCode::OK {
 			let message = format!(
-				"SYNC KEYSHARES : Healthcheck : can not deserialize the body : {} : {:?}",
-				requester.1.enclave_url, e
+				"SYNC KEYSHARES : Healthcheck : requester enclave {} is not ready for syncing",
+				requester.1.enclave_url
 			);
-			error!(message);
+			return error_handler(message, &state).await.into_response();
+		}
 
-			HealthResponse {
-				block_number: 0,
-				sync_state: "0".to_string(),
-				version: "0.0".to_string(),
-				description: "Error".to_string(),
-				enclave_address: "0000".to_string(),
-			}
-			//return error_handler(message, &state).await.into_response();
-		},
-	};
+		let health_body: HealthResponse = match health_response.json().await {
+			Ok(body) => body,
+			Err(e) => {
+				let message = format!(
+					"SYNC KEYSHARES : Healthcheck : can not deserialize the body : {} : {:?}",
+					requester.1.enclave_url, e
+				);
+				error!(message);
+				HealthResponse {
+					block_number: 0,
+					sync_state: "0".to_string(),
+					version: "0.0".to_string(),
+					description: "Error".to_string(),
+					enclave_address: "0000".to_string(),
+				}
+				//return error_handler(message, &state).await.into_response();
+			},
+		};
 
-	debug!(
-		"SYNC KEYSHARES : Health-Check Result for url : {}, Status: {:?}, \n body: {:#?}",
-		requester.1.enclave_url, health_status, health_body
-	);
+		debug!(
+			"SYNC KEYSHARES : Health-Check Result for url : {}, Status: {:?}, \n body: {:#?}",
+			requester.1.enclave_url, health_status, health_body
+		);
+		
+		health_check = true;
+	}
 
 	debug!("SYNC KEYSHARES : REQUEST QUOTE");
 	let quote_request_url = enclave_url.clone() + "/api/quote";
@@ -425,7 +434,7 @@ pub async fn sync_keyshares(
 			return error_handler(message, &state).await.into_response();
 		},
 	};
-
+                                     
 	let quote_body: QuoteResponse = match quote_response.json().await {
 		Ok(body) => body,
 		Err(e) => {
@@ -444,7 +453,7 @@ pub async fn sync_keyshares(
 
 	let attest_response = match client
 		.post("https://dev-c1n1.ternoa.network:9100/attest")
-		.body(quote_body.data)
+		.body(json!({"data": quote_body.data}).to_string())
 		.header(header::CONTENT_TYPE, "application/json")
 		.send()
 		.await
