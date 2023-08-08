@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, collections::BTreeMap};
 use subxt::tx::PairSigner;
 use tokio::sync::RwLock;
 
@@ -14,13 +14,14 @@ pub struct StateConfig {
 	maintenance: String,
 	rpc_client: DefaultApi,
 	current_block: u32,
-	nonce: u32,
+	nonce: u64,
 	clusters: Vec<Cluster>,
 	// Identity is (ClusterID, SlotID)
 	identity: Option<(u32, u32)>,
 	binary_version: String,
 	// only for dev
 	last_processed_block: u32,
+	nft_block_map: BTreeMap<u32,u32>,
 }
 
 impl StateConfig {
@@ -30,10 +31,19 @@ impl StateConfig {
 		rpc_client: DefaultApi,
 		binary_version: String,
 		last_processed_block: u32,
+		nft_block_map: BTreeMap<u32,u32>,
 	) -> StateConfig {
+		let public_key = match keypair_to_public(enclave_key.clone()) {
+			Some(pk) => pk.to_string(),
+			None => {
+				tracing::error!("State-Config : error converting keypair to account_id");
+				String::new()
+			},
+		};
+
 		StateConfig {
 			enclave_key: enclave_key.clone(),
-			enclave_account: keypair_to_public(enclave_key.clone()).unwrap().to_string(),
+			enclave_account: public_key,
 			enclave_signer: PairSigner::new(enclave_key),
 			maintenance,
 			rpc_client,
@@ -43,6 +53,7 @@ impl StateConfig {
 			clusters: Vec::<Cluster>::new(),
 			identity: None,
 			binary_version,
+			nft_block_map,
 		}
 	}
 
@@ -60,7 +71,16 @@ impl StateConfig {
 
 	pub fn set_key(&mut self, keypair: sp_core::sr25519::Pair) {
 		self.enclave_key = keypair.clone();
-		self.enclave_account = keypair_to_public(keypair.clone()).unwrap().to_string();
+
+		let public_key = match keypair_to_public(keypair.clone()) {
+			Some(pk) => pk.to_string(),
+			None => {
+				tracing::error!("SET-KEY : ERROR : converting keypair to account_id");
+				String::new()
+			},
+		};
+
+		self.enclave_account = public_key;
 		self.enclave_signer = PairSigner::new(keypair);
 	}
 
@@ -96,7 +116,7 @@ impl StateConfig {
 		self.last_processed_block
 	}
 
-	pub fn get_nonce(&self) -> u32 {
+	pub fn get_nonce(&self) -> u64 {
 		self.nonce
 	}
 
@@ -106,7 +126,10 @@ impl StateConfig {
 
 	pub async fn reset_nonce(&mut self) {
 		let account_id = self.enclave_signer.account_id();
-		self.nonce = self.rpc_client.rpc().system_account_next_index(account_id).await.unwrap();
+		self.nonce = match self.rpc_client.tx().account_nonce(account_id).await {
+			Ok(nonce) => nonce,
+			Err(_) => self.nonce + 1, // Does it work?
+		};
 	}
 
 	pub fn get_binary_version(&self) -> String {
@@ -130,6 +153,21 @@ impl StateConfig {
 		// Identity is (ClusterID, SlotID)
 		self.identity = identity;
 	}
+
+	pub fn get_nft_availability(&self, nftid: u32) -> Option<&u32> {
+		self.nft_block_map.get(&nftid)
+	}
+
+	pub fn set_nft_availability(&mut self, nftid_block: (u32, u32)) {
+		// Identity is (ClusterID, SlotID)
+		self.nft_block_map.insert(nftid_block.0, nftid_block.1);
+	}
+
+	pub fn remove_nft_availability(&mut self, nftid: u32) {
+		// Identity is (ClusterID, SlotID)
+		self.nft_block_map.remove(&nftid);
+	}
+
 }
 
 fn keypair_to_public(keypair: sp_core::sr25519::Pair) -> Option<sp_core::sr25519::Public> {
@@ -168,7 +206,7 @@ pub async fn get_accountid(state: &SharedState) -> String {
 	shared_state_read.get_accountid()
 }
 
-pub async fn get_nonce(state: &SharedState) -> u32 {
+pub async fn get_nonce(state: &SharedState) -> u64 {
 	let shared_state_read = state.read().await;
 	shared_state_read.get_nonce()
 }
@@ -201,6 +239,14 @@ pub async fn get_processed_block(state: &SharedState) -> u32 {
 pub async fn get_maintenance(state: &SharedState) -> String {
 	let shared_state_read = state.read().await;
 	shared_state_read.get_maintenance()
+}
+
+pub async fn get_nft_availability(state: &SharedState, nftid: u32) -> Option<u32> {
+	let shared_state_read = state.read().await;
+	match shared_state_read.get_nft_availability(nftid) {
+		Some(blk) => Some(*blk),
+		None => None,
+	}
 }
 
 /* ---------------
@@ -245,4 +291,14 @@ pub async fn set_identity(state: &SharedState, id: Option<(u32, u32)>) {
 pub async fn _set_chain_api(state: &SharedState, api: DefaultApi) {
 	let shared_state_write = &mut state.write().await;
 	shared_state_write._set_rpc_client(api);
+}
+
+pub async fn set_nft_availability(state: &SharedState, nftid_block: (u32, u32)) {
+	let shared_state_write = &mut state.write().await;
+	shared_state_write.set_nft_availability(nftid_block);
+}
+
+pub async fn remove_nft_availability(state: &SharedState, nftid: u32) {
+	let shared_state_write = &mut state.write().await;
+	shared_state_write.remove_nft_availability(nftid);
 }

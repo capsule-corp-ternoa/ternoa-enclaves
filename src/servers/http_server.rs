@@ -47,6 +47,7 @@ use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 use super::server_common;
 
 pub const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024;
+const SEALPATH: &str = "/nft/";
 pub const ENCLAVE_ACCOUNT_FILE: &str = "/nft/enclave_account.key";
 
 /// http server
@@ -182,9 +183,14 @@ pub async fn http_server() -> Result<Router, Error> {
 
 	// Initialize runtime tracking blocks
 	let current_block_hash = chain_api.rpc().finalized_head().await?;
-	let current_block = chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
+	let current_block = match chain_api.rpc().block(Some(current_block_hash)).await? {
+		Some(blk) => blk,
+		None => return Err(anyhow!("ENCLAVE START : unable to get current block")),
+	};
 	let current_block_number = current_block.block.header.number;
 	let last_processed_block = current_block_number;
+
+	let keyshare_list = helper::query_keyshare_file(SEALPATH.to_string())?;
 
 	// Shared-State between APIs
 	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
@@ -193,6 +199,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		chain_api.clone(),
 		"0.4.1".to_string(),
 		last_processed_block,
+		keyshare_list,
 	)));
 
 	set_blocknumber(&state_config, current_block_number).await;
@@ -276,8 +283,16 @@ pub async fn http_server() -> Result<Router, Error> {
 
 				while !sync_success {
 					let current_block_hash = chain_api.rpc().finalized_head().await?;
-					let current_block = chain_api.rpc().block(Some(current_block_hash)).await?;
-					let current_block_number = current_block.unwrap().block.header.number;
+					let current_block_number =
+						match chain_api.rpc().block(Some(current_block_hash)).await? {
+							Some(blk) => blk.block.header.number,
+							None => {
+								let message = "ENCLAVE START : CRAWL : Error getting block number"
+									.to_string();
+								error!(message);
+								return Err(anyhow!(message));
+							},
+						};
 
 					debug!(
 						"ENCLAVE START : CRAWL : Crawl to current block {}",
@@ -435,13 +450,29 @@ pub async fn http_server() -> Result<Router, Error> {
 			);
 
 			// Extract block body
-			let body = block.body().await.unwrap();
-			trace!(" > Block Number Thread : got block body.");
+			let body = match block.body().await {
+				Ok(body) => {
+					trace!(" > Block Number Thread : got block body.");
+					body
+				},
+				Err(e) => {
+					error!(" > Block Number Thread : Unable to get block body : {:?}", e);
+					continue;
+				},
+			};
 
 			let storage_api = block.storage();
 
-			let (new_nft, is_tee_events) = parse_block_body(body, &storage_api).await.unwrap();
-			trace!(" > Block Number Thread : parsed the block body.");
+			let (new_nft, is_tee_events) = match parse_block_body(body, &storage_api).await {
+				Ok(tuple) => {
+					trace!(" > Block Number Thread : parsed the block body.");
+					tuple
+				},
+				Err(e) => {
+					error!(" > Block Number Thread : Unable to parse the block body : {:?}", e);
+					continue;
+				},
+			};
 
 			// A change in clusters/enclaves data is detected.
 			if is_tee_events {
@@ -450,7 +481,14 @@ pub async fn http_server() -> Result<Router, Error> {
 					Ok(_) => {
 						info!("\t > Cluster discovery complete.");
 						// New self-identity is found?
-						let sync_state = get_sync_state().unwrap();
+						let sync_state = match get_sync_state() {
+							Ok(st) => st,
+							Err(e) => {
+								error!(" > Block Number Thread : TEE Event : Cluster Discovery : Can not get sync state : {:?}", e);
+								continue;
+							},
+						};
+
 						if sync_state == "setup" {
 							// Here is Identity discovery, thus the first synchronization of all files.
 							// An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
@@ -484,7 +522,13 @@ pub async fn http_server() -> Result<Router, Error> {
 			}
 
 			// Regular CRAWL Check
-			let sync_state = get_sync_state().unwrap();
+			let sync_state = match get_sync_state() {
+				Ok(st) => st,
+				Err(e) => {
+					error!(" > Block Number Thread : Can not get sync state : {:?}", e);
+					continue;
+				},
+			};
 
 			// IMPORTANT : Check for Runtime mode : if integrity of clusters fails, we'll wait and go back to setup-mode
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
@@ -621,20 +665,26 @@ pub struct HealthResponse {
 
 /// Health check endpoint
 async fn get_health_status(State(state): State<SharedState>) -> impl IntoResponse {
-	debug!("3-3 Healthchek handler.");
+	debug!("\t Healthchek handler");
 
 	match evalueate_health_status(&state).await {
 		Some(response) => {
-			debug!("3-3-1 Healthchek exit successfully .");
+			debug!("Healthchek exit successfully .");
 			response.into_response()
 		},
 
 		_ => {
-			debug!("3-3-1 Healthchek exited with None.");
+			error!("Healthchek handler : exited with None.");
 			let block_number = get_blocknumber(&state).await;
 			let binary_version = get_version(&state).await;
 			let enclave_address = get_accountid(&state).await;
-			let sync_state = get_sync_state().unwrap();
+			let sync_state = match get_sync_state() {
+				Ok(st) => st,
+				Err(e) => {
+					error!("Healthchek handler : error : unable to read the sync state");
+					"Unknown".to_string()
+				},
+			};
 
 			(
 				StatusCode::INTERNAL_SERVER_ERROR,
