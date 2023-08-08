@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 use std::{
 	collections::HashMap,
@@ -36,7 +37,7 @@ use tokio_util::io::ReaderStream;
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
-	attestation::ra::QuoteResponse,
+	attestation::ra::{generate_quote, write_user_report_data, QuoteResponse},
 	backup::zipdir::{add_list_zip, zip_extract},
 	chain::core::{
 		ternoa,
@@ -52,8 +53,6 @@ use crate::{
 };
 
 use anyhow::{anyhow, Result};
-
-//TODO [code style - reliability] : manage unwrap()
 
 /* ---------------------------------------
 	SYNC NEW KEYSHARES TO OTHER ENCLAVES
@@ -95,6 +94,7 @@ pub struct AuthenticationToken {
 	pub block_number: u32,
 	pub block_validation: u8,
 	pub data_hash: String,
+	pub quote_hash: String,
 }
 
 /// Fetch NFTID Data
@@ -102,6 +102,7 @@ pub struct AuthenticationToken {
 pub struct FetchIdPacket {
 	enclave_account: String,
 	nftid_vec: String,
+	quote: String,
 	auth_token: String,
 	signature: String,
 }
@@ -344,102 +345,123 @@ pub async fn sync_keyshares(
 	// TODO [future reliability] check nftids , is empty, are they in range, ...
 
 	// Create a client
-	let client = reqwest::Client::builder()
+	let client = match reqwest::Client::builder()
 		// TODO : only for dev
 		.danger_accept_invalid_certs(true)
 		.https_only(true)
+		.use_rustls_tls()
 		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
 		// 	tls::Version::TLS_1_0
 		// })
 		.build()
-		.unwrap();
+	{
+		Ok(client) => client,
+		Err(e) => {
+			let message = format!("SYNC KEYSHARES : unable to build a Reqwest client : {:?}", e);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
 
 	let mut enclave_url = requester.1.enclave_url.clone();
 	while enclave_url.ends_with('/') {
 		enclave_url.pop();
 	}
 
-	let health_request_url = enclave_url.clone() + "/api/health";
-	debug!("SYNC KEYSHARES : Healthcheck the requester {}", health_request_url);
+	// ------------------------ WEBSOCKET START -------------------------
+	// Communication between Enclaves will be in websocket protocol (full-duplex).
+	// This part of code is not possible with HTTP protocl
 
-	let mut health_check = false;
-	while !health_check {
-		let health_response = match client
-			.get(health_request_url.clone())
-			.send()
+	// let health_request_url = enclave_url.clone() + "/api/health";
+	// debug!("SYNC KEYSHARES : Healthcheck the requester {}", health_request_url);
+
+	// let mut retry_check = false;
+	// while !retry_check {
+	// 	let health_response = match client
+	// 		.get(health_request_url.clone())
+	// 		.send()
+	// 		.await
+	// 	{
+	// 		Ok(res) => res,
+	// 		Err(err) => {
+	// 			let message = format!("SYNC KEYSHARES : Healthcheck : Error getting health-check response from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
+	// 			error!(message);
+	// 			warn!("SYNC KEYSHARES : Healthcheck : Delay and Retry ");
+	// 			// A delay to prevent conflict
+	// 			tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+	// 			continue;
+	// 			//return error_handler(message, &state).await.into_response();
+	// 		},
+	// 	};
+	// 	// Analyze the Response
+	// 	let health_status = health_response.status();
+
+	// 	// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
+
+	// 	if health_status != StatusCode::OK {
+	// 		let message = format!(
+	// 			"SYNC KEYSHARES : Healthcheck : requester enclave {} is not ready for syncing",
+	// 			requester.1.enclave_url
+	// 		);
+	// 		return error_handler(message, &state).await.into_response();
+	// 	}
+
+	// 	let health_body: HealthResponse = match health_response.json().await {
+	// 		Ok(body) => body,
+	// 		Err(e) => {
+	// 			let message = format!(
+	// 				"SYNC KEYSHARES : Healthcheck : can not deserialize the body : {} : {:?}",
+	// 				requester.1.enclave_url, e
+	// 			);
+	// 			error!(message);
+	// 			HealthResponse {
+	// 				block_number: 0,
+	// 				sync_state: "0".to_string(),
+	// 				version: "0.0".to_string(),
+	// 				description: "Error".to_string(),
+	// 				enclave_address: "0000".to_string(),
+	// 			}
+	// 			//return error_handler(message, &state).await.into_response();
+	// 		},
+	// 	};
+
+	// 	debug!(
+	// 		"SYNC KEYSHARES : Health-Check Result for url : {}, Status: {:?}, \n body: {:#?}",
+	// 		requester.1.enclave_url, health_status, health_body
+	// 	);
+
+	// 	retry_check = true;
+	// }
+
+	// debug!("SYNC KEYSHARES : REQUEST QUOTE");
+	// let quote_request_url = enclave_url.clone() + "/api/quote";
+	// debug!("SYNC KEYSHARES : REQUEST QUOTE the requester {}", quote_request_url);
+
+	// let quote_response = match client.get(quote_request_url).send().await {
+	// 	Ok(resp) => resp,
+	// 	Err(err) => {
+	// 		let message =
+	// 			format!("Error reading quote from the enclave requesting for syncing : {:?}", err);
+	// 		return error_handler(message, &state).await.into_response();
+	// 	},
+	// };
+
+	// ------------------------ WEBSOCKET END -------------------------
+
+	let quote_hash = sha256::digest(request.quote.as_bytes());
+
+	if auth_token.quote_hash != quote_hash {
+		return error_handler("SYNC KEYSHARES : Mismatch Quote Hash".to_string(), &state)
 			.await
-		{
-			Ok(res) => res,
-			Err(err) => {
-				let message = format!("SYNC KEYSHARES : Healthcheck : Error getting health-check response from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
-				error!(message);
-				warn!("SYNC KEYSHARES : Healthcheck : Delay and Retry ");
-				// A delay to prevent conflict
-				tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-				continue;
-				//return error_handler(message, &state).await.into_response();
-			},
-		};
-		// Analyze the Response
-		let health_status = health_response.status();
-
-		// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
-
-		if health_status != StatusCode::OK {
-			let message = format!(
-				"SYNC KEYSHARES : Healthcheck : requester enclave {} is not ready for syncing",
-				requester.1.enclave_url
-			);
-			return error_handler(message, &state).await.into_response();
-		}
-
-		let health_body: HealthResponse = match health_response.json().await {
-			Ok(body) => body,
-			Err(e) => {
-				let message = format!(
-					"SYNC KEYSHARES : Healthcheck : can not deserialize the body : {} : {:?}",
-					requester.1.enclave_url, e
-				);
-				error!(message);
-				HealthResponse {
-					block_number: 0,
-					sync_state: "0".to_string(),
-					version: "0.0".to_string(),
-					description: "Error".to_string(),
-					enclave_address: "0000".to_string(),
-				}
-				//return error_handler(message, &state).await.into_response();
-			},
-		};
-
-		debug!(
-			"SYNC KEYSHARES : Health-Check Result for url : {}, Status: {:?}, \n body: {:#?}",
-			requester.1.enclave_url, health_status, health_body
-		);
-		
-		health_check = true;
+			.into_response();
 	}
 
-	debug!("SYNC KEYSHARES : REQUEST QUOTE");
-	let quote_request_url = enclave_url.clone() + "/api/quote";
-	debug!("SYNC KEYSHARES : REQUEST QUOTE the requester {}", quote_request_url);
-
-	let quote_response = match client.get(quote_request_url).send().await {
-		Ok(resp) => resp,
-		Err(err) => {
-			let message =
-				format!("Error reading quote from the enclave requesting for syncing : {:?}", err);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
-                                     
-	let quote_body: QuoteResponse = match quote_response.json().await {
+	let quote_body: QuoteResponse = match serde_json::from_str(&request.quote) {
 		Ok(body) => body,
 		Err(e) => {
 			let message = format!(
-				"SYNC KEYSHARES : Healthcheck : can not deserialize the body : {} : {:?}",
+				"SYNC KEYSHARES : Quote : can not deserialize the quote : {} : {:?}",
 				requester.1.enclave_url, e
 			);
 			return error_handler(message, &state).await.into_response();
@@ -631,24 +653,92 @@ pub async fn fetch_keyshares(
 		// It is the first time running enclave
 		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
 		// TODO : for pagination, a new endpoint needed to report the number of keyshares stored on target enclave.
-		serde_json::to_string(&vec!["*".to_string()]).unwrap()
+		match serde_json::to_string(&vec!["*".to_string()]) {
+			Ok(strg) => strg,
+			Err(e) => {
+				let message = format!(
+					"FETCH KEYSHARES : Error : can not convert Wildcard to string! : {:?}",
+					e
+				);
+				error!(message);
+				return Err(anyhow!(message));
+			},
+		}
 	} else if nftids.is_empty() {
 		let message = "FETCH KEYSHARES : the new nft is already stored on this cluster".to_string();
 		debug!(message);
 		return Ok(());
 	} else {
-		serde_json::to_string(&nftids).unwrap()
+		match serde_json::to_string(&nftids) {
+			Ok(strng) => strng,
+			Err(e) => {
+				let message =
+					format!("FETCH KEYSHARES : Error : can not convert NFTIDs to string : {:?}", e);
+				error!(message);
+				return Err(anyhow!(message));
+			},
+		}
 	};
 
-	let hash = sha256::digest(nftids_str.as_bytes());
+	let nftid_hash = sha256::digest(nftids_str.as_bytes());
+
+	let user_data_token = account_id.clone() + "_" + &last_block_number.to_string();
+	debug!("FETCH KEYSHARES : QUOTE : report_data token  = {}", user_data_token);
+
+	let user_data = account_keypair.sign(user_data_token.as_bytes());
+	debug!("FETCH KEYSHARES : QUOTE : report_data signature  = {:?}", user_data);
+
+	match write_user_report_data(None, &user_data.0) {
+		Ok(_) => debug!("FETCH KEYSHARES : QUOTE : Successfully wrote user_data into the quote."),
+		Err(e) => {
+			let message =
+				format!(
+				"FETCH KEYSHARES : QUOTE : Error -> can not write user_data to the quote : {:?}", e);
+			error!(message);
+			return Err(anyhow!(message));
+		},
+	};
+
+	let quote = match generate_quote(None, None) {
+		Ok(quote) => match serde_json::to_string(&QuoteResponse {
+			block_number: last_block_number,
+			data: hex::encode(quote),
+		}) {
+			Ok(ser_quote) => ser_quote,
+			Err(e) => {
+				let message =
+					format!("FETCH KEYSHARES : QUOTE : Can not serialize the quote : {:?}", e);
+				error!(message);
+				return Err(anyhow!(message));
+			},
+		},
+		Err(e) => {
+			let message = format!("FETCH KEYSHARES : QUOTE : Can not genrate the quote : {:?}", e);
+			error!(message);
+			return Err(anyhow!(message));
+		},
+	};
+
+	let quote_hash = sha256::digest(quote.clone());
 
 	let auth = AuthenticationToken {
 		block_number: last_block_number,
 		block_validation: 15,
-		data_hash: hash,
+		data_hash: nftid_hash,
+		quote_hash,
 	};
 
-	let auth_str = serde_json::to_string(&auth).unwrap();
+	let auth_str = match serde_json::to_string(&auth) {
+		Ok(authstr) => authstr,
+		Err(e) => {
+			let message = format!(
+				"FETCH KEYSHARES : AUTH : Can not serialize the authentication token : {:?}",
+				e
+			);
+			error!(message);
+			return Err(anyhow!(message));
+		},
+	};
 	let sig = account_keypair.sign(auth_str.as_bytes());
 	let sig_str = format!("{}{:?}", "0x", sig);
 
@@ -657,10 +747,21 @@ pub async fn fetch_keyshares(
 		nftid_vec: nftids_str,
 		auth_token: auth_str,
 		signature: sig_str,
+		quote,
 	};
 
-	let request_body = serde_json::to_string(&request).unwrap();
-	debug!("FETCH KEYSHARES : Request Body : {:#?}\n", request);
+	let request_body = match serde_json::to_string(&request) {
+		Ok(body) => {
+			debug!("FETCH KEYSHARES : Request Body : {:#?}\n", body);
+			body
+		},
+		Err(e) => {
+			let message =
+				format!("FETCH KEYSHARES : REQUEST : Can not serialize the request body : {:?}", e);
+			error!(message);
+			return Err(anyhow!(message));
+		},
+	};
 
 	// The available enclaves in the same slot of current enclave, with their clusterid
 	debug!("FETCH KEYSHARES : START SLOT DISCOVERY");
@@ -687,6 +788,7 @@ pub async fn fetch_keyshares(
 	let client = reqwest::Client::builder()
 		.danger_accept_invalid_certs(true)
 		.https_only(true)
+		.use_rustls_tls()
 		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
@@ -808,8 +910,10 @@ pub async fn fetch_keyshares(
 		match zipfile.write_all(&fetch_body_bytes) {
 			Ok(_) => debug!("FETCH KEYSHARES : zip file is stored on disk."),
 			Err(e) => {
-				let message =
-					format!("FETCH KEYSHARES : Error writing received nft zip file to disk{:#?}", e);
+				let message = format!(
+					"FETCH KEYSHARES : Error writing received nft zip file to disk{:#?}",
+					e
+				);
 				error!(message);
 				return Err(anyhow!(message));
 			},
@@ -850,7 +954,7 @@ pub async fn fetch_keyshares(
 // Crawl and parse registered clusters and enclaves from on-chain data
 pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Error> {
 	debug!("\tCLUSTER DISCOVERY : get api");
-	let api = get_chain_api(state).await; //create_chain_api().await.unwrap();
+	let api = get_chain_api(state).await;
 
 	let max_cluster_address = ternoa::storage().tee().next_cluster_id();
 
@@ -879,22 +983,20 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 
 		debug!("\t\tCLUSTER DISCOVERY : get cluster data of cluster {}", index);
 		let cluster_data = match storage.fetch(&cluster_data_address).await {
-			Ok(data) => {
-				match data {
-					Some(clstr) => {
-						debug!("\nCLUSTER DISCOVERY : cluster[{}] : data = {:?}\n", index, clstr);
-						clstr
-					},
-					None => {
-						error!(
+			Ok(data) => match data {
+				Some(clstr) => {
+					debug!("\nCLUSTER DISCOVERY : cluster[{}] : data = {:?}\n", index, clstr);
+					clstr
+				},
+				None => {
+					error!(
 							"\t\tCLUSTER DISCOVERY : Failed to 'open' the fetched Cluster Data, Cluster Num.{}",
 							index
 						);
-						debug!("CLUSTER DISCOVERY : cluster[{}] data = {:?}\n", index, data);
-						debug!("\t\tCLUSTER DISCOVERY : continue to next cluster (because of previous error)");
-						continue;
-					},
-				}
+					debug!("CLUSTER DISCOVERY : cluster[{}] data = {:?}\n", index, data);
+					debug!("\t\tCLUSTER DISCOVERY : continue to next cluster (because of previous error)");
+					continue;
+				},
 			},
 			Err(err) => {
 				error!(
@@ -988,9 +1090,30 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 							error!("\n*****\nERROR! SLOT HAS BEEN CHANGED. IT IS DANGEROUS ACT BY TC. ENCLAVE MUST WIPE EVERYTHING.\n*****\n");
 							warn!("WIPE EVERYTHING ...");
 
-							for path in fs::read_dir("/nft").unwrap() {
-								let path = path.unwrap().path();
-								let extension = path.extension().unwrap();
+							let read_dir =
+								match fs::read_dir("/nft") {
+									Ok(rd) => rd,
+									Err(e) => {
+										error!("\t\tSELF-IDENTITY : CAN NOT READ THE SEAL DIRECTORY {:?}",e);
+										return None;
+									},
+								};
+
+							for dir_entry in read_dir {
+								let path = match dir_entry {
+									Ok(de) => de.path(),
+									Err(e) => {
+										error!("\t\tSELF-IDENTITY : CAN NOT GET A PATH IN THE SEAL DIRECTORY ENTRY {:?}",e);
+										return None;
+									},
+								};
+								let extension = match path.extension() {
+									Some(ext) => ext,
+									None => {
+										error!("\t\tSELF-IDENTITY : CAN NOT GET EXTENTION OF AN ENTRY PATH OF THE SEAL DIRECTORY {:?}",path);
+										return None;
+									},
+								};
 								if extension == OsStr::new("keyshare")
 									|| extension == OsStr::new("log")
 								{
@@ -1368,7 +1491,7 @@ mod test {
 	};
 	use serde_json::Value;
 	use sp_core::Pair;
-	use std::sync::Arc;
+	use std::{sync::Arc, collections::BTreeMap};
 	use tokio::sync::RwLock;
 	use tower::Service; // for `call`
 	use tower::ServiceExt;
@@ -1395,6 +1518,7 @@ mod test {
 			api.clone(),
 			"0.4.1".to_string(),
 			0,
+			BTreeMap::<u32,u32>::new()
 		)));
 
 		let mut app = match crate::servers::http_server::http_server().await {

@@ -7,6 +7,8 @@ use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
 use serde::Serialize;
 
+use jsonrpsee_ws_client;
+use jsonrpsee_ws_client::WsClientBuilder;
 use sp_core::H256;
 use std::fmt;
 use subxt::{
@@ -71,6 +73,10 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	} else {
 		"ws://localhost:9944".to_string()
 	};
+
+	// Custome client
+	// let rpc = WsClientBuilder::default().use_webpki_rustls().build(&rpc_endoint).await.unwrap();
+	// let api = DefaultApi::from_rpc_client(std::sync::Arc::new(rpc)).await.unwrap();
 
 	// RE-TRY MECHANISM
 	for retry in 0..RETRY_COUNT {
@@ -452,12 +458,15 @@ pub async fn nft_keyshare_oracle(
 	let result = api
 		.tx()
 		.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
-		.submit()
-		.await;
+		// It is better to submit and watch, is it compatible with nonce and multiple extrinsics?
+		.submit_and_watch().await?.wait_for_in_block().await?.block_hash();
+		//.wait_for_finalized_success().await?.extrinsic_hash()
+		//.submit()
+		//.await;
 
 	debug!("\tSecret-nft Oracle : extrinsic sent : {:?}", result);
 
-	result
+	Ok(result)
 }
 
 // -------------- CAPSULE SYNC (ORACLE) --------------
@@ -523,12 +532,15 @@ pub async fn capsule_keyshare_oracle(
 	let result = api
 		.tx()
 		.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
-		.submit()
-		.await;
+		// It is better to submit and watch, is it compatible with nonce and multiple extrinsics?
+		.submit_and_watch().await?.wait_for_in_block().await?.block_hash();
+		//.wait_for_finalized_success().await?.extrinsic_hash()
+		//.submit()
+		//.await;
 
 	debug!("\tCapusle Oracle : extrinsic sent : {:?}", result);
 
-	result
+	Ok(result)
 }
 
 /* **********************

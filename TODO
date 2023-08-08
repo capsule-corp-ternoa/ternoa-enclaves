@@ -13,7 +13,6 @@ SECURITY :
 
 RELIABILITY / ERROR-HANDLING / PERFORMANCE:
   - Rate Limit Quote API
-  - manage unwrap()
   - ADD RPC PROBLEM/TIMEOUT handler (middleware)
   - Syncing wildcard Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
   - return the error to sentry or other places.

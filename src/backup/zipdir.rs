@@ -9,10 +9,10 @@ use zip::{result::ZipError, write::FileOptions};
 use std::{fs::File, path::Path};
 use walkdir::{DirEntry, WalkDir};
 
-const METHOD_DEFLATED: Option<zip::CompressionMethod> = Some(zip::CompressionMethod::Deflated);
+const METHOD_DEFLATED: zip::CompressionMethod = zip::CompressionMethod::Deflated;
 
 pub fn add_list_zip(src_dir: &str, nftids: Vec<String>, dst_file: &str) -> i32 {
-	match doit(src_dir, nftids, dst_file, METHOD_DEFLATED.unwrap()) {
+	match doit(src_dir, nftids, dst_file, METHOD_DEFLATED) {
 		Ok(_) => {
 			tracing::info!(
 				"NFTID-based backup compression done: {} written to {}",
@@ -27,7 +27,7 @@ pub fn add_list_zip(src_dir: &str, nftids: Vec<String>, dst_file: &str) -> i32 {
 }
 
 pub fn add_dir_zip(src_dir: &str, dst_file: &str) -> i32 {
-	match doit(src_dir, Vec::<String>::new(), dst_file, METHOD_DEFLATED.unwrap()) {
+	match doit(src_dir, Vec::<String>::new(), dst_file, METHOD_DEFLATED) {
 		Ok(_) => {
 			tracing::info!("bulk backup compression done: {} written to {}", src_dir, dst_file)
 		},
@@ -54,30 +54,62 @@ where
 	let mut buffer = Vec::new();
 	for entry in it {
 		let path = entry.path();
-		let pure_name = path.file_stem();
-		let name = path.strip_prefix(Path::new(prefix)).unwrap();
 
-		// NFTID-based backup?
+		let file_ext = match path.extension().and_then(std::ffi::OsStr::to_str) {
+			Some(ext) => ext,
+			None => {
+				error!("ZIPDIR => CAN NOT extract file-extention from {:?}", path);
+				continue;
+			},
+		};
+
+		let file_name = match path.file_stem().and_then(std::ffi::OsStr::to_str) {
+			Some(name) => name,
+			None => {
+				error!("ZIPDIR => CAN NOT extract file-name from {:?}", path);
+				continue;
+			},
+		};
+
+		let name_ext = match path.strip_prefix(Path::new(prefix)) {
+			Ok(ne) => ne,
+			Err(e) => {
+				error!(
+					"ZIPDIR => CAN NOT STRIP PATH PREFIX {:?} OF PATH {:?} : {:?}",
+					prefix, path, e
+				);
+				continue;
+			},
+		};
+
+		// NFTID-based backup? (vs Admin Backup)
 		if !list.is_empty() {
 			// Wildcard for Synching in maintenacne mode
 			if list[0] == "*" {
 				// Filter out the enclave_account.key and log files
-				let name_parts: Vec<&str> = name.to_str().unwrap().split('.').collect();
-				debug!(
-					"\t ZIPDIR : Wildcard => file-name = {:?}, name-parts = {:?}",
-					name, name_parts
-				);
-				if name_parts.len() != 2 || name_parts[1] == "log" || name_parts[1] == "key" {
+				debug!("\t ZIPDIR : Wildcard => file-name = {:?}", name_ext);
+
+				if file_ext.is_empty() || file_ext == "log" || file_ext == "key" {
+					debug!(
+						"\t ZIPDIR => improper file-extension for synchronization = {:?}",
+						name_ext
+					);
 					continue;
 				}
 			}
 			// Synching in Runtime mode Or Admin NFTID backup
 			else {
-				let name = pure_name.unwrap();
-				let name_parts: Vec<&str> = name.to_str().unwrap().split('_').collect();
+				let name_parts: Vec<&str> = file_name.split('_').collect();
+
 				// Keyshare file name  = [nft/capsule]_[nftid]_[blocknumber].keyshare
-				debug!("\t ZIPDIR => nameparts = {:?}, list = {:?}", name_parts, list);
-				if name_parts.len() < 2 || !list.contains(&name_parts[1].to_string()) {
+				debug!("\t ZIPDIR => nameparts = {:?}, list = {:?}\n", name_parts, list);
+
+				// File Name : NFT_NFTID_BLOCKNUMBER : nft_123_2345
+				if name_parts.len() != 3 || !list.contains(&name_parts[1].to_string()) {
+					debug!(
+						"\t ZIPDIR => improper file name-parts for synchronization = {:?}",
+						name_parts
+					);
 					continue;
 				}
 			}
@@ -86,22 +118,23 @@ where
 		// Write file or directory explicitly
 		// Some unzip tools unzip files with directory paths correctly, some do not!
 		if path.is_file() {
-			tracing::debug!("adding file {:?} as {:?} ...", path, name);
+			debug!("\t ZIPDIR => adding file {:?} as {:?} ...", path, name_ext);
 			#[allow(deprecated)]
-			zip.start_file_from_path(name, options)?;
+			zip.start_file_from_path(name_ext, options)?;
 			let mut f = File::open(path)?;
 
 			f.read_to_end(&mut buffer)?;
 			zip.write_all(&buffer)?;
 			buffer.clear();
-		} else if !name.as_os_str().is_empty() {
+		} else if !name_ext.as_os_str().is_empty() {
 			// Only if not root! Avoids path spec / warning
 			// and mapname conversion failed error on unzip
-			tracing::debug!("adding dir {:?} as {:?} ...", path, name);
+			tracing::debug!("\t ZIPDIR => adding dir {:?} as {:?} ...", path, name_ext);
 			#[allow(deprecated)]
-			zip.add_directory_from_path(name, options)?;
+			zip.add_directory_from_path(name_ext, options)?;
 		}
 	}
+
 	zip.finish()?;
 	Result::Ok(())
 }
@@ -162,10 +195,22 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 
 		let outpath = match file.enclosed_name() {
 			Some(path) => path.to_owned(),
-			None => continue,
+			None => {
+				error!("Backup extract : error get enclosed-name of file from zip index {}", i);
+				continue;
+			},
 		};
 
-		let fullpath_str = outdir.to_string() + outpath.to_str().unwrap();
+		let fullpath_str =
+			outdir.to_string()
+				+ match outpath.to_str() {
+					Some(st) => st,
+					None => {
+						error!("Backup extract : error converting path to str  index = {}, path = {:?}", i, outpath);
+						continue;
+					},
+				};
+
 		let fullpath = Path::new(&fullpath_str);
 
 		if (*file.name()).contains("__MACOSX") {

@@ -35,7 +35,16 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 
 	let signature = enclave_account.sign(sign_data.as_bytes());
 
-	write_user_report_data(None, &signature.0).unwrap();
+	match write_user_report_data(None, &signature.0) {
+		Ok(_) => debug!("Success writing user_data to the quote."),
+
+		Err(e) => {
+			return (
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(QuoteResponse { block_number, data: e.to_string() }),
+			)
+		},
+	};
 
 	match generate_quote(None, None) {
 		Ok(quote) => {
@@ -131,7 +140,7 @@ fn read_attestation_type(file_path: Option<String>) -> Result<String, Error> {
 /// * `file_path` - The path to the user report data
 /// # Returns
 /// * `Result<(), Error>` - The result of the user report data
-fn write_user_report_data(
+pub fn write_user_report_data(
 	file_path: Option<String>,
 	user_data: &[u8; 64],
 ) -> Result<(), anyhow::Error> {
