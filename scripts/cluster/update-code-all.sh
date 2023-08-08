@@ -1,15 +1,15 @@
 echo -e "\nWARN! You may need to run with SUDO ."
 echo -e "Input argument to this script is the name of the cluster folder."
-echo -e "Example: sudo ./clear-all.sh ./cluster_old_0\n"
+echo -e "Example: sudo ./update-code-all.sh ./cluster_old_0\n"
 
 
-clear_enclave() {
-  printf 'Cleaning : "%s"\n' "$1" >&2
+update_enclave() {
+  printf 'Updating : "%s"\n' "$1" >&2
   cd "$1"
-  ./scripts/clear-server.sh
-  rm ./gramine/sync.state
-  touch ./gramine/sync.state
-  rm start.log
+  git add .
+  git commit -m "save before fetch update."
+  #git stash apply
+  git pull -X theirs --all --no-edit
   cd ..
 }
 
@@ -23,7 +23,7 @@ fi
    
 for enclave in *
 do
-    clear_enclave "$enclave"
+    update_enclave "$enclave"
     echo -e "\n"
 done
 

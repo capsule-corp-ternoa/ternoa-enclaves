@@ -1,4 +1,7 @@
-use crate::servers::state::{get_accountid, get_blocknumber, SharedState};
+use crate::{
+	chain::helper,
+	servers::state::{get_accountid, get_blocknumber, SharedState},
+};
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
@@ -28,6 +31,7 @@ const SEALPATH: &str = "/nft/";
 #[derive(Serialize)]
 pub struct CapsuleExistsResponse {
 	enclave_account: String,
+	block_number: u32,
 	nft_id: u32,
 	exists: bool,
 }
@@ -37,40 +41,49 @@ pub struct CapsuleExistsResponse {
 /// * `state` - The state of the enclave
 /// * `nft_id` - The nft_id of the capsule
 /// # Returns
-/// * `impl IntoResponse` - The result of the capsule key-share availability
+/// If successfull, block_number is last blocknumber where keyshare is updated
+/// I Error happens, block_number is 0
+/// If nftid is not available, block_number is the current block_number
 pub async fn is_capsule_available(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> impl IntoResponse {
-	debug!("3-11 API : is capsule available");
+	info!("CAPSULE AVAILABILITY CHECK for {}", nft_id);
 
 	let enclave_account = get_accountid(&state).await;
-	let enclave_sealpath = SEALPATH;
-	let block_number = get_blocknumber(&state).await;
+	let enclave_sealpath = SEALPATH.to_string();
+	let current_block_number = get_blocknumber(&state).await;
 
-	let file_path = enclave_sealpath.to_string() + "capsule_" + &nft_id.to_string() + ".keyshare";
-
-	if std::path::Path::new(&file_path).exists() {
-		info!("Availability check : path checked, path: {}", file_path);
-
-		(
-			StatusCode::OK,
-			Json(
-				json!({"enclave_account": enclave_account, "block_number": block_number, "nft_id": nft_id, "exists": true}),
-			),
-		)
-	} else {
-		info!(
-			"Availability check : capsule key-share does not exist, Capsule nft_id : {}, path : {}",
-			nft_id, file_path
-		);
-
-		(
-			StatusCode::OK,
-			Json(
-				json!({"enclave_account": enclave_account, "block_number": block_number, "nft_id": nft_id, "exists": false}),
-			),
-		)
+	match helper::query_nftid_file(enclave_sealpath, nft_id) {
+		Ok(block) => {
+			if block > 0 {
+				debug!(
+					"CAPSULE AVAILABILITY CHECK : CAPSULE key-share exist, nft_id : {}, updated on block {}", nft_id, block);
+				Json(CapsuleExistsResponse {
+					enclave_account,
+					block_number: block,
+					nft_id,
+					exists: true,
+				})
+				.into_response()
+			} else {
+				debug!(
+					"CAPSULE AVAILABILITY CHECK : CAPSULE key-share does not exist, nft_id : {}",
+					nft_id
+				);
+				Json(CapsuleExistsResponse {
+					enclave_account,
+					block_number: current_block_number,
+					nft_id,
+					exists: false,
+				})
+				.into_response()
+			}
+		},
+		Err(e) => {
+			error!("CAPSULE AVAILABILITY CHECK : error :  {:?}", e);
+			Json(json! ({ "enclave_account": enclave_account, "block_number": current_block_number, "nft_id" : nft_id, "error": format!("{:?}",e) })).into_response()
+		},
 	}
 }
 

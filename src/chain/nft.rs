@@ -1,4 +1,7 @@
-use crate::servers::state::{get_accountid, get_blocknumber, SharedState};
+use crate::{
+	chain::helper,
+	servers::state::{get_accountid, get_blocknumber, SharedState},
+};
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 
@@ -41,17 +44,19 @@ pub struct NFTExistsResponse {
 /// * `state` - StateConfig
 /// * `nft_id` - u32
 /// # Returns
-/// * `Json(NFTExistsResponse)` - NFTExistsResponse
+/// If successfull, block_number is last blocknumber where keyshare is updated
+/// I Error happens, block_number is 0
+/// If nftid is not available, block_number is the current block_number
 #[axum::debug_handler]
 pub async fn is_nft_available(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
-) -> Json<NFTExistsResponse> {
-	debug!("3-6 API : is nft available");
+) -> impl IntoResponse {
+	info!("NFT AVAILABILITY CHECK for {}", nft_id);
 
 	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
-	let block_number = get_blocknumber(&state).await;
+	let current_block_number = get_blocknumber(&state).await;
 
 	let file_path = enclave_sealpath + "nft_" + &nft_id.to_string() + ".keyshare";
 
@@ -405,30 +410,44 @@ pub async fn nft_store_keyshare(
 				);
 			};
 
-			let file_path =
-				enclave_sealpath.clone() + "nft_" + &verified_data.nft_id.to_string() + ".keyshare";
-			let exist = std::path::Path::new(file_path.as_str()).exists();
+			match helper::query_nftid_file(enclave_sealpath.clone(), verified_data.nft_id) {
+				Ok(block) => {
+					if block > 0 {
+						let status = ReturnStatus::NFTIDEXISTS;
+						let description = format!(
+							"TEE Key-share {:?}: nft_id.{} already exists",
+							APICALL::NFTSTORE,
+							verified_data.nft_id,
+						);
 
-			if exist {
-				let status = ReturnStatus::NFTIDEXISTS;
-				let description = format!(
-					"TEE Key-share {:?}: nft_id.{} already exists",
-					APICALL::NFTSTORE,
-					verified_data.nft_id,
-				);
+						info!("{}, requester : {}", description, request.owner_address);
 
-				info!("{}, requester : {}", description, request.owner_address);
+						return (
+							StatusCode::CONFLICT,
+							Json(json!({
+								"status": status,
+								"nft_id": verified_data.nft_id,
+								"enclave_account": enclave_account,
+								"description": "Error storing NFT key-share to TEE : nft_id already exists"
+								.to_string(),
+							})),
+						);
+					}
+				},
 
-				return (
-					StatusCode::CONFLICT,
-					Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_account": enclave_account,
-						"description": "Error storing NFT key-share to TEE : nft_id already exists"
-						.to_string(),
-					})),
-				);
+				Err(e) => {
+					let status = ReturnStatus::DATABASEFAILURE;
+					return (
+						StatusCode::INTERNAL_SERVER_ERROR,
+						Json(json!({
+							"status": status,
+							"nft_id": verified_data.nft_id,
+							"enclave_account": enclave_account,
+							"description": "Error storing NFT key-share to TEE : error reading database"
+							.to_string(),
+						})),
+					);
+				},
 			}
 
 			let mut f = match std::fs::File::create(file_path.clone()) {
@@ -439,7 +458,7 @@ pub async fn nft_store_keyshare(
 						"TEE Key-share {:?}: error in creating file on disk, nft_id : {} path : {}, error: {}",
 						APICALL::NFTSTORE,
 						verified_data.nft_id,
-						file_path,
+						new_file_path,
 						err
 					);
 
@@ -470,7 +489,7 @@ pub async fn nft_store_keyshare(
 						"TEE Key-share {:?}: error in writing data to file, nft_id : {} path : {}, error: {}",
 						APICALL::NFTSTORE,
 						verified_data.nft_id,
-						file_path,
+						new_file_path,
 						err
 					);
 
@@ -492,6 +511,7 @@ pub async fn nft_store_keyshare(
 			// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
 			match nft_keyshare_oracle(&state, verified_data.nft_id).await {
 				Ok(txh) => {
+					// TODO : Getting of TXH is not sufficient, It must wait untin next block to see if it is submitted.
 					let result =
 						nft_keyshare_oracle_results(block_number, &request, &verified_data, txh);
 
@@ -533,7 +553,7 @@ pub async fn nft_store_keyshare(
 						verified_data.nft_id
 					);
 
-					match std::fs::remove_file(file_path.clone()) {
+					match std::fs::remove_file(new_file_path.clone()) {
 						Ok(_) => debug!("nft-keyshare is successfully removed from TEE"),
 						Err(e) => error!("Error removing nft-keyshare from TEE : {:?}", e),
 					}
