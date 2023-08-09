@@ -28,7 +28,7 @@ use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
 	backup::zipdir::add_list_zip,
-	chain::core::get_current_block_number,
+	chain::{core::get_current_block_number, constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH}},
 	servers::state::{get_blocknumber, SharedState, StateConfig},
 };
 
@@ -48,9 +48,6 @@ const BACKUP_WHITELIST: [&str; 3] = [
 	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
 ];
 
-const SEALPATH: &str = "/nft/";
-const MAX_VALIDATION_PERIOD: u8 = 20;
-const MAX_BLOCK_VARIATION: u8 = 5;
 
 /* *************************************
 	FETCH  NFTID DATA STRUCTURES
@@ -95,7 +92,7 @@ pub enum ValidationResult {
 /// Retrieving the stored Keyshare
 impl AuthenticationToken {
 	pub async fn is_valid(&self, last_block_number: u32) -> ValidationResult {
-		if last_block_number < self.block_number - (MAX_BLOCK_VARIATION as u32) {
+		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
 			// for finalization delay
 			debug!(
 				"last block number = {} < request block number = {}",
@@ -104,13 +101,13 @@ impl AuthenticationToken {
 			return ValidationResult::ExpiredBlockNumber;
 		}
 
-		if self.block_validation > MAX_VALIDATION_PERIOD {
+		if self.block_validation > MAX_VALIDATION_PERIOD as u8 {
 			// A finite validity period
 			return ValidationResult::InvalidPeriod;
 		}
 
 		if last_block_number
-			> self.block_number + ((self.block_validation + MAX_BLOCK_VARIATION) as u32)
+			> self.block_number + ((self.block_validation + MAX_BLOCK_VARIATION as u8) as u32)
 		{
 			// validity period
 			return ValidationResult::FutureBlockNumber;
@@ -385,7 +382,10 @@ pub async fn admin_backup_fetch_id(
 
 #[cfg(test)]
 mod test {
-	use crate::chain::core::{create_chain_api, get_current_block_number_new_api};
+	use crate::chain::{
+		core::{create_chain_api, get_current_block_number_new_api},
+		helper,
+	};
 
 	use super::*;
 
@@ -454,7 +454,7 @@ mod test {
 			create_chain_api().await.unwrap(),
 			"0.3.0".to_string(),
 			0,
-			BTreeMap::<u32,u32>::new(),
+			BTreeMap::<u32, helper::Availability>::new(),
 		)));
 
 		//let app = Router::new().route("/admin_backup_fetch_id", post(admin_backup_fetch_id)).with_state(state_config);
