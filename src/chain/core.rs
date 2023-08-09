@@ -459,10 +459,14 @@ pub async fn nft_keyshare_oracle(
 		.tx()
 		.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
 		// It is better to submit and watch, is it compatible with nonce and multiple extrinsics?
-		.submit_and_watch().await?.wait_for_in_block().await?.block_hash();
-		//.wait_for_finalized_success().await?.extrinsic_hash()
-		//.submit()
-		//.await;
+		.submit_and_watch()
+		.await?
+		.wait_for_in_block()
+		.await?
+		.block_hash();
+	//.wait_for_finalized_success().await?.extrinsic_hash()
+	//.submit()
+	//.await;
 
 	debug!("\tSecret-nft Oracle : extrinsic sent : {:?}", result);
 
@@ -533,10 +537,14 @@ pub async fn capsule_keyshare_oracle(
 		.tx()
 		.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
 		// It is better to submit and watch, is it compatible with nonce and multiple extrinsics?
-		.submit_and_watch().await?.wait_for_in_block().await?.block_hash();
-		//.wait_for_finalized_success().await?.extrinsic_hash()
-		//.submit()
-		//.await;
+		.submit_and_watch()
+		.await?
+		.wait_for_in_block()
+		.await?
+		.block_hash();
+	//.wait_for_finalized_success().await?.extrinsic_hash()
+	//.submit()
+	//.await;
 
 	debug!("\tCapusle Oracle : extrinsic sent : {:?}", result);
 

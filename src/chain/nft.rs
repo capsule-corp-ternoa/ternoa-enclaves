@@ -1,6 +1,9 @@
 use crate::{
 	chain::helper,
-	servers::state::{get_accountid, get_blocknumber, SharedState},
+	servers::state::{
+		get_accountid, get_blocknumber, get_nft_availability, remove_nft_availability,
+		set_nft_availability, SharedState,
+	},
 };
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
@@ -25,8 +28,6 @@ use crate::chain::chain::nft_secret_share_oracle;
 ********************** */
 
 use serde::{Deserialize, Serialize};
-
-const SEALPATH: &str = "/nft/";
 
 /* **********************
    KEYSHARE AVAILABLE API
@@ -55,7 +56,6 @@ pub async fn is_nft_available(
 	info!("NFT AVAILABILITY CHECK for {}", nft_id);
 
 	let enclave_account = get_accountid(&state).await;
-	let enclave_sealpath = SEALPATH.to_string();
 	let current_block_number = get_blocknumber(&state).await;
 
 	let file_path = enclave_sealpath + "nft_" + &nft_id.to_string() + ".keyshare";
@@ -201,6 +201,17 @@ impl VerifyNFT for SecretPacket {
 			Err(SecretError::InvalidSignature)
 		}
 	}
+
+	(
+		StatusCode::NOT_FOUND,
+		Json(NFTExistsResponse {
+			enclave_account,
+			block_number: current_block_number,
+			nft_id,
+			exists: false,
+		}),
+	)
+		.into_response()
 }
 
 /* **********************
@@ -225,7 +236,7 @@ pub async fn nft_get_views(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> impl IntoResponse {
-	debug!("3-7 API : nft get views");
+	debug!("\n\t**\nNFT GET VIEWS\n\t**\n");
 	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
 
@@ -233,7 +244,7 @@ pub async fn nft_get_views(
 		Some(data) => data.state,
 		_ => {
 			error!(
-				"Error retrieving secret-nft shares access-log : nft_id.{} does not exist",
+				"NFT GET VIEWS : Error retrieving secret-nft shares access-log : nft_id.{} does not exist",
 				nft_id
 			);
 			return (
@@ -250,7 +261,7 @@ pub async fn nft_get_views(
 
 	if !nft_state.is_secret {
 		error!(
-			"Error retrieving secret-nft shares access-log : nft_id.{} is not a secret-nft",
+			"NFT GET VIEWS : Error retrieving secret-nft shares access-log : nft_id.{} is not a secret-nft",
 			nft_id
 		);
 		return (
@@ -267,10 +278,10 @@ pub async fn nft_get_views(
 	let file_path = enclave_sealpath + &nft_id.to_string() + ".log";
 
 	if std::path::Path::new(&file_path).exists() {
-		info!("Log path checked, path: {}", file_path);
+		info!("NFT GET VIEWS : Log path checked, path: {}", file_path);
 	} else {
 		error!(
-			"Error retrieving NFT key-share access-log : log path doe not exist, nft_id : {}, path : {}",
+			"NFT GET VIEWS : Error retrieving NFT key-share access-log : log path doe not exist, nft_id : {}, path : {}",
 			nft_id, file_path
 		);
 
@@ -289,7 +300,7 @@ pub async fn nft_get_views(
 		Ok(f) => f,
 		Err(_) => {
 			error!(
-				"Error retrieving NFT key-share access-log : can not open the log file, nft_id : {}, path : {}",
+				"NFT GET VIEWS : Error retrieving NFT key-share access-log : can not open the log file, nft_id : {}, path : {}",
 				nft_id, file_path
 			);
 
@@ -312,7 +323,7 @@ pub async fn nft_get_views(
 				Ok(deser) => deser,
 				Err(e) => {
 					error!(
-						"Error retrieving NFT key-share access-log : can not deserialize log file : {:?}, nft_id : {}, path : {}",
+						"NFT GET VIEWS : Error retrieving NFT key-share access-log : can not deserialize log file : {:?}, nft_id : {}, path : {}",
 						e, nft_id, file_path
 					);
 
@@ -327,7 +338,7 @@ pub async fn nft_get_views(
 				},
 			};
 
-			info!("successfully retrieved log file for nft_id : {}", nft_id);
+			info!("NFT GET VIEWS : successfully retrieved log file for nft_id : {}", nft_id);
 			(
 				StatusCode::OK,
 				Json(NFTViewResponse {
@@ -341,7 +352,7 @@ pub async fn nft_get_views(
 
 		Err(_) => {
 			error!(
-				"Error retrieving NFT key-share access-log : can not read the log file, nft_id : {}, path : {}",
+				"NFT GET VIEWS : Error retrieving NFT key-share access-log : can not read the log file, nft_id : {}, path : {}",
 				nft_id, file_path
 			);
 
@@ -380,7 +391,7 @@ pub async fn nft_store_keyshare(
 	State(state): State<SharedState>,
 	Json(request): Json<StoreKeysharePacket>,
 ) -> impl IntoResponse {
-	debug!("3-8 API nft store keyshare");
+	debug!("\n\t*****\nNFT STORE KEYSHARE API\n\t*****\n");
 	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
 	let block_number = get_blocknumber(&state).await;
@@ -410,44 +421,27 @@ pub async fn nft_store_keyshare(
 				);
 			};
 
-			match helper::query_nftid_file(enclave_sealpath.clone(), verified_data.nft_id) {
-				Ok(block) => {
-					if block > 0 {
-						let status = ReturnStatus::NFTIDEXISTS;
-						let description = format!(
-							"TEE Key-share {:?}: nft_id.{} already exists",
-							APICALL::NFTSTORE,
-							verified_data.nft_id,
-						);
+			// Does NFTID exist?
+			if get_nft_availability(&state, verified_data.nft_id).await.is_some() {
+				let status = ReturnStatus::NFTIDEXISTS;
+				let description = format!(
+					"TEE Key-share {:?}: nft_id.{} already exists",
+					APICALL::NFTSTORE,
+					verified_data.nft_id,
+				);
 
-						info!("{}, requester : {}", description, request.owner_address);
+				info!("{}, requester : {}", description, request.owner_address);
 
-						return (
-							StatusCode::CONFLICT,
-							Json(json!({
-								"status": status,
-								"nft_id": verified_data.nft_id,
-								"enclave_account": enclave_account,
-								"description": "Error storing NFT key-share to TEE : nft_id already exists"
-								.to_string(),
-							})),
-						);
-					}
-				},
-
-				Err(e) => {
-					let status = ReturnStatus::DATABASEFAILURE;
-					return (
-						StatusCode::INTERNAL_SERVER_ERROR,
-						Json(json!({
-							"status": status,
-							"nft_id": verified_data.nft_id,
-							"enclave_account": enclave_account,
-							"description": "Error storing NFT key-share to TEE : error reading database"
-							.to_string(),
-						})),
-					);
-				},
+				return (
+					StatusCode::CONFLICT,
+					Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_account": enclave_account,
+						"description": "Error storing NFT key-share to TEE : nft_id already exists"
+						.to_string(),
+					})),
+				);
 			}
 
 			let mut f = match std::fs::File::create(file_path.clone()) {
@@ -660,15 +654,46 @@ pub async fn nft_retrieve_keyshare(
 	State(state): State<SharedState>,
 	Json(request): Json<RetrieveKeysharePacket>,
 ) -> impl IntoResponse {
-	debug!("3-9 API : nft retrieve keyshare");
+	debug!("\n\t*****\nNFT RETRIEVE KEYSHARE API\n\t*****\n");
 	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
 	let block_number = get_blocknumber(&state).await;
 
 	match request.verify_retrieve_request(&state, "secret-nft").await {
 		Ok(verified_data) => {
-			let file_path =
-				enclave_sealpath.clone() + "nft_" + &verified_data.nft_id.to_string() + ".keyshare";
+			let av = match get_nft_availability(&state, verified_data.nft_id).await {
+				Some(av) => {
+					if av.nft_type == helper::NftType::Secret {
+						av
+					} else {
+						return (
+							StatusCode::NOT_FOUND,
+							Json(json!({
+								"status": ReturnStatus::KEYNOTEXIST,
+								"nft_id": verified_data.nft_id,
+								"enclave_account": enclave_account,
+								"description": "NFTID is for a capsule.".to_string(),
+							})),
+						);
+					}
+				},
+				None => {
+					return (
+						StatusCode::NOT_FOUND,
+						Json(json!({
+							"status": ReturnStatus::KEYNOTEXIST,
+							"nft_id": verified_data.nft_id,
+							"enclave_account": enclave_account,
+							"description": "NFT Keyshare is not available.".to_string(),
+						})),
+					)
+				},
+			};
+
+			let file_path = enclave_sealpath.clone()
+				+ "nft_" + &verified_data.nft_id.to_string()
+				+ "_" + &av.block_number.to_string()
+				+ ".keyshare";
 
 			if !std::path::Path::new(&file_path).is_file() {
 				let status = ReturnStatus::KEYNOTEXIST;
@@ -832,35 +857,76 @@ pub async fn nft_remove_keyshare(
 	State(state): State<SharedState>,
 	Json(request): Json<RemoveKeysharePacket>,
 ) -> impl IntoResponse {
-	debug!("3-10 API : nft remove keyshare");
+	debug!("\n\t*****\nNFT REMOVE KEYSHARE API\n\t*****\n");
 	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
+
+	// TODO : Verify requester_address with Registered Metric Server
 
 	// Is nft burnt?
 	if get_onchain_nft_data(&state, request.nft_id).await.is_some() {
 		error!("Error removing NFT key-share from TEE : nft is not in burnt state, nft-id.{}, requester : {}", request.nft_id, request.requester_address);
-		return Json(RemoveKeyshareResponse {
-			status: ReturnStatus::NOTBURNT,
-			nft_id: request.nft_id,
-			enclave_account,
-			description: "Error removing NFT key-share from TEE, NFT is not in burnt state."
-				.to_string(),
-		});
+		return (
+			StatusCode::BAD_REQUEST,
+			Json(RemoveKeyshareResponse {
+				status: ReturnStatus::NOTBURNT,
+				nft_id: request.nft_id,
+				enclave_account,
+				description: "Error removing NFT key-share from TEE, NFT is not in burnt state."
+					.to_string(),
+			}),
+		);
 	}
 
 	// BAD-REQUEST
 	if !std::path::Path::new(&enclave_sealpath).exists() {
 		error!("Error removing NFT key-share from TEE : seal path does not exist, nft_id : {}, path : {}", request.nft_id, enclave_sealpath);
-		return Json(RemoveKeyshareResponse {
-			status: ReturnStatus::DATABASEFAILURE,
-			nft_id: request.nft_id,
-			enclave_account,
-			description: "Error removing NFT key-share from TEE, use another enclave please."
-				.to_string(),
-		});
+		return (
+			StatusCode::INTERNAL_SERVER_ERROR,
+			Json(RemoveKeyshareResponse {
+				status: ReturnStatus::DATABASEFAILURE,
+				nft_id: request.nft_id,
+				enclave_account,
+				description: "Error removing NFT key-share from TEE, use another enclave please."
+					.to_string(),
+			}),
+		);
 	};
 
-	let file_path = enclave_sealpath.clone() + "nft_" + &request.nft_id.to_string() + ".keyshare";
+	let av = match get_nft_availability(&state, request.nft_id).await {
+		Some(av) => {
+			if av.nft_type == helper::NftType::Secret {
+				av
+			} else {
+				return (
+					StatusCode::BAD_REQUEST,
+					Json(RemoveKeyshareResponse {
+						status: ReturnStatus::REMOVESUCCESS,
+						nft_id: request.nft_id,
+						enclave_account,
+						description: "NFTID is not a secret-nft".to_string(),
+					}),
+				);
+			}
+		},
+
+		None => {
+			return (
+				StatusCode::OK,
+				Json(RemoveKeyshareResponse {
+					status: ReturnStatus::REMOVESUCCESS,
+					nft_id: request.nft_id,
+					enclave_account,
+					description: "NFT Keyshare was not available already".to_string(),
+				}),
+			)
+		},
+	};
+
+	let file_path = enclave_sealpath.clone()
+		+ "nft_" + &request.nft_id.to_string()
+		+ "_" + &av.block_number.to_string()
+		+ ".keyshare";
 
 	let exist = std::path::Path::new(file_path.as_str()).exists();
 
@@ -870,13 +936,16 @@ pub async fn nft_remove_keyshare(
 			request.nft_id
 		);
 
-		return Json(RemoveKeyshareResponse {
-			status: ReturnStatus::DATABASEFAILURE,
-			nft_id: request.nft_id,
-			enclave_account,
-			description: "Error removing NFT key-share from TEE : nft_id does not exist"
-				.to_string(),
-		});
+		return (
+			StatusCode::INTERNAL_SERVER_ERROR,
+			Json(RemoveKeyshareResponse {
+				status: ReturnStatus::DATABASEFAILURE,
+				nft_id: request.nft_id,
+				enclave_account,
+				description: "Error removing NFT key-share from TEE : nft_id does not exist"
+					.to_string(),
+			}),
+		);
 	}
 
 	match std::fs::remove_file(file_path.clone()) {
@@ -892,33 +961,42 @@ pub async fn nft_remove_keyshare(
 						"Error removing Keyshare from Enclave {:?}, nft_id = {}",
 						e, request.nft_id
 					);
-					return Json(RemoveKeyshareResponse {
-						status: ReturnStatus::DATABASEFAILURE,
-						nft_id: request.nft_id,
-						enclave_account,
-						description: "Error removing Keyshare from Enclave.".to_string(),
-					});
+
+					return (
+						StatusCode::INTERNAL_SERVER_ERROR,
+						Json(RemoveKeyshareResponse {
+							status: ReturnStatus::DATABASEFAILURE,
+							nft_id: request.nft_id,
+							enclave_account,
+							description: "Error removing Keyshare from Enclave.".to_string(),
+						}),
+					);
 				},
 			}
 
-			Json(RemoveKeyshareResponse {
-				status: ReturnStatus::REMOVESUCCESS,
-				nft_id: request.nft_id,
-				enclave_account,
-				description: "Keyshare is successfully removed from enclave.".to_string(),
-			})
+			remove_nft_availability(&state, request.nft_id).await;
+
+			(
+				StatusCode::OK,
+				Json(RemoveKeyshareResponse {
+					status: ReturnStatus::REMOVESUCCESS,
+					nft_id: request.nft_id,
+					enclave_account,
+					description: "Keyshare is successfully removed from enclave.".to_string(),
+				}),
+			)
 		},
 
 		Err(err) => {
 			info!("Error removing NFT key-share from TEE : error in removing file on disk, nft_id : {}, path : {}, Error : {}", request.nft_id, file_path, err);
-			Json(RemoveKeyshareResponse {
+			(StatusCode::INTERNAL_SERVER_ERROR, Json(RemoveKeyshareResponse {
 					status: ReturnStatus::DATABASEFAILURE,
 					nft_id: request.nft_id,
 					enclave_account,
 					description:
 						"Error removing NFT key-share from TEE, try again or contact cluster admin please."
 							.to_string(),
-				})
+				}))
 		},
 	}
 }
