@@ -25,11 +25,8 @@ use serde::{Deserialize, Serialize};
 use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
-	chain::core::get_current_block_number,
-	servers::{
-		http_server::ENCLAVE_ACCOUNT_FILE,
-		state::{get_blocknumber, set_keypair, SharedState, StateConfig},
-	},
+	chain::{core::get_current_block_number, constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH, ENCLAVE_ACCOUNT_FILE}},
+	servers::state::{get_blocknumber, set_keypair, SharedState, StateConfig},
 };
 
 use super::zipdir::{add_dir_zip, zip_extract};
@@ -48,9 +45,6 @@ const BACKUP_WHITELIST: [&str; 3] = [
 	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
 ];
 
-const SEALPATH: &str = "/nft/";
-const MAX_VALIDATION_PERIOD: u32 = 20;
-const MAX_BLOCK_VARIATION: u32 = 5;
 
 /* *************************************
 		FETCH  BULK DATA STRUCTURES

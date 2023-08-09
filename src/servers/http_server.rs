@@ -46,9 +46,7 @@ use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 
 use super::server_common;
 
-pub const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024;
-const SEALPATH: &str = "/nft/";
-pub const ENCLAVE_ACCOUNT_FILE: &str = "/nft/enclave_account.key";
+
 
 /// http server
 /// # Arguments
@@ -211,8 +209,7 @@ pub async fn http_server() -> Result<Router, Error> {
 	while let Err(e) = cluster_discovery(&state_config.clone()).await {
 		error!("ENCLAVE START : cluster discovery error : {:?}", e);
 		debug!("ENCLAVE START : Retry Cluster Discovery after a delay...");
-		// Wait 7 seconds, then retry
-		std::thread::sleep(std::time::Duration::from_secs(7));
+		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
 	}
 
 	info!("ENCLAVE START : Cluster Discovery successfull.");
@@ -238,25 +235,33 @@ pub async fn http_server() -> Result<Router, Error> {
 				debug!("ENCLAVE START : SETUP-MODE : fetching keyshares ...");
 				// Th enclave has been stopped at the middle of fetching data from another enclave
 				// Do it again!
-				match fetch_keyshares(&state_config, std::collections::HashMap::<u32, u32>::new())
-					.await
-				{
-					Ok(_) => {
-						// let current_block_hash = chain_api.rpc().finalized_head().await?;
-						// let current_block =
-						// 	chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
-						// let current_block_number = current_block.block.header.number;
-						// TODO [Disaster recovery] : What if all clusters are down, What block_number should be set as last_sync_block
-						let _ = set_sync_state(current_block_number.to_string());
-						info!(
-							"ENCLAVE START : SETUP-MODE : First Synchronization of Keyshares complete up to block number : {}.",
-							current_block_number
-						);
-					},
-					Err(err) => {
-						// TODO : for the primary cluster it should work fine.
-						error!("ENCLAVE START : SETUP-MODE : Error during setup-mode fetch-keyshares : {:?}", err)
-					},
+				
+				// Retry until successfully fetch keyshares or discover if it is primary
+				let mut fetch_success = false;
+				while !fetch_success {
+					match fetch_keyshares(&state_config, &std::collections::HashMap::<u32, u32>::new())
+						.await
+					{
+						Ok(_) => {
+							// let current_block_hash = chain_api.rpc().finalized_head().await?;
+							// let current_block =
+							// 	chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
+							// let current_block_number = current_block.block.header.number;
+							// TODO [Disaster recovery] : What if all clusters are down, What block_number should be set as last_sync_block
+							let _ = set_sync_state(current_block_number.to_string());
+							info!(
+								"ENCLAVE START : SETUP-MODE : First Synchronization of Keyshares complete up to block number : {}.",
+								current_block_number
+							);
+							fetch_success = true;
+						},
+						Err(err) => {
+							// TODO : for the primary cluster it should work fine.
+							error!("ENCLAVE START : SETUP-MODE : Error during setup-mode fetch-keyshares : {:?}", err)
+						},
+					}
+					debug!("ENCLAVE START : SETUP-MODE : wait 7 seconds before retry");
+					std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
 				}
 			} else {
 				// Th enclave has been stopped after being synced to a recent block number
@@ -280,7 +285,6 @@ pub async fn http_server() -> Result<Router, Error> {
 
 				// Retry if syncing failed
 				let mut sync_success = false;
-
 				while !sync_success {
 					let current_block_hash = chain_api.rpc().finalized_head().await?;
 					let current_block_number =
@@ -308,17 +312,24 @@ pub async fn http_server() -> Result<Router, Error> {
 					.await
 					{
 						Ok(cluster_nftid_map) => {
-							match fetch_keyshares(&state_config.clone(), cluster_nftid_map).await {
-								Ok(_) => {
-									let _ = set_sync_state(current_block_number.to_string());
-									info!("ENCLAVE START : CRAWL : Synchronization is complete up to current block");
-									sync_success = true;
-								},
+							// Empty map has another meaning
+							if !cluster_nftid_map.is_empty() {
+								let mut fetch_success = false;
+								while !fetch_success {
+									match fetch_keyshares(&state_config.clone(), &cluster_nftid_map).await {
+										Ok(_) => {
+											let _ = set_sync_state(current_block_number.to_string());
+											info!("ENCLAVE START : CRAWL : Synchronization is complete up to current block");
+											fetch_success = true;
+										},
 
-								Err(fetch_err) => {
-									error!("ENCLAVE START : CRAWL : Error fetching new nftids after resuming the enclave : {:?}", fetch_err);
-								},
-							}; // FETCH
+										Err(fetch_err) => {
+											error!("ENCLAVE START : CRAWL : Error fetching new nftids after resuming the enclave : {:?}", fetch_err);
+										},
+									}; // FETCH
+								}
+							}
+							sync_success = true;
 						},
 
 						Err(crawl_err) => {
@@ -332,7 +343,7 @@ pub async fn http_server() -> Result<Router, Error> {
 
 					// Wait 7 seconds, then retry
 					debug!("ENCLAVE START : CRAWL : wait 7 seconds before retry");
-					std::thread::sleep(std::time::Duration::from_secs(7));
+					std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
 				} // WHILE - RETRY
 			} // PAST STATE IS A NUMBER
 		}
@@ -397,8 +408,8 @@ pub async fn http_server() -> Result<Router, Error> {
 		// DEV
 		.route("/api/set-block/:blocknumber", get(dev_set_block))
 		// METRIC SERVER
-		// List of all nfts in an Interval [block1,block2] (Migration needed!)
-		//.layer(RequestBodyLimitLayer::new(CONTENT_LENGTH_LIMIT))
+		.route("/api/metric/interval-nft-list", post(metric_interval_nft_list))
+		
 		.layer(
 			ServiceBuilder::new()
 				.layer(HandleErrorLayer::new(handle_timeout_error))
@@ -492,22 +503,29 @@ pub async fn http_server() -> Result<Router, Error> {
 						if sync_state == "setup" {
 							// Here is Identity discovery, thus the first synchronization of all files.
 							// An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
-							match fetch_keyshares(
-								&state_config.clone(),
-								std::collections::HashMap::<u32, u32>::new(),
-							)
-							.await
-							{
-								Ok(_) => {
-									// TODO [discussion] : should not Blindly putting current block_number as the last updated keyshare's block_number
-									let _ = set_sync_state(block_number.to_string());
-									info!("\t\t > First Synchronization of Keyshares complete to the block number: {} .",block_number);
-								},
+							let mut fetch_success = false;
+							while !fetch_success {
+								match fetch_keyshares(
+									&state_config.clone(),
+									&std::collections::HashMap::<u32, u32>::new(),
+								)
+								.await
+								{
+									Ok(_) => {
+										// TODO [discussion] : should not Blindly putting current block_number as the last updated keyshare's block_number
+										let _ = set_sync_state(block_number.to_string());
+										info!("\t\t > First Synchronization of Keyshares complete to the block number: {} .",block_number);
+										fetch_success = true;
+									},
 
-								Err(err) => error!(
-									"\t\t > Error during setup-mode fetching keyshares : {:?}",
-									err
-								),
+									Err(err) => {
+										error!(
+										"\t\t > Error during setup-mode fetching keyshares : {:?}",
+										err);
+										debug!("\t > Setup after Runtime > Fetch Keyshares : wait 7 seconds before retry");
+										std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
+									}
+								}
 							}
 						}
 					},
@@ -548,23 +566,29 @@ pub async fn http_server() -> Result<Router, Error> {
 							);
 
 							if !cluster_nft_map.is_empty() {
-								match fetch_keyshares(&state_config.clone(), cluster_nft_map).await
-								{
-									Ok(_) => {
-										info!("\t > Runtime mode : Crawl check : Success runtime-mode fetching crawled blocks from {} to {} .", last_processed_block, block_number);
-										let _ = set_sync_state(block_number.to_string());
-									},
+								let mut fetch_success = false;
+								while !fetch_success {
+									match fetch_keyshares(&state_config.clone(), &cluster_nft_map).await
+									{
+										Ok(_) => {
+											info!("\t > Runtime mode : Crawl check : Success runtime-mode fetching crawled blocks from {} to {} .", last_processed_block, block_number);
+											let _ = set_sync_state(block_number.to_string());
+											fetch_success = true;
+										},
 
-									Err(err) => {
-										error!(
-											"\t > Runtime mode : Crawl check : Error during running-mode nft-based syncing : {:?}",
-											err
-										);
-										// We can not proceed to next nft-based sync.
-										// Because it'll update the syncing state
-										// A re-try id needed in next block
-										continue;
-									},
+										Err(err) => {
+											error!(
+												"\t > Runtime mode : Crawl check : Error during running-mode nft-based syncing : {:?}",
+												err
+											);
+											// We can not proceed to next nft-based sync.
+											// Because it'll update the syncing state
+											// A re-try id needed in next block
+											continue;
+										},
+									}
+									debug!("\t > Runtime mode : Crawl check : Fetch Keyshares : wait 7 seconds before retry");
+									std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
 								}
 							} else {
 								debug!("\t > Runtime mode : Crawl check : no new event detected in past blocks");
@@ -596,15 +620,20 @@ pub async fn http_server() -> Result<Router, Error> {
 					" > Runtime mode : NEW-NFT : New nft/capsul event detected, block number = {}",
 					block_number
 				);
-				match fetch_keyshares(&state_config.clone(), new_nft).await {
-								Ok(_) => {
-									let _ = set_sync_state(block_number.to_string());
-									debug!("\t > Runtime mode : NEW-NFT : Synchronization of Keyshares complete.")
-								},
-								Err(err) => error!("\t > Runtime mode : NEW-NFT : Error during running-mode nft-based syncing : {:?}", err),
-							}
+				let mut fetch_success = false;
+				while !fetch_success {
+					match fetch_keyshares(&state_config.clone(), &new_nft).await {
+						Ok(_) => {
+							let _ = set_sync_state(block_number.to_string());
+							debug!("\t > Runtime mode : NEW-NFT : Synchronization of Keyshares complete.");
+							fetch_success = true;
+						},
+						Err(err) => error!("\t > Runtime mode : NEW-NFT : Error during running-mode nft-based syncing : {:?}", err),
+					}
+					debug!("\t > Runtime mode : NEW-NFT : wait 7 seconds before retry");
+					std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
+				}
 			}
-
 			// TODO : Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
 			// Maybe in another thread
 

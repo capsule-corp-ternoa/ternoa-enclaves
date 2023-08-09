@@ -80,7 +80,7 @@ panic = "abort"
 sequoia-openpgp = "1.13.0"
 
 [features]
-default = ["dev-0"]
+default = ["dev-1"]
 mainnet = []
 alphanet = []
 dev-1 = []

@@ -21,17 +21,17 @@ use serde_json::{json, Value};
 use tracing::{debug, error, info};
 
 use crate::{
-	chain::core::{
+	chain::{
+		core::{
 		get_current_block_number, get_onchain_delegatee, get_onchain_nft_data,
 		get_onchain_rent_contract,
 	},
+	constants::*,
+},
 	servers::state::{get_blocknumber, SharedState},
 };
 
 use super::core::get_current_block_number_new_api;
-
-const MAX_VALIDATION_PERIOD: u32 = 20;
-const MAX_BLOCK_VARIATION: u32 = 5;
 
 /* **********************
   DATA STRUCTURES
