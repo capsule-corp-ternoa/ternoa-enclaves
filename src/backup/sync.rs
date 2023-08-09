@@ -39,10 +39,13 @@ use tracing::{debug, error, info, trace, warn};
 use crate::{
 	attestation::ra::{generate_quote, write_user_report_data, QuoteResponse},
 	backup::zipdir::{add_list_zip, zip_extract},
-	chain::core::{
-		ternoa,
-		ternoa::nft::events::{CapsuleSynced, SecretNFTSynced},
-	},
+	chain::{
+		constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH, SYNC_STATE_FILE}, 
+		core::{
+			ternoa,
+			ternoa::nft::events::{CapsuleSynced, SecretNFTSynced},
+	}
+},
 	servers::{
 		http_server::HealthResponse,
 		state::{
@@ -65,25 +68,20 @@ pub struct Enclave {
 	enclave_url: String,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClusterType {
+	Public,
+	Private,
+	Admin,
+	Disabled,
+}
+
 #[derive(Debug, Clone)]
 pub struct Cluster {
 	id: u32,
-	is_public: bool, // TODO : ENUM
+	cluster_type: ClusterType,
 	enclaves: Vec<Enclave>,
 }
-
-const SEALPATH: &str = "/nft/";
-const RETRY_COUNT: u8 = 12;
-const MAX_VALIDATION_PERIOD: u8 = 20;
-const MAX_BLOCK_VARIATION: u8 = 5;
-const MAX_STREAM_SIZE: usize = 1000 * 3 * 1024; // 3KB is the size of keyshare, 1000 is maximum number of ext in block
-
-// only for dev
-#[cfg(any(feature = "mainnet", feature = "alphanet"))]
-pub const SYNC_STATE_FILE: &str = "/nft/sync.state";
-
-#[cfg(any(feature = "dev-1", feature = "dev-0"))]
-pub const SYNC_STATE_FILE: &str = "/sync.state";
 
 /* *************************************
 	FETCH  NFTID DATA STRUCTURES
@@ -129,7 +127,7 @@ pub enum ValidationResult {
 /// Retrieving the stored Keyshare
 impl AuthenticationToken {
 	pub async fn is_valid(&self, last_block_number: u32) -> ValidationResult {
-		if last_block_number < self.block_number - (MAX_BLOCK_VARIATION as u32) {
+		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
 			// for finalization delay
 			debug!(
 				"last block number = {} < request block number = {}",
@@ -138,13 +136,13 @@ impl AuthenticationToken {
 			return ValidationResult::ExpiredBlockNumber;
 		}
 
-		if self.block_validation > MAX_VALIDATION_PERIOD {
+		if self.block_validation > (MAX_VALIDATION_PERIOD as u8) {
 			// A finite validity period
 			return ValidationResult::InvalidPeriod;
 		}
 
 		if last_block_number
-			> self.block_number + ((self.block_validation + MAX_BLOCK_VARIATION) as u32)
+			> self.block_number + ((self.block_validation + MAX_BLOCK_VARIATION as u8) as u32)
 		{
 			// validity period
 			return ValidationResult::FutureBlockNumber;
@@ -615,10 +613,11 @@ pub async fn sync_keyshares(
 
 pub async fn fetch_keyshares(
 	state: &SharedState,
-	new_nft: HashMap<u32, u32>,
-) -> Result<(), anyhow::Error> {
+	new_nft: &HashMap<u32, u32>,
+) -> Result<u32, anyhow::Error> {
 	debug!("\n\t----\nFETCH KEYSHARES : START\n\t----\n");
 
+	let mut last_synced = 0u32;
 	let last_block_number = get_blocknumber(state).await;
 	let account_id = get_accountid(state).await;
 	let account_keypair = get_keypair(state).await;
@@ -649,7 +648,7 @@ pub async fn fetch_keyshares(
 	// Encode nftid to String
 	// If HashMap is empty, then it is called by a setup syncronization
 	let nftids_str = if new_nft.is_empty() {
-		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard
+		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard for synchronization
 		// It is the first time running enclave
 		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
 		// TODO : for pagination, a new endpoint needed to report the number of keyshares stored on target enclave.
@@ -665,10 +664,13 @@ pub async fn fetch_keyshares(
 			},
 		}
 	} else if nftids.is_empty() {
-		let message = "FETCH KEYSHARES : the new nft is already stored on this cluster".to_string();
+		// nftids are all filtered out : they are already stored on this cluster
+		let message =
+			"FETCH KEYSHARES : the new nft is ORIGINALLY stored on this cluster".to_string();
 		debug!(message);
-		return Ok(());
+		return Ok(last_block_number);
 	} else {
+		// Normal : there are some nftid in the list
 		match serde_json::to_string(&nftids) {
 			Ok(strng) => strng,
 			Err(e) => {
@@ -739,6 +741,7 @@ pub async fn fetch_keyshares(
 			return Err(anyhow!(message));
 		},
 	};
+
 	let sig = account_keypair.sign(auth_str.as_bytes());
 	let sig_str = format!("{}{:?}", "0x", sig);
 
@@ -771,7 +774,7 @@ pub async fn fetch_keyshares(
 		// TODO : otherwise we should have two clusters registered before starting enclaves with sync capability.
 		if get_identity(state).await.is_some() {
 			warn!("FETCH KEYSHARES : No other similar slots found in other clusters, is this primary cluster?");
-			return Ok(());
+			return Ok(last_block_number);
 		} else {
 			// not registered
 			error!("FETCH KEYSHARES : This enclave is not registered yet.");
@@ -788,6 +791,7 @@ pub async fn fetch_keyshares(
 	let client = reqwest::Client::builder()
 		.danger_accept_invalid_certs(true)
 		.https_only(true)
+		// WebPKI
 		.use_rustls_tls()
 		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
@@ -797,23 +801,23 @@ pub async fn fetch_keyshares(
 		.build()?;
 
 	// TODO [future reliability] : use metric-server ranking instead of simple loop
-	for enclave in slot_enclaves {
+	for (cluster_id, enclave) in slot_enclaves {
 		debug!("FETCH KEYSHARES : Fetch from enclave : \n Cluster: {} \n Slot: {}\n Operator: {}\n Enclave_Account: {}\n URL: {}\n\n", 
-			enclave.0, enclave.1.slot,enclave.1.operator_account,enclave.1.enclave_account,enclave.1.enclave_url);
+			cluster_id, enclave.slot,enclave.operator_account,enclave.enclave_account,enclave.enclave_url);
 		// Is the 'enclave' of 'slot_enclave' in the cluster that nftid is "originally" stored?
 		// We can remove this condition if we want to search whole the slot
 		// It is faster for Runtime synchronization
 		// It may be problematic for First time Synchronization
 		// Because it is possible that original enclave is down now.
-		if !new_nft.is_empty() && !nft_clusters.contains(&enclave.0) {
+		if !new_nft.is_empty() && !nft_clusters.contains(&cluster_id) {
 			debug!(
-				"FETCH KEYSHARES : NFTs are not belong to cluster {}, continue to next cluster",
-				enclave.0
+				"FETCH KEYSHARES : NFTs does not belong to cluster {}, continue to next cluster",
+				cluster_id
 			);
 			continue;
 		}
 
-		let mut enclave_url = enclave.1.enclave_url.clone();
+		let mut enclave_url = enclave.enclave_url.clone();
 		while enclave_url.ends_with('/') {
 			enclave_url.pop();
 		}
@@ -826,9 +830,9 @@ pub async fn fetch_keyshares(
 			Ok(res) => res,
 			Err(err) => {
 				error!(
-					"FETCH KEYSHARES : Error getting health-check response from syncing target enclave : {} : \n{:#?}",
-					request_url, err
-				);
+						"FETCH KEYSHARES : Error getting health-check response from syncing target enclave : {} : \n{:#?}",
+						request_url, err
+					);
 				debug!("FETCH KEYSHARES : continue with next syncing target enclave");
 				continue;
 			},
@@ -844,7 +848,7 @@ pub async fn fetch_keyshares(
 			Err(e) => {
 				let message = format!(
 					"FETCH KEYSHARES : Healthcheck : can not deserialize the body : {} : {:#?}",
-					enclave.1.enclave_url, e
+					enclave.enclave_url, e
 				);
 				warn!(message);
 				continue;
@@ -853,18 +857,21 @@ pub async fn fetch_keyshares(
 
 		debug!(
 			"FETCH KEYSHARES : Health-Check Result for url : {} is {:#?}",
-			enclave.1.enclave_url, response_body
+			enclave.enclave_url, response_body
 		);
 
-		// TODO [developmet - reliability] : Mark and retry later if health is not ready
-		// TODO : for initial wild-card, get the last_synced filed from health-check body and set it as fetch_keyshare successful update state (instead of current_block)
 		if health_status != StatusCode::OK {
 			let message = format!(
 				"FETCH KEYSHARES : Healthcheck Failed on url: {}, status : {:#?}, reason : {}",
-				enclave.1.enclave_url, health_status, response_body.description
+				enclave.enclave_url, health_status, response_body.description
 			);
 			warn!(message);
-			//continue;
+		} else {
+			last_synced = match response_body.sync_state.parse::<u32>() {
+				Ok(blk) => blk,
+				Err(_) => continue,
+			};
+			break; // SUCCESS : EXIT RETRY
 		}
 
 		let request_url = enclave_url.clone() + "/api/backup/sync-keyshare";
@@ -944,7 +951,7 @@ pub async fn fetch_keyshares(
 		};
 	}
 
-	Ok(())
+	Ok(last_synced)
 }
 
 /* ----------------------------
@@ -1008,10 +1015,18 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 		};
 
 		let mut enclaves = Vec::<Enclave>::new();
-		let is_public = cluster_data.is_public;
+		
+		// This is necessary to have a clonable structure
+		type TernoaClusterType = ternoa::runtime_types::ternoa_tee::types::ClusterType;
+		let cluster_type = match cluster_data.cluster_type {
+    		TernoaClusterType::Disabled => ClusterType::Disabled,
+    		TernoaClusterType::Admin 	=> ClusterType::Admin,
+    		TernoaClusterType::Public 	=> ClusterType::Public,
+    		TernoaClusterType::Private 	=> ClusterType::Private,
+		};
 
 		debug!(
-			"\t\tCLUSTER DISCOVERY : loop on enclaves of fetched cluster0data of cluster {}",
+			"\t\tCLUSTER DISCOVERY : loop on enclaves of fetched cluster-data of cluster {}",
 			index
 		);
 		for (operator_account, slot) in cluster_data.enclaves.0 {
@@ -1040,7 +1055,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 				enclave_url,
 			})
 		}
-		clusters.push(Cluster { id: index, enclaves, is_public });
+		clusters.push(Cluster { id: index, enclaves, cluster_type });
 	}
 
 	set_clusters(state, clusters).await;
@@ -1163,14 +1178,17 @@ pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
 
 	// Search all the clusters
 	for cluster in chain_clusters {
-		// Enclave can not request itself (same cluster)!
-		if cluster.id != identity.0 {
-			// Search enclaves in other cluster
-			for enclave in cluster.enclaves {
-				// Same slot number?
-				if enclave.slot == identity.1 {
-					slot_enclave.push((cluster.id, enclave));
-					break;
+		// Only Public Clusters can Sync
+		if cluster.cluster_type == ClusterType::Public {
+			// Enclave can not request itself (same cluster)!
+			if cluster.id != identity.0 {
+				// Search enclaves in other cluster
+				for enclave in cluster.enclaves {
+					// Same slot number?
+					if enclave.slot == identity.1 {
+						slot_enclave.push((cluster.id, enclave));
+						break;
+					}
 				}
 			}
 		}
@@ -1491,14 +1509,17 @@ mod test {
 	};
 	use serde_json::Value;
 	use sp_core::Pair;
-	use std::{sync::Arc, collections::BTreeMap};
+	use std::{collections::BTreeMap, sync::Arc};
 	use tokio::sync::RwLock;
 	use tower::Service; // for `call`
 	use tower::ServiceExt;
 	use tracing::{info, Level};
 	use tracing_subscriber::FmtSubscriber; // for `oneshot` and `ready`
 
-	use crate::{chain::core::create_chain_api, servers::state::StateConfig};
+	use crate::{
+		chain::{core::create_chain_api, helper},
+		servers::state::StateConfig,
+	};
 
 	use super::*;
 
@@ -1518,7 +1539,7 @@ mod test {
 			api.clone(),
 			"0.4.1".to_string(),
 			0,
-			BTreeMap::<u32,u32>::new()
+			BTreeMap::<u32, helper::Availability>::new(),
 		)));
 
 		let mut app = match crate::servers::http_server::http_server().await {

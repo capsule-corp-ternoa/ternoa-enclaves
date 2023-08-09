@@ -1,8 +1,11 @@
-use std::{sync::Arc, collections::BTreeMap};
+use std::{collections::BTreeMap, sync::Arc};
 use subxt::tx::PairSigner;
 use tokio::sync::RwLock;
 
-use crate::{backup::sync::Cluster, chain::core::DefaultApi};
+use crate::{
+	backup::sync::Cluster,
+	chain::{core::DefaultApi, helper},
+};
 
 pub type SharedState = Arc<RwLock<StateConfig>>;
 
@@ -21,7 +24,7 @@ pub struct StateConfig {
 	binary_version: String,
 	// only for dev
 	last_processed_block: u32,
-	nft_block_map: BTreeMap<u32,u32>,
+	nft_block_map: BTreeMap<u32, helper::Availability>,
 }
 
 impl StateConfig {
@@ -31,7 +34,7 @@ impl StateConfig {
 		rpc_client: DefaultApi,
 		binary_version: String,
 		last_processed_block: u32,
-		nft_block_map: BTreeMap<u32,u32>,
+		nft_block_map: BTreeMap<u32, helper::Availability>,
 	) -> StateConfig {
 		let public_key = match keypair_to_public(enclave_key.clone()) {
 			Some(pk) => pk.to_string(),
@@ -154,11 +157,15 @@ impl StateConfig {
 		self.identity = identity;
 	}
 
-	pub fn get_nft_availability(&self, nftid: u32) -> Option<&u32> {
+	pub fn get_nft_availability(&self, nftid: u32) -> Option<&helper::Availability> {
 		self.nft_block_map.get(&nftid)
 	}
 
-	pub fn set_nft_availability(&mut self, nftid_block: (u32, u32)) {
+	pub fn get_nft_availability_map(&self) -> BTreeMap<u32, helper::Availability> {
+		self.nft_block_map.clone()
+	}
+
+	pub fn set_nft_availability(&mut self, nftid_block: (u32, helper::Availability)) {
 		// Identity is (ClusterID, SlotID)
 		self.nft_block_map.insert(nftid_block.0, nftid_block.1);
 	}
@@ -167,7 +174,6 @@ impl StateConfig {
 		// Identity is (ClusterID, SlotID)
 		self.nft_block_map.remove(&nftid);
 	}
-
 }
 
 fn keypair_to_public(keypair: sp_core::sr25519::Pair) -> Option<sp_core::sr25519::Public> {
@@ -241,12 +247,9 @@ pub async fn get_maintenance(state: &SharedState) -> String {
 	shared_state_read.get_maintenance()
 }
 
-pub async fn get_nft_availability(state: &SharedState, nftid: u32) -> Option<u32> {
+pub async fn get_nft_availability(state: &SharedState, nftid: u32) -> Option<helper::Availability> {
 	let shared_state_read = state.read().await;
-	match shared_state_read.get_nft_availability(nftid) {
-		Some(blk) => Some(*blk),
-		None => None,
-	}
+	shared_state_read.get_nft_availability(nftid).copied()
 }
 
 /* ---------------
@@ -293,7 +296,7 @@ pub async fn _set_chain_api(state: &SharedState, api: DefaultApi) {
 	shared_state_write._set_rpc_client(api);
 }
 
-pub async fn set_nft_availability(state: &SharedState, nftid_block: (u32, u32)) {
+pub async fn set_nft_availability(state: &SharedState, nftid_block: (u32, helper::Availability)) {
 	let shared_state_write = &mut state.write().await;
 	shared_state_write.set_nft_availability(nftid_block);
 }

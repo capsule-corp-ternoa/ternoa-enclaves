@@ -5,3 +5,4 @@ pub mod admin_nftid;
 pub mod sync;
 pub mod upgrade;
 pub mod zipdir;
+pub mod metric;
