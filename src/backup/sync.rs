@@ -40,12 +40,14 @@ use crate::{
 	attestation::ra::{generate_quote, write_user_report_data, QuoteResponse},
 	backup::zipdir::{add_list_zip, zip_extract},
 	chain::{
-		constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH, SYNC_STATE_FILE}, 
+		constants::{
+			MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH, SYNC_STATE_FILE, VERSION,
+		},
 		core::{
 			ternoa,
 			ternoa::nft::events::{CapsuleSynced, SecretNFTSynced},
-	}
-},
+		},
+	},
 	servers::{
 		http_server::HealthResponse,
 		state::{
@@ -792,12 +794,13 @@ pub async fn fetch_keyshares(
 		.danger_accept_invalid_certs(true)
 		.https_only(true)
 		// WebPKI
-		.use_rustls_tls()
+		.use_native_tls()
 		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
 		// 	tls::Version::TLS_1_0
 		// })
+		.connection_verbose(true)
 		.build()?;
 
 	// TODO [future reliability] : use metric-server ranking instead of simple loop
@@ -1015,14 +1018,14 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 		};
 
 		let mut enclaves = Vec::<Enclave>::new();
-		
+
 		// This is necessary to have a clonable structure
 		type TernoaClusterType = ternoa::runtime_types::ternoa_tee::types::ClusterType;
 		let cluster_type = match cluster_data.cluster_type {
-    		TernoaClusterType::Disabled => ClusterType::Disabled,
-    		TernoaClusterType::Admin 	=> ClusterType::Admin,
-    		TernoaClusterType::Public 	=> ClusterType::Public,
-    		TernoaClusterType::Private 	=> ClusterType::Private,
+			TernoaClusterType::Disabled => ClusterType::Disabled,
+			TernoaClusterType::Admin => ClusterType::Admin,
+			TernoaClusterType::Public => ClusterType::Public,
+			TernoaClusterType::Private => ClusterType::Private,
 		};
 
 		debug!(
@@ -1084,7 +1087,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 		for enclave in cluster.enclaves {
 			if enclave.enclave_account.to_string() == self_enclave_account {
 				debug!(
-					"\tSELF-IDENTITY : similar enclave-account  found on cluster.{} slot.{}",
+					"\tSELF-IDENTITY : similar enclave-account found on cluster.{} slot.{}",
 					cluster.id, enclave.slot
 				);
 				// Is this the registeration time?
@@ -1092,7 +1095,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 				match self_identity {
 					None => {
 						info!(
-							"\t\tSELF-IDENTITY : NEW REGISTRATION DETECTET ON cluster.{} slot.{}",
+							"\t\tSELF-IDENTITY : NEW REGISTRATION DETECTET FOR cluster.{} slot.{}",
 							cluster.id, enclave.slot
 						);
 						info!("\t\tSELF-IDENTITY : ENTERING SETUP-MODE.");
@@ -1132,13 +1135,19 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 								if extension == OsStr::new("keyshare")
 									|| extension == OsStr::new("log")
 								{
-									warn!("REMOVING : {:?}", path);
+									warn!("SELF-IDENTITY : REMOVING : {:?}", path);
 									let _ = fs::remove_file(path);
 								}
 							}
 
 							debug!("SELF-IDENTITY : back to setup mode with new identity");
 							let _ = set_sync_state("setup".to_owned());
+							return Some((cluster.id, enclave.slot));
+						} else if identity.0 != cluster.id {
+							warn!("SELF-IDENTITY : DANGEROUS ACT FROM TECHNICAL COMMITTEE, CHANGING CLUSTER AT RUNTIME.");
+							return Some((cluster.id, enclave.slot));
+						} else {
+							debug!("SELF-IDENTITY : Identity did not change.");
 							return Some((cluster.id, enclave.slot));
 						}
 					},
@@ -1251,7 +1260,7 @@ pub async fn parse_block_body(
 	body: BlockBody<PolkadotConfig, OnlineClient<PolkadotConfig>>,
 	storage: &Storage<PolkadotConfig, OnlineClient<PolkadotConfig>>,
 ) -> Result<(HashMap<u32, u32>, bool)> {
-	debug!("\nBLOCK-PARSER");
+	trace!("BLOCK-PARSER");
 	let mut new_nft = HashMap::<u32, u32>::new();
 	let mut update_cluster_data = false;
 
@@ -1537,7 +1546,7 @@ mod test {
 			enclave_keypair,
 			String::new(),
 			api.clone(),
-			"0.4.1".to_string(),
+			VERSION.to_string(),
 			0,
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));

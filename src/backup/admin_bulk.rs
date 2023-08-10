@@ -25,7 +25,10 @@ use serde::{Deserialize, Serialize};
 use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
-	chain::{core::get_current_block_number, constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH, ENCLAVE_ACCOUNT_FILE}},
+	chain::{
+		constants::{ENCLAVE_ACCOUNT_FILE, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
+		core::get_current_block_number,
+	},
 	servers::state::{get_blocknumber, set_keypair, SharedState, StateConfig},
 };
 
@@ -44,7 +47,6 @@ const BACKUP_WHITELIST: [&str; 3] = [
 	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
 	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
 ];
-
 
 /* *************************************
 		FETCH  BULK DATA STRUCTURES
