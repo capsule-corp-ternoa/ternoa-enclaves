@@ -157,10 +157,6 @@ struct Args {
 	#[arg(short, long, default_value_t = String::new())]
 	seed: String,
 
-	/// Version of backup API, Used during Migration Times
-	#[arg(short, long, default_value_t = String::from("0.3.0"))]
-	api_version: String,
-
 	/// Path to (ZIP-) File, containing sealed NFT key-shares backups
 	#[arg(short, long, default_value_t = String::new())]
 	file: String,

@@ -1,5 +1,5 @@
 use clap::Parser;
-use tracing::{debug, error, info, Level};
+use tracing::{error, info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 mod attestation;
@@ -28,7 +28,7 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
-	info!("1-1 Main function started self-check.");
+	info!("\n\n\t***********\n \tMain function started\n\t***********\n\n");
 
 	match servers::binary_check::self_checksig() {
 		Ok(str) => {
@@ -56,13 +56,13 @@ async fn main() {
 		_ => Level::INFO,
 	};
 
-	info!("1-2 Starting Tracing");
+	info!("Start Tracing");
 
 	let subscriber = FmtSubscriber::builder().with_max_level(verbosity_level).finish();
 	tracing::subscriber::set_global_default(subscriber)
 		.expect("main: setting default subscriber failed");
 
-	info!("1-3 Starting Sentry");
+	info!("Start Sentry");
 	let _guard = sentry::init((
 		"https://089e5c79239442bfb6af6e5d7676644c@error.ternoa.dev/22",
 		sentry::ClientOptions {
@@ -73,7 +73,7 @@ async fn main() {
 		},
 	));
 
-	info!("1-4 Staring http-server");
+	info!("Define http-server");
 
 	let http_app = match servers::http_server::http_server().await {
 		Ok(app) => app,
@@ -83,7 +83,7 @@ async fn main() {
 		},
 	};
 
-	debug!("1-5 Starting Server with routes");
+	info!("Start Server with routes");
 	match servers::server_common::serve(http_app, &args.domain, &args.port).await {
 		Ok(_) => info!("Server exited successfully"),
 		Err(e) => error!("Server exited with error : {:?}", e),

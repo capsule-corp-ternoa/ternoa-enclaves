@@ -1,8 +1,9 @@
-// ---------- SYNC
-pub const _RETRY_COUNT: u8 = 12;
-pub const RETRY_DELAY: u8 = 7;
-pub const _MAX_STREAM_SIZE: usize = 1000 * 3 * 1024; // 3KB is the size of keyshare, 1000 is maximum number of extrinsics in block
+pub const VERSION: &str = "0.4.3";
 
+// ---------- SYNC
+pub const RETRY_COUNT: u8 = 5;
+pub const RETRY_DELAY: u8 = 6;
+pub const _MAX_STREAM_SIZE: usize = 1000 * 3 * 1024; // 3KB is the size of keyshare, 1000 is maximum number of extrinsics in block
 
 // for production
 #[cfg(any(feature = "mainnet", feature = "alphanet"))]
@@ -11,7 +12,6 @@ pub const SYNC_STATE_FILE: &str = "/nft/sync.state";
 // only for dev
 #[cfg(any(feature = "dev-1", feature = "dev-0"))]
 pub const SYNC_STATE_FILE: &str = "/sync.state";
-
 
 // ---------- HTTP SERVER
 pub const SEALPATH: &str = "/nft/";

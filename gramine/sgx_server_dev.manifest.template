@@ -61,7 +61,7 @@ sgx.trusted_files = [
   "file:/etc/localtime",
 
   # NATIVE TLS ONLY
-  #"file:/etc/ssl/certs/ca-certificates.crt",
+  "file:/etc/ssl/certs/ca-certificates.crt",
 
   # DEV ONLY
   "file:bin/checksum",
