@@ -3,7 +3,7 @@ use std::{
 	io::{self, prelude::*, Seek, Write},
 	iter::Iterator,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use zip::{result::ZipError, write::FileOptions};
 
 use std::{fs::File, path::Path};
@@ -58,7 +58,7 @@ where
 		let file_ext = match path.extension().and_then(std::ffi::OsStr::to_str) {
 			Some(ext) => ext,
 			None => {
-				error!("ZIPDIR => CAN NOT extract file-extention from {:?}", path);
+				warn!("ZIPDIR => CAN NOT extract file-extention from {:?}", path);
 				continue;
 			},
 		};
@@ -66,7 +66,7 @@ where
 		let file_name = match path.file_stem().and_then(std::ffi::OsStr::to_str) {
 			Some(name) => name,
 			None => {
-				error!("ZIPDIR => CAN NOT extract file-name from {:?}", path);
+				warn!("ZIPDIR => CAN NOT extract file-name from {:?}", path);
 				continue;
 			},
 		};
@@ -87,9 +87,9 @@ where
 			// Wildcard for Synching in maintenacne mode
 			if list[0] == "*" {
 				// Filter out the enclave_account.key and log files
-				debug!("\t ZIPDIR : Wildcard => file-name = {:?}", name_ext);
+				debug!("\t ZIPDIR : WILDCARD : file-name = {:?}", name_ext);
 
-				if file_ext.is_empty() || file_ext == "log" || file_ext == "key" {
+				if file_ext.is_empty() || file_ext != "keyshare"  {
 					debug!(
 						"\t ZIPDIR => improper file-extension for synchronization = {:?}",
 						name_ext
