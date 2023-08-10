@@ -521,7 +521,7 @@ pub async fn sync_keyshares(
 
 	debug!("SYNC KEYSHARES : report['exit status'] = {}", report["exit status"]);
 
-	if report["exit status"] != "0" {
+	if report["exit status"] == "0" {
 		let quote: Value = match serde_json::from_value(attest_dynamic_json["quote"].clone()) {
 			Ok(quote) => quote,
 			Err(e) => {
