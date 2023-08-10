@@ -497,7 +497,7 @@ pub async fn sync_keyshares(
 	};
 
 	debug!(
-		"SYNC KEYSHARES : Attestation Result for url : {} is {:#?}",
+		"SYNC KEYSHARES : Attestation Result for url : {} is \n {:#?}\n\n",
 		requester.1.enclave_url, attestation_json,
 	);
 
@@ -535,9 +535,9 @@ pub async fn sync_keyshares(
 
 		if let Some(report_data) = quote["report_data"].as_str() {
 			let token =
-				request.enclave_account.clone() + "_" + &auth_token.block_number.to_string();
+				request.enclave_account.clone() + "_" + &auth_token.clone().block_number.to_string();
 			debug!("SYNC KEYSHARES : report_data token  = {}", token);
-
+			
 			if !verify_signature(
 				&request.enclave_account.clone(),
 				report_data.to_string(),
@@ -547,15 +547,41 @@ pub async fn sync_keyshares(
 					.await
 					.into_response();
 			}
-		} else {
+
+			let parse_token: Vec<&str> = token.split('_').collect();
+			if request.enclave_account != parse_token[0] {
+				return error_handler("SYNC KEYSHARES : TOKEN : Mismatch between <Requester Account> and <Report Data Token>".to_string(), &state)
+					.await
+					.into_response();
+			}else {
+				match  parse_token[1].parse::<u32>() {
+					Ok(token_block) => {
+						if (token_block != auth_token.block_number) || (last_block_number <  token_block) || (last_block_number -  token_block > 5) {
+							let message = format!("SYNC KEYSHARES : TOKEN : Incompatible block numbers :\n Current blocknumber: {} >~ Token blocknumber: {} == Request blocknumber: {} ?", last_block_number, token_block, auth_token.block_number);;
+							return error_handler(message, &state)
+								.await
+								.into_response();
+						}
+					},
+			
+					Err(e) => {
+						return error_handler(format!("SYNC KEYSHARES : TOKEN : Can not parse Token Block Number {} , error = {:?}", parse_token[1], e), &state)
+							.await
+							.into_response();
+					}
+				}// VALID TOKEN BLOCK
+			}// PARSE TOKEN
+		} // SUCCESS REPORT_DATA TOKEN
+		else {
 			let message =
 				format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
 			return error_handler(message, &state).await.into_response();
-		}
-	} else {
+		}// FAILED REPORT DATA
+	}// APPROVED ATTESTATION REPORT 
+	else {
 		let message = format!("SYNC KEYSHARES : Attestation IAS report failed : {}", report);
 		return error_handler(message, &state).await.into_response();
-	}
+	}// FAILED ATTESTATION REPORT
 
 	let backup_file = "/temporary/backup.zip".to_string();
 	//let counter = 1;
