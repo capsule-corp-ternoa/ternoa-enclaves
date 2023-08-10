@@ -28,7 +28,10 @@ use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
 	backup::zipdir::add_list_zip,
-	chain::{core::get_current_block_number, constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH}},
+	chain::{
+		constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
+		core::get_current_block_number,
+	},
 	servers::state::{get_blocknumber, SharedState, StateConfig},
 };
 
@@ -47,7 +50,6 @@ const BACKUP_WHITELIST: [&str; 3] = [
 	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
 	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
 ];
-
 
 /* *************************************
 	FETCH  NFTID DATA STRUCTURES

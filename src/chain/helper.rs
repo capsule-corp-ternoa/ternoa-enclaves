@@ -40,15 +40,15 @@ pub fn query_keyshare_file(dir_path: String) -> Result<BTreeMap<u32, Availabilit
 
 		let path = entry.path();
 
-		if let Ok((nftid,av)) = parse_keyshare_file(&path) {
+		if let Ok((nftid, av)) = parse_keyshare_file(&path) {
 			available_keys.insert(nftid, av);
-		}		
+		}
 	}
 
 	Ok(available_keys)
 }
 
-pub fn parse_keyshare_file(path: &Path) -> Result<(u32,Availability), anyhow::Error> {
+pub fn parse_keyshare_file(path: &Path) -> Result<(u32, Availability), anyhow::Error> {
 	//let path = std::path::Path::new(&file_name);
 
 	let name_parts: Vec<&str> = match path.file_stem().and_then(std::ffi::OsStr::to_str) {
@@ -65,7 +65,7 @@ pub fn parse_keyshare_file(path: &Path) -> Result<(u32,Availability), anyhow::Er
 		let message = format!("PARSE KEYSHARE FILE-NAME : invalid file name {:?}", name_parts);
 		return Err(anyhow!(message));
 	}
-	
+
 	let nftid = match name_parts[1].parse::<u32>() {
 		Ok(nftid) => nftid,
 		Err(e) => {
@@ -92,13 +92,12 @@ pub fn parse_keyshare_file(path: &Path) -> Result<(u32,Availability), anyhow::Er
 		"nft" => NftType::Secret,
 		"capsule" => NftType::Capsule,
 		_ => {
-			let message =
-				format!("PARSE KEYSHARE FILE-NAME : invalid  nft type {:?}", name_parts);
+			let message = format!("PARSE KEYSHARE FILE-NAME : invalid  nft type {:?}", name_parts);
 			return Err(anyhow!(message));
 		},
 	};
 
-	Ok((nftid, Availability { block_number, nft_type}))
+	Ok((nftid, Availability { block_number, nft_type }))
 }
 
 pub fn _query_nftid_file(dir_path: String, nft_id: u32) -> Result<u32, anyhow::Error> {
@@ -158,4 +157,3 @@ pub fn _query_nftid_file(dir_path: String, nft_id: u32) -> Result<u32, anyhow::E
 
 	Ok(0)
 }
-

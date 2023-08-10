@@ -22,12 +22,12 @@ use tracing::{debug, error, info};
 
 use crate::{
 	chain::{
+		constants::*,
 		core::{
-		get_current_block_number, get_onchain_delegatee, get_onchain_nft_data,
-		get_onchain_rent_contract,
+			get_current_block_number, get_onchain_delegatee, get_onchain_nft_data,
+			get_onchain_rent_contract,
+		},
 	},
-	constants::*,
-},
 	servers::state::{get_blocknumber, SharedState},
 };
 

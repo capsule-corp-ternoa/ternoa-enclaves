@@ -50,7 +50,7 @@ sgx.trusted_files = [
   "file:/etc/localtime",
 
 # TODO [security] : REMOVE, IT MUST BE GENERATED INSIDE ENCLAVE
-#"file:/etc/ssl/certs/ca-certificates.crt",
+"file:/etc/ssl/certs/ca-certificates.crt",
 
 # TODO [deployment] : REMOVE, THEY WILL BE DOWNLOADED FROM GITHUB
   "file:bin/checksum",
