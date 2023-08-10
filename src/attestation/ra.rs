@@ -9,7 +9,7 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 //use cached::proc_macro::once;
 use sp_core::Pair;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 
 use crate::servers::state::{get_accountid, get_blocknumber, get_keypair, SharedState};
 use anyhow::{anyhow, Result};
@@ -36,7 +36,7 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 	let signature = enclave_account.sign(sign_data.as_bytes());
 
 	match write_user_report_data(None, &signature.0) {
-		Ok(_) => debug!("Success writing user_data to the quote."),
+		Ok(_) => debug!("QUOTE : Success writing user_data to the quote."),
 
 		Err(e) => {
 			return (
@@ -67,7 +67,7 @@ pub fn generate_quote(
 	attestation_quote_path: Option<String>,
 	enclave_file_path: Option<String>,
 ) -> Result<Vec<u8>, Error> {
-	info!("Dumping the Quote");
+	info!("QUOTE : Dumping the Quote");
 
 	let default_enclave_path = "/quote/enclave.quote";
 
@@ -75,16 +75,16 @@ pub fn generate_quote(
 		File::create(enclave_file_path.unwrap_or(String::from(default_enclave_path)))
 			.and_then(|mut file| {
 				file.write_all(&result).map_err(|err| {
-					error!("Error writing to quote file {:?}", err);
+					error!("QUOTE : Error writing to quote file {:?}", err);
 					err
 				})
 			})
 			.map_err(|err| {
-				error!("Error Writing content");
+				error!("QUOTE : Error Writing content");
 				err
 			})
 			.map(|_| {
-				debug!("content  {:?}", result);
+				trace!("\nQuote : content  {:?}\n", result);
 				result
 			})
 	})
@@ -96,19 +96,19 @@ pub fn generate_quote(
 /// # Returns
 /// * `Result<Vec<u8>, Error>` - The result of the quote
 fn get_quote_content(file_path: Option<String>) -> Result<Vec<u8>, Error> {
-	info!("Reading The Quote ...");
+	info!("QUOTE : Reading The Quote ...");
 	let default_path = "/dev/attestation/quote";
 	let mut content = vec![];
 
 	File::open(file_path.unwrap_or(String::from(default_path)))
 		.and_then(|mut file| {
 			file.read_to_end(&mut content).map_err(|err| {
-				error!("Error opening file /dev/attestation/quote {:?}", err);
+				error!("QUOTE : Error opening file /dev/attestation/quote {:?}", err);
 				err
 			})
 		})
 		.map(|_| {
-			debug!("content  {:?}", content);
+			trace!("\nQuote : content  {:?}\n", content);
 			content
 		})
 }
@@ -125,12 +125,12 @@ fn read_attestation_type(file_path: Option<String>) -> Result<String, Error> {
 	File::open(file_path.unwrap_or(String::from(default_path)))
 		.and_then(|mut file| {
 			file.read_to_string(&mut attest_type).map_err(|err| {
-				error!("Error reading file: {:?}", err);
+				error!("QUOTE : Error reading file: {:?}", err);
 				err
 			})
 		})
 		.map(|_| {
-			debug!("attestation type is : {}", attest_type);
+			debug!("QUOTE : attestation type is : {}", attest_type);
 			attest_type
 		})
 }
@@ -146,21 +146,21 @@ pub fn write_user_report_data(
 ) -> Result<(), anyhow::Error> {
 	let default_path = "/dev/attestation/user_report_data";
 	if !is_user_report_data_exist(None) {
-		return Err(anyhow!("user_report_data does not exist!"));
+		return Err(anyhow!("QUOTE : user_report_data does not exist!"));
 	}
 
 	Ok(OpenOptions::new()
 		.write(true)
 		.open(file_path.unwrap_or(String::from(default_path)))
 		.and_then(|mut file| {
-			info!("This is inside Enclave!");
+			info!("QUOTE : This is inside Enclave!");
 			file.write_all(user_data.as_slice()).map_err(|err| {
-				error!("Error writing to {} {:?}", default_path, err);
+				error!("QUOTE : Error writing to {} {:?}", default_path, err);
 				err
 			})
 		})
 		.map_err(|err| {
-			error!("Error writing file: {:?}", err);
+			error!("QUOTE : Error writing file: {:?}", err);
 			err
 		})
 		.map(|_| ())?)

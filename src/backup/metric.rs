@@ -1,11 +1,19 @@
-use axum::{response::IntoResponse, extract::State, Json};
+use crate::{
+	backup::sync::ValidationResult,
+	chain::constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD},
+	servers::state::{get_blocknumber, get_clusters, SharedState},
+};
+use axum::{extract::State, response::IntoResponse, Json};
 use hex::{FromHex, FromHexError};
 use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sp_core::{sr25519::{Public, Signature}, crypto::{PublicError, Ss58Codec}, Pair};
+use sp_core::{
+	crypto::{PublicError, Ss58Codec},
+	sr25519::{Public, Signature},
+	Pair,
+};
 use tracing::{debug, error};
-use crate::{servers::state::{SharedState, get_blocknumber, get_clusters}, backup::sync::ValidationResult, chain::constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD}};
 
 use super::sync::Cluster;
 
@@ -21,10 +29,9 @@ pub struct AuthenticationToken {
 pub struct MetricNftListRequest {
 	pub metric_account: String,
 	pub block_interval: String,
-    pub auth_token: String,
+	pub auth_token: String,
 	pub signature: String,
 }
-
 
 impl AuthenticationToken {
 	pub async fn is_valid(&self, last_block_number: u32) -> ValidationResult {
@@ -53,19 +60,15 @@ impl AuthenticationToken {
 	}
 }
 
-
-fn verify_account_id(
-    _clusters: Vec<Cluster>,
-	_account_id: &str,
-) -> Option<u32> {
+fn verify_account_id(_clusters: Vec<Cluster>, _account_id: &str) -> Option<u32> {
 	// TODO [future security] : can we check requester URL or IP? What if it uses proxy?
 	debug!("Verify Metric-Server Accound Id");
-    Some(0)
+	Some(0)
 }
 
 fn get_public_key(account_id: &str) -> Result<Public, PublicError> {
-	let pk: Result<Public, PublicError> = Public::from_ss58check(account_id)
-		.map_err(|err: PublicError| {
+	let pk: Result<Public, PublicError> =
+		Public::from_ss58check(account_id).map_err(|err: PublicError| {
 			debug!("Error constructing public key {:?}", err);
 			err
 		});
@@ -119,14 +122,14 @@ pub async fn error_handler(message: String, state: &SharedState) -> impl IntoRes
 }
 
 /* --------------------
-    METRIC GET NFT LIST
-  --------------------*/
+  METRIC GET NFT LIST
+--------------------*/
 pub async fn metric_interval_nft_list(
-    State(state): State<SharedState>,
-    Json(request): Json<MetricNftListRequest>,) -> impl IntoResponse {
-    
-    debug!("\n\t**\nMETRIC GET NFT LIST IN BLOCK INTERVAL\n\t**\n");
-    let last_block_number = get_blocknumber(&state).await;
+	State(state): State<SharedState>,
+	Json(request): Json<MetricNftListRequest>,
+) -> impl IntoResponse {
+	debug!("\n\t**\nMETRIC GET NFT LIST IN BLOCK INTERVAL\n\t**\n");
+	let last_block_number = get_blocknumber(&state).await;
 
 	debug!("METRIC GET NFT LIST : START CLUSTER DISCOVERY");
 	let clusters = get_clusters(&state).await;
@@ -172,8 +175,10 @@ pub async fn metric_interval_nft_list(
 	let auth_token: AuthenticationToken = match serde_json::from_str(&auth) {
 		Ok(token) => token,
 		Err(e) => {
-			let message =
-				format!("METRIC GET NFT LIST : Error : Authentication token is not parsable : {}", e);
+			let message = format!(
+				"METRIC GET NFT LIST : Error : Authentication token is not parsable : {}",
+				e
+			);
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -210,27 +215,35 @@ pub async fn metric_interval_nft_list(
 			.into_response();
 	}
 
-    let interval: Vec<u32> = match serde_json::from_str(&request.block_interval) {
+	let interval: Vec<u32> = match serde_json::from_str(&request.block_interval) {
 		Ok(interval) => interval,
 		Err(e) => {
-			let message =
-				format!("METRIC GET NFT LIST : Error : Authentication token is not parsable : {}", e);
+			let message = format!(
+				"METRIC GET NFT LIST : Error : Authentication token is not parsable : {}",
+				e
+			);
 			return error_handler(message, &state).await.into_response();
 		},
 	};
 
-    if interval.len() != 2 || interval[0] >= interval[1] {
-        let message =
-				"METRIC GET NFT LIST : Error : Invalid provided block interval".to_string();
-			return error_handler(message, &state).await.into_response();
-    }
+	if interval.len() != 2 || interval[0] >= interval[1] {
+		let message = "METRIC GET NFT LIST : Error : Invalid provided block interval".to_string();
+		return error_handler(message, &state).await.into_response();
+	}
 
-    let shared_state_read = state.read().await;
+	let shared_state_read = state.read().await;
 	let nft_list = shared_state_read.get_nft_availability_map();
-    let nftid: Vec<u32> = nft_list.into_iter().filter(|(_,v)| v.block_number> interval[0] && v.block_number < interval[1]).map(|(k,_)| k).collect();
+	let nftid: Vec<u32> = nft_list
+		.into_iter()
+		.filter(|(_, v)| v.block_number > interval[0] && v.block_number < interval[1])
+		.map(|(k, _)| k)
+		.collect();
 
-	(StatusCode::OK, Json(json!({
-        "nftid": nftid
-    }))).into_response()
-
+	(
+		StatusCode::OK,
+		Json(json!({
+			"nftid": nftid
+		})),
+	)
+		.into_response()
 }
