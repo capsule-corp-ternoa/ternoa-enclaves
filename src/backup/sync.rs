@@ -817,7 +817,7 @@ pub async fn fetch_keyshares(
 				"FETCH KEYSHARES : NFTs does not belong to cluster {}, continue to next cluster",
 				cluster_id
 			);
-			continue;
+			continue; // Next Cluster
 		}
 
 		let mut enclave_url = enclave.enclave_url.clone();
@@ -837,13 +837,13 @@ pub async fn fetch_keyshares(
 						request_url, err
 					);
 				debug!("FETCH KEYSHARES : continue with next syncing target enclave");
-				continue;
+				continue; // Next Cluster
 			},
 		};
 		// Analyze the Response
 		let health_status = health_response.status();
 
-		debug!("FETCH KEYSHARES : HEALTH CHECK : health response : {:#?}\n", health_response);
+		trace!("FETCH KEYSHARES : HEALTH CHECK : health response : {:#?}\n", health_response);
 		//debug!("FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response.text().await?);
 
 		let response_body: HealthResponse = match health_response.json().await {
@@ -854,12 +854,12 @@ pub async fn fetch_keyshares(
 					enclave.enclave_url, e
 				);
 				warn!(message);
-				continue;
+				continue; // Next Cluster
 			},
 		};
 
 		debug!(
-			"FETCH KEYSHARES : Health-Check Result for url : {} is {:#?}",
+			"FETCH KEYSHARES : Health-Check Result for url : {} is \n{:#?}",
 			enclave.enclave_url, response_body
 		);
 
@@ -868,13 +868,20 @@ pub async fn fetch_keyshares(
 				"FETCH KEYSHARES : Healthcheck Failed on url: {}, status : {:#?}, reason : {}",
 				enclave.enclave_url, health_status, response_body.description
 			);
-			warn!(message);
+			error!(message);
+			continue; // Next Cluster
 		} else {
 			last_synced = match response_body.sync_state.parse::<u32>() {
 				Ok(blk) => blk,
-				Err(_) => continue,
+				Err(_) => {
+					let message = format!(
+						"FETCH KEYSHARES : Healthcheck Parse Error on url: {}, status : {:#?}, sync_state : {}",
+						enclave.enclave_url, health_status, response_body.sync_state
+					);
+					error!(message);
+					continue; // Next Cluster
+				},
 			};
-			break; // SUCCESS : EXIT RETRY
 		}
 
 		let request_url = enclave_url.clone() + "/api/backup/sync-keyshare";
@@ -894,7 +901,7 @@ pub async fn fetch_keyshares(
 			Ok(res) => res,
 			Err(err) => {
 				error!("FETCH KEYSHARES : Fetch response error: {:#?}", err);
-				continue;
+				continue; // Next Cluster
 				//return Err(anyhow!(err));
 			},
 		};
