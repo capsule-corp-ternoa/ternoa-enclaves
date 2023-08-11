@@ -4,18 +4,18 @@
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )
 SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
-CERT_PATH=$BASEDIR/credentials/certificates
+CERT_PATH=$GRAMINE_PATH/certificates
 QUOTE_PATH=$GRAMINE_PATH/quote
 CREDENTIALS_PATH=$BASEDIR/credentials
 
 # DEFAULT VALUES
 CHAIN=${CHAIN:-alphanet}
+
 DOMAIN=${DOMIAN:-alphanet-c1n1v2.ternoa.dev}
-PORT=${PORT:-8101}
+PORT=${PORT:-8100}
+
 MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
-# PASSWORD = Test123456
-#TERNOA_ACCOUNT_PATH=${TERNOA_ACCOUNT_KEY:-$ACCOUNTS_PATH/owner_account.json} 
-ENCLAVE_IDENTITY=${ENCLAVE_IDENTITY:-C1N1E1}
+
 VERBOSITY_LEVLE=2
 DEV_BUILD=0
 
@@ -52,22 +52,6 @@ while :; do
 		die 'ERROR: "--port" requires a non-empty option argument.'
 	    fi
         ;;
-        -n|--secrets)
-	    if [ "$2" ]; then
-		NFT_SERCRETS_PATH=$2
-		shift
-	    else
-		die 'ERROR: "--secrets" requires a non-empty option argument.'
-	    fi
-        ;;
-	-i|--identity)
-	    if [ "$2" ]; then
-		ENCLAVE_IDENTITY=$2
-		shift
-	    else
-		die 'ERROR: "--identity" requires a non-empty option argument.'
-	    fi
-	    ;;
 	-d|--dev)
 	# Compiling the source code
 		if [ -z "$(which cargo)" ]
@@ -79,22 +63,17 @@ while :; do
 		
 		# Use dev-manifest template
 		DEV_BUILD=1
-		# SEAL the certificates / use it only when you are confidents
-		CERT_PATH=$GRAMINE_PATH/certificates
 
 		mkdir -p $GRAMINE_PATH/bin/
 		cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
 
-		echo "creating binary checksum ..."
-	    cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
-	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
-	    
 		echo "signing the binary ..."
 	    COSIGN_PASSWORD="Test123456" cosign sign-blob --key $BASEDIR/credentials/keys/dev/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
 		tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
 		mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
 	;;
 	-r|--release)
+	# Download the binary from github
 		mkdir -p $GRAMINE_PATH/bin/
 		
 		# Use release-manifest template
@@ -103,14 +82,6 @@ while :; do
 		echo "Downloading binary and signature from Ternoa github repository"
 		$SCRIPTS_PATH/fetch-release.sh
 		mv ./sgx_server $GRAMINE_PATH/bin/
-		mv ./sgx_server.sig $GRAMINE_PATH/bin/
-
-		echo "creating binary checksum ..."
-	    cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
-	    mv /tmp/checksum $GRAMINE_PATH/bin/checksum
-
-		CERT_PATH=$GRAMINE_PATH/certificates
-
 	;;
 	-v|--verbose)
 	if [ "$2" ]; then
@@ -139,19 +110,8 @@ ICyan='\033[0;96m'        # Cyan
 IWhite='\033[0;97m'       # White
 BIWhite='\033[1;97m'      # White
 
-# Import Keypair from account
-#echo -e "\n\n${BIWhite}Importing the account${NC}"
-#TERNOA_ACCOUNT_KEY="$(python $SCRIPTS_PATH/import_account.py $TERNOA_ACCOUNT_PATH)"
-#if [ -z "$TERNOA_ACCOUNT_KEY" ]; then
-#    echo -e "${IRed}Can not decode account file${NC}"
-#    exit
-#fi
-
 echo -e "\nport:\t\t ${IGreen}$PORT${NC}"
 echo -e "domain name:\t ${IGreen}$DOMAIN${NC}"
-#echo -e "nft secrets:\t ${IGreen}$NFT_SERCRETS_PATH${NC}"
-#echo -e "enclave name:\t ${IGreen}$ENCLAVE_IDENTITY${NC}"
-#echo -e "account key:\t ${IGreen}$TERNOA_ACCOUNT_PATH${NC}" # WILL BE REPLACED BY GITHUB SCRIPT
 
 # Create Enclave using Makefile
 cd $GRAMINE_PATH
@@ -161,7 +121,6 @@ make 	SGX=1 \
 	SGX_PORT=$PORT \
 	SGX_BASE_PATH=$BASEDIR \
 	SGX_QUOTE_PATH=$QUOTE_PATH \
-	SGX_CREDENTIALS_PATH=$CREDENTIALS_PATH \
 	SGX_CERT_PATH=$CERT_PATH \
 	SGX_VERBOSITY=$VERBOSITY_LEVLE\
 	SGX_DEV_BUILD=$DEV_BUILD\
@@ -211,11 +170,5 @@ else
 	echo -e "\nTesting the server health with this command : curl -s https://$DOMAIN:$PORT/api/health | jq ."
 	curl -s https://$DOMAIN:$PORT/api/health | jq .
 fi
-
-#echo -e "\n${BIWhite}Getting Report from IAS${NC}"
-
-#$SCRIPTS_PATH/generate-ias-report.sh
-
-#echo "IAS Report is ready."
 
 echo -e "\n"

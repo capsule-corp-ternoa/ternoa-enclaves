@@ -21,13 +21,8 @@ fs.mounts = [
   
   { path = "/temporary", type = "tmpfs" },
 
-  # ------ TRUSTED (only dev)
-  { path = "/keys", uri = "file:../credentials/keys", type = "chroot" },
-  
   # ------ ALLOWED (only dev)
   { path = "/sync.state", uri = "file:./sync.state", type = "chroot" },
-
-  { path = "/quote", uri = "file:quote", type = "chroot" },
 
   # ------ SEALED!
   { path = "/certificates", uri = "file:certificates", type = "chroot" },
@@ -40,7 +35,6 @@ fs.mounts = [
 # ONLY for DEV!
 # THEY all be SEALED for production
 sgx.allowed_files = [
-  "file:quote/",
   "file:nft/",
   "file:certificates/",
   "file:./sync.state",
@@ -64,9 +58,7 @@ sgx.trusted_files = [
   "file:/etc/ssl/certs/ca-certificates.crt",
 
   # DEV ONLY
-  "file:bin/checksum",
   "file:bin/sgx_server.sig",
-  "file:../credentials/keys/dev/cosign.pub",
 ]
 
 # The Tokio runtime requires eventfd, and the Gramine implementation

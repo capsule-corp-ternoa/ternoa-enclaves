@@ -2,7 +2,7 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 
-use anyhow::{anyhow, Error};
+
 use std::path::PathBuf;
 use tracing::{debug, error, info};
 
@@ -76,85 +76,4 @@ pub fn self_checksig() -> Result<String, String> {
 	}
 }
 
-/*  ------------------------------
-		CHECKSUM
------------------------------- */
-/// This function is called by the health check endpoint
-fn self_checksum() -> Result<String, String> {
-	// Get binary address on disk
-	// BUT in gramine, the binary is simply at root directory!
-	let mut binary_path = match sysinfo::get_current_pid() {
-		Ok(pid) => {
-			let path_string = "/proc/".to_owned() + &pid.to_string() + "/exe";
 
-			let binpath = match std::path::Path::new(&path_string).read_link() {
-				Ok(val) => val,
-				Err(err) => {
-					info!("Error in binpath {:?}", err);
-					PathBuf::new()
-				},
-			};
-
-			binpath
-		},
-		Err(e) => {
-			error!("failed to get current pid: {}", e);
-			PathBuf::new()
-		},
-	};
-
-	// Verify Ternoa checksum/signature
-	let bytes = match std::fs::read(binary_path.clone()) {
-		Ok(val) => val,
-		Err(e) => {
-			error!("failed to get current pid: {}", e);
-			Vec::new()
-		},
-	};
-
-	let hash = sha256::digest(bytes.as_slice());
-
-	// Get checksum from github release
-	binary_path.pop(); // remove binary name
-	binary_path.push("checksum");
-
-	let binary_hash = match std::fs::read_to_string(binary_path.clone()) {
-		Ok(val) => val,
-		Err(err) => {
-			error!("Error readinf binary path: {err}");
-			String::new()
-		},
-	};
-
-	let binary_hash = binary_hash
-		.strip_suffix("\r\n")
-		.or(binary_hash.strip_suffix('\n'))
-		.unwrap_or(&binary_hash);
-
-	if binary_hash != hash {
-		info!("Binary hash doesn't match!");
-		Err(hash)
-	} else {
-		info!("Binary hash match : {}", hash);
-		Ok(hash)
-	}
-}
-
-/*  ------------------------------
-	DOWNLOADER
------------------------------- */
-/// This function is called by the health check endpoint
-/// It downloads the binary from github release
-pub fn downloader(url: &str) -> Result<String, Error> {
-	let response = match reqwest::blocking::get(url) {
-		Ok(resp) => resp,
-		Err(e) => return Err(anyhow!("Error accessing url: {}", e)),
-	};
-
-	let content = match response.text() {
-		Ok(s) => s,
-		Err(e) => return Err(anyhow!("Error reading response: {}", e)),
-	};
-
-	Ok(content)
-}
