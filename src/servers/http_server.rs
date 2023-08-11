@@ -413,7 +413,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
 		// SYNCHRONIZATION
 		.route("/api/backup/sync-keyshare", post(sync_keyshares))
-		// DEV
+		// ONLY FOR DEV -- WILL BE REMOVED FOR PRODUCTION
 		.route("/api/set-block/:blocknumber", get(dev_set_block))
 		// METRIC SERVER
 		.route("/api/metric/interval-nft-list", post(metric_reconcilliation))

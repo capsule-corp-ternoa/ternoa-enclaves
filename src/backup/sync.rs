@@ -40,7 +40,7 @@ use tracing::{debug, error, info, trace, warn};
 use zip::result::ZipError;
 
 use crate::{
-	attestation::ra::{generate_quote, write_user_report_data, QuoteResponse},
+	attestation::ra::{get_quote_content, write_user_report_data, QuoteResponse},
 	backup::zipdir::{add_list_zip, zip_extract},
 	chain::{
 		constants::{
@@ -737,7 +737,7 @@ pub async fn fetch_keyshares(
 		},
 	};
 
-	let quote = match generate_quote(None, None) {
+	let quote = match get_quote_content() {
 		Ok(quote) => match serde_json::to_string(&QuoteResponse {
 			block_number: last_block_number,
 			data: hex::encode(quote),

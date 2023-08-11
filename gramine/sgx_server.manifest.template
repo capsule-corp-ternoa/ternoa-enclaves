@@ -20,19 +20,9 @@ fs.mounts = [
   { path = "/etc", uri = "file:/etc" },
   { path = "/temporary", type = "tmpfs" },
   
-  # ------ TRUSTED
-  { path = "/keys", uri = "file:../credentials/keys", type = "chroot" },
-  
-  # ------ ALLOWED
-  { path = "/quote", uri = "file:quote", type = "chroot" },
-
   # ------ SEALED
   { path = "/certificates", uri = "file:certificates", type = "encrypted", key_name = "_sgx_mrenclave" },
   { path = "/nft" , uri = "file:nft", type = "encrypted", key_name = "_sgx_mrenclave"},
-]
-
-sgx.allowed_files = [
-  "file:quote/",
 ]
 
 sgx.trusted_files = [
@@ -49,13 +39,8 @@ sgx.trusted_files = [
   "file:/etc/gai.conf",
   "file:/etc/localtime",
 
-# TODO [security] : REMOVE, IT MUST BE GENERATED INSIDE ENCLAVE
-"file:/etc/ssl/certs/ca-certificates.crt",
-
-# TODO [deployment] : REMOVE, THEY WILL BE DOWNLOADED FROM GITHUB
-  "file:bin/checksum",
-  "file:bin/sgx_server.sig",
-  "./credentials/keys/cosign.pub",
+  # TODO [security]
+  "file:/etc/ssl/certs/ca-certificates.crt",
 ]
 
 # TODO [deployment] : REMOVE INSECURE OPTIONS

@@ -46,7 +46,7 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 		},
 	};
 
-	match generate_quote(None, None) {
+	match get_quote_content()  {
 		Ok(quote) => {
 			(StatusCode::OK, Json(QuoteResponse { block_number, data: hex::encode(quote) }))
 		},
@@ -58,49 +58,17 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 	}
 }
 
-/// get the attestation type
-/// # Arguments
-/// * `attestation_type_path` - The path to the attestation type
-/// # Returns
-/// * `Result<String, Error>` - The result of the attestation type
-pub fn generate_quote(
-	attestation_quote_path: Option<String>,
-	enclave_file_path: Option<String>,
-) -> Result<Vec<u8>, Error> {
-	info!("QUOTE : Dumping the Quote");
-
-	let default_enclave_path = "/quote/enclave.quote";
-
-	get_quote_content(attestation_quote_path).and_then(|result| {
-		File::create(enclave_file_path.unwrap_or(String::from(default_enclave_path)))
-			.and_then(|mut file| {
-				file.write_all(&result).map_err(|err| {
-					error!("QUOTE : Error writing to quote file {:?}", err);
-					err
-				})
-			})
-			.map_err(|err| {
-				error!("QUOTE : Error Writing content");
-				err
-			})
-			.map(|_| {
-				trace!("\nQuote : content  {:?}\n", result);
-				result
-			})
-	})
-}
-
 /// Reads the quote or else returns an error
 /// # Arguments
 /// * `file_path` - The path to the quote
 /// # Returns
 /// * `Result<Vec<u8>, Error>` - The result of the quote
-fn get_quote_content(file_path: Option<String>) -> Result<Vec<u8>, Error> {
+pub fn get_quote_content() -> Result<Vec<u8>, Error> {
 	info!("QUOTE : Reading The Quote ...");
 	let default_path = "/dev/attestation/quote";
 	let mut content = vec![];
 
-	File::open(file_path.unwrap_or(String::from(default_path)))
+	File::open(default_path)
 		.and_then(|mut file| {
 			file.read_to_end(&mut content).map_err(|err| {
 				error!("QUOTE : Error opening file /dev/attestation/quote {:?}", err);
