@@ -1,4 +1,6 @@
 pub const VERSION: &str = "0.4.3";
+pub const ATTESTATION_SERVER_URL: &str = "https://51.222.44.147:9100/attest";
+//pub const ATTESTATION_SERVER_URL = "https://dev-c1n1.ternoa.network:9100";
 
 // ---------- SYNC
 pub const RETRY_COUNT: u8 = 5;

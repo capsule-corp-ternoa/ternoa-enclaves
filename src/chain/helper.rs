@@ -7,6 +7,7 @@ use tracing::{debug, error, warn};
 pub enum NftType {
 	Secret,
 	Capsule,
+	Hybrid,
 }
 
 #[derive(Clone, Copy, Debug)]

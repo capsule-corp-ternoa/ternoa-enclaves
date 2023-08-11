@@ -158,6 +158,7 @@ impl StateConfig {
 	}
 
 	pub fn get_nft_availability(&self, nftid: u32) -> Option<&helper::Availability> {
+		tracing::debug!("\nAVAILABILITY : LOW LEVEL : GET : MAP : {:#?}", self.nft_block_map);
 		self.nft_block_map.get(&nftid)
 	}
 
@@ -168,11 +169,13 @@ impl StateConfig {
 	pub fn set_nft_availability(&mut self, nftid_block: (u32, helper::Availability)) {
 		// Identity is (ClusterID, SlotID)
 		self.nft_block_map.insert(nftid_block.0, nftid_block.1);
+		tracing::debug!("\nAVAILABILITY : LOW LEVEL : SET : MAP : {:#?}", self.nft_block_map);
 	}
 
 	pub fn remove_nft_availability(&mut self, nftid: u32) {
 		// Identity is (ClusterID, SlotID)
 		self.nft_block_map.remove(&nftid);
+		tracing::debug!("\nAVAILABILITY : LOW LEVEL : REMOVE : MAP : {:#?}", self.nft_block_map);
 	}
 }
 

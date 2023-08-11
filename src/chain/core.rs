@@ -106,9 +106,11 @@ pub async fn get_current_block_number(state: &SharedState) -> Result<u32, Error>
 	for retry in 0..RETRY_COUNT {
 		match api.blocks().at_latest().await {
 			Ok(last_block) => return Ok(last_block.number()),
-			Err(e) => error!("core : unable to get latest block, re-try num.{}, {:?}", retry, e),
+			Err(e) => {
+				error!("core : unable to get latest block, re-try num.{}, {:?}", retry, e);
+				std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+			},
 		}
-		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 	}
 
 	// LAST NORMAL TRY
@@ -315,6 +317,55 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 			None
 		},
 	}
+}
+
+/// Get Metric Server
+/// # Arguments
+/// * `nft_id` - The NFT/Capsule ID
+/// # Returns
+/// * `Option<AccountId32>` - The rent contract
+pub type MetricServer =
+	ternoa::runtime_types::ternoa_tee::types::MetricsServer<subxt::utils::AccountId32>;
+pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>> {
+	debug!("GET METRIC SERVER");
+
+	let api = get_chain_api(state).await;
+
+	let storage_address = ternoa::storage().tee().metrics_servers();
+
+	for retry in 0..RETRY_COUNT {
+		let storage = match api.storage().at_latest().await {
+			Ok(storage) => storage,
+			Err(err) => {
+				error!("GET METRIC SERVER : Failed to get storage for metric server, retry num.{} : {:?}", retry, err);
+				continue;
+			},
+		};
+
+		match storage.fetch(&storage_address).await {
+			Ok(metric_servers) => match metric_servers {
+				Some(bv) => return Some(bv.0),
+				_ => {
+					error!(
+						"GET METRIC SERVER : Failed to parse metric server vector, retry num.{} : {:?}",
+						retry, metric_servers
+						);
+
+					return None;
+				},
+			},
+
+			Err(err) => {
+				error!(
+					"GET METRIC SERVER : Failed to fetch metric servers, retry num.{} : {:?}",
+					retry, err
+				);
+				std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+			},
+		}
+	}
+
+	None
 }
 
 // -------------- BATCH/CONCURRENT --------------
