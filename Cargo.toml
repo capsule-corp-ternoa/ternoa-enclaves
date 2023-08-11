@@ -35,7 +35,7 @@ serde = { version = "1.0.152", features = ["derive"] }
 hex = "0.4.3"
 base64 = "0.21.0"
 zip = "0.6.4"
-async_zip = "0.0.15"
+async_zip = {version = "0.0.15", features = ["deflate"]}
 
 # Time and Trace
 chrono = "0.4.23"
