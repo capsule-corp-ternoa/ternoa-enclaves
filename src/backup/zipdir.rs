@@ -82,30 +82,33 @@ where
 			},
 		};
 
-		// NFTID-based backup? (vs Admin Backup)
+		// NFTID-based backup? (vs Admin Full-Backup)
 		if !list.is_empty() {
 			// Wildcard for Synching in maintenacne mode
 			if list[0] == "*" {
 				// Filter out the enclave_account.key and log files
 				debug!("\t ZIPDIR : WILDCARD : file-name = {:?}", name_ext);
 
-				if file_ext.is_empty() || file_ext != "keyshare"  {
+				if file_ext.is_empty() || file_ext != "keyshare" {
 					debug!(
 						"\t ZIPDIR => improper file-extension for synchronization = {:?}",
 						name_ext
 					);
 					continue;
 				}
-			}
-			// Synching in Runtime mode Or Admin NFTID backup
-			else {
+			} else {
+				// Synching in Runtime mode Or Admin NFTID backup
 				let name_parts: Vec<&str> = file_name.split('_').collect();
 
 				// Keyshare file name  = [nft/capsule]_[nftid]_[blocknumber].keyshare
 				debug!("\t ZIPDIR => nameparts = {:?}, list = {:?}\n", name_parts, list);
 
 				// File Name : NFT_NFTID_BLOCKNUMBER : nft_123_2345
-				if name_parts.len() != 3 || !list.contains(&name_parts[1].to_string()) {
+				if file_ext.is_empty()
+					|| file_ext != "keyshare"
+					|| name_parts.len() != 3
+					|| !list.contains(&name_parts[1].to_string())
+				{
 					debug!(
 						"\t ZIPDIR => improper file name-parts for synchronization = {:?}",
 						name_parts
@@ -171,7 +174,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 	let infile = match fs::File::open(fname) {
 		Ok(file) => file,
 		Err(e) => {
-			error!("Backup extract error opening zip file : {:?}", e);
+			error!("Backup extract : error opening zip file : {:?}", e);
 			return Err(ZipError::Io(e));
 		},
 	};
@@ -220,7 +223,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 		// DIRECTORY
 		if (*file.name()).ends_with('/') {
 			match fs::create_dir_all(fullpath) {
-				Ok(_file) => info!("create {:?}", fullpath),
+				Ok(_file) => info!("Backup extract : create directory {:?}", fullpath),
 				Err(e) => {
 					error!("Backup extract : error create internal directory : {:?}", e);
 					return Err(zip::result::ZipError::Io(e));
@@ -233,7 +236,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 			if let Some(p) = fullpath.parent() {
 				if !p.exists() {
 					match fs::create_dir_all(p) {
-						Ok(_file) => info!("create {:?}", p),
+						Ok(_file) => info!("Backup extract : create {:?}", p),
 						Err(e) => {
 							error!("Backup extract : error creating paretn directory : {:?}", e);
 							return Err(zip::result::ZipError::Io(e));
@@ -245,7 +248,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 			// Overwrite the file
 			let mut outfile = match fs::File::create(fullpath) {
 				Ok(file) => {
-					info!("create {:?}", fullpath);
+					info!("Backup extract : create {:?}", fullpath);
 					file
 				},
 				Err(e) => {

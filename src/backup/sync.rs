@@ -5,8 +5,10 @@ use std::{
 	collections::HashMap,
 	ffi::OsStr,
 	fs::{self, remove_file},
-	io::Write,
+	io::{self, Write},
 	net::SocketAddr,
+	os::unix::prelude::PermissionsExt,
+	path::Path,
 };
 
 use axum::{
@@ -35,24 +37,27 @@ use subxt::{
 use tokio_util::io::ReaderStream;
 
 use tracing::{debug, error, info, trace, warn};
+use zip::result::ZipError;
 
 use crate::{
 	attestation::ra::{generate_quote, write_user_report_data, QuoteResponse},
 	backup::zipdir::{add_list_zip, zip_extract},
 	chain::{
 		constants::{
-			MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH, SYNC_STATE_FILE, VERSION,
+			ATTESTATION_SERVER_URL, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH,
+			SYNC_STATE_FILE, VERSION,
 		},
 		core::{
 			ternoa,
 			ternoa::nft::events::{CapsuleSynced, SecretNFTSynced},
 		},
+		helper::{Availability, NftType},
 	},
 	servers::{
 		http_server::HealthResponse,
 		state::{
 			get_accountid, get_blocknumber, get_chain_api, get_clusters, get_identity, get_keypair,
-			set_clusters, set_identity, SharedState,
+			get_nft_availability, set_clusters, set_identity, set_nft_availability, SharedState,
 		},
 	},
 };
@@ -474,7 +479,7 @@ pub async fn sync_keyshares(
 	);
 
 	let attest_response = match client
-		.post("https://dev-c1n1.ternoa.network:9100/attest")
+		.post(ATTESTATION_SERVER_URL)
 		.body(json!({"data": quote_body.data}).to_string())
 		.header(header::CONTENT_TYPE, "application/json")
 		.send()
@@ -534,10 +539,10 @@ pub async fn sync_keyshares(
 		debug!("SYNC KEYSHARES : quote['report_data'] = {}", quote["report_data"]);
 
 		if let Some(report_data) = quote["report_data"].as_str() {
-			let token =
-				request.enclave_account.clone() + "_" + &auth_token.clone().block_number.to_string();
+			let token = request.enclave_account.clone()
+				+ "_" + &auth_token.clone().block_number.to_string();
 			debug!("SYNC KEYSHARES : report_data token  = {}", token);
-			
+
 			if !verify_signature(
 				&request.enclave_account.clone(),
 				report_data.to_string(),
@@ -553,35 +558,38 @@ pub async fn sync_keyshares(
 				return error_handler("SYNC KEYSHARES : TOKEN : Mismatch between <Requester Account> and <Report Data Token>".to_string(), &state)
 					.await
 					.into_response();
-			}else {
-				match  parse_token[1].parse::<u32>() {
+			} else {
+				match parse_token[1].parse::<u32>() {
 					Ok(token_block) => {
-						if (token_block != auth_token.block_number) || (last_block_number <  token_block) || (last_block_number -  token_block > 5) {
-							let message = format!("SYNC KEYSHARES : TOKEN : Incompatible block numbers :\n Current blocknumber: {} >~ Token blocknumber: {} == Request blocknumber: {} ?", last_block_number, token_block, auth_token.block_number);;
-							return error_handler(message, &state)
-								.await
-								.into_response();
+						if (token_block != auth_token.block_number)
+							|| (last_block_number < token_block)
+							|| (last_block_number - token_block > 5)
+						{
+							let message = format!("SYNC KEYSHARES : TOKEN : Incompatible block numbers :\n Current blocknumber: {} >~ Token blocknumber: {} == Request blocknumber: {} ?", last_block_number, token_block, auth_token.block_number);
+							return error_handler(message, &state).await.into_response();
 						}
 					},
-			
+
 					Err(e) => {
 						return error_handler(format!("SYNC KEYSHARES : TOKEN : Can not parse Token Block Number {} , error = {:?}", parse_token[1], e), &state)
 							.await
 							.into_response();
-					}
-				}// VALID TOKEN BLOCK
-			}// PARSE TOKEN
-		} // SUCCESS REPORT_DATA TOKEN
+					},
+				} // VALID TOKEN BLOCK
+			} // PARSE TOKEN
+		}
+		// SUCCESS REPORT_DATA TOKEN
 		else {
 			let message =
 				format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
 			return error_handler(message, &state).await.into_response();
-		}// FAILED REPORT DATA
-	}// APPROVED ATTESTATION REPORT 
+		} // FAILED REPORT DATA
+	}
+	// APPROVED ATTESTATION REPORT
 	else {
 		let message = format!("SYNC KEYSHARES : Attestation IAS report failed : {}", report);
 		return error_handler(message, &state).await.into_response();
-	}// FAILED ATTESTATION REPORT
+	} // FAILED ATTESTATION REPORT
 
 	let backup_file = "/temporary/backup.zip".to_string();
 	//let counter = 1;
@@ -928,7 +936,7 @@ pub async fn fetch_keyshares(
 			Err(err) => {
 				error!("FETCH KEYSHARES : Fetch response error: {:#?}", err);
 				continue; // Next Cluster
-				//return Err(anyhow!(err));
+				 //return Err(anyhow!(err));
 			},
 		};
 
@@ -962,9 +970,8 @@ pub async fn fetch_keyshares(
 			},
 		}
 
-		// TODO [future reliability] : Verify fetch data before writing them on the disk
 		// Check if keyshares are invalid
-		match zip_extract(&backup_file, SEALPATH) {
+		match sync_zip_extract(state, &backup_file).await {
 			Ok(_) => debug!("FETCH KEYSHARES : zip_extract success"),
 			Err(e) => {
 				let message = format!("FETCH KEYSHARES : extracting zip file {:?}", e);
@@ -1534,6 +1541,383 @@ pub fn set_sync_state(state: String) -> Result<()> {
 		std::fs::OpenOptions::new().write(true).truncate(true).open(SYNC_STATE_FILE)?;
 
 	let _len = statefile.write(state.as_bytes())?;
+
+	Ok(())
+}
+
+/* ----------------------------
+		EXTRACT ARCHIVE
+-------------------------------*/
+use async_zip::base::read::seek::ZipFileReader;
+use tokio::fs::{create_dir_all, OpenOptions};
+use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+
+pub async fn sync_zip_extract(
+	state: &SharedState,
+	zip_file_name: &str,
+) -> Result<(), async_zip::error::ZipError> {
+	let infile = match tokio::fs::File::open(zip_file_name).await {
+		Ok(file) => file,
+		Err(e) => {
+			error!("SYNC EXTRACT : error opening zip file : {:?}", e);
+			return Err(e.into());
+		},
+	};
+
+	let archive = infile.compat();
+
+	let mut reader = match ZipFileReader::new(archive).await {
+		Ok(archive) => archive,
+		Err(e) => {
+			error!("SYNC EXTRACT : error opening file as zip-archive: {:?}", e);
+			return Err(e);
+		},
+	};
+
+	for index in 0..reader.file().entries().len() {
+		let entry = match reader.file().entries().get(index) {
+			Some(entry) => entry,
+			None => {
+				error!("SYNC EXTRACT : error extracting file from archive, index {}", index);
+				continue;
+			},
+		};
+
+		let entry_name = match entry.entry().filename().as_str() {
+			Ok(name) => name,
+			Err(e) => {
+				error!(
+					"SYNC EXTRACT : error extract entry name from archive, index {} : {:?}",
+					index, e
+				);
+				continue;
+			},
+		};
+
+		let entry_path = Path::new(&entry_name);
+
+		let entry_is_dir = match entry.entry().dir() {
+			Ok(dir) => dir,
+			Err(e) => {
+				warn!(
+					"SYNC EXTRACT : error determining entry type from archive, index {} : {:?}",
+					index, e
+				);
+				continue;
+			},
+		};
+
+		let entry_permission = entry.entry().unix_permissions().unwrap_or(0o664);
+
+		// Legacy line of code
+		if entry_name.contains("__MACOSX") {
+			//(*archived_file.name()).contains("__MACOSX") {
+			continue;
+		}
+
+		// ENTRY IS DIRECTORY?
+		if entry_is_dir {
+			warn!("SYNC EXTRACT : syncing directory is not supported : {:?}", entry_name);
+			continue;
+		}
+
+		// ENTRY IS FILE?
+		match entry_path.extension() {
+			Some(ext) => {
+				match ext.to_str() {
+					Some(exts) => match exts {
+						"keyshare" => {
+							tracing::trace!("SYNC EXTRACT : valid extension : {}", exts);
+						},
+						_ => {
+							warn!("SYNC EXTRACT : Invalid file extension : {:?}", entry_path);
+							continue;
+						},
+					},
+					None => {
+						error!("SYNC EXTRACT : error extracting file-extension : convert to string : {:?}", entry_path);
+						continue;
+					},
+				}
+			},
+			None => {
+				error!("SYNC EXTRACT : error extracting file-extension : {:?}", entry_path);
+				continue;
+			},
+		};
+
+		let file_name = match entry_path.file_stem() {
+			Some(name) => match name.to_str() {
+				Some(s) => s,
+				None => {
+					error!(
+						"SYNC EXTRACT : error extracting file-name : convert to string : {:?}",
+						name
+					);
+					continue;
+				},
+			},
+
+			None => {
+				error!("SYNC EXTRACT : error extracting file-name : {:?}", entry_path);
+				continue;
+			},
+		};
+
+		let name_parts: Vec<&str> = file_name.split('_').collect();
+
+		if name_parts.len() != 3 || (name_parts[0] != "nft" && name_parts[0] != "capsule") {
+			error!("SYNC EXTRACT : Invalid file name : structure : {:?}", name_parts);
+			continue;
+		}
+
+		let nftid = match name_parts[1].parse::<u32>() {
+			Ok(nftid) => nftid,
+			Err(e) => {
+				error!("SYNC EXTRACT : Invalid file name, nftid : {:?} : {:?}", name_parts, e);
+				continue;
+			},
+		};
+
+		let block_number = match name_parts[2].parse::<u32>() {
+			Ok(bn) => bn,
+			Err(e) => {
+				error!(
+					"SYNC EXTRACT : Invalid file name : block_number {:?}, : {:?}",
+					name_parts, e
+				);
+				continue;
+			},
+		};
+
+		match get_nft_availability(state, nftid).await {
+			// UPDATE EXISTING NFT KEY
+			Some(av) => {
+				if av.block_number >= block_number {
+					// OUTDATED SYNC FILE?
+					warn!("SYNC EXTRACT : block number is older than current nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, block_number);
+					continue;
+				} else if name_parts[0] == "nft" {
+					// SECRET ?
+					warn!("SYNC EXTRACT : secrets update is not acceptable nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, block_number);
+					continue;
+				} else if name_parts[0] == "capsule" && av.nft_type == NftType::Secret {
+					// TODO : Check the nft conversion with blockchain?
+					warn!("SYNC EXTRACT : NFT type conversion detected : nftid {} : current nft_type {:?} <> incoming nft_type {}", nftid, av.nft_type, name_parts[0]);
+
+					let out_file_path =
+						format!("{}capsule_{}_{}.keyshare", SEALPATH, nftid, block_number);
+
+					// CREATE FILE
+					let outfile = match OpenOptions::new()
+						.write(true)
+						.create_new(true)
+						.open(&out_file_path)
+						.await
+					{
+						Ok(ofile) => {
+							debug!(
+								"SYNC EXTRACT : create {:?} for {:?}",
+								out_file_path, entry_path
+							);
+							ofile
+						},
+						Err(e) => {
+							error!(
+								"SYNC EXTRACT : error creating the file {:?} for {:?} : {:?}",
+								out_file_path, entry_path, e
+							);
+							//return Err(zip::result::ZipError::Io(e));
+							continue;
+						},
+					};
+
+					let entry_reader =
+						match reader.reader_without_entry(index).await {
+							Ok(rdr) => rdr,
+							Err(e) => {
+								error!("SYNC EXTRACT : error reading file from archive, index {} : {:?}", index, e);
+								continue;
+							},
+						};
+					// WRITE SECRETS TO FILE
+					match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
+						Ok(n) => trace!("SYNC EXTRACT : successfuly copied {} bytes", n),
+						Err(e) => {
+							error!("SYNC EXTRACT : error copying data to file : {:?}", e);
+							//return Err(zip::result::ZipError::Io(e));
+							continue;
+						},
+					}
+
+					match fs::set_permissions(
+						out_file_path,
+						fs::Permissions::from_mode(entry_permission.into()),
+					) {
+						Ok(_) => tracing::trace!("SYNC EXTRACT : Permission set."),
+						Err(e) => {
+							warn!("SYNC EXTRACT : error setting permission : {:?}", e);
+							continue;
+						},
+					};
+
+					// UPDATE THE MAP
+					set_nft_availability(
+						state,
+						(nftid, Availability { block_number, nft_type: NftType::Hybrid }),
+					)
+					.await;
+				// WE DO NOT REMOVE PREVIOUS NFT FILE, IT IS HYBRID NOW
+				} else {
+					// UPDATE CAPSULE KEY
+					debug!(
+							"SYNC EXTRACT : an incoming capsule update with nftid {} on block_number {}",
+							nftid, block_number
+						);
+
+					let out_file_path =
+						format!("{}capsule_{}_{}.keyshare", SEALPATH, nftid, block_number);
+
+					let outfile = match OpenOptions::new()
+						.write(true)
+						.create_new(true)
+						.open(&out_file_path)
+						.await
+					{
+						Ok(ofile) => {
+							debug!("SYNC EXTRACT : create {:?}", out_file_path);
+							ofile
+						},
+
+						Err(e) => {
+							error!(
+								"SYNC EXTRACT : error creating the file {:?} for {:?} : {:?}",
+								out_file_path, entry_path, e
+							);
+							return Err(e.into());
+						},
+					};
+
+					let entry_reader =
+						match reader.reader_without_entry(index).await {
+							Ok(rdr) => rdr,
+							Err(e) => {
+								error!("SYNC EXTRACT : error reading file from archive, index {} : {:?}", index, e);
+								continue;
+							},
+						};
+					// WRITE CONTENT TO FILE
+					match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
+						Ok(n) => debug!("SYNC EXTRACT : successfuly copied {} bytes", n),
+						Err(e) => {
+							error!("SYNC EXTRACT : error copying data to file : {:?}", e);
+							return Err(e.into());
+						},
+					}
+
+					match fs::set_permissions(
+						out_file_path,
+						fs::Permissions::from_mode(entry_permission.into()),
+					) {
+						Ok(_) => tracing::trace!("SYNC EXTRACT : Permission set."),
+						Err(e) => {
+							warn!("SYNC EXTRACT : error setting permission : {:?}", e);
+							continue;
+						},
+					};
+
+					let availability = Availability { block_number, nft_type: NftType::Capsule };
+
+					set_nft_availability(state, (nftid, availability)).await;
+
+					let old_file_path =
+						format!("{}/capsule_{}_{}.keyshare", SEALPATH, nftid, av.block_number);
+					match std::fs::remove_file(old_file_path.clone()) {
+						Ok(_) => {
+							debug!("SYNC EXTRACT : removed outdated file {}", old_file_path)
+						},
+						Err(e) => error!(
+							"SYNC EXTRACT : Error removing outdated file {} : {:?}",
+							old_file_path, e
+						),
+					}
+				}
+			},
+
+			// NEW NFT KEY
+			None => {
+				debug!(
+					"SYNC EXTRACT : a new incoming nftid {} on block_number {}",
+					nftid, block_number
+				);
+
+				let out_file_path =
+					format!("{}{}_{}_{}.keyshare", SEALPATH, name_parts[0], nftid, block_number);
+
+				// Overwrite the file
+				let outfile = match OpenOptions::new()
+					.write(true)
+					.create_new(true)
+					.open(&out_file_path)
+					.await
+				{
+					Ok(ofile) => {
+						debug!("SYNC EXTRACT : create {:?}", out_file_path);
+						ofile
+					},
+
+					Err(e) => {
+						error!(
+							"SYNC EXTRACT : error creating the file {:?} for {:?} : {:?}",
+							out_file_path, entry_path, e
+						);
+						return Err(e.into());
+					},
+				};
+
+				let availability = Availability {
+					block_number,
+					nft_type: if name_parts[0] == "nft" {
+						NftType::Secret
+					} else {
+						NftType::Capsule
+					},
+				};
+
+				let entry_reader = match reader.reader_without_entry(index).await {
+					Ok(rdr) => rdr,
+					Err(e) => {
+						error!(
+							"SYNC EXTRACT : error reading file from archive, index {} : {:?}",
+							index, e
+						);
+						continue;
+					},
+				};
+				// WRITE CONTENT TO FILE
+				match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
+					Ok(n) => debug!("SYNC EXTRACT : successfuly copied {} bytes", n),
+					Err(e) => {
+						error!("SYNC EXTRACT : error copying data to file : {:?}", e);
+						return Err(e.into());
+					},
+				}
+
+				match fs::set_permissions(
+					out_file_path,
+					fs::Permissions::from_mode(entry_permission.into()),
+				) {
+					Ok(_) => tracing::trace!("SYNC EXTRACT : Permission set."),
+					Err(e) => {
+						warn!("SYNC EXTRACT : error setting permission : {:?}", e);
+						continue;
+					},
+				};
+
+				set_nft_availability(state, (nftid, availability)).await;
+			},
+		}; // AVAILABILITY CONDITION
+	} // FILE in ZIP-ARCHIVE
 
 	Ok(())
 }
