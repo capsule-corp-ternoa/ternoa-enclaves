@@ -416,7 +416,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		// DEV
 		.route("/api/set-block/:blocknumber", get(dev_set_block))
 		// METRIC SERVER
-		.route("/api/metric/interval-nft-list", post(metric_interval_nft_list))
+		.route("/api/metric/interval-nft-list", post(metric_reconcilliation))
 		.layer(
 			ServiceBuilder::new()
 				.layer(HandleErrorLayer::new(handle_timeout_error))
