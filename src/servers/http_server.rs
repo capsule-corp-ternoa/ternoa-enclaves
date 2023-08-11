@@ -652,7 +652,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			// Maybe in another thread
 
 			// Update runtime block tracking variable
-			debug!("\t > Runtime mode : update last processed block");
+			trace!("\t > Runtime mode : update last processed block");
 			set_processed_block(&state_config, block_number).await;
 		} // While blocks
 	});
