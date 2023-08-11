@@ -3,7 +3,7 @@ BASEDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )
 SCRIPTSPATH="$BASEDIR/scripts/"
 GRAMINEPATH="$BASEDIR/gramine/"
 SEALPATH="$GRAMINEPATH/nft/"
-CERTPATH="$BASEDIR/credentials/certificates/"
+CERTPATH="$GRAMINEPATH/certificates/"
 
 # DEFAULT VALUES
 PORT=
@@ -26,15 +26,6 @@ die () {
 
 while :; do
     case $1 in
-        -i|--identity)
-	    if [ "$2" ]; then
-		    ENCLAVE_ID="identity $2"
-            stop_enclave "$ENCLAVE_ID"
-		    shift
-	    else
-		    die 'ERROR: "--identity" requires a non-empty option argument.'
-	    fi
-        ;;
         -p|--port)
 	    if [ "$2" ]; then
 		    PORTID="port $2"
@@ -54,7 +45,7 @@ rm -rf $GRAMINEPATH/quote/*
 rm -rf $SEALPATH/*.keyshare
 rm -rf $SEALPATH/*.log
 #rm -rf $SEALPATH/*.key
-#$rm -rf $SEALPATH/*.state
+#rm -rf $SEALPATH/*.state
 
 
 cd $GRAMINEPATH

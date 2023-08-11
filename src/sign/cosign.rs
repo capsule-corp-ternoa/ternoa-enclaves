@@ -5,8 +5,27 @@ use sigstore::crypto::{
 	CosignVerificationKey, SigStoreSigner, Signature, SigningScheme,
 };
 use tracing::error;
+use anyhow::{anyhow, Error};
 
-use crate::servers::binary_check::downloader;
+/*  ------------------------------
+	DOWNLOADER
+------------------------------ */
+/// This function is called by the health check endpoint
+/// It downloads the binary from github release
+pub fn downloader(url: &str) -> Result<String, Error> {
+	let response = match reqwest::blocking::get(url) {
+		Ok(resp) => resp,
+		Err(e) => return Err(anyhow!("Error accessing url: {}", e)),
+	};
+
+	let content = match response.text() {
+		Ok(s) => s,
+		Err(e) => return Err(anyhow!("Error reading response: {}", e)),
+	};
+
+	Ok(content)
+}
+
 
 fn _import_skey(path: &str, pass: &str) -> SigStoreSigner {
 	// Imported encrypted PEM encoded private key as SigStoreKeyPair.
