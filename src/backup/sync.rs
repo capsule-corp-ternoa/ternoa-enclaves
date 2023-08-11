@@ -351,7 +351,7 @@ pub async fn sync_keyshares(
 
 	// Create a client
 	let client = match reqwest::Client::builder()
-		// TODO : only for dev
+		// This is for development, will be removed for production certs
 		.danger_accept_invalid_certs(true)
 		.https_only(true)
 		.use_rustls_tls()
@@ -825,16 +825,18 @@ pub async fn fetch_keyshares(
 	debug!("FETCH KEYSHARES : nfts-cluster {:?}\n", nft_clusters);
 
 	let client = reqwest::Client::builder()
+		// This is for development, will be removed for production certs
 		.danger_accept_invalid_certs(true)
 		.https_only(true)
 		// WebPKI
+		//.use_rustls_tls()
 		.use_native_tls()
 		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
 		// 	tls::Version::TLS_1_0
 		// })
-		.connection_verbose(true)
+		//.connection_verbose(true)
 		.build()?;
 
 	// TODO [future reliability] : use metric-server ranking instead of simple loop
@@ -941,10 +943,10 @@ pub async fn fetch_keyshares(
 		};
 
 		let fetch_headers = fetch_response.headers();
-		debug!("FETCH KEYSHARES : response header: {:?}", fetch_headers);
+		trace!("FETCH KEYSHARES : zip response header : {:?}", fetch_headers);
 
 		let fetch_body_bytes = fetch_response.bytes().await?;
-		debug!("FETCH KEYSHARES : body length : {}", fetch_body_bytes.len());
+		trace!("FETCH KEYSHARES : zip body length : {}", fetch_body_bytes.len());
 
 		let backup_file = SEALPATH.to_string() + "backup.zip";
 		let mut zipfile = match std::fs::File::create(backup_file.clone()) {
@@ -1559,7 +1561,7 @@ pub async fn sync_zip_extract(
 	let infile = match tokio::fs::File::open(zip_file_name).await {
 		Ok(file) => file,
 		Err(e) => {
-			error!("SYNC EXTRACT : error opening zip file : {:?}", e);
+			error!("FETCH KEYSHARES : ZIP EXTRACT : error opening zip file : {:?}", e);
 			return Err(e.into());
 		},
 	};
@@ -1569,7 +1571,7 @@ pub async fn sync_zip_extract(
 	let mut reader = match ZipFileReader::new(archive).await {
 		Ok(archive) => archive,
 		Err(e) => {
-			error!("SYNC EXTRACT : error opening file as zip-archive: {:?}", e);
+			error!("FETCH KEYSHARES : ZIP EXTRACT : error opening file as zip-archive: {:?}", e);
 			return Err(e);
 		},
 	};
@@ -1578,7 +1580,7 @@ pub async fn sync_zip_extract(
 		let entry = match reader.file().entries().get(index) {
 			Some(entry) => entry,
 			None => {
-				error!("SYNC EXTRACT : error extracting file from archive, index {}", index);
+				error!("FETCH KEYSHARES : ZIP EXTRACT : error extracting file from archive, index {}", index);
 				continue;
 			},
 		};
@@ -1587,7 +1589,7 @@ pub async fn sync_zip_extract(
 			Ok(name) => name,
 			Err(e) => {
 				error!(
-					"SYNC EXTRACT : error extract entry name from archive, index {} : {:?}",
+					"FETCH KEYSHARES : ZIP EXTRACT : error extract entry name from archive, index {} : {:?}",
 					index, e
 				);
 				continue;
@@ -1600,7 +1602,7 @@ pub async fn sync_zip_extract(
 			Ok(dir) => dir,
 			Err(e) => {
 				warn!(
-					"SYNC EXTRACT : error determining entry type from archive, index {} : {:?}",
+					"FETCH KEYSHARES : ZIP EXTRACT : error determining entry type from archive, index {} : {:?}",
 					index, e
 				);
 				continue;
@@ -1617,31 +1619,31 @@ pub async fn sync_zip_extract(
 
 		// ENTRY IS DIRECTORY?
 		if entry_is_dir {
-			warn!("SYNC EXTRACT : syncing directory is not supported : {:?}", entry_name);
+			warn!("FETCH KEYSHARES : ZIP EXTRACT : syncing directory is not supported : {:?}", entry_name);
 			continue;
 		}
 
-		// ENTRY IS FILE?
+		// Validate Entry extension
 		match entry_path.extension() {
 			Some(ext) => {
 				match ext.to_str() {
 					Some(exts) => match exts {
 						"keyshare" => {
-							tracing::trace!("SYNC EXTRACT : valid extension : {}", exts);
+							tracing::trace!("FETCH KEYSHARES : ZIP EXTRACT : valid extension : {}", exts);
 						},
 						_ => {
-							warn!("SYNC EXTRACT : Invalid file extension : {:?}", entry_path);
+							warn!("FETCH KEYSHARES : ZIP EXTRACT : Invalid file extension for synchronization : {:?}", entry_path);
 							continue;
 						},
 					},
 					None => {
-						error!("SYNC EXTRACT : error extracting file-extension : convert to string : {:?}", entry_path);
+						error!("FETCH KEYSHARES : ZIP EXTRACT : error converting file-extension to string : {:?}", entry_path);
 						continue;
 					},
 				}
 			},
 			None => {
-				error!("SYNC EXTRACT : error extracting file-extension : {:?}", entry_path);
+				error!("FETCH KEYSHARES : ZIP EXTRACT : error extracting file-extension : {:?}", entry_path);
 				continue;
 			},
 		};
@@ -1651,7 +1653,7 @@ pub async fn sync_zip_extract(
 				Some(s) => s,
 				None => {
 					error!(
-						"SYNC EXTRACT : error extracting file-name : convert to string : {:?}",
+						"FETCH KEYSHARES : ZIP EXTRACT : error extracting file-name : convert to string : {:?}",
 						name
 					);
 					continue;
@@ -1659,22 +1661,23 @@ pub async fn sync_zip_extract(
 			},
 
 			None => {
-				error!("SYNC EXTRACT : error extracting file-name : {:?}", entry_path);
+				error!("FETCH KEYSHARES : ZIP EXTRACT : error extracting file-name : {:?}", entry_path);
 				continue;
 			},
 		};
 
 		let name_parts: Vec<&str> = file_name.split('_').collect();
-
+		
+		// GENERAL FORMAT VALIDATION
 		if name_parts.len() != 3 || (name_parts[0] != "nft" && name_parts[0] != "capsule") {
-			error!("SYNC EXTRACT : Invalid file name : structure : {:?}", name_parts);
+			error!("FETCH KEYSHARES : ZIP EXTRACT : Invalid file name : structure : {:?}", name_parts);
 			continue;
 		}
 
 		let nftid = match name_parts[1].parse::<u32>() {
 			Ok(nftid) => nftid,
 			Err(e) => {
-				error!("SYNC EXTRACT : Invalid file name, nftid : {:?} : {:?}", name_parts, e);
+				error!("FETCH KEYSHARES : ZIP EXTRACT : Invalid file name, nftid : {:?} : {:?}", name_parts, e);
 				continue;
 			},
 		};
@@ -1683,7 +1686,7 @@ pub async fn sync_zip_extract(
 			Ok(bn) => bn,
 			Err(e) => {
 				error!(
-					"SYNC EXTRACT : Invalid file name : block_number {:?}, : {:?}",
+					"FETCH KEYSHARES : ZIP EXTRACT : Invalid file name : block_number {:?}, : {:?}",
 					name_parts, e
 				);
 				continue;
@@ -1691,20 +1694,102 @@ pub async fn sync_zip_extract(
 		};
 
 		match get_nft_availability(state, nftid).await {
-			// UPDATE EXISTING NFT KEY
+			// NEW NFT KEY
+			None => {
+				debug!(
+					"FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : a new incoming nftid {} on block_number {}",
+					nftid, block_number
+				);
+
+				let out_file_path =
+					format!("{}{}_{}_{}.keyshare", SEALPATH, name_parts[0], nftid, block_number);
+
+				// CREATE NEW FILE ON DISK
+				let outfile = match OpenOptions::new()
+					.write(true)
+					.create_new(true)
+					.open(&out_file_path)
+					.await
+				{
+					Ok(ofile) => {
+						debug!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : create {:?}", out_file_path);
+						ofile
+					},
+
+					Err(e) => {
+						error!(
+							"FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error creating the file {:?} for {:?} : {:?}",
+							out_file_path, entry_path, e
+						);
+						
+						continue
+						//return Err(e.into());
+					},
+				};
+
+				// DEFINE AVAILABILITY FOR MAP
+				let availability = Availability {
+					block_number,
+					nft_type: if name_parts[0] == "nft" {
+						NftType::Secret
+					} else {
+						NftType::Capsule
+					},
+				};
+
+				// IT IS A MUTABLE BORROW, HAD TO PUT IT HERE
+				let entry_reader = match reader.reader_without_entry(index).await {
+					Ok(rdr) => rdr,
+					Err(e) => {
+						error!(
+							"FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error reading file from archive, index {} : {:?}",
+							index, e
+						);
+						continue;
+					},
+				};
+
+				// WRITE CONTENT TO FILE
+				match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
+					Ok(n) => debug!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : successfuly copied {} bytes", n),
+					Err(e) => {
+						error!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error copying data to file : {:?}", e);
+						continue
+						//return Err(e.into());
+					},
+				}
+
+				// SET PERMISSION
+				match fs::set_permissions(
+					out_file_path,
+					fs::Permissions::from_mode(entry_permission.into()),
+				) {
+					Ok(_) => tracing::trace!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : Permission set."),
+					Err(e) => {
+						warn!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error setting permission : {:?}", e);
+						continue;
+					},
+				};
+				
+				// UPDATE MAP
+				set_nft_availability(state, (nftid, availability)).await;
+			},
+
+			// UPDATE CAPSULE/HYBRID KEY
 			Some(av) => {
 				if av.block_number >= block_number {
 					// OUTDATED SYNC FILE?
-					warn!("SYNC EXTRACT : block number is older than current nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, block_number);
+					warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : block number is older than current nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, block_number);
 					continue;
 				} else if name_parts[0] == "nft" {
 					// SECRET ?
-					warn!("SYNC EXTRACT : secrets update is not acceptable nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, block_number);
+					warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : secrets update is not acceptable nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, block_number);
 					continue;
 				} else if name_parts[0] == "capsule" && av.nft_type == NftType::Secret {
-					// TODO : Check the nft conversion with blockchain?
-					warn!("SYNC EXTRACT : NFT type conversion detected : nftid {} : current nft_type {:?} <> incoming nft_type {}", nftid, av.nft_type, name_parts[0]);
-
+					// HYBRID
+					warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : NFT type conversion detected : nftid {} : current nft_type {:?} <> incoming nft_type {}", nftid, av.nft_type, name_parts[0]);
+					
+					// NEW FILE NAME
 					let out_file_path =
 						format!("{}capsule_{}_{}.keyshare", SEALPATH, nftid, block_number);
 
@@ -1717,14 +1802,14 @@ pub async fn sync_zip_extract(
 					{
 						Ok(ofile) => {
 							debug!(
-								"SYNC EXTRACT : create {:?} for {:?}",
+								"FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : create {:?} for {:?}",
 								out_file_path, entry_path
 							);
 							ofile
 						},
 						Err(e) => {
 							error!(
-								"SYNC EXTRACT : error creating the file {:?} for {:?} : {:?}",
+								"FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : error creating the file {:?} for {:?} : {:?}",
 								out_file_path, entry_path, e
 							);
 							//return Err(zip::result::ZipError::Io(e));
@@ -1732,19 +1817,21 @@ pub async fn sync_zip_extract(
 						},
 					};
 
+					// MUTABLE BORROW, HAD TO PUT IT HERE
 					let entry_reader =
 						match reader.reader_without_entry(index).await {
 							Ok(rdr) => rdr,
 							Err(e) => {
-								error!("SYNC EXTRACT : error reading file from archive, index {} : {:?}", index, e);
+								error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : error reading file from archive, index {} : {:?}", index, e);
 								continue;
 							},
 						};
+					
 					// WRITE SECRETS TO FILE
 					match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
-						Ok(n) => trace!("SYNC EXTRACT : successfuly copied {} bytes", n),
+						Ok(n) => trace!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : successfuly copied {} bytes", n),
 						Err(e) => {
-							error!("SYNC EXTRACT : error copying data to file : {:?}", e);
+							error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : error copying data to file : {:?}", e);
 							//return Err(zip::result::ZipError::Io(e));
 							continue;
 						},
@@ -1754,9 +1841,9 @@ pub async fn sync_zip_extract(
 						out_file_path,
 						fs::Permissions::from_mode(entry_permission.into()),
 					) {
-						Ok(_) => tracing::trace!("SYNC EXTRACT : Permission set."),
+						Ok(_) => tracing::trace!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : Permission set."),
 						Err(e) => {
-							warn!("SYNC EXTRACT : error setting permission : {:?}", e);
+							warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : error setting permission : {:?}", e);
 							continue;
 						},
 					};
@@ -1771,7 +1858,7 @@ pub async fn sync_zip_extract(
 				} else {
 					// UPDATE CAPSULE KEY
 					debug!(
-							"SYNC EXTRACT : an incoming capsule update with nftid {} on block_number {}",
+							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : an incoming capsule update with nftid {} on block_number {}",
 							nftid, block_number
 						);
 
@@ -1785,16 +1872,18 @@ pub async fn sync_zip_extract(
 						.await
 					{
 						Ok(ofile) => {
-							debug!("SYNC EXTRACT : create {:?}", out_file_path);
+							debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : create {:?}", out_file_path);
 							ofile
 						},
 
 						Err(e) => {
 							error!(
-								"SYNC EXTRACT : error creating the file {:?} for {:?} : {:?}",
+								"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error creating the file {:?} for {:?} : {:?}",
 								out_file_path, entry_path, e
 							);
-							return Err(e.into());
+							
+							continue
+							//return Err(e.into());
 						},
 					};
 
@@ -1802,16 +1891,17 @@ pub async fn sync_zip_extract(
 						match reader.reader_without_entry(index).await {
 							Ok(rdr) => rdr,
 							Err(e) => {
-								error!("SYNC EXTRACT : error reading file from archive, index {} : {:?}", index, e);
+								error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error reading file from archive, index {} : {:?}", index, e);
 								continue;
 							},
 						};
 					// WRITE CONTENT TO FILE
 					match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
-						Ok(n) => debug!("SYNC EXTRACT : successfuly copied {} bytes", n),
+						Ok(n) => debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : successfuly copied {} bytes", n),
 						Err(e) => {
-							error!("SYNC EXTRACT : error copying data to file : {:?}", e);
-							return Err(e.into());
+							error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error copying data to file : {:?}", e);
+							continue
+							//return Err(e.into());
 						},
 					}
 
@@ -1819,9 +1909,9 @@ pub async fn sync_zip_extract(
 						out_file_path,
 						fs::Permissions::from_mode(entry_permission.into()),
 					) {
-						Ok(_) => tracing::trace!("SYNC EXTRACT : Permission set."),
+						Ok(_) => tracing::trace!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : Permission set."),
 						Err(e) => {
-							warn!("SYNC EXTRACT : error setting permission : {:?}", e);
+							warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error setting permission : {:?}", e);
 							continue;
 						},
 					};
@@ -1834,88 +1924,17 @@ pub async fn sync_zip_extract(
 						format!("{}/capsule_{}_{}.keyshare", SEALPATH, nftid, av.block_number);
 					match std::fs::remove_file(old_file_path.clone()) {
 						Ok(_) => {
-							debug!("SYNC EXTRACT : removed outdated file {}", old_file_path)
+							debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : removed outdated file {}", old_file_path)
 						},
 						Err(e) => error!(
-							"SYNC EXTRACT : Error removing outdated file {} : {:?}",
+							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : Error removing outdated file {} : {:?}",
 							old_file_path, e
 						),
 					}
 				}
 			},
 
-			// NEW NFT KEY
-			None => {
-				debug!(
-					"SYNC EXTRACT : a new incoming nftid {} on block_number {}",
-					nftid, block_number
-				);
-
-				let out_file_path =
-					format!("{}{}_{}_{}.keyshare", SEALPATH, name_parts[0], nftid, block_number);
-
-				// Overwrite the file
-				let outfile = match OpenOptions::new()
-					.write(true)
-					.create_new(true)
-					.open(&out_file_path)
-					.await
-				{
-					Ok(ofile) => {
-						debug!("SYNC EXTRACT : create {:?}", out_file_path);
-						ofile
-					},
-
-					Err(e) => {
-						error!(
-							"SYNC EXTRACT : error creating the file {:?} for {:?} : {:?}",
-							out_file_path, entry_path, e
-						);
-						return Err(e.into());
-					},
-				};
-
-				let availability = Availability {
-					block_number,
-					nft_type: if name_parts[0] == "nft" {
-						NftType::Secret
-					} else {
-						NftType::Capsule
-					},
-				};
-
-				let entry_reader = match reader.reader_without_entry(index).await {
-					Ok(rdr) => rdr,
-					Err(e) => {
-						error!(
-							"SYNC EXTRACT : error reading file from archive, index {} : {:?}",
-							index, e
-						);
-						continue;
-					},
-				};
-				// WRITE CONTENT TO FILE
-				match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
-					Ok(n) => debug!("SYNC EXTRACT : successfuly copied {} bytes", n),
-					Err(e) => {
-						error!("SYNC EXTRACT : error copying data to file : {:?}", e);
-						return Err(e.into());
-					},
-				}
-
-				match fs::set_permissions(
-					out_file_path,
-					fs::Permissions::from_mode(entry_permission.into()),
-				) {
-					Ok(_) => tracing::trace!("SYNC EXTRACT : Permission set."),
-					Err(e) => {
-						warn!("SYNC EXTRACT : error setting permission : {:?}", e);
-						continue;
-					},
-				};
-
-				set_nft_availability(state, (nftid, availability)).await;
-			},
+			
 		}; // AVAILABILITY CONDITION
 	} // FILE in ZIP-ARCHIVE
 
