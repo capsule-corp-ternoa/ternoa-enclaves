@@ -2,7 +2,6 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 
-
 use std::path::PathBuf;
 use tracing::{debug, error, info};
 
@@ -75,5 +74,3 @@ pub fn self_checksig() -> Result<String, String> {
 		Err(e) => Err(format!("Binary verification Error, {e}")),
 	}
 }
-
-

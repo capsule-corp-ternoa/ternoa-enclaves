@@ -591,7 +591,7 @@ pub async fn http_server() -> Result<Router, Error> {
 											);
 											// We can not proceed to next nft-based sync.
 											// Because it'll update the syncing state
-											// A re-try id needed in next block
+											// A retry id needed in next block
 											debug!("\t > Runtime mode : Crawl check : Fetch Keyshares : wait before retry");
 											std::thread::sleep(std::time::Duration::from_secs(
 												RETRY_DELAY.into(),
@@ -612,7 +612,7 @@ pub async fn http_server() -> Result<Router, Error> {
 							);
 							// We can not proceed to next nft-based sync.
 							// Because it'll update the syncing state
-							// A re-try id needed in next block
+							// A retry id needed in next block
 							debug!("\t > Runtime mode : Crawl check : wait before retry");
 							std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
 							continue;

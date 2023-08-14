@@ -33,14 +33,17 @@ async fn main() {
 	match servers::binary_check::self_checksig() {
 		Ok(str) => {
 			if str == "Successful" {
-				info!("Binary verification successful.");
+				info!("MAIN : Binary verification successful.");
 			} else {
-				tracing::error!("ERROR: Binary verfification Failed :  {}", str);
+				tracing::error!("MAIN : ERROR: Binary verfification Failed : {}", str);
 				return;
 			}
 		},
-		Err(str) => {
-			tracing::error!("ERROR: Binary verfification Failed :  {}", str);
+
+		Err(estr) => {
+			let message = format!("MAIN : ERROR: Binary verfification Failed : {}", estr);
+			tracing::error!(message);
+			sentry::capture_message(&message, sentry::Level::Error);
 			return;
 		},
 	}
@@ -56,36 +59,49 @@ async fn main() {
 		_ => Level::INFO,
 	};
 
-	info!("Start Tracing");
-
+	info!("MAIN : Start Tracing");
 	let subscriber = FmtSubscriber::builder().with_max_level(verbosity_level).finish();
 	tracing::subscriber::set_global_default(subscriber)
-		.expect("main: setting default subscriber failed");
+		.expect("MAIN : setting default subscriber failed");
 
-	info!("Start Sentry");
+	info!("MAIN : Start Sentry");
 	let _guard = sentry::init((
 		"https://089e5c79239442bfb6af6e5d7676644c@error.ternoa.dev/22",
 		sentry::ClientOptions {
-			release: sentry::release_name!(),
-			traces_sample_rate: 5.0,
-			debug: true,
+			release: Some(format!("Ternoa SGX Server v{}",chain::constants::VERSION).into()),
+			traces_sample_rate: 1.0,
+			debug: false,
+			environment: Some("SGX Development".into()),
+			before_send: Some(std::sync::Arc::new(|mut event| {
+				// Modify event here
+				event.server_name = Some("TERNOA SGX ENCLAVE".into());
+				Some(event)
+			})),
 			..Default::default()
 		},
 	));
 
-	info!("Define http-server");
+	sentry::configure_scope(|scope| {
+		scope.set_level(Some(sentry::Level::Warning));
+	});
 
+	info!("MAIN : Define http-server");
 	let http_app = match servers::http_server::http_server().await {
 		Ok(app) => app,
 		Err(_e) => {
-			error!("Error creating http application, exiting.");
+			error!("MAIN : Error creating http application, exiting.");
 			return;
 		},
 	};
 
-	info!("Start Server with routes");
+	info!("MAIN : Start Server with routes");
 	match servers::server_common::serve(http_app, &args.domain, &args.port).await {
-		Ok(_) => info!("Server exited successfully"),
-		Err(e) => error!("Server exited with error : {:?}", e),
+		Ok(_) => info!("MAIN : Server exited successfully"),
+		Err(e) => error!("MAIN : Server exited with error : {:?}", e),
 	}
+}
+
+
+pub fn report_error() {
+
 }
