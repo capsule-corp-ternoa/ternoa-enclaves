@@ -46,7 +46,7 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 		},
 	};
 
-	match get_quote_content()  {
+	match get_quote_content() {
 		Ok(quote) => {
 			(StatusCode::OK, Json(QuoteResponse { block_number, data: hex::encode(quote) }))
 		},

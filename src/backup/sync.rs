@@ -1577,13 +1577,14 @@ pub async fn sync_zip_extract(
 	};
 
 	for index in 0..reader.file().entries().len() {
-		let entry = match reader.file().entries().get(index) {
-			Some(entry) => entry,
-			None => {
-				error!("FETCH KEYSHARES : ZIP EXTRACT : error extracting file from archive, index {}", index);
-				continue;
-			},
-		};
+		let entry =
+			match reader.file().entries().get(index) {
+				Some(entry) => entry,
+				None => {
+					error!("FETCH KEYSHARES : ZIP EXTRACT : error extracting file from archive, index {}", index);
+					continue;
+				},
+			};
 
 		let entry_name = match entry.entry().filename().as_str() {
 			Ok(name) => name,
@@ -1619,31 +1620,38 @@ pub async fn sync_zip_extract(
 
 		// ENTRY IS DIRECTORY?
 		if entry_is_dir {
-			warn!("FETCH KEYSHARES : ZIP EXTRACT : syncing directory is not supported : {:?}", entry_name);
+			warn!(
+				"FETCH KEYSHARES : ZIP EXTRACT : syncing directory is not supported : {:?}",
+				entry_name
+			);
 			continue;
 		}
 
 		// Validate Entry extension
 		match entry_path.extension() {
-			Some(ext) => {
-				match ext.to_str() {
-					Some(exts) => match exts {
-						"keyshare" => {
-							tracing::trace!("FETCH KEYSHARES : ZIP EXTRACT : valid extension : {}", exts);
-						},
-						_ => {
-							warn!("FETCH KEYSHARES : ZIP EXTRACT : Invalid file extension for synchronization : {:?}", entry_path);
-							continue;
-						},
+			Some(ext) => match ext.to_str() {
+				Some(exts) => match exts {
+					"keyshare" => {
+						tracing::trace!(
+							"FETCH KEYSHARES : ZIP EXTRACT : valid extension : {}",
+							exts
+						);
 					},
-					None => {
-						error!("FETCH KEYSHARES : ZIP EXTRACT : error converting file-extension to string : {:?}", entry_path);
+					_ => {
+						warn!("FETCH KEYSHARES : ZIP EXTRACT : Invalid file extension for synchronization : {:?}", entry_path);
 						continue;
 					},
-				}
+				},
+				None => {
+					error!("FETCH KEYSHARES : ZIP EXTRACT : error converting file-extension to string : {:?}", entry_path);
+					continue;
+				},
 			},
 			None => {
-				error!("FETCH KEYSHARES : ZIP EXTRACT : error extracting file-extension : {:?}", entry_path);
+				error!(
+					"FETCH KEYSHARES : ZIP EXTRACT : error extracting file-extension : {:?}",
+					entry_path
+				);
 				continue;
 			},
 		};
@@ -1661,23 +1669,32 @@ pub async fn sync_zip_extract(
 			},
 
 			None => {
-				error!("FETCH KEYSHARES : ZIP EXTRACT : error extracting file-name : {:?}", entry_path);
+				error!(
+					"FETCH KEYSHARES : ZIP EXTRACT : error extracting file-name : {:?}",
+					entry_path
+				);
 				continue;
 			},
 		};
 
 		let name_parts: Vec<&str> = file_name.split('_').collect();
-		
+
 		// GENERAL FORMAT VALIDATION
 		if name_parts.len() != 3 || (name_parts[0] != "nft" && name_parts[0] != "capsule") {
-			error!("FETCH KEYSHARES : ZIP EXTRACT : Invalid file name : structure : {:?}", name_parts);
+			error!(
+				"FETCH KEYSHARES : ZIP EXTRACT : Invalid file name : structure : {:?}",
+				name_parts
+			);
 			continue;
 		}
 
 		let nftid = match name_parts[1].parse::<u32>() {
 			Ok(nftid) => nftid,
 			Err(e) => {
-				error!("FETCH KEYSHARES : ZIP EXTRACT : Invalid file name, nftid : {:?} : {:?}", name_parts, e);
+				error!(
+					"FETCH KEYSHARES : ZIP EXTRACT : Invalid file name, nftid : {:?} : {:?}",
+					name_parts, e
+				);
 				continue;
 			},
 		};
@@ -1712,7 +1729,10 @@ pub async fn sync_zip_extract(
 					.await
 				{
 					Ok(ofile) => {
-						debug!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : create {:?}", out_file_path);
+						debug!(
+							"FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : create {:?}",
+							out_file_path
+						);
 						ofile
 					},
 
@@ -1721,8 +1741,8 @@ pub async fn sync_zip_extract(
 							"FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error creating the file {:?} for {:?} : {:?}",
 							out_file_path, entry_path, e
 						);
-						
-						continue
+
+						continue;
 						//return Err(e.into());
 					},
 				};
@@ -1751,10 +1771,13 @@ pub async fn sync_zip_extract(
 
 				// WRITE CONTENT TO FILE
 				match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
-					Ok(n) => debug!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : successfuly copied {} bytes", n),
+					Ok(n) => debug!(
+						"FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : successfuly copied {} bytes",
+						n
+					),
 					Err(e) => {
 						error!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error copying data to file : {:?}", e);
-						continue
+						continue;
 						//return Err(e.into());
 					},
 				}
@@ -1764,13 +1787,15 @@ pub async fn sync_zip_extract(
 					out_file_path,
 					fs::Permissions::from_mode(entry_permission.into()),
 				) {
-					Ok(_) => tracing::trace!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : Permission set."),
+					Ok(_) => {
+						tracing::trace!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : Permission set.")
+					},
 					Err(e) => {
 						warn!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error setting permission : {:?}", e);
 						continue;
 					},
 				};
-				
+
 				// UPDATE MAP
 				set_nft_availability(state, (nftid, availability)).await;
 			},
@@ -1788,7 +1813,7 @@ pub async fn sync_zip_extract(
 				} else if name_parts[0] == "capsule" && av.nft_type == NftType::Secret {
 					// HYBRID
 					warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : NFT type conversion detected : nftid {} : current nft_type {:?} <> incoming nft_type {}", nftid, av.nft_type, name_parts[0]);
-					
+
 					// NEW FILE NAME
 					let out_file_path =
 						format!("{}capsule_{}_{}.keyshare", SEALPATH, nftid, block_number);
@@ -1818,15 +1843,14 @@ pub async fn sync_zip_extract(
 					};
 
 					// MUTABLE BORROW, HAD TO PUT IT HERE
-					let entry_reader =
-						match reader.reader_without_entry(index).await {
-							Ok(rdr) => rdr,
-							Err(e) => {
-								error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : error reading file from archive, index {} : {:?}", index, e);
-								continue;
-							},
-						};
-					
+					let entry_reader = match reader.reader_without_entry(index).await {
+						Ok(rdr) => rdr,
+						Err(e) => {
+							error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : error reading file from archive, index {} : {:?}", index, e);
+							continue;
+						},
+					};
+
 					// WRITE SECRETS TO FILE
 					match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
 						Ok(n) => trace!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : successfuly copied {} bytes", n),
@@ -1841,7 +1865,9 @@ pub async fn sync_zip_extract(
 						out_file_path,
 						fs::Permissions::from_mode(entry_permission.into()),
 					) {
-						Ok(_) => tracing::trace!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : Permission set."),
+						Ok(_) => tracing::trace!(
+							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : Permission set."
+						),
 						Err(e) => {
 							warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : error setting permission : {:?}", e);
 							continue;
@@ -1872,7 +1898,10 @@ pub async fn sync_zip_extract(
 						.await
 					{
 						Ok(ofile) => {
-							debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : create {:?}", out_file_path);
+							debug!(
+								"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : create {:?}",
+								out_file_path
+							);
 							ofile
 						},
 
@@ -1881,20 +1910,19 @@ pub async fn sync_zip_extract(
 								"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error creating the file {:?} for {:?} : {:?}",
 								out_file_path, entry_path, e
 							);
-							
-							continue
+
+							continue;
 							//return Err(e.into());
 						},
 					};
 
-					let entry_reader =
-						match reader.reader_without_entry(index).await {
-							Ok(rdr) => rdr,
-							Err(e) => {
-								error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error reading file from archive, index {} : {:?}", index, e);
-								continue;
-							},
-						};
+					let entry_reader = match reader.reader_without_entry(index).await {
+						Ok(rdr) => rdr,
+						Err(e) => {
+							error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error reading file from archive, index {} : {:?}", index, e);
+							continue;
+						},
+					};
 					// WRITE CONTENT TO FILE
 					match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
 						Ok(n) => debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : successfuly copied {} bytes", n),
@@ -1909,7 +1937,9 @@ pub async fn sync_zip_extract(
 						out_file_path,
 						fs::Permissions::from_mode(entry_permission.into()),
 					) {
-						Ok(_) => tracing::trace!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : Permission set."),
+						Ok(_) => tracing::trace!(
+							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : Permission set."
+						),
 						Err(e) => {
 							warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error setting permission : {:?}", e);
 							continue;
@@ -1933,8 +1963,6 @@ pub async fn sync_zip_extract(
 					}
 				}
 			},
-
-			
 		}; // AVAILABILITY CONDITION
 	} // FILE in ZIP-ARCHIVE
 
