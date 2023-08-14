@@ -134,14 +134,19 @@ sudo dpkg -i ~/psw/libsgx-aesm-launch-plugin_$SDK_VERSION-jammy1_amd64.deb
  
 
 # ----- Gramine
+echo "deb http://deb.debian.org/debian $(lsb_release -sc)-backports main" \
+| sudo tee /etc/apt/sources.list.d/backports.list
+
 sudo curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg
-echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ stable main' | sudo tee /etc/apt/sources.list.d/gramine.list
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ $(lsb_release -sc) main" \
+| sudo tee /etc/apt/sources.list.d/gramine.list
 
-curl -fsSL https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | sudo apt-key add -
-echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main' | sudo tee /etc/apt/sources.list.d/intel-sgx.list
+sudo curl -fsSLo /usr/share/keyrings/intel-sgx-deb.asc https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-sgx-deb.asc] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main" \
+| sudo tee /etc/apt/sources.list.d/intel-sgx.list
 
-sudo apt-get update -y
-sudo apt install gramine -y
+sudo apt-get update
+sudo apt-get install gramine
 is-sgx-available
 gramine-sgx-gen-private-key
 sudo cp -r ~/.config /root/
