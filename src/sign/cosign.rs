@@ -1,11 +1,11 @@
 use anyhow::Result;
 
+use anyhow::{anyhow, Error};
 use sigstore::crypto::{
 	signing_key::{ecdsa::ECDSAKeys, SigStoreKeyPair},
 	CosignVerificationKey, SigStoreSigner, Signature, SigningScheme,
 };
 use tracing::error;
-use anyhow::{anyhow, Error};
 
 /*  ------------------------------
 	DOWNLOADER
@@ -25,7 +25,6 @@ pub fn downloader(url: &str) -> Result<String, Error> {
 
 	Ok(content)
 }
-
 
 fn _import_skey(path: &str, pass: &str) -> SigStoreSigner {
 	// Imported encrypted PEM encoded private key as SigStoreKeyPair.
