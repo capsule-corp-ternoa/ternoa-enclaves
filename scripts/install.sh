@@ -1,3 +1,6 @@
+SDK_VERSION="2.20.100.4"
+PSW_VERSION="1.17.100.4"
+
 # ----- Driver for old kernels
 #wget https://download.01.org/intel-sgx/latest/linux-latest/distro/ubuntu22.04-server/sgx_linux_x64_driver_2.11.054c9c4c.bin
 #sudo chmod +x sgx_linux_x64_driver_2.11.054c9c4c.bin
@@ -30,7 +33,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
 rustup update
  
- # Rust for sudo
+# Rust for sudo
 sudo su
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
@@ -48,18 +51,18 @@ sudo cp external/toolset/ubuntu20.04/* /usr/local/bin
 
 # ----- Linux-sgx-sdk
 # Simple Way
-# wget https://download.01.org/intel-sgx/latest/linux-latest/distro/ubuntu22.04-server/sgx_linux_x64_sdk_2.19.100.3.bin
-# sudo chmod +x sgx_linux_x64_sdk_2.19.100.3.bin
-# sudo ./sgx_linux_x64_sdk_2.19.100.3.bin
+# wget https://download.01.org/intel-sgx/latest/linux-latest/distro/ubuntu22.04-server/sgx_linux_x64_sdk_$SDK_VERSION.bin
+# sudo chmod +x sgx_linux_x64_sdk_$SDK_VERSION.bin
+# sudo ./sgx_linux_x64_sdk_$SDK_VERSION.bin
 
 # Hard Way
 make clean
 make sdk_install_pkg
-sudo chmod +x ./linux/installer/bin/sgx_linux_x64_sdk_2.19.100.3.bin
-cp ./linux/installer/bin/sgx_linux_x64_sdk_2.19.100.3.bin ~
+sudo chmod +x ./linux/installer/bin/sgx_linux_x64_sdk_$SDK_VERSION.bin
+cp ./linux/installer/bin/sgx_linux_x64_sdk_$SDK_VERSION.bin ~
 
 sudo chown ubuntu:ubuntu /opt
-../sgx_linux_x64_sdk_2.19.100.3.bin --prefix /opt
+../sgx_linux_x64_sdk_$SDK_VERSION.bin --prefix /opt
 source /opt/sgxsdk/environment
 
 # ----- Linux-sgx-psw
@@ -70,61 +73,61 @@ sudo touch /etc/aesmd.conf
 make clean
 make deb_psw_pkg
 #make psw_install_pkg
-#sudo chmod +x ./linux/installer/bin/sgx_linux_x64_psw_2.19.100.3.bin
-#cp ./linux/installer/bin/sgx_linux_x64_psw_2.19.100.3.bin ~
-#sudo ../linux/installer/bin/sgx_linux_x64_psw_2.19.100.3.bin
+#sudo chmod +x ./linux/installer/bin/sgx_linux_x64_psw_$SDK_VERSION.bin
+#cp ./linux/installer/bin/sgx_linux_x64_psw_$SDK_VERSION.bin ~
+#sudo ../linux/installer/bin/sgx_linux_x64_psw_$SDK_VERSION.bin
 
 mkdir ~/psw
 cp $(find . -name "*.deb") ~/psw
 #or
 #make deb_local_repo
 
-sudo dpkg -i ~/psw/libsgx-headers_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-quote-ex_2.19.100.3-jammy1_amd64.deb    
-sudo dpkg -i ~/psw/libsgx-quote-ex-dev_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-enclave-common_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-enclave-common-dev_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-urts_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-ae-pce_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-pce-logic_1.16.100.2-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-epid_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-epid-dev_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-launch_2.19.100.3-jammy1_amd64.deb 
-sudo dpkg -i ~/psw/libsgx-launch-dev_2.19.100.3-jammy1_amd64.deb  
-sudo dpkg -i ~/psw/sgx-aesm-service_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-ae-epid_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-aesm-pce-plugin_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-aesm-epid-plugin_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-uae-service_2.19.100.3-jammy1_amd64.deb
-sudo dpkg -i ~/psw/libsgx-ae-le_2.19.100.3-jammy1_amd64.deb 
-sudo dpkg -i ~/psw/libsgx-aesm-launch-plugin_2.19.100.3-jammy1_amd64.deb    
+sudo dpkg -i ~/psw/libsgx-headers_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-quote-ex_$SDK_VERSION-jammy1_amd64.deb    
+sudo dpkg -i ~/psw/libsgx-quote-ex-dev_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-enclave-common_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-enclave-common-dev_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-urts_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-ae-pce_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-pce-logic_$PSW_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-epid_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-epid-dev_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-launch_$SDK_VERSION-jammy1_amd64.deb 
+sudo dpkg -i ~/psw/libsgx-launch-dev_$SDK_VERSION-jammy1_amd64.deb  
+sudo dpkg -i ~/psw/sgx-aesm-service_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-ae-epid_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-aesm-pce-plugin_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-aesm-epid-plugin_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-uae-service_$SDK_VERSION-jammy1_amd64.deb
+sudo dpkg -i ~/psw/libsgx-ae-le_$SDK_VERSION-jammy1_amd64.deb 
+sudo dpkg -i ~/psw/libsgx-aesm-launch-plugin_$SDK_VERSION-jammy1_amd64.deb    
 
 # Enter
 
 # --- DCAP 
-#sudo dpkg -i ~/psw/libsgx-ae-id-enclave_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-ae-qe3_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-ae-qve_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-qe3-logic_1.16.100.3-jammy1_amd64.deb   
-#sudo dpkg -i ~/psw/libsgx-ae-tdqe_1.16.100.3-jammy1_amd64.deb    
-#sudo dpkg -i ~/psw/libtdx-attest_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libtdx-attest-dev_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-ra-network_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-ra-uefi_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-ra-uefi-dev_1.16.100.3-jammy1_amd64.deb      
-#sudo dpkg -i ~/psw/libsgx-aesm-ecdsa-plugin_2.19.100.3-jammy1_amd64.deb     
-#sudo dpkg -i ~/psw/libsgx-aesm-quote-ex-plugin_2.19.100.3-jammy1_amd64.deb  
-#sudo dpkg -i ~/psw/libsgx-tdx-logic_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-tdx-logic-dev_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/sgx-pck-id-retrieval-tool_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/sgx-ra-service_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/tdx-qgs_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-dcap-ql_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-dcap-quote-verify-dev_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-dcap-quote-verify_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-dcap-default-qpl_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/libsgx-dcap-default-qpl-dev_1.16.100.3-jammy1_amd64.deb
-#sudo dpkg -i ~/psw/sgx-dcap-pccs_1.16.100.3-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ae-id-enclave_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ae-qe3_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ae-qve_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-qe3-logic_$PSW_VERSION-jammy1_amd64.deb   
+#sudo dpkg -i ~/psw/libsgx-ae-tdqe_$PSW_VERSION-jammy1_amd64.deb    
+#sudo dpkg -i ~/psw/libtdx-attest_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libtdx-attest-dev_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ra-network_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ra-uefi_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-ra-uefi-dev_$PSW_VERSION-jammy1_amd64.deb      
+#sudo dpkg -i ~/psw/libsgx-aesm-ecdsa-plugin_$SDK_VERSION-jammy1_amd64.deb     
+#sudo dpkg -i ~/psw/libsgx-aesm-quote-ex-plugin_$SDK_VERSION-jammy1_amd64.deb  
+#sudo dpkg -i ~/psw/libsgx-tdx-logic_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-tdx-logic-dev_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/sgx-pck-id-retrieval-tool_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/sgx-ra-service_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/tdx-qgs_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-dcap-ql_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-dcap-quote-verify-dev_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-dcap-quote-verify_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-dcap-default-qpl_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/libsgx-dcap-default-qpl-dev_$PSW_VERSION-jammy1_amd64.deb
+#sudo dpkg -i ~/psw/sgx-dcap-pccs_$PSW_VERSION-jammy1_amd64.deb
 
 # NOTE: for DCAP we should install libsgx-dcap-ql instead
 # NOTE: for DCAP we should install libsgx-quote-ex instead
@@ -141,17 +144,18 @@ sudo apt-get update -y
 sudo apt install gramine -y
 is-sgx-available
 gramine-sgx-gen-private-key
-sudo cp ~/.config /root/
+sudo cp -r ~/.config /root/
 
 # ----- Python Substrate Interface
+sudo apt install python3-pip
 pip install --upgrade pip
 pip install "scalecodec>=1.1.2"
 pip install substrate-interface
 pip install base58
 
 # ----- cosign
-wget "https://github.com/sigstore/cosign/releases/download/v1.6.0/cosign_1.6.0_amd64.deb"
-sudo dpkg -i cosign_1.6.0_amd64.deb
+wget https://github.com/sigstore/cosign/releases/download/v2.1.1/cosign_2.1.1_amd64.deb
+sudo dpkg -i cosign_2.1.1_amd64.deb
 
 # ----- Ternoa
 cd ~
@@ -167,12 +171,13 @@ cd sgx_server
 # --domain      is critical for certificates of tls/https 
 # --port        different enclaves on the same machine need to have different ports
 
-CHAIN="mainnet" sudo ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8102 --identity DEV-C1N1EI --dev
+sudo CHAIN="mainnet" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --dev
 
 # You can test the server on the specific DOMAIN and PORT with
 curl -s https://mainnet-c1n1.ternoa.network:8100/api/health | jq .
 
 # You can stop the server on the specific PORT and clean intermediate files with :
-sudo scripts/stop-server.sh -p 8100
+sudo scripts/stop-server.sh --port 8100
 
-
+# Resume the server without clearing previous files
+sudo CHAIN="mainnet" ./scripts/resume-server.sh --domain dev-c1n1.ternoa.network --port 8100 --dev
