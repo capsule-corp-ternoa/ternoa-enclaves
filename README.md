@@ -60,14 +60,14 @@ You have to specify the chain which you want to use.
 This command will build a binary for dev-0 chain :
 
 ```shell
-sudo CHAIN="dev-0" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8102 --identity DEV-C1N1EI --dev
+sudo CHAIN="dev-0" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8102  --dev
 ```
 
 For official binary which uses mainnet chain, you need this command :
 This command will build a binary for mainnet chain :
 
 ```shell
-sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100 --identity MAIN-C1N1E1 --release
+sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --release
 ```
 
 ### Start Parameters
@@ -84,15 +84,12 @@ sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.netw
  --port        different enclaves on the same machine need to have
  different ports
 
- --identity    optional name for each enclave to be able to
- differentiate between them if there are multiple enclaves on a machine
-
 ## Resume an Enclave
 
 It is similar to Start, but it won't compile the binary :
 
 ```shell
-sudo CHAIN="alphanet" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8101 --identity ALPHA-C1N1EI --dev
+sudo CHAIN="alphanet" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8101 --dev
 ```
 
 ## Stop an Enclave
@@ -110,11 +107,6 @@ To clear the Enclave and remove all intermediate sgx files and binaries :
 ```shell
 sudo scripts/clear-server.sh
 ```
-
-## Quote and Report
-
-If enclave starts successfully, the quote data, IAS reports and log information will be available on [quote](./quote/) folder.
-All of these data will be removes by stop-server.sh command.
 
 ## Client
 
