@@ -7,7 +7,6 @@ use crate::{
 };
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use serde_json::json;
 
 use std::{
 	fs::OpenOptions,
@@ -25,6 +24,7 @@ use crate::chain::{
 	verify::*,
 };
 use serde::Serialize;
+use serde_json::to_value;
 
 /* **********************
    KEY-SHARE AVAILABLE API
@@ -128,10 +128,7 @@ pub async fn capsule_get_views(
 	let capsule_state = match get_onchain_nft_data(&state, nft_id).await {
 		Some(data) => data.state,
 		_ => {
-			error!(
-				"GET CAPSULE VIEWS : Error retrieving capsule-nft shares access-log : nft_id.{} does not exist",
-				nft_id
-			);
+			info!("GET CAPSULE VIEWS : nft_id.{} does not exist onchain.", nft_id);
 			return (
 				StatusCode::NOT_FOUND,
 				Json(CapsuleViewResponse {
@@ -145,10 +142,7 @@ pub async fn capsule_get_views(
 	};
 
 	if !capsule_state.is_capsule {
-		error!(
-			"GET CAPSULE VIEWS : Error retrieving capsule-nft shares access-log : nft_id.{} is not a capsule-nft",
-			nft_id
-		);
+		info!("GET CAPSULE VIEWS : nft_id.{} is not a capsule", nft_id);
 
 		return (
 			StatusCode::NOT_ACCEPTABLE,
@@ -156,17 +150,17 @@ pub async fn capsule_get_views(
 				enclave_account,
 				nft_id,
 				log: LogFile::new(),
-				description: "nft_id is not a capsule-nft".to_string(),
+				description: "nft_id is not a capsule".to_string(),
 			}),
 		);
 	}
 
-	let file_path = enclave_sealpath.to_string() + &nft_id.to_string() + ".log";
+	let file_path = format!("{enclave_sealpath}{nft_id}.log");
 
 	// CHECK LOG-FILE PATH
 	if !std::path::Path::new(&file_path).exists() {
 		error!(
-			"GET CAPSULE VIEWS : Error retrieving Capsule key-share access-log : log path does not exist, Capsule nft_id : {}, path : {}",
+			"GET CAPSULE VIEWS : log path does not exist on this enclave, Capsule nft_id : {}, path : {}",
 			nft_id, file_path
 		);
 
@@ -176,7 +170,7 @@ pub async fn capsule_get_views(
 				enclave_account,
 				nft_id,
 				log: LogFile::new(),
-				description: "Capsule nft_id does not exist on this enclave".to_string(),
+				description: "Capsule does not exist on this enclave".to_string(),
 			}),
 		);
 	};
@@ -184,10 +178,18 @@ pub async fn capsule_get_views(
 	// OPEN LOG-FILE
 	let mut log_file = match OpenOptions::new().read(true).open(file_path.clone()) {
 		Ok(f) => f,
-		Err(_) => {
-			error!(
-				"GET CAPSULE VIEWS : Error retrieving Capsule key-share access-log : can not open the log file, Capsule nft_id : {}, path : {}",
-				nft_id, file_path
+		Err(err) => {
+			let message = format!(
+				"GET CAPSULE VIEWS : Error retrieving Capsule key-share access-log : can not open the log file, Capsule nft_id : {}, path : {}, error : {err:?}",
+				nft_id, file_path);
+
+			error!(message);
+
+			sentry::with_scope(
+				|scope| {
+					scope.set_tag("capsule-log-view", nft_id.to_string());
+				},
+				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
 
 			return (
@@ -206,11 +208,11 @@ pub async fn capsule_get_views(
 	let mut log_data = String::new();
 	match log_file.read_to_string(&mut log_data) {
 		Ok(_) => {
-			info!("GET CAPSULE VIEWS : successfully retrieved log file for nft_id : {}", nft_id);
+			debug!("GET CAPSULE VIEWS : successfully retrieved log file for nft_id : {}", nft_id);
 
 			match serde_json::from_str(&log_data) {
 				Ok(log) => {
-					error!(
+					info!(
 						"GET CAPSULE VIEWS : successfully deserialized log file for nft_id : {}",
 						nft_id
 					);
@@ -226,9 +228,18 @@ pub async fn capsule_get_views(
 					)
 				},
 				Err(_) => {
-					error!(
+					let message = format!(
 						"GET CAPSULE VIEWS : Error retrieving Capsule key-share access-log : can not deserialize the log file, Capsule nft_id : {}, path : {}",
 						nft_id, file_path
+					);
+
+					error!(message);
+
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag("capsule-log-view", nft_id.to_string());
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
 					);
 
 					(
@@ -245,9 +256,18 @@ pub async fn capsule_get_views(
 		},
 
 		Err(_) => {
-			error!(
+			let message = format!(
 				"GET CAPSULE VIEWS : Error retrieving Capsule key-share access-log : can not read the log file, Capsule nft_id : {}, path : {}",
 				nft_id, file_path
+			);
+
+			error!(message);
+
+			sentry::with_scope(
+				|scope| {
+					scope.set_tag("capsule-log-view", nft_id.to_string());
+				},
+				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
 
 			(
@@ -298,42 +318,67 @@ pub async fn capsule_set_keyshare(
 					enclave_sealpath
 				);
 
-				error!("{}, requester : {}", description, request.owner_address);
+				let message = format!("{}, requester : {}", description, request.owner_address);
+
+				error!(message);
+
+				sentry::with_scope(
+					|scope| {
+						scope.set_tag("capsule-set-keyshare", verified_data.nft_id.to_string());
+					},
+					|| sentry::capture_message(&message, sentry::Level::Error),
+				);
 
 				return (
 					StatusCode::INTERNAL_SERVER_ERROR,
-					Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						to_value(ApiErrorResponse {
+							status,
+							nft_id: verified_data.nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				);
 			};
 
 			// If it is an update keyshare request :
 			if let Some(av) = get_nft_availability(&state, verified_data.nft_id).await {
-				let file_path = enclave_sealpath.to_string()
-					+ "capsule_" + &verified_data.nft_id.to_string()
-					+ "_" + &av.block_number.to_string()
-					+ ".keyshare";
+				let file_path = format!(
+					"{enclave_sealpath}capsule_{}_{}.keyshare",
+					verified_data.nft_id, av.block_number
+				);
 
-				match std::fs::remove_file(file_path) {
+				match std::fs::remove_file(file_path.clone()) {
 					Ok(_) => debug!(
-						"TEE Key-share {:?}: Remove the old keyshare of the capsule nft_id.{} from enclave disk.",
+						"TEE Key-share {:?}: Remove the old keyshare of the capsule nft_id.{} from enclave disk. {}",
 						APICALL::CAPSULESET,
-						verified_data.nft_id),
-					Err(e) => error!(
-						"TEE Key-share {:?}: Error Removing the old keyshare of the capsule nft_id.{} from enclave disk {:?}.",
-						APICALL::CAPSULESET,
-						verified_data.nft_id,e),
+						verified_data.nft_id, file_path),
+					Err(err) => {
+						let message = format!(
+						"TEE Key-share {:?}: Error Removing the old keyshare of the capsule nft_id.{} from enclave disk, path : {file_path} ,err: {err:?}.",
+						APICALL::CAPSULESET, verified_data.nft_id);
+
+						error!(message);
+
+						sentry::with_scope(
+							|scope| {
+								scope.set_tag(
+									"capsule-set-keyshare",
+									verified_data.nft_id.to_string(),
+								);
+							},
+							|| sentry::capture_message(&message, sentry::Level::Error),
+						);
+					},
 				}
 			}
 
-			let file_path = enclave_sealpath.to_string()
-				+ "capsule_" + &verified_data.nft_id.to_string()
-				+ "_" + &block_number.to_string()
-				+ ".keyshare";
+			let file_path = format!(
+				"{enclave_sealpath}capsule_{}_{}.keyshare",
+				verified_data.nft_id, block_number
+			);
 
 			// CREATE KEY-SHARE FILE ON ENCLAVE DISK
 			let mut f = match std::fs::File::create(file_path.clone()) {
@@ -346,19 +391,31 @@ pub async fn capsule_set_keyshare(
 						verified_data.nft_id,
 					);
 
-					error!(
-						"{}, Error : {}, requester : {}",
-						description, err, request.owner_address
+					let message = format!(
+						"{}, Path: {}, Error : {}, requester : {}",
+						description, file_path, err, request.owner_address
+					);
+
+					error!(message);
+
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag("capsule-set-keyshare", verified_data.nft_id.to_string());
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
 					);
 
 					return (
 						StatusCode::INTERNAL_SERVER_ERROR,
-						Json(json!({
-							"status": status,
-							"nft_id": verified_data.nft_id,
-							"enclave_account": enclave_account,
-							"description": description,
-						})),
+						Json(
+							to_value(ApiErrorResponse {
+								status,
+								nft_id: verified_data.nft_id,
+								enclave_account,
+								description,
+							})
+							.unwrap(),
+						),
 					);
 				},
 			};
@@ -376,20 +433,30 @@ pub async fn capsule_set_keyshare(
 						APICALL::CAPSULESET,
 						verified_data.nft_id,
 					);
-
-					error!(
+					let message = format!(
 						"{}, Error :{}, requester : {}",
 						description, err, request.owner_address
+					);
+					error!(message);
+
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag("capsule-set-keyshare", verified_data.nft_id.to_string());
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
 					);
 
 					return (
 						StatusCode::INTERNAL_SERVER_ERROR,
-						Json(json!({
-							"status": status,
-							"nft_id": verified_data.nft_id,
-							"enclave_account": enclave_account,
-							"description": description,
-						})),
+						Json(
+							to_value(ApiErrorResponse {
+								status,
+								nft_id: verified_data.nft_id,
+								enclave_account,
+								description,
+							})
+							.unwrap(),
+						),
 					);
 				},
 			};
@@ -415,8 +482,7 @@ pub async fn capsule_set_keyshare(
 					.await;
 
 					// Log file for tracing the capsule key-share VIEW history in Marketplace.
-					let file_path =
-						enclave_sealpath.to_string() + &verified_data.nft_id.to_string() + ".log";
+					let file_path = format!("{enclave_sealpath}{}.log", verified_data.nft_id);
 
 					if !std::path::Path::new(&file_path).exists() {
 						let mut file = std::fs::File::create(file_path).unwrap(); // TODO: manage unwrap()
@@ -443,17 +509,46 @@ pub async fn capsule_set_keyshare(
 										);
 									},
 									Err(err) => {
-										error!(
+										let message = format!(
 											"Error in creating log file for nft_id : {}, path : {}, Error : {}",
 											verified_data.nft_id, file_path, err
+										);
+
+										error!(message);
+
+										sentry::with_scope(
+											|scope| {
+												scope.set_tag(
+													"capsule-set-keyshare",
+													verified_data.nft_id.to_string(),
+												);
+											},
+											|| {
+												sentry::capture_message(
+													&message,
+													sentry::Level::Error,
+												)
+											},
 										);
 									},
 								}
 							},
 							Err(err) => {
-								error!(
+								let message = format!(
 									"Error in creating log file for nft_id : {}, path : {} error : {}",
 									verified_data.nft_id, file_path, err
+								);
+
+								error!(message);
+
+								sentry::with_scope(
+									|scope| {
+										scope.set_tag(
+											"capsule-set-keyshare",
+											verified_data.nft_id.to_string(),
+										);
+									},
+									|| sentry::capture_message(&message, sentry::Level::Error),
 								);
 							},
 						}
@@ -471,22 +566,35 @@ pub async fn capsule_set_keyshare(
 
 					(
 						StatusCode::OK,
-						Json(json!({
-							"status": ReturnStatus::STORESUCCESS,
-							"nft_id": verified_data.nft_id,
-							"enclave_account": enclave_account,
-							"description":"Capsule key-share is successfully stored to TEE".to_string(),
-						})),
+						Json(
+							to_value(ApiErrorResponse {
+								status: ReturnStatus::STORESUCCESS,
+								nft_id: verified_data.nft_id,
+								enclave_account,
+								description: "Capsule key-share is successfully stored to TEE"
+									.to_string(),
+							})
+							.unwrap(),
+						),
 					)
 				},
 
 				Err(err) => {
 					let err_str = err.to_string();
-					let message = format!(
+					let description = format!(
 						"Error sending proof of storage to chain, Capsule nft_id : {}, Error : {err_str}" , verified_data.nft_id
 					);
 
-					error!("{}, owner = {}", message, request.owner_address);
+					let message = format!("{}, owner = {}", description, request.owner_address);
+
+					error!(message);
+
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag("capsule-set-keyshare", verified_data.nft_id.to_string());
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
+					);
 
 					info!("Removing the capsule key-share from TEE due to previous error, nft_id : {}", verified_data.nft_id);
 
@@ -495,20 +603,38 @@ pub async fn capsule_set_keyshare(
 							"Capsule key-share is successfully removed from TEE, nft_id : {}",
 							verified_data.nft_id
 						),
-						Err(err) => error!(
+						Err(err) => {
+							let message = format!(
 							"Error in removing capsule key-share from TEE, nft_id : {}, Error : {}",
-							verified_data.nft_id, err
-						),
+							verified_data.nft_id, err);
+
+							error!(message);
+
+							sentry::with_scope(
+								|scope| {
+									scope.set_tag(
+										"capsule-set-keyshare",
+										verified_data.nft_id.to_string(),
+									);
+								},
+								|| sentry::capture_message(&message, sentry::Level::Error),
+							);
+						},
 					}
+
+					let status = ReturnStatus::ORACLEFAILURE;
 
 					(
 						StatusCode::GATEWAY_TIMEOUT,
-						Json(json!({
-							"status": ReturnStatus::ORACLEFAILURE,
-							"nft_id": verified_data.nft_id,
-							"enclave_account": enclave_account,
-							"description": message,
-						})),
+						Json(
+							to_value(ApiErrorResponse {
+								status,
+								nft_id: verified_data.nft_id,
+								enclave_account,
+								description,
+							})
+							.unwrap(),
+						),
 					)
 				},
 			}
@@ -518,8 +644,8 @@ pub async fn capsule_set_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_store_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(e) => {
-					return e.express_verification_error(
+				Err(err) => {
+					return err.express_verification_error(
 						APICALL::CAPSULESET,
 						request.owner_address.to_string(),
 						0,
@@ -566,34 +692,46 @@ pub async fn capsule_retrieve_keyshare(
 					if av.nft_type == helper::NftType::Capsule {
 						av
 					} else {
+						let status = ReturnStatus::KEYNOTEXIST;
+						let description = "NFTID is not a capsule.".to_string();
+
 						return (
 							StatusCode::NOT_FOUND,
-							Json(json!({
-								"status": ReturnStatus::KEYNOTEXIST,
-								"nft_id": verified_data.nft_id,
-								"enclave_account": enclave_account,
-								"description": "NFTID is not a capsule.".to_string(),
-							})),
+							Json(
+								to_value(ApiErrorResponse {
+									status,
+									nft_id: verified_data.nft_id,
+									enclave_account,
+									description,
+								})
+								.unwrap(),
+							),
 						);
 					}
 				},
 				None => {
+					let status = ReturnStatus::KEYNOTEXIST;
+					let description = "Capsule Keyshare is not available.".to_string();
+
 					return (
 						StatusCode::NOT_FOUND,
-						Json(json!({
-							"status": ReturnStatus::KEYNOTEXIST,
-							"nft_id": verified_data.nft_id,
-							"enclave_account": enclave_account,
-							"description": "Capsule Keyshare is not available.".to_string(),
-						})),
-					)
+						Json(
+							to_value(ApiErrorResponse {
+								status,
+								nft_id: verified_data.nft_id,
+								enclave_account,
+								description,
+							})
+							.unwrap(),
+						),
+					);
 				},
 			};
 
-			let file_path = enclave_sealpath.to_string()
-				+ "capsule_" + &verified_data.nft_id.to_string()
-				+ "_" + &av.block_number.to_string()
-				+ ".keyshare";
+			let file_path = format!(
+				"{enclave_sealpath}capsule_{}_{}.keyshare",
+				verified_data.nft_id, av.block_number
+			);
 
 			if !std::path::Path::new(&file_path).is_file() {
 				let status = ReturnStatus::KEYNOTEXIST;
@@ -603,16 +741,29 @@ pub async fn capsule_retrieve_keyshare(
 					verified_data.nft_id,
 				);
 
-				error!("{}, requester : {}", description, request.requester_address);
+				let message = format!("{}, requester : {}", description, request.requester_address);
+
+				error!(message);
+
+				sentry::with_scope(
+					|scope| {
+						scope
+							.set_tag("capsule-retrieve-keyshare", verified_data.nft_id.to_string());
+					},
+					|| sentry::capture_message(&message, sentry::Level::Error),
+				);
 
 				return (
 					StatusCode::NOT_FOUND,
-					Json(json!({
-						"status": status,
-						"nft_id": verified_data.nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						to_value(ApiErrorResponse {
+							status,
+							nft_id: verified_data.nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				);
 			}
 
@@ -622,24 +773,39 @@ pub async fn capsule_retrieve_keyshare(
 				Err(err) => {
 					let status = ReturnStatus::KEYNOTACCESSIBLE;
 					let description = format!(
-						"TEE Key-share {:?}: error can not read nft_id.{} key-share on enclave.",
+						"TEE Key-share {:?}: error can not open nft_id.{} key-share on enclave.",
 						APICALL::CAPSULERETRIEVE,
 						verified_data.nft_id,
 					);
 
-					error!(
+					let message = format!(
 						"{}, Error : {}, requester : {}",
 						description, err, request.requester_address
 					);
 
+					error!(message);
+
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag(
+								"capsule-retrieve-keyshare",
+								verified_data.nft_id.to_string(),
+							);
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
+					);
+
 					return (
-						StatusCode::NO_CONTENT,
-						Json(json!({
-							"status": status,
-							"nft_id": verified_data.nft_id,
-							"enclave_account": enclave_account,
-							"description": description,
-						})),
+						StatusCode::INTERNAL_SERVER_ERROR,
+						Json(
+							to_value(ApiErrorResponse {
+								status,
+								nft_id: verified_data.nft_id,
+								enclave_account,
+								description,
+							})
+							.unwrap(),
+						),
 					);
 				},
 			};
@@ -662,26 +828,40 @@ pub async fn capsule_retrieve_keyshare(
 						verified_data.nft_id,
 					);
 
-					error!(
+					let message = format!(
 						"{} , Error : {} , requester : {}",
 						description, err, request.requester_address
 					);
 
+					error!(message);
+
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag(
+								"capsule-retrieve-keyshare",
+								verified_data.nft_id.to_string(),
+							);
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
+					);
+
 					return (
-						StatusCode::NO_CONTENT,
-						Json(json!({
-							"status": status,
-							"nft_id": verified_data.nft_id,
-							"enclave_account": enclave_account,
-							"description": description,
-						})),
+						StatusCode::INTERNAL_SERVER_ERROR,
+						Json(
+							to_value(ApiErrorResponse {
+								status,
+								nft_id: verified_data.nft_id,
+								enclave_account,
+								description,
+							})
+							.unwrap(),
+						),
 					);
 				},
 			};
 
 			// Put a VIEWING history log
-			let file_path =
-				enclave_sealpath.to_string() + &verified_data.nft_id.to_string() + ".log";
+			let file_path = format!("{enclave_sealpath}{}.log", verified_data.nft_id);
 
 			match get_current_block_number(&state).await {
 				Ok(block_number) => {
@@ -703,7 +883,7 @@ pub async fn capsule_retrieve_keyshare(
 					// TODO [future - security] : SIGN the response
 					(
 						StatusCode::OK,
-						Json(json!({
+						Json(serde_json::json!({
 							"status": ReturnStatus::RETRIEVESUCCESS,
 							"nft_id": verified_data.nft_id,
 							"enclave_account": enclave_account,
@@ -712,23 +892,30 @@ pub async fn capsule_retrieve_keyshare(
 						})),
 					)
 				},
-				Err(err) => (
-					StatusCode::NOT_ACCEPTABLE,
-					Json(json!({
-						"status": ReturnStatus::InvalidBlockNumber,
-						"nft_id": verified_data.nft_id,
-						"enclave_account": enclave_account,
-						"description": format!("Fail retrieving Capsule key-share. {}", err),
-					})),
-				),
+				Err(err) => {
+					let status = ReturnStatus::InvalidBlockNumber;
+					let description = format!("Fail retrieving Capsule key-share. {}", err);
+					(
+						StatusCode::NOT_ACCEPTABLE,
+						Json(
+							to_value(ApiErrorResponse {
+								status,
+								nft_id: verified_data.nft_id,
+								enclave_account,
+								description,
+							})
+							.unwrap(),
+						),
+					)
+				},
 			}
 		},
 
 		Err(err) => {
 			let parsed_data = match request.parse_retrieve_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(e) => {
-					return e.express_verification_error(
+				Err(err) => {
+					return err.express_verification_error(
 						APICALL::CAPSULERETRIEVE,
 						request.requester_address.to_string(),
 						0,
@@ -841,11 +1028,8 @@ pub async fn capsule_remove_keyshare(
 		},
 	};
 
-	let file_path = enclave_sealpath.to_string()
-		+ "capsule_"
-		+ &request.nft_id.to_string()
-		+ "_" + &av.block_number.to_string()
-		+ ".keyshare";
+	let file_path =
+		format!("{enclave_sealpath}capsule_{}_{}.keyshare", request.nft_id, av.block_number);
 
 	let exist = std::path::Path::new(file_path.as_str()).exists();
 
@@ -871,7 +1055,7 @@ pub async fn capsule_remove_keyshare(
 
 	match std::fs::remove_file(file_path) {
 		Ok(_) => {
-			let file_path = enclave_sealpath.to_string() + &request.nft_id.to_string() + ".log";
+			let file_path = format!("{enclave_sealpath}{}.log", request.nft_id);
 
 			match std::fs::remove_file(file_path) {
 				Ok(_) => info!("Successfully removed capsule log-file."),

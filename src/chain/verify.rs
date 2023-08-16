@@ -4,6 +4,7 @@
 #![allow(clippy::upper_case_acronyms)]
 
 use hex::FromHex;
+use serde_json::Value;
 use std::str::FromStr;
 
 use sp_core::{crypto::Ss58Codec, sr25519, ByteArray, Pair};
@@ -17,7 +18,7 @@ use axum::{
 	Json,
 };
 
-use serde_json::{json, Value};
+//use serde_json::{json, Value};
 use tracing::{debug, error, info};
 
 use crate::{
@@ -210,6 +211,14 @@ pub enum KeyshareHolder {
 	NotFound,
 }
 
+#[derive(Serialize)]
+pub struct ApiErrorResponse {
+	pub status: ReturnStatus,
+	pub nft_id: u32,
+	pub enclave_account: String,
+	pub description: String,
+}
+
 impl VerificationError {
 	/// Express the error in JSON format
 	/// # Arguments
@@ -228,39 +237,46 @@ impl VerificationError {
 	) -> (StatusCode, Json<Value>) {
 		match self {
 			// SIGNER SIGNATURE FORMAT
-			VerificationError::INVALIDSIGNERSIG(e) => {
+			VerificationError::INVALIDSIGNERSIG(err) => {
 				let status = ReturnStatus::INVALIDSIGNERSIGNATURE;
 				let description = format!(
-					"TEE Key-share {call:?}: Invalid request signer signature format, {e:?} "
+					"TEE Key-share {call:?}: Invalid request signer signature format, {err:?} "
 				);
 				info!("{}, requester : {}", description, caller);
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
 			// DATA SIGNATURE FORMAT
-			VerificationError::INVALIDDATASIG(e) => {
+			VerificationError::INVALIDDATASIG(err) => {
 				let status = ReturnStatus::INVALIDDATASIGNATURE;
-				let description =
-					format!("TEE Key-share {call:?}: Invalid request data signature format, {e:?}");
+				let description = format!(
+					"TEE Key-share {call:?}: Invalid request data signature format, {err:?}"
+				);
 				info!("{}, requester : {}", description, caller);
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -272,12 +288,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -289,12 +308,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -306,12 +328,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -324,12 +349,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -342,12 +370,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -361,12 +392,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -380,12 +414,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -398,12 +435,15 @@ impl VerificationError {
 
 				(
 					StatusCode::UNAUTHORIZED,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -416,46 +456,55 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
 			// EPIRATION PERIOD OF SIGNER ACCOUNT  (AUTHENTICATION-TOKEN)
-			VerificationError::EXPIREDSIGNER(e) => {
+			VerificationError::EXPIREDSIGNER(err) => {
 				let status = ReturnStatus::EXPIREDSIGNER;
 				let description = format!("TEE Key-share {call:?}: The signer account has been expired or is not in valid range.");
 				info!("{}, requester : {}", description, caller);
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
 			// EPIRATION PERIOD OF REQUEST DATA  (AUTHENTICATION-TOKEN)
-			VerificationError::EXPIREDDATA(e) => {
+			VerificationError::EXPIREDDATA(err) => {
 				let status = ReturnStatus::EXPIREDREQUEST;
 				let description = format!("TEE Key-share {call:?}: The request data field has been expired  or is not in valid range.");
 				info!("{}, requester : {}", description, caller);
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -468,12 +517,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -485,12 +537,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -503,12 +558,15 @@ impl VerificationError {
 
 				(
 					StatusCode::FORBIDDEN,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -520,12 +578,15 @@ impl VerificationError {
 
 				(
 					StatusCode::FORBIDDEN,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -537,12 +598,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -554,12 +618,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -572,12 +639,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 
@@ -588,12 +658,15 @@ impl VerificationError {
 
 				(
 					StatusCode::BAD_REQUEST,
-					Json(json! ({
-						"status": status,
-						"nft_id": nft_id,
-						"enclave_account": enclave_account,
-						"description": description,
-					})),
+					Json(
+						serde_json::to_value(ApiErrorResponse {
+							status,
+							nft_id,
+							enclave_account,
+							description,
+						})
+						.unwrap(),
+					),
 				)
 			},
 		}
@@ -682,7 +755,7 @@ pub enum ValidationResult {
 impl AuthenticationToken {
 	/// Serialize AuthenticationToken
 	pub fn serialize(self) -> String {
-		self.block_number.to_string() + "_" + &self.block_validation.to_string()
+		format!("{}_{}", self.block_number, self.block_validation)
 	}
 
 	pub fn is_valid(&self, last_block_number: u32) -> ValidationResult {
@@ -722,7 +795,7 @@ impl StoreKeyshareData {
 	pub fn serialize(self) -> String {
 		let keyshare_str = match String::from_utf8(self.keyshare) {
 			Ok(s) => s,
-			Err(e) => return format!("Error serializing keyshare data: {}", e),
+			Err(err) => return format!("Error serializing keyshare data: {}", err),
 		};
 		format!("{}_{}_{}", self.nft_id, keyshare_str, self.auth_token.serialize())
 	}
@@ -861,7 +934,7 @@ impl StoreKeysharePacket {
 
 		let signersig = match self.parse_signature("signer") {
 			Ok(sig) => sig,
-			Err(e) => return Err(VerificationError::INVALIDSIGNERSIG(e)),
+			Err(err) => return Err(VerificationError::INVALIDSIGNERSIG(err)),
 		};
 
 		let result =
@@ -873,12 +946,12 @@ impl StoreKeysharePacket {
 	pub fn verify_data(&self) -> Result<bool, VerificationError> {
 		let signer = match self.get_signer() {
 			Ok(signer) => signer,
-			Err(e) => return Err(e),
+			Err(err) => return Err(err),
 		};
 
 		let packetsig = match self.parse_signature("owner") {
 			Ok(sig) => sig,
-			Err(e) => return Err(VerificationError::INVALIDDATASIG(e)),
+			Err(err) => return Err(VerificationError::INVALIDDATASIG(err)),
 		};
 
 		let result = sr25519::Pair::verify(&packetsig, self.data.clone(), &signer.account);
@@ -899,7 +972,7 @@ impl StoreKeysharePacket {
 				Ok(true) => {
 					let parsed_data = match self.parse_store_data() {
 						Ok(parsed_keyshare) => parsed_keyshare,
-						Err(e) => return Err(e),
+						Err(err) => return Err(err),
 					};
 
 					let onchain_nft_data =
@@ -953,13 +1026,13 @@ impl StoreKeysharePacket {
 					}
 				},
 				Ok(false) => Err(VerificationError::DATAVERIFICATIONFAILED),
-				Err(e) => Err(e),
+				Err(err) => Err(err),
 			},
 
 			// INVALID DATA SIGNATURE
 			Ok(false) => Err(VerificationError::SIGNERVERIFICATIONFAILED),
 
-			Err(e) => Err(e),
+			Err(err) => Err(err),
 		}
 	}
 
@@ -973,19 +1046,19 @@ impl StoreKeysharePacket {
 			Ok(true) => {
 				let data = match self.parse_store_data() {
 					Ok(sec) => sec,
-					Err(e) => return Err(e),
+					Err(err) => return Err(err),
 				};
 
 				match self.verify_data() {
 					Ok(true) => Ok(data),
 					Ok(false) => Err(VerificationError::DATAVERIFICATIONFAILED),
-					Err(e) => Err(e),
+					Err(err) => Err(err),
 				}
 			},
 
 			Ok(false) => Err(VerificationError::SIGNERVERIFICATIONFAILED),
 
-			Err(e) => Err(e),
+			Err(err) => Err(err),
 		}
 	}
 }
@@ -1059,7 +1132,7 @@ impl RetrieveKeysharePacket {
 	pub fn verify_data(&self, last_block_number: u32) -> Result<bool, VerificationError> {
 		let data = match self.parse_retrieve_data() {
 			Ok(sec) => sec,
-			Err(e) => return Err(e),
+			Err(err) => return Err(err),
 		};
 
 		let verify = data.auth_token.is_valid(last_block_number);
@@ -1070,7 +1143,7 @@ impl RetrieveKeysharePacket {
 
 		let sig = match self.parse_signature() {
 			Ok(sig) => sig,
-			Err(e) => return Err(VerificationError::INVALIDSIGNERSIG(e)),
+			Err(err) => return Err(VerificationError::INVALIDSIGNERSIG(err)),
 		};
 
 		let result = sr25519::Pair::verify(&sig, self.data.clone(), &self.requester_address);
@@ -1090,7 +1163,7 @@ impl RetrieveKeysharePacket {
 			Ok(true) => {
 				let parsed_data = match self.parse_retrieve_data() {
 					Ok(parsed) => parsed,
-					Err(e) => return Err(e),
+					Err(err) => return Err(err),
 				};
 
 				let onchain_nft_data = match get_onchain_nft_data(state, parsed_data.nft_id).await {
@@ -1145,7 +1218,7 @@ impl RetrieveKeysharePacket {
 			// INVALID DATA SIGNATURE
 			Ok(false) => Err(VerificationError::SIGNERVERIFICATIONFAILED),
 
-			Err(e) => Err(e),
+			Err(err) => Err(err),
 		}
 	}
 
@@ -1157,13 +1230,13 @@ impl RetrieveKeysharePacket {
 	) -> Result<RetrieveKeyshareData, VerificationError> {
 		let data = match self.parse_retrieve_data() {
 			Ok(sec) => sec,
-			Err(e) => return Err(e),
+			Err(err) => return Err(err),
 		};
 
 		match self.verify_data(last_block_number) {
 			Ok(true) => Ok(data),
 			Ok(false) => Err(VerificationError::DATAVERIFICATIONFAILED),
-			Err(e) => Err(e),
+			Err(err) => Err(err),
 		}
 	}
 }

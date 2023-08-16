@@ -2,7 +2,8 @@
 
 loader.entrypoint = "file:{{ gramine.libos }}"
 libos.entrypoint = "{{ self_exe }}"
-loader.log_level = "{{ log_level }}"
+#loader.log_level = "{{ log_level }}"
+loader.log_level = "error"
 
 loader.env.LD_LIBRARY_PATH = "/lib:{{ arch_libdir }}"
 
