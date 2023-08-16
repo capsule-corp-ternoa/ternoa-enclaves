@@ -82,7 +82,7 @@ async fn verify_account_id(state: &SharedState, account_id: &str) -> bool {
 fn get_public_key(account_id: &str) -> Result<Public, PublicError> {
 	let pk: Result<Public, PublicError> =
 		Public::from_ss58check(account_id).map_err(|err: PublicError| {
-			debug!("METRIC : Error constructing public key {:?}", err);
+			debug!("METRIC : Error constructing public key {err:?}");
 			err
 		});
 
@@ -109,7 +109,7 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 		Ok(pk) => match get_signature(signature) {
 			Ok(val) => sp_core::sr25519::Pair::verify(&val, message, &pk),
 			Err(err) => {
-				debug!("METRIC : Error get signature {:?}", err);
+				debug!("METRIC : Error get signature {err:?}");
 				false
 			},
 		},
@@ -181,10 +181,10 @@ pub async fn metric_reconcilliation(
 
 	let auth_token: AuthenticationToken = match serde_json::from_str(&auth) {
 		Ok(token) => token,
-		Err(e) => {
+		Err(err) => {
 			let message = format!(
 				"METRIC GET NFT LIST : Error : Authentication token is not parsable : {}",
-				e
+				err
 			);
 			return error_handler(message, &state).await.into_response();
 		},
@@ -224,10 +224,10 @@ pub async fn metric_reconcilliation(
 
 	let interval: Vec<u32> = match serde_json::from_str(&request.block_interval) {
 		Ok(interval) => interval,
-		Err(e) => {
+		Err(err) => {
 			let message = format!(
 				"METRIC GET NFT LIST : Error : Authentication token is not parsable : {}",
-				e
+				err
 			);
 			return error_handler(message, &state).await.into_response();
 		},
@@ -246,11 +246,5 @@ pub async fn metric_reconcilliation(
 		.map(|(k, _)| k)
 		.collect();
 
-	(
-		StatusCode::OK,
-		Json(json!({
-			"nftid": nftid
-		})),
-	)
-		.into_response()
+	(StatusCode::OK, Json(json!({ "nftid": nftid }))).into_response()
 }

@@ -15,12 +15,12 @@ use tracing::error;
 pub fn downloader(url: &str) -> Result<String, Error> {
 	let response = match reqwest::blocking::get(url) {
 		Ok(resp) => resp,
-		Err(e) => return Err(anyhow!("Error accessing url: {}", e)),
+		Err(err) => return Err(anyhow!("Error accessing url: {}", err)),
 	};
 
 	let content = match response.text() {
 		Ok(s) => s,
-		Err(e) => return Err(anyhow!("Error reading response: {}", e)),
+		Err(err) => return Err(anyhow!("Error reading response: {}", err)),
 	};
 
 	Ok(content)
@@ -51,10 +51,10 @@ fn import_vkey() -> Result<CosignVerificationKey, anyhow::Error> {
 	let url = "https://gist.githubusercontent.com/zorvan/46b26ff51b27590683ddaf70c0ea9dac/raw/2b437edaa808b79f2e7768cde9085150b2f10a32/cosign.pub";
 	let get_pub = match downloader(url) {
 		Ok(data) => data,
-		Err(e) => {
-			let message = format!("error retrieving public key from ternoa github {}", e);
+		Err(err) => {
+			let message = format!("error retrieving public key from ternoa github {}", err);
 			error!(message);
-			return Err(e);
+			return Err(err);
 		},
 	};
 	let ecdsa_p256_asn1_public_pem = get_pub.as_bytes();
@@ -76,7 +76,7 @@ pub fn verify(signed_data: &[u8], signature_data: &str) -> Result<bool, anyhow::
 	// TODO [release deployment] : from github release
 	let verification_key = match import_vkey() {
 		Ok(key) => key,
-		Err(e) => return Err(e),
+		Err(err) => return Err(err),
 	};
 
 	//Verifying the signature of the binary file
@@ -88,8 +88,8 @@ pub fn verify(signed_data: &[u8], signature_data: &str) -> Result<bool, anyhow::
 			Ok(true)
 		},
 
-		Err(e) => {
-			tracing::error!("Binary file signature verification failed, {}", e);
+		Err(err) => {
+			tracing::error!("Binary file signature verification failed, {}", err);
 			Ok(false)
 		},
 	}
@@ -135,8 +135,8 @@ mod test {
 				let binpath = std::path::Path::new(&path_string).read_link().unwrap();
 				binpath
 			},
-			Err(e) => {
-				tracing::error!("failed to get current pid: {}", e);
+			Err(err) => {
+				tracing::error!("failed to get current pid: {}", err);
 				std::path::PathBuf::new()
 			},
 		};

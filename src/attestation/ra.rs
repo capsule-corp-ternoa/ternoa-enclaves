@@ -26,7 +26,7 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 	// Make a dynamic user data
 	let enclave_id = get_accountid(&state).await;
 	let block_number = get_blocknumber(&state).await;
-	let sign_data = enclave_id + "_" + &block_number.to_string();
+	let sign_data = format!("{enclave_id}_{block_number}");
 
 	debug!("QUOTE : report_data token  = {}", sign_data);
 
@@ -38,10 +38,10 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 	match write_user_report_data(None, &signature.0) {
 		Ok(_) => debug!("QUOTE : Success writing user_data to the quote."),
 
-		Err(e) => {
+		Err(err) => {
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
-				Json(QuoteResponse { block_number, data: e.to_string() }),
+				Json(QuoteResponse { block_number, data: err.to_string() }),
 			)
 		},
 	};
@@ -51,9 +51,9 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 			(StatusCode::OK, Json(QuoteResponse { block_number, data: hex::encode(quote) }))
 		},
 
-		Err(e) => (
+		Err(err) => (
 			StatusCode::INTERNAL_SERVER_ERROR,
-			Json(QuoteResponse { block_number, data: e.to_string() }),
+			Json(QuoteResponse { block_number, data: err.to_string() }),
 		),
 	}
 }
@@ -71,7 +71,7 @@ pub fn get_quote_content() -> Result<Vec<u8>, Error> {
 	File::open(default_path)
 		.and_then(|mut file| {
 			file.read_to_end(&mut content).map_err(|err| {
-				error!("QUOTE : Error opening file /dev/attestation/quote {:?}", err);
+				error!("QUOTE : Error opening file /dev/attestation/quote {err:?}");
 				err
 			})
 		})
@@ -93,7 +93,7 @@ fn read_attestation_type(file_path: Option<String>) -> Result<String, Error> {
 	File::open(file_path.unwrap_or(String::from(default_path)))
 		.and_then(|mut file| {
 			file.read_to_string(&mut attest_type).map_err(|err| {
-				error!("QUOTE : Error reading file: {:?}", err);
+				error!("QUOTE : Error reading file: {err:?}");
 				err
 			})
 		})
@@ -128,7 +128,7 @@ pub fn write_user_report_data(
 			})
 		})
 		.map_err(|err| {
-			error!("QUOTE : Error writing file: {:?}", err);
+			error!("QUOTE : Error writing file: {err:?}");
 			err
 		})
 		.map(|_| ())?)

@@ -46,12 +46,7 @@ use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 
 use super::server_common;
 
-/// http server
-/// # Arguments
-/// # Example
-/// ```
-/// http_server();
-/// ```
+/// http server app
 pub async fn http_server() -> Result<Router, Error> {
 	// TODO [future deployment] : publish the key to release folder of sgx_server repository after being open-sourced.
 	
@@ -59,51 +54,12 @@ pub async fn http_server() -> Result<Router, Error> {
 	let enclave_keypair = if std::path::Path::new(enclave_account_file).exists() {
 		info!("Enclave Account Exists, Importing it! :, path: {}", enclave_account_file);
 
-			let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
-				Ok(phrase) => phrase,
-				Err(err) => {
-					error!("\t\nENCLAVE START : ERROR reading enclave account file: {:?}", err);
-					return Err(anyhow!(err));
-				},
-			};
-
-			match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
-				Ok((keypair, _seed)) => keypair,
-				Err(err) => {
-					error!("\t\nENCLAVE START : ERROR creating keypair from phrase: {:?}", err);
-					return Err(anyhow!(err));
-				},
-			}
-		} else {
-			info!("ENCLAVE START : Creating new Enclave Account, Remember to send 1 CAPS to it!");
-
-			let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
-			let mut ekfile =
-				match File::create(ENCLAVE_ACCOUNT_FILE) {
-					Ok(file_handle) => {
-						debug!("\t\nENCLAVE START : created enclave keypair file successfully");
-						file_handle
-					},
-					Err(err) => {
-						error!("\t\nENCLAVE START : Failed to creat enclave keypair file, error : {:?}", err);
-						return Err(anyhow!(err));
-					},
-				};
-
-			match ekfile.write_all(phrase.as_bytes()) {
-				Ok(_) => {
-					debug!("\t\nENCLAVE START : Write enclave keypair to file successfully");
-				},
-				Err(err) => {
-					error!(
-						"\t\nENCLAVE START : Write enclave keypair to file failed, error : {:?}",
-						err
-					);
-					return Err(anyhow!(err));
-				},
-			}
-
-			keypair
+		let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
+			Ok(phrase) => phrase,
+			Err(err) => {
+				error!("\tENCLAVE START : ERROR reading enclave account file: {err:?}");
+				return Err(anyhow!(err));
+			},
 		};
 
 
@@ -172,7 +128,7 @@ pub async fn http_server() -> Result<Router, Error> {
 	let chain_api = match create_chain_api().await {
 		Ok(api) => api,
 		Err(err) => {
-			error!("ENCLAVE START : get online chain api, error : {:?}", err);
+			error!("ENCLAVE START : get online chain api, error : {err:?}");
 			return Err(anyhow!(err));
 		},
 	};
@@ -204,8 +160,8 @@ pub async fn http_server() -> Result<Router, Error> {
 	// Get all cluster and registered enclaves from the chain
 	// Also checks if this enclave has been registered.
 	info!("ENCLAVE START : Initialization Cluster Discovery.");
-	while let Err(e) = cluster_discovery(&state_config.clone()).await {
-		error!("ENCLAVE START : cluster discovery error : {:?}", e);
+	while let Err(err) = cluster_discovery(&state_config.clone()).await {
+		error!("ENCLAVE START : cluster discovery error : {err:?}");
 		debug!("ENCLAVE START : Retry Cluster Discovery after a delay...");
 		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
 	}
@@ -220,7 +176,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		let past_state = match std::fs::read_to_string(SYNC_STATE_FILE) {
 			Ok(state) => state,
 			Err(err) => {
-				error!("ENCLAVE START : Error reading enclave's last state file: {:?}", err);
+				error!("ENCLAVE START : Error reading enclave's last state file: {err:?}");
 				return Err(anyhow!(err));
 			},
 		};
@@ -257,7 +213,7 @@ pub async fn http_server() -> Result<Router, Error> {
 						},
 						Err(err) => {
 							// TODO : for the primary cluster it should work fine.
-							error!("ENCLAVE START : SETUP-MODE : Error during setup-mode fetch-keyshares : {:?}", err);
+							error!("ENCLAVE START : SETUP-MODE : Error during setup-mode fetch-keyshares : {err:?}");
 							debug!("ENCLAVE START : SETUP-MODE : wait before retry");
 							std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
 						},
@@ -368,7 +324,7 @@ pub async fn http_server() -> Result<Router, Error> {
 				file_handle
 			},
 			Err(err) => {
-				error!("ENCLAVE START : failed to creat sync.state file, error : {:?}", err);
+				error!("ENCLAVE START : failed to creat sync.state file, error : {err:?}");
 				return Err(anyhow!(err));
 			},
 		};
@@ -432,8 +388,8 @@ pub async fn http_server() -> Result<Router, Error> {
 		// Subscribe to all finalized blocks:
 		let mut blocks_sub = match chain_api.blocks().subscribe_finalized().await {
 			Ok(sub) => sub,
-			Err(e) => {
-				error!(" > Unable to subscribe to finalized blocks {:?}", e);
+			Err(err) => {
+				error!(" > Unable to subscribe to finalized blocks {err:?}");
 				return;
 			},
 		};
@@ -442,8 +398,8 @@ pub async fn http_server() -> Result<Router, Error> {
 		while let Some(block) = blocks_sub.next().await {
 			let block = match block {
 				Ok(blk) => blk,
-				Err(e) => {
-					error!(" > Unable to get finalized block {:?}", e);
+				Err(err) => {
+					error!(" > Unable to get finalized block {err:?}");
 					continue;
 				},
 			};
@@ -452,7 +408,7 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			// Write to ShareState block, necessary to prevent Read SharedState
 			set_blocknumber(&state_config, block_number).await;
-			debug!("New Block : {}", block_number);
+			trace!("New Block : {}", block_number);
 			trace!(" > Block Number Thread : block_number state is set to {}", block_number);
 
 			// For block number update, we should reset the nonce as well
@@ -473,8 +429,8 @@ pub async fn http_server() -> Result<Router, Error> {
 					trace!(" > Block Number Thread : got block body.");
 					body
 				},
-				Err(e) => {
-					error!(" > Block Number Thread : Unable to get block body : {:?}", e);
+				Err(err) => {
+					error!(" > Block Number Thread : Unable to get block body : {err:?}");
 					continue;
 				},
 			};
@@ -486,8 +442,8 @@ pub async fn http_server() -> Result<Router, Error> {
 					trace!(" > Block Number Thread : parsed the block body.");
 					tuple
 				},
-				Err(e) => {
-					error!(" > Block Number Thread : Unable to parse the block body : {:?}", e);
+				Err(err) => {
+					error!(" > Block Number Thread : Unable to parse the block body : {err:?}");
 					continue;
 				},
 			};
@@ -501,8 +457,8 @@ pub async fn http_server() -> Result<Router, Error> {
 						// New self-identity is found?
 						let sync_state = match get_sync_state() {
 							Ok(st) => st,
-							Err(e) => {
-								error!(" > Block Number Thread : TEE Event : Cluster Discovery : Can not get sync state : {:?}", e);
+							Err(err) => {
+								error!(" > Block Number Thread : TEE Event : Cluster Discovery : Can not get sync state : {err:?}");
 								continue;
 							},
 						};
@@ -540,7 +496,7 @@ pub async fn http_server() -> Result<Router, Error> {
 
 					// Cluster discovery Error
 					Err(err) => {
-						error!("\t > Error during running-mode cluster discovery {:?}", err);
+						error!("\t > Error during running-mode cluster discovery {err:?}");
 						// TODO [decision] : Integrity of clusters is corrupted. what to do? Going to maintenace mode and stop serving to API calls? Wipe?
 						continue;
 					},
@@ -550,15 +506,15 @@ pub async fn http_server() -> Result<Router, Error> {
 			// Regular CRAWL Check
 			let sync_state = match get_sync_state() {
 				Ok(st) => st,
-				Err(e) => {
-					error!(" > Block Number Thread : Can not get sync state : {:?}", e);
+				Err(err) => {
+					error!(" > Block Number Thread : Can not get sync state : {err:?}");
 					continue;
 				},
 			};
 
 			// IMPORTANT : Check for Runtime mode : if integrity of clusters fails, we'll wait and go back to setup-mode
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
-				debug!(" > Runtime mode : SyncStat = {}", sync_state);
+				trace!(" > Runtime mode : SyncStat = {}", sync_state);
 				// If no event has detected in 10 blocks, network disconnections happened, ...
 
 				let last_processed_block = get_processed_block(&state_config).await;
@@ -605,7 +561,7 @@ pub async fn http_server() -> Result<Router, Error> {
 							}
 						},
 
-						Err(e) => {
+						Err(err) => {
 							error!(
 								"\t > Runtime mode : Crawl check : Error runtime-mode crawling from {} to {} .",
 								last_processed_block, block_number
@@ -641,7 +597,7 @@ pub async fn http_server() -> Result<Router, Error> {
 							break;
 						},
 						Err(err) => {
-							error!("\t > Runtime mode : NEW-NFT : Error during running-mode nft-based syncing : {:?}", err);
+							error!("\t > Runtime mode : NEW-NFT : Error during running-mode nft-based syncing : {err:?}");
 							debug!("\t > Runtime mode : NEW-NFT : wait before retry");
 							std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
 						},
@@ -668,13 +624,26 @@ pub async fn http_server() -> Result<Router, Error> {
 ------------------------------ */
 /// Handle errors from the router.
 /// This is a catch-all handler that will be called for any error that isn't handled by a route.
-async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> impl IntoResponse {
-	debug!("3-1 Timeout Handler start");
+async fn handle_timeout_error(method: Method, uri: Uri, err: BoxError) -> impl IntoResponse {
+	debug!("Timeout Handler start");
+
+	let message = format!(
+		"Timeout Handler : Request timeout,  method: {:?}, uri: {}, error: {}",
+		method, uri, err
+	);
+	warn!(message);
+	sentry::with_scope(
+		|scope| {
+			scope.set_tag("timeout", uri.to_string());
+		},
+		|| sentry::capture_message(&message, sentry::Level::Warning),
+	);
+
 	if err.is::<tower::timeout::error::Elapsed>() {
-		debug!("3-1-1 Timeout Handler : Request took too long.");
+		debug!("Timeout Handler : Request timeout.");
 		(StatusCode::REQUEST_TIMEOUT, "Request took too long".to_string()).into_response()
 	} else {
-		debug!("3-1-1 Timeout Handler : unhandled internal error.");
+		debug!("Timeout Handler : unhandled internal error.");
 		(StatusCode::INTERNAL_SERVER_ERROR, format!("Unhandled internal error: {err}"))
 			.into_response()
 	}
@@ -682,7 +651,16 @@ async fn handle_timeout_error(_method: Method, _uri: Uri, err: BoxError) -> impl
 
 /// Handle errors from the router.
 async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
-	debug!("3-2 Fallback handler for {uri}");
+	let message = format!("Fallback on uri: {}", uri);
+
+	sentry::with_scope(
+		|scope| {
+			scope.set_tag("fallback", uri.to_string());
+		},
+		|| sentry::capture_message(&message, sentry::Level::Warning),
+	);
+
+	debug!("Fallback handler for {uri}");
 	(
 		StatusCode::BAD_REQUEST,
 		Json(json!({
@@ -717,13 +695,21 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 		},
 
 		_ => {
-			error!("Healthchek handler : exited with None.");
+			let message = "Healthchek handler : exited with None.".to_string();
+			error!(message);
+			sentry::with_scope(
+				|scope| {
+					scope.set_tag("health-check", "None");
+				},
+				|| sentry::capture_message(&message, sentry::Level::Error),
+			);
+
 			let block_number = get_blocknumber(&state).await;
 			let binary_version = get_version(&state).await;
 			let enclave_address = get_accountid(&state).await;
 			let sync_state = match get_sync_state() {
 				Ok(st) => st,
-				Err(e) => {
+				Err(err) => {
 					error!("Healthchek handler : error : unable to read the sync state");
 					"Unknown".to_string()
 				},

@@ -10,11 +10,10 @@ RELIABILITY / ERROR-HANDLING / PERFORMANCE:
   - Rate Limit Quote API
   - ADD RPC PROBLEM/TIMEOUT handler (middleware)
   - Syncing wildcard Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
-  - return the error to sentry or other places.
   - Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
   - Only whitelisted metric server will call Remove-Keyshare
   - Unified Code for Verification and API Responses.
-  - Genesis Hash+ Keyshare to make sure chain is the same! (Then we can remove RPC end-point)
+  - Genesis Hash + Keyshare to make sure chain is the same! (Then we can remove RPC end-point)
   - use metric-server ranking instead of simple loop as Retry mechanism
   
 IDEAS : 

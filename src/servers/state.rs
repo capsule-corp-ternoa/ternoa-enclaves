@@ -158,7 +158,7 @@ impl StateConfig {
 	}
 
 	pub fn get_nft_availability(&self, nftid: u32) -> Option<&helper::Availability> {
-		tracing::debug!("\nAVAILABILITY : LOW LEVEL : GET : MAP : {:#?}", self.nft_block_map);
+		tracing::trace!("\nAVAILABILITY : LOW LEVEL : GET : MAP : {:#?}", self.nft_block_map);
 		self.nft_block_map.get(&nftid)
 	}
 
@@ -169,21 +169,21 @@ impl StateConfig {
 	pub fn set_nft_availability(&mut self, nftid_block: (u32, helper::Availability)) {
 		// Identity is (ClusterID, SlotID)
 		self.nft_block_map.insert(nftid_block.0, nftid_block.1);
-		tracing::debug!("\nAVAILABILITY : LOW LEVEL : SET : MAP : {:#?}", self.nft_block_map);
+		tracing::trace!("\nAVAILABILITY : LOW LEVEL : SET : MAP : {:#?}", self.nft_block_map);
 	}
 
 	pub fn remove_nft_availability(&mut self, nftid: u32) {
 		// Identity is (ClusterID, SlotID)
 		self.nft_block_map.remove(&nftid);
-		tracing::debug!("\nAVAILABILITY : LOW LEVEL : REMOVE : MAP : {:#?}", self.nft_block_map);
+		tracing::trace!("\nAVAILABILITY : LOW LEVEL : REMOVE : MAP : {:#?}", self.nft_block_map);
 	}
 }
 
 fn keypair_to_public(keypair: sp_core::sr25519::Pair) -> Option<sp_core::sr25519::Public> {
 	let pubkey: [u8; 32] = match keypair.as_ref().to_bytes()[64..].try_into() {
 		Ok(pk) => pk,
-		Err(e) => {
-			tracing::error!("converting keypair to public key: {:?}", e);
+		Err(err) => {
+			tracing::error!("converting keypair to public key: {err:?}");
 			return None;
 		},
 	};
