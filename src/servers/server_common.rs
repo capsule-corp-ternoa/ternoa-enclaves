@@ -53,7 +53,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 				Some(evt) => match evt {
 					Ok(ok) => info!("SERVER INITIALIZATION : SPAWN CERT EVENT : {:?}", ok),
 					Err(err) => {
-						error!("SERVER INITIALIZATION : SPAWN CERT EVENT : ERROR: {:?}", err)
+						error!("SERVER INITIALIZATION : SPAWN CERT EVENT : ERROR: {err:?}")
 					},
 				},
 				None => error!("SERVER INITIALIZATION : SPAWN CERT EVENT : error get event"),
@@ -89,10 +89,10 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 			info!("SERVER INITIALIZATION : Certificate Server finished successfully");
 		},
 
-		Err(e) => {
-			info!("SERVER INITIALIZATION : Error in certificate server : {}", e);
+		Err(err) => {
+			info!("SERVER INITIALIZATION : Error in certificate server : {}", err);
 			return Err(anyhow::anyhow!(format!(
-				"SERVER INITIALIZATION : Error in certificate server : {e}"
+				"SERVER INITIALIZATION : Error in certificate server : {err}"
 			)));
 		},
 	}
@@ -115,9 +115,9 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 			Ok(())
 		},
 
-		Err(e) => {
-			error!("SERVER INITIALIZATION : Error in SGX server : {}", e);
-			Err(anyhow::anyhow!(format!("SERVER INITIALIZATION : Error in sgx server : {e}")))
+		Err(err) => {
+			error!("SERVER INITIALIZATION : Error in SGX server : {}", err);
+			Err(anyhow::anyhow!(format!("SERVER INITIALIZATION : Error in sgx server : {err}")))
 		},
 	}
 }

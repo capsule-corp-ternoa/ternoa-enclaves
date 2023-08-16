@@ -83,9 +83,12 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 		match DefaultApi::from_url(rpc_endoint.clone()).await {
 			Ok(api) => {
 				info!("CHAIN : Successfully created chain api.");
-				return Ok(api)
+				return Ok(api);
 			},
-			Err(e) => error!("CHAIN : Error acquiring chain api, retry num.{}, {:?}", retry, e),
+			Err(err) => {
+				error!("CHAIN : Error acquiring chain api, retry num.{}, {:?}", retry, err);
+				sentry::capture_error(&err);
+			},
 		}
 		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 	}
@@ -110,8 +113,8 @@ pub async fn get_current_block_number(state: &SharedState) -> Result<u32, Error>
 	for retry in 0..RETRY_COUNT {
 		match api.blocks().at_latest().await {
 			Ok(last_block) => return Ok(last_block.number()),
-			Err(e) => {
-				error!("CHAIN : unable to get latest block, retry num.{}, {:?}", retry, e);
+			Err(err) => {
+				error!("CHAIN : unable to get latest block, retry num.{}, {:?}", retry, err);
 				std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 			},
 		}
@@ -121,7 +124,7 @@ pub async fn get_current_block_number(state: &SharedState) -> Result<u32, Error>
 	let last_block = match api.blocks().at_latest().await {
 		Ok(last_block) => last_block,
 		Err(err) => {
-			error!("CHAIN : unable to get latest block, retry num.{} : {}",RETRY_COUNT, err);
+			error!("CHAIN : unable to get latest block, retry num.{} : {}", RETRY_COUNT, err);
 			return Err(err);
 		},
 	};
@@ -201,7 +204,7 @@ pub async fn get_onchain_nft_data(
 		match api.storage().at_latest().await {
 			Ok(storage) => storage,
 			Err(err) => {
-				error!("CHAIN : Failed to get nft storage: {:?}", err);
+				error!("CHAIN : Failed to get nft storage: {err:?}");
 				return None;
 			},
 		};
@@ -209,7 +212,7 @@ pub async fn get_onchain_nft_data(
 	match storage.fetch(&storage_address).await {
 		Ok(nft_data) => nft_data,
 		Err(err) => {
-			error!("CHAIN : Failed to fetch NFT data: {:?}", err);
+			error!("CHAIN : Failed to fetch NFT data: {err:?}");
 			None
 		},
 	}
@@ -231,7 +234,10 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 		let storage = match api.storage().at_latest().await {
 			Ok(storage) => storage,
 			Err(err) => {
-				error!("CHAIN : Failed to get storage for delegatee, retry num.{}: {:?}", retry, err);
+				error!(
+					"CHAIN : Failed to get storage for delegatee, retry num.{}: {:?}",
+					retry, err
+				);
 				continue;
 			},
 		};
@@ -239,7 +245,10 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 		match storage.fetch(&storage_address).await {
 			Ok(delegated) => return delegated,
 			Err(err) => {
-				error!("CHAIN : Failed to fetch NFT data for delegatee, retry num.{} : {:?}", retry, err)
+				error!(
+					"CHAIN : Failed to fetch NFT data for delegatee, retry num.{} : {:?}",
+					retry, err
+				)
 			},
 		}
 
@@ -249,7 +258,7 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 	let storage = match api.storage().at_latest().await {
 		Ok(storage) => storage,
 		Err(err) => {
-			error!("CHAIN : Failed to get storage for delegatee: {:?}", err);
+			error!("CHAIN : Failed to get storage for delegatee: {err:?}");
 			return None;
 		},
 	};
@@ -257,7 +266,7 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 	match storage.fetch(&storage_address).await {
 		Ok(delegated) => delegated,
 		Err(err) => {
-			error!("CHAIN : Failed to fetch NFT data for delegatee : {:?}", err);
+			error!("CHAIN : Failed to fetch NFT data for delegatee : {err:?}");
 			None
 		},
 	}
@@ -294,7 +303,10 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 			},
 
 			Err(err) => {
-				error!("CHAIN : Failed to fetch NFT data for rentee, retry num.{} : {:?}", retry, err);
+				error!(
+					"CHAIN : Failed to fetch NFT data for rentee, retry num.{} : {:?}",
+					retry, err
+				);
 			},
 		}
 
@@ -304,7 +316,7 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 	let storage = match api.storage().at_latest().await {
 		Ok(storage) => storage,
 		Err(err) => {
-			error!("CHAIN : Failed to get storage for rentee: {:?}", err);
+			error!("CHAIN : Failed to get storage for rentee: {err:?}");
 			return None;
 		},
 	};
@@ -318,12 +330,11 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 			},
 		},
 		Err(err) => {
-			error!("CHAIN : Failed to fetch NFT data: {:?}", err);
+			error!("CHAIN : Failed to fetch NFT data: {err:?}");
 			None
 		},
 	}
 }
-
 
 // -------------- SECRET-NFT SYNC (ORACLE) --------------
 
@@ -435,7 +446,6 @@ pub async fn capsule_keyshare_oracle(
 
 	Ok(result)
 }
-
 
 /// Get Metric Server
 /// # Arguments
@@ -555,7 +565,6 @@ impl fmt::Display for NFTData<AccountId32> {
         )
 	}
 }
-
 
 /* **********************
 		 TEST

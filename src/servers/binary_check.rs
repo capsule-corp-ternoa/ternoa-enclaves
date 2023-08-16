@@ -20,14 +20,14 @@ pub fn self_checksig() -> Result<String, String> {
 			let path_string = "/proc/".to_owned() + &pid.to_string() + "/exe";
 			match std::path::Path::new(&path_string).read_link() {
 				Ok(binpath) => Ok(binpath),
-				Err(e) => {
-					error!("failed to read link for binary path: {}", e);
+				Err(err) => {
+					error!("failed to read link for binary path: {}", err);
 					Err("Error get binary path".to_string())
 				},
 			}
 		},
-		Err(e) => {
-			error!("failed to get current pid: {}", e);
+		Err(err) => {
+			error!("failed to get current pid: {}", err);
 			Err("Error get binary path".to_string())
 		},
 	};
@@ -42,9 +42,9 @@ pub fn self_checksig() -> Result<String, String> {
 			debug!("3-4-2 healthcheck : checksig : binary read successfully.");
 			data
 		},
-		Err(e) => {
+		Err(err) => {
 			debug!("3-4-2 healthcheck : error reading binary file.");
-			return Err(format!("Error reading binary file, {:?}", e));
+			return Err(format!("Error reading binary file, {err:?}"));
 		},
 	};
 
@@ -57,9 +57,9 @@ pub fn self_checksig() -> Result<String, String> {
 			debug!("3-4-4 healthcheck : sig file read successfully.");
 			sigdata
 		},
-		Err(e) => {
+		Err(err) => {
 			debug!("3-4-4 healthcheck : fail reading sig file.");
-			return Err(format!("Error reading signature file, {}", e));
+			return Err(format!("Error reading signature file, {}", err));
 		},
 	};
 
@@ -71,6 +71,6 @@ pub fn self_checksig() -> Result<String, String> {
 			true => Ok("Successful".to_string()),
 			false => Ok("Failed".to_string()),
 		},
-		Err(e) => Err(format!("Binary verification Error, {e}")),
+		Err(err) => Err(format!("Binary verification Error, {err}")),
 	}
 }

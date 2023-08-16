@@ -20,7 +20,7 @@ pub fn add_list_zip(src_dir: &str, nftids: Vec<String>, dst_file: &str) -> i32 {
 				dst_file
 			)
 		},
-		Err(e) => tracing::error!("Error NFTID-based backup : add_list_zip : {:?}", e),
+		Err(err) => tracing::error!("Error NFTID-based backup : add_list_zip : {err:?}"),
 	}
 
 	0
@@ -31,7 +31,7 @@ pub fn add_dir_zip(src_dir: &str, dst_file: &str) -> i32 {
 		Ok(_) => {
 			tracing::info!("bulk backup compression done: {} written to {}", src_dir, dst_file)
 		},
-		Err(e) => tracing::error!("Error bulk backup : add_dir_zip : {:?}", e),
+		Err(err) => tracing::error!("Error bulk backup : add_dir_zip : {err:?}"),
 	}
 
 	0
@@ -73,10 +73,10 @@ where
 
 		let name_ext = match path.strip_prefix(Path::new(prefix)) {
 			Ok(ne) => ne,
-			Err(e) => {
+			Err(err) => {
 				error!(
 					"ZIPDIR => CAN NOT STRIP PATH PREFIX {:?} OF PATH {:?} : {:?}",
-					prefix, path, e
+					prefix, path, err
 				);
 				continue;
 			},
@@ -173,26 +173,26 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 
 	let infile = match fs::File::open(fname) {
 		Ok(file) => file,
-		Err(e) => {
-			error!("Backup extract : error opening zip file : {:?}", e);
-			return Err(ZipError::Io(e));
+		Err(err) => {
+			error!("Backup extract : error opening zip file : {err:?}");
+			return Err(ZipError::Io(err));
 		},
 	};
 
 	let mut archive = match zip::ZipArchive::new(infile) {
 		Ok(archive) => archive,
-		Err(e) => {
-			error!("Backup extract : error opening file as zip-archive: {:?}", e);
-			return Err(e);
+		Err(err) => {
+			error!("Backup extract : error opening file as zip-archive: {err:?}");
+			return Err(err);
 		},
 	};
 
 	for i in 0..archive.len() {
 		let mut file = match archive.by_index(i) {
 			Ok(file) => file,
-			Err(e) => {
-				error!("Backup extract : error opening internal file at index {} : {:?}", i, e);
-				return Err(e);
+			Err(err) => {
+				error!("Backup extract : error opening internal file at index {} : {:?}", i, err);
+				return Err(err);
 			},
 		};
 
@@ -224,9 +224,9 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 		if (*file.name()).ends_with('/') {
 			match fs::create_dir_all(fullpath) {
 				Ok(_file) => info!("Backup extract : create directory {:?}", fullpath),
-				Err(e) => {
-					error!("Backup extract : error create internal directory : {:?}", e);
-					return Err(zip::result::ZipError::Io(e));
+				Err(err) => {
+					error!("Backup extract : error create internal directory : {err:?}");
+					return Err(zip::result::ZipError::Io(err));
 				},
 			}
 		}
@@ -237,9 +237,9 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 				if !p.exists() {
 					match fs::create_dir_all(p) {
 						Ok(_file) => info!("Backup extract : create {:?}", p),
-						Err(e) => {
-							error!("Backup extract : error creating paretn directory : {:?}", e);
-							return Err(zip::result::ZipError::Io(e));
+						Err(err) => {
+							error!("Backup extract : error creating paretn directory : {err:?}");
+							return Err(zip::result::ZipError::Io(err));
 						},
 					}
 				}
@@ -251,17 +251,17 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 					info!("Backup extract : create {:?}", fullpath);
 					file
 				},
-				Err(e) => {
-					error!("Backup extract : error (re)creating the file : {:?}", e);
-					return Err(zip::result::ZipError::Io(e));
+				Err(err) => {
+					error!("Backup extract : error (re)creating the file : {err:?}");
+					return Err(zip::result::ZipError::Io(err));
 				},
 			};
 
 			match io::copy(&mut file, &mut outfile) {
 				Ok(n) => info!("successfuly copied {} bytes", n),
-				Err(e) => {
-					error!("Backup extract : error copying data to file : {:?}", e);
-					return Err(zip::result::ZipError::Io(e));
+				Err(err) => {
+					error!("Backup extract : error copying data to file : {err:?}");
+					return Err(zip::result::ZipError::Io(err));
 				},
 			}
 		}
