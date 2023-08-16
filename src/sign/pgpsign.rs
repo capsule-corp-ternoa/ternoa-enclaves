@@ -218,7 +218,7 @@ impl<'a> VerificationHelper for SHelper<'a> {
 					// our policy.
 					match results.into_iter().next() {
 						Some(Ok(_)) => good = true,
-						Some(Err(e)) => return Err(openpgp::Error::from(e).into()),
+						Some(Err(err)) => return Err(openpgp::Error::from(err).into()),
 						None => return Err(anyhow::anyhow!("No signature")),
 					}
 				},

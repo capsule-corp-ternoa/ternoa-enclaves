@@ -154,7 +154,7 @@ fn verify_account_id(account_id: &str) -> bool {
 fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
 	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id)
 		.map_err(|err: PublicError| {
-			debug!("Error constructing public key {:?}", err);
+			debug!("Error constructing public key {err:?}");
 			err
 		});
 
@@ -203,7 +203,7 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 		Ok(pk) => match get_signature(signature) {
 			Ok(val) => sr25519::Pair::verify(&val, message, &pk),
 			Err(err) => {
-				debug!("Error get signature {:?}", err);
+				debug!("Error get signature {err:?}");
 				false
 			},
 		},
@@ -281,9 +281,9 @@ pub async fn admin_backup_fetch_id(
 
 	let auth_token: AuthenticationToken = match serde_json::from_str(&auth) {
 		Ok(token) => token,
-		Err(e) => {
+		Err(err) => {
 			let message =
-				format!("Error backup key shares : Authentication token is not parsable : {}", e);
+				format!("Error backup key shares : Authentication token is not parsable : {}", err);
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -318,8 +318,8 @@ pub async fn admin_backup_fetch_id(
 
 	let nftidv: Vec<u32> = match serde_json::from_str(&backup_request.nftid_vec) {
 		Ok(v) => v,
-		Err(e) => {
-			let message = format!("unable to deserialize nftid vector : {:?}", e);
+		Err(err) => {
+			let message = format!("unable to deserialize nftid vector : {err:?}");
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -334,10 +334,10 @@ pub async fn admin_backup_fetch_id(
 			Ok(_) => {
 				debug!("Successfully removed previous zip file")
 			},
-			Err(e) => {
+			Err(err) => {
 				let message = format!(
 					"Error backup key shares : Can not remove previous backup file : {}",
-					e
+					err
 				);
 				warn!(message);
 				//return Json(json!({ "error": message })).into_response()

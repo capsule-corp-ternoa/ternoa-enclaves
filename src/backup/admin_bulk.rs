@@ -189,7 +189,7 @@ fn verify_account_id(account_id: &str) -> bool {
 fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
 	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id)
 		.map_err(|err: PublicError| {
-			debug!("Error constructing public key {:?}", err);
+			debug!("Error constructing public key {err:?}");
 			err
 		});
 
@@ -298,9 +298,9 @@ pub async fn admin_backup_fetch_bulk(
 
 	let auth_token: FetchAuthenticationToken = match serde_json::from_str(&auth) {
 		Ok(token) => token,
-		Err(e) => {
+		Err(err) => {
 			let message =
-				format!("Error backup key shares : Authentication token is not parsable : {}", e);
+				format!("Error backup key shares : Authentication token is not parsable : {}", err);
 			warn!(message);
 			return Json(json!({ "error": message })).into_response();
 		},
@@ -336,10 +336,10 @@ pub async fn admin_backup_fetch_bulk(
 			Ok(_) => {
 				debug!("Successfully removed previous zip file")
 			},
-			Err(e) => {
+			Err(err) => {
 				let message = format!(
 					"Error backup key shares : Can not remove previous backup file : {}",
-					e
+					err
 				);
 				warn!(message);
 				//return Json(json!({ "error": message })).into_response()
@@ -427,9 +427,9 @@ pub async fn admin_backup_push_bulk(
 
 	while let Some(field) = match store_request.next_field().await {
 		Ok(field) => field,
-		Err(e) => {
+		Err(err) => {
 			let message =
-				format!("Error backup key shares : Can not parse request form-data : {}", e);
+				format!("Error backup key shares : Can not parse request form-data : {}", err);
 			warn!(message);
 			return Json(json!({ "error": message }));
 		},
@@ -487,11 +487,11 @@ pub async fn admin_backup_push_bulk(
 			"admin_address" => {
 				admin_address = match field.text().await {
 					Ok(bytes) => bytes,
-					Err(e) => {
-						info!("Admin restore :  Error request admin_address {:?}", e);
+					Err(err) => {
+						info!("Admin restore :  Error request admin_address {err:?}");
 
 						return Json(json!({
-								"error": format!("Admin restore : Error request admin_address {:?}", e),
+								"error": format!("Admin restore : Error request admin_address {err:?}"),
 						}));
 					},
 				}
@@ -500,11 +500,11 @@ pub async fn admin_backup_push_bulk(
 			"restore_file" => {
 				restore_file = match field.bytes().await {
 					Ok(bytes) => bytes.to_vec(),
-					Err(e) => {
-						info!("Admin restore :  Error request restore_file {:?}", e);
+					Err(err) => {
+						info!("Admin restore :  Error request restore_file {err:?}");
 
 						return Json(json!({
-								"error": format!("Admin restore : Error request restore_file {:?}", e),
+								"error": format!("Admin restore : Error request restore_file {err:?}"),
 						}));
 					},
 				}
@@ -513,11 +513,11 @@ pub async fn admin_backup_push_bulk(
 			"auth_token" => {
 				auth_token = match field.text().await {
 					Ok(bytes) => bytes,
-					Err(e) => {
-						info!("Admin restore :  Error request auth_token {:?}", e);
+					Err(err) => {
+						info!("Admin restore :  Error request auth_token {err:?}");
 
 						return Json(json!({
-							"error": format!("Admin restore : Error request auth_token {:?}", e),
+							"error": format!("Admin restore : Error request auth_token {err:?}"),
 						}));
 					},
 				}
@@ -536,11 +536,11 @@ pub async fn admin_backup_push_bulk(
 						},
 					},
 
-					Err(e) => {
-						info!("Admin restore :  Error request signature {:?}", e);
+					Err(err) => {
+						info!("Admin restore :  Error request signature {err:?}");
 
 						return Json(json!({
-								"error": format!("Admin restore : Error request signature {:?}", e),
+								"error": format!("Admin restore : Error request signature {err:?}"),
 						}));
 					},
 				}
@@ -587,8 +587,9 @@ pub async fn admin_backup_push_bulk(
 
 	let token: StoreAuthenticationToken = match serde_json::from_str(auth_token.as_str()) {
 		Ok(token) => token,
-		Err(e) => {
-			let message = format!("Admin restore : Can not parse the authentication token : {}", e);
+		Err(err) => {
+			let message =
+				format!("Admin restore : Can not parse the authentication token : {}", err);
 			warn!(message);
 			return Json(json!({ "error": message }));
 		},
@@ -621,8 +622,8 @@ pub async fn admin_backup_push_bulk(
 
 	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
 		Ok(file) => file,
-		Err(e) => {
-			let message = format!("Admin restore :  Can not create file on disk : {}", e);
+		Err(err) => {
+			let message = format!("Admin restore :  Can not create file on disk : {}", err);
 			warn!(message);
 			return Json(json!({ "error": message }));
 		},
@@ -630,8 +631,8 @@ pub async fn admin_backup_push_bulk(
 
 	match zipfile.write_all(&restore_file) {
 		Ok(_) => debug!("zip file is stored on disk."),
-		Err(e) => {
-			let message = format!("Admin restore :  writing zip file to disk{:?}", e);
+		Err(err) => {
+			let message = format!("Admin restore :  writing zip file to disk{err:?}");
 			error!(message);
 			return Json(json!({
 				"error": message,
@@ -642,8 +643,8 @@ pub async fn admin_backup_push_bulk(
 	// Check if the enclave_account or keyshares are invalid
 	match zip_extract(&backup_file, SEALPATH) {
 		Ok(_) => debug!("zip_extract success"),
-		Err(e) => {
-			let message = format!("Admin restore :  extracting zip file {:?}", e);
+		Err(err) => {
+			let message = format!("Admin restore :  extracting zip file {err:?}");
 			error!(message);
 			return Json(json!({
 				"error": message,
@@ -653,9 +654,9 @@ pub async fn admin_backup_push_bulk(
 
 	match remove_file(backup_file) {
 		Ok(_) => debug!("remove zip file successful"),
-		Err(e) => {
+		Err(err) => {
 			return Json(json!({
-				"warning": format!("Backup success with Error in removing zip file, {:?}",e),
+				"warning": format!("Backup success with Error in removing zip file, {:?}",err),
 			}))
 		},
 	};
@@ -672,7 +673,7 @@ pub async fn admin_backup_push_bulk(
 	let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
 		Ok(phrase) => phrase,
 		Err(err) => {
-			let message = format!("Admin restore : Error reading enclave account file: {:?}", err);
+			let message = format!("Admin restore : Error reading enclave account file: {err:?}");
 			error!(message);
 			return Json(json!({
 				"error": message,
@@ -685,7 +686,7 @@ pub async fn admin_backup_push_bulk(
 	let enclave_keypair = match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
 		Ok((keypair, _seed)) => keypair,
 		Err(err) => {
-			let message = format!("Admin restore : Error creating keypair from phrase: {:?}", err);
+			let message = format!("Admin restore : Error creating keypair from phrase: {err:?}");
 			error!(message);
 			return Json(json!({
 				"error": message,
