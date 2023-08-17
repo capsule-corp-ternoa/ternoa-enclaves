@@ -31,7 +31,7 @@ use sp_core::H256;
 ********************** */
 
 /* **********************
-	 DATA STRUCTURES
+   KEYSHARE AVAILABLE API
 ********************** */
 
 use serde::{Deserialize, Serialize};
@@ -864,6 +864,15 @@ pub async fn nft_retrieve_keyshare(
 							.unwrap(),
 						),
 					);
+
+					info!("{}, requester : {}", description, request.requester_address);
+
+					return Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"description": description,
+					}))
 				},
 			};
 
