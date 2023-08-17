@@ -9,7 +9,7 @@ use crate::{
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 
 use std::{
-	fs::OpenOptions,
+	fs::{OpenOptions, File},
 	io::{Read, Write},
 };
 
@@ -485,7 +485,6 @@ pub async fn capsule_set_keyshare(
 					let file_path = format!("{enclave_sealpath}{}.log", verified_data.nft_id);
 
 					if !std::path::Path::new(&file_path).exists() {
-						let mut file = std::fs::File::create(file_path).unwrap(); // TODO: manage unwrap()
 
 						match File::create(file_path.clone()) {
 							Ok(_) => {
