@@ -41,6 +41,11 @@ sgx.allowed_files = [
   "file:./sync.state",
 ]
 
+sgx.allowed_files = [
+  "file:{{ quote_path }}/",
+  "file:{{ seal_path }}/",
+]
+
 sgx.trusted_files = [
   "file:{{ gramine.libos }}",
   "file:{{ self_exe }}",
