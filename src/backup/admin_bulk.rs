@@ -14,9 +14,10 @@ use tokio_util::io::ReaderStream;
 use hex::{FromHex, FromHexError};
 use serde_json::{json, Value};
 use sp_core::{crypto::Ss58Codec, sr25519, Pair};
-use std::io::{Read, Write};
-
-use tracing::{debug, info};
+use std::{
+	collections::BTreeMap,
+	io::{Read, Write},
+};
 
 use std::fs::{remove_file, File};
 use tracing::{debug, error, info, warn};
@@ -234,9 +235,16 @@ fn get_signature(signature: String) -> Result<Signature, FromHexError> {
 /// verify_signature(account_id, signature, message)
 /// ```
 fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool {
-	let account_pubkey = get_public_key(account_id);
-
-	sr25519::Pair::verify(&get_signature(signature), message, &account_pubkey)
+	match get_public_key(account_id) {
+		Ok(pk) => match get_signature(signature) {
+			Ok(val) => sr25519::Pair::verify(&val, message, &pk),
+			Err(err) => {
+				debug!("Error generating pair {err:?}");
+				false
+			},
+		},
+		Err(_) => false,
+	}
 }
 
 async fn update_health_status(state: &SharedState, message: String) {
@@ -273,7 +281,7 @@ pub async fn admin_backup_fetch_bulk(
 		);
 		warn!(message);
 
-		return "Error backup keyshares : Invalid admin".into_response()
+		return Json(json!({ "error": message })).into_response();
 	}
 
 	let mut auth = backup_request.auth_token.clone();
@@ -439,47 +447,9 @@ pub async fn admin_backup_push_bulk(
 			_ => {
 				info!("Admin restore :  field name : {:?}", field);
 
-		println!("Length of `{}` is {:?}", name, data);
-	}
-	/*
-		if !verify_account_id(&store_request.admin_address.clone()) {
-			info!("Error restore backup keyshares : Invalid admin : {}", store_request.admin_address);
-
-	let data = store_request.data.clone();
-
-	let data_bytes = match serde_json::to_vec(&data) {
-		Ok(bytes) => bytes,
-		Err(e) => {
-			debug!("Failed to serialize data: {:?}", e);
-			Vec::new()
-		},
-	};
-
-	if verify_signature(&store_request.admin_address, store_request.signature.clone(), &data_bytes)
-	{
-		if store_request.data.auth_token.is_valid().await {
-			let backup_file = state.seal_path.to_owned() + "backup.zip";
-
-			let mut zipfile = std::fs::File::open(backup_file.clone()).unwrap();
-			zipfile.write_all(&data_bytes).unwrap();
-
-			zip_extract(&backup_file, &state.seal_path);
-
-			remove_file(backup_file).unwrap();
-
-			// TODO : manage big packet transfer
-			Json(json! ({
-				"status": "Successfully request",
-			}))
-		}
-
-		let data = store_request.data.clone();
-
-		let data_bytes = match serde_json::to_vec(&data) {
-			Ok(bytes) => bytes,
-			Err(e) => {
-				debug!("Failed to serialize data: {:?}", e);
-				Vec::new()
+				return Json(json!({
+						"error": format!("Admin restore : Error request field name {:?}", field),
+				}));
 			},
 		};
 
