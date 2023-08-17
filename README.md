@@ -70,6 +70,10 @@ sudo CHAIN="dev-0" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --
 For official binary which uses mainnet chain, you need this command :
 This command will build a binary for mainnet chain :
 
+Make sure you are on a SGX machine, driver and sdk are installed.
+You have to specify the chain which you want to use.
+
+This command will build a binary for dev-0 chain : 
 ```shell
 sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --release
 ```
