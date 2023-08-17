@@ -235,6 +235,7 @@ impl<'a> VerificationHelper for SHelper<'a> {
 }
 
 /// Signs the given message.
+
 fn pgp_sign(sink: &mut (dyn Write + Send + Sync), plaintext: &str, tsk: &openpgp::Cert) {
 	let p = &StandardPolicy::new();
 	// Get the keypair to do the signing from the Cert.
@@ -271,6 +272,7 @@ fn pgp_sign(sink: &mut (dyn Write + Send + Sync), plaintext: &str, tsk: &openpgp
 }
 
 /// Verifies the given message.
+
 fn pgp_verify(sink: &mut dyn Write, signed_message: &[u8], sender: &openpgp::Cert) {
 	let p = &StandardPolicy::new();
 	// Make a helper that that feeds the sender's public key to the
@@ -298,6 +300,7 @@ mod tests {
 		pgp_generate_key();
 	}
 	/* Define test files.
+
 	#[test]
 	fn test_get_keys() {
 		let f = std::fs::File::open("public.key").expect("can not open test file");
@@ -318,6 +321,7 @@ mod tests {
 		let _p = &StandardPolicy::new();
 
 		// Generate a key.
+
 		let key = pgp_generate();
 
 		// Encrypt the message.
@@ -328,6 +332,7 @@ mod tests {
 		let mut plaintext = Vec::new();
 		pgp_decrypt(&mut plaintext, &ciphertext, &key);
 
+
 		assert_eq!(MESSAGE.as_bytes(), &plaintext[..]);
 	}
 
@@ -337,6 +342,7 @@ mod tests {
 		println!("Message = {MESSAGE}");
 
 		// Generate a key.
+
 		let key = pgp_generate();
 		println!("Key = {key}");
 
@@ -348,6 +354,7 @@ mod tests {
 		// Verify the message.
 		let mut plaintext = Vec::new();
 		pgp_verify(&mut plaintext, &signed_message, &key);
+
 		println!("Verified Message = {}", String::from_utf8(plaintext.clone()).unwrap());
 
 		assert_eq!(MESSAGE.as_bytes(), &plaintext[..]);
