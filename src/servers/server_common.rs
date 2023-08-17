@@ -4,6 +4,7 @@ use std::{
 	net::{Ipv4Addr, SocketAddr},
 	path::PathBuf,
 	sync::Arc,
+	time::Duration,
 };
 use tokio::time::sleep;
 
@@ -32,7 +33,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 		.contact(
 			["amin@capsule-corp.io", "soufiane@capsule-corp.io"]
 				.iter()
-				.map(|e| format!("mailto:{}", e.to_owned())),
+				.map(|err| format!("mailto:{}", err)),
 		)
 		.cache_option(Some(DirCache::new(PathBuf::from(r"/certificates/"))))
 		.directory_lets_encrypt(cfg!(any(feature = "mainnet", feature = "alphanet")))
