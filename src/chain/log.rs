@@ -5,12 +5,13 @@
 
 use std::{
 	collections::BTreeMap,
-	fs::OpenOptions,
-	io::{Read, Seek, Write},
+	error::Error,
+	fs::{File, OpenOptions},
+	io::{Read, Seek, SeekFrom, Write},
 };
 
 use serde::{Deserialize, Serialize};
-use tracing::debug;
+use tracing::{debug, error, info};
 
 use super::verify::RequesterType;
 
@@ -287,7 +288,7 @@ mod test {
 	async fn file_log_test() {
 		let file_name = "./test/test.log".to_string();
 		// Simulating the Store keyshare process
-		let mut file = std::fs::File::create("test.log").unwrap(); // TODO: manage unwrap()
+		let mut file = File::create(file_name.clone()).unwrap();
 		let owner = "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5".to_string();
 
 		let mut log_file_struct = LogFile::new();
@@ -323,7 +324,7 @@ mod test {
 		);
 
 		// Simulate viewing the log
-		let mut file = std::fs::File::open("test.log").unwrap(); // TODO: manage unwrap()
+		let mut file = File::open(file_name.clone()).unwrap();
 		let mut content = String::new();
 		file.read_to_string(&mut content).unwrap();
 
