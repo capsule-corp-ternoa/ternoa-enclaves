@@ -35,7 +35,36 @@ use anyhow::{anyhow, Error};
 use serde_json::{json, Value};
 use tracing::{debug, error, info, trace, warn};
 
-use std::time::{Duration, SystemTime};
+use crate::{
+	attestation::ra::ra_get_quote,
+	backup::{
+		metric::metric_reconcilliation,
+		sync::{
+			cluster_discovery, crawl_sync_events, fetch_keyshares, get_sync_state,
+			parse_block_body, set_sync_state, sync_keyshares, Cluster,
+		},
+	},
+	chain::{
+		capsule::{
+			capsule_get_views, capsule_remove_keyshare, capsule_retrieve_keyshare,
+			capsule_set_keyshare, is_capsule_available,
+		},
+		constants::{
+			CONTENT_LENGTH_LIMIT, ENCLAVE_ACCOUNT_FILE, RETRY_COUNT, RETRY_DELAY, SEALPATH,
+			SYNC_STATE_FILE, VERSION,
+		},
+		core::{create_chain_api, get_current_block_number, DefaultApi},
+		helper,
+		nft::{
+			is_nft_available, nft_get_views, nft_remove_keyshare, nft_retrieve_keyshare,
+			nft_store_keyshare,
+		},
+	},
+	servers::state::{
+		get_accountid, get_blocknumber, get_maintenance, get_nonce, get_processed_block,
+		get_version, reset_nonce, set_blocknumber, set_processed_block, SharedState, StateConfig,
+	},
+};
 
 use crate::{
 	backup::admin_bulk::{admin_backup_fetch_bulk, admin_backup_push_bulk},
@@ -48,11 +77,13 @@ use super::server_common;
 
 /// http server app
 pub async fn http_server() -> Result<Router, Error> {
-	// TODO [future deployment] : publish the key to release folder of sgx_server repository after being open-sourced.
-	
+	info!("ENCLAVE START : Generate/Import Enclave Keypair");
 
-	let enclave_keypair = if std::path::Path::new(enclave_account_file).exists() {
-		info!("Enclave Account Exists, Importing it! :, path: {}", enclave_account_file);
+	let enclave_keypair = if std::path::Path::new(&ENCLAVE_ACCOUNT_FILE).exists() {
+		info!(
+			"ENCLAVE START : Enclave Account Exists, Importing it! :, path: {}",
+			ENCLAVE_ACCOUNT_FILE
+		);
 
 		let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
 			Ok(phrase) => phrase,
@@ -62,62 +93,34 @@ pub async fn http_server() -> Result<Router, Error> {
 			},
 		};
 
-
-
-	// ************************************************************************
-	let encalve_account_file = "/nft/enclave_account.key";
-
-	debug!("2-1 Generate/Import Encalve Keypair");
-
-	let enclave_keypair = if std::path::Path::new(&(*encalve_account_file)).exists() {
-		info!("Enclave Account Exists, Importing it! :, path: {}", encalve_account_file);
-
-		let mut ekfile = File::open(&(*encalve_account_file)).unwrap();
-		let mut phrase = String::new();
-
-		match ekfile.read_to_string(&mut phrase) {
-			Ok(_) => {
-				debug!("2-1-1 read sealed encalve key file successfully");
-			},
-			Err(e) => {
-				debug!("2-1-1 failed to read sealed encalve key file, error : {:?}", e);
-				return
+		match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
+			Ok((keypair, _seed)) => keypair,
+			Err(err) => {
+				error!("\tENCLAVE START : ERROR creating keypair from phrase: {err:?}");
+				return Err(anyhow!(err));
 			},
 		}
-
-		let (keypair, _seed) = match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
-			Ok(pair_seed_tuple) => {
-				debug!("2-1-2 get pair from phrase successfully");
-				pair_seed_tuple
-			},
-			Err(e) => {
-				debug!("2-1-2 failed get pair from phrase, error : {:?}", e);
-				return
-			},
-		};
-
-		keypair
 	} else {
-		info!("Enclave Start : Creating new Enclave Account, Remember to send 1 CAPS to it!");
+		info!("ENCLAVE START : Creating new Enclave Account, Remember to send 1 CAPS to it!");
 
 		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
-		let mut ekfile = match File::create(&encalve_account_file) {
+		let mut ekfile = match File::create(ENCLAVE_ACCOUNT_FILE) {
 			Ok(file_handle) => {
-				debug!("\tEnclave Start : created enclave keypair file successfully");
+				debug!("\tENCLAVE START : created enclave keypair file successfully");
 				file_handle
 			},
 			Err(err) => {
-				error!("\tEnclave Start : Failed to creat enclave keypair file, error : {:?}", err);
+				error!("\tENCLAVE START : Failed to creat enclave keypair file, error : {err:?}");
 				return Err(anyhow!(err));
 			},
 		};
 
 		match ekfile.write_all(phrase.as_bytes()) {
 			Ok(_) => {
-				debug!("\tEnclave Start : Write enclave keypair to file successfully");
+				debug!("\tENCLAVE START : Write enclave keypair to file successfully");
 			},
 			Err(err) => {
-				error!("\tEnclave Start : Write enclave keypair to file failed, error : {:?}", err);
+				error!("\tENCLAVE START : Write enclave keypair to file failed, error : {:?}", err);
 				return Err(anyhow!(err));
 			},
 		}
@@ -730,30 +733,29 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 	}
 }
 
-//#[once(time = 10, sync_writes = true)]
-fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
-	let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
+/// Health check endpoint
+/// This function is called by the health check endpoint
+/// It returns a JSON object with the following fields :
+async fn evalueate_health_status(
+	state: &SharedState,
+) -> Option<(StatusCode, Json<HealthResponse>)> {
+	//let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
 
 	let block_number = get_blocknumber(state).await;
 	let binary_version = get_version(state).await;
 	let enclave_address = get_accountid(state).await;
 
-	debug!("3-3-4 healthcheck : get public key.");
-	// TODO: ADD RPC PROBLEM
-	let pubkey: [u8; 32] = match enclave_key.as_ref().to_bytes()[64..].try_into() {
-		Ok(pk) => pk,
-		Err(_e) =>
-			return Some(Json(json!({
-				"status": 434,
-				"date": time.format("%Y-%m-%d %H:%M:%S").to_string(),
-				"description": "Error getting encalve public key".to_string(),
-				"enclave_address": format!("Error : {}",e),
-			}))),
+	debug!("Healthcheck : get public key.");
+	// TODO [error handling] : ADD RPC PROBLEM/TIMEOUT
+	let sync_state = match get_sync_state() {
+		Ok(st) => st,
+		Err(err) => {
+			error!("Healthcheck : error : unable to get sync state");
+			return None;
+		},
 	};
 
-	let enclave_address = sp_core::sr25519::Public::from_raw(pubkey);
-
-	let maintenance = shared_state.get_maintenance();
+	let maintenance = get_maintenance(state).await;
 	if !maintenance.is_empty() {
 		return Some((
 			StatusCode::PROCESSING,
@@ -779,3 +781,24 @@ fn evalueate_health_status(state: &StateConfig) -> Option<Json<Value>> {
 	))
 }
 
+/*
+	DEV ONLY
+	setting the last_processed_block for tests
+*/
+use axum::extract::Path as PathExtract;
+
+pub async fn dev_set_block(
+	State(state): State<SharedState>,
+	PathExtract(blocknumber): PathExtract<u32>,
+) -> impl IntoResponse {
+	debug!("DEV API : setting the last_processed_block");
+
+	set_processed_block(&state, blocknumber).await;
+
+	(
+		StatusCode::OK,
+		Json(json! ({
+		"description": format!("last_processed_block set to {}", blocknumber),
+		})),
+	)
+}
