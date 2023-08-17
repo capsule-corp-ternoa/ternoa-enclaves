@@ -17,10 +17,17 @@ use tracing::{debug, error, info, warn};
 
 use axum::extract::Path as PathExtract;
 
-use crate::chain::chain::nft_secret_share_oracle;
+use crate::chain::{
+	core::{get_current_block_number, get_onchain_nft_data, nft_keyshare_oracle},
+	log::*,
+	verify::*,
+};
+use serde::Serialize;
+use serde_json::json;
+use sp_core::H256;
 
 /* **********************
-	 DATA STRUCTURES
+   KEYSHARE AVAILABLE API
 ********************** */
 
 /* **********************
@@ -75,8 +82,14 @@ pub async fn is_nft_available(
 		)
 	};
 
-	owner
-}
+	if std::path::Path::new(&file_path).exists() {
+		info!("Availability check : path checked, path: {}", file_path);
+		Json(NFTExistsResponse { enclave_id: enclave_identity, nft_id, exists: true })
+	} else {
+		info!(
+			"Availability check : NFT key-share does not exist, nft_id : {}, path : {}",
+			nft_id, file_path
+		);
 
 #[derive(Clone)]
 pub struct SecretData {
@@ -534,6 +547,15 @@ pub async fn nft_store_keyshare(
 							.unwrap(),
 						),
 					);
+
+					return Json(NFTViewResponse {
+						enclave_id: enclave_identity,
+						nft_id,
+						log: LogFile::new(),
+						description:
+							"deserialization error : can not retrieve the log of secret-nft views"
+								.to_string(),
+					})
 				},
 			};
 
@@ -579,6 +601,44 @@ pub async fn nft_store_keyshare(
 							.unwrap(),
 						),
 					);
+
+					info!("{}, requester : {}", description, request.owner_address);
+
+					return Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"description": "Error storing NFT key-share to TEE, use another enclave please."
+						.to_string(),
+					}))
+				},
+			};
+
+			match f.write_all(&verified_data.keyshare) {
+				Ok(_) => info!(
+					"Keyshare is stored to TEE, nft_id = {}  Owner = {}",
+					verified_data.nft_id, request.owner_address
+				),
+
+				Err(err) => {
+					let status = ReturnStatus::DATABASEFAILURE;
+					let description = format!(
+						"TEE Key-share {:?}: error in writing data to file, nft_id : {} path : {}, error: {}",
+						APICALL::NFTSTORE,
+						verified_data.nft_id,
+						file_path,
+						err
+					);
+
+					info!("{}, requester : {}", description, request.owner_address);
+
+					return Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"description": "Error storing NFT key-share to TEE, use another enclave please."
+						.to_string(),
+					}))
 				},
 			};
 
@@ -843,9 +903,16 @@ pub async fn nft_retrieve_keyshare(
 						.unwrap(),
 					),
 				);
+
+				return Json(json!({
+					"status": status,
+					"nft_id": verified_data.nft_id,
+					"enclave_id": enclave_identity,
+					"description": description,
+				}))
 			}
 
-			let mut file = match std::fs::File::open(file_path) {
+			let mut file = match File::open(file_path) {
 				Ok(file) => file,
 				Err(err) => {
 					let status = ReturnStatus::KEYNOTACCESSIBLE;
@@ -879,6 +946,15 @@ pub async fn nft_retrieve_keyshare(
 							.unwrap(),
 						),
 					);
+
+					info!("{}, requester : {}", description, request.requester_address);
+
+					return Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"description": description,
+					}))
 				},
 			};
 
@@ -925,6 +1001,15 @@ pub async fn nft_retrieve_keyshare(
 							.unwrap(),
 						),
 					);
+
+					info!("{}, requester : {}", description, request.requester_address);
+
+					return Json(json!({
+						"status": status,
+						"nft_id": verified_data.nft_id,
+						"enclave_id": enclave_identity,
+						"description": description,
+					}))
 				},
 			};
 

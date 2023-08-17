@@ -26,7 +26,7 @@ struct Args {
 
 /* MAIN */
 
-#[tokio::main(worker_threads = 4)]
+#[tokio::main]
 async fn main() {
 	info!("\n\n\t***********\n \tMAIN function started\n\t***********\n\n");
 
