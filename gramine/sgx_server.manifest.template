@@ -24,6 +24,25 @@ fs.mounts = [
   # ------ SEALED
   { path = "/certificates", uri = "file:certificates", type = "encrypted", key_name = "_sgx_mrenclave" },
   { path = "/nft" , uri = "file:nft", type = "encrypted", key_name = "_sgx_mrenclave"},
+
+  { path = "/temporary", type = "tmpfs" },
+
+  # ------ ALLOWED (only dev)
+  { path = "/sync.state", uri = "file:./sync.state", type = "chroot" },
+
+  # ------ SEALED!
+  { path = "/certificates", uri = "file:certificates", type = "chroot" },
+  { path = "/nft" , uri = "file:nft",  type = "chroot"},
+]
+
+# fs.insecure__keys."DevOnlyKey" = "0123456789ABCDEF0123456789ABCDEF"
+
+# ONLY for DEV!
+# THEY all be SEALED for production
+sgx.allowed_files = [
+  "file:nft/",
+  "file:certificates/",
+  "file:./sync.state",
 ]
 
 sgx.trusted_files = [
@@ -44,7 +63,6 @@ sgx.trusted_files = [
   "file:/etc/ssl/certs/ca-certificates.crt",
 ]
 
-# TODO [deployment] : REMOVE INSECURE OPTIONS
 
 # The Tokio runtime requires eventfd, and the Gramine implementation
 # currently relies on the host in an insecure manner. This setting isn't
@@ -55,7 +73,6 @@ sys.insecure__allow_eventfd = true
 sgx.enclave_size = "1G"
 sgx.thread_num = 24
 sgx.max_threads = 24
-
 #sgx.insecure__rpc_thread_num = 24
 
 sgx.debug = false
@@ -78,3 +95,12 @@ sgx.ra_client_linkable = true
 
 sgx.isvprodid = 12
 sgx.isvsvn    = 103
+#sgx.file_check_policy = "strict"
+
+sgx.remote_attestation = "epid"
+sgx.ra_client_spid = "15AD86B4CFA46B327A8BFB79AA0D67B7"
+sgx.ra_client_linkable = true
+
+sgx.isvprodid = 11
+sgx.isvsvn    = 102
+

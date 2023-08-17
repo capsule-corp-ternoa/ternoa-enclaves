@@ -29,7 +29,6 @@ is-sgx-available
 ```
 
 ### ● Install Intel-SGX SDK/PSW
-
 depending on kernel version you may need to install [intel-sgx-driver](https://github.com/intel/linux-sgx-driver).
 
 SDK installation [Doc](https://download.01.org/intel-sgx/latest/linux-latest/docs/Intel_SGX_SW_Installation_Guide_for_Linux.pdf)
@@ -108,6 +107,10 @@ To clear the Enclave and remove all intermediate sgx files and binaries :
 sudo scripts/clear-server.sh
 ```
 
+To stop the Enclave properly :
+```shell
+./stop-server.sh
+```
 ## Client
 
 An importable Postman [json file](./client/postman.json) is available at client folder. CA Certificate file for the machine should be introduced to Postman.
