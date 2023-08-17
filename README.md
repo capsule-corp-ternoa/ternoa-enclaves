@@ -39,6 +39,7 @@ SDK code [Repository](https://github.com/intel/linux-sgx)
 
 When metadata of the chain is updated, Go to ```credentials/artifacts``` folder and run :
 
+When metadata of the chain is updated, Go to ```credentials/artifacts``` folder and run : 
 ```bash
 ./gen_metadata.sh
 ```
@@ -58,6 +59,10 @@ You have to specify the chain which you want to use.
 
 This command will build a binary for dev-0 chain :
 
+Make sure you are on a SGX machine, driver and sdk are installed.
+You have to specify the chain which you want to use.
+
+This command will build a binary for dev-0 chain : 
 ```shell
 sudo CHAIN="dev-0" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8102  --dev
 ```
@@ -108,8 +113,9 @@ sudo scripts/clear-server.sh
 ```
 
 To stop the Enclave properly :
+
 ```shell
-./stop-server.sh
+sudo scripts/stop-server.sh --port 8100
 ```
 ## Client
 
