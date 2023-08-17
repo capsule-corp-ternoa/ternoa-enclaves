@@ -148,6 +148,7 @@ fn is_user_report_data_exist(file_path: Option<String>) -> bool {
 	let mut f1 = OpenOptions::new()
 		.write(true)
 		.open("/dev/attestation/user_report_data")
+<<<<<<< HEAD
 		.unwrap(); // TODO: manage unwrap()
 	info!("This is inside Enclave!");
 
@@ -171,4 +172,29 @@ fn is_user_report_data_exist(file_path: Option<String>) -> bool {
 	f4.write_all(&contents).unwrap(); // TODO: manage unwrap()
 
 	contents
+=======
+		.unwrap();
+	info!("This is inside Enclave!");
+
+	let mut f2 = File::open("/dev/attestation/attestation_type").unwrap();
+	let mut attest_type = String::new();
+	f2.read_to_string(&mut attest_type).unwrap();
+	info!("attestation type is : {}", attest_type);
+
+	let write_zero = [0u8; 64];
+	f1.write(&write_zero)
+		.expect("Error writing to /dev/attestation/user_report_data");
+
+	info!("Reading The Quote ...");
+	let mut f3 = File::open("/dev/attestation/quote").unwrap();
+	let mut contents = vec![];
+	f3.read_to_end(&mut contents).unwrap();
+	//println!("{:-#?}",contents);
+
+	info!("Dumping the Quote");
+	let mut f4 = File::create("/quote/enclave.quote").unwrap();
+	f4.write_all(&contents).unwrap();
+
+	return contents;
+>>>>>>> master
 }
