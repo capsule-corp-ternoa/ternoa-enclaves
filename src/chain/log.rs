@@ -163,6 +163,7 @@ mod test {
             "secret_nft": {
                 "0": {
                     "date": "2023-02-21 16:34:57",
+					"block": 100,
                     "account": {
                         "address": "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5",
                         "role": "OWNER"
@@ -172,6 +173,7 @@ mod test {
         
                 "1": {
                     "date": "2023-02-21 16:54:00",
+					"block": 101,
                     "account": {
                         "address": "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5",
                         "role": "DELEGATEE"
@@ -183,6 +185,7 @@ mod test {
             "capsule": {
                 "0": {
                     "date": "2024-03-22 17:35:58",
+					"block": 102,
                     "account": {
                         "address": "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5",
                         "role": "OWNER"
@@ -192,6 +195,7 @@ mod test {
         
                 "1": {
                     "date": "2024-03-22 17:45:10",
+					"block": 103,
                     "account": {
                         "address": "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5",
                         "role": "DELEGATEE"
@@ -214,6 +218,7 @@ mod test {
 		let new_log_body = r#"
         {
             "date": "2023-03-23 16:50:25",
+			"block": 104,
             "account": {
                 "address": "5TQAxH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa7",
                 "role": "RENTEE"
@@ -230,6 +235,7 @@ mod test {
             "secret_nft": {
                 "0": {
                     "date": "2023-02-21 16:34:57",
+					"block": 100,
                     "account": {
                         "address": "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5",
                         "role": "OWNER"
@@ -239,6 +245,7 @@ mod test {
         
                 "1": {
                     "date": "2023-02-21 16:54:00",
+					"block": 101,
                     "account": {
                         "address": "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5",
                         "role": "DELEGATEE"
@@ -250,6 +257,7 @@ mod test {
             "capsule": {
                 "0":  {
                     "date": "2024-03-22 17:35:58",
+					"block": 102,
                     "account":  {
                         "address": "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5",
                         "role": "OWNER"
@@ -259,6 +267,7 @@ mod test {
 
                 "1": {
                     "date": "2024-03-22 17:45:10",
+					"block": 103,
                     "account":  {
                         "address": "5CDGXH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa5",
                         "role": "DELEGATEE"
@@ -268,6 +277,7 @@ mod test {
 
                 "2": {
                     "date": "2023-03-23 16:50:25",
+					"block": 104,
                     "account": {
                         "address": "5TQAxH8Q9DzD3TnATTG6qm6f4yR1kbECBGUmh2XbEBQ8Jfa7",
                         "role": "RENTEE"
