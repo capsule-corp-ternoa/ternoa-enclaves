@@ -219,10 +219,10 @@ async fn main() {
 async fn generate_fetch_bulk(seed_phrase: String) {
 	let admin = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
 
-	let last_block_number = get_current_block_number().await.unwrap();
+	let current_block_number = get_current_block_number().await.unwrap();
 
 	let admin_address = admin.public().to_ss58check();
-	let auth = FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
+	let auth = FetchAuthenticationToken { block_number: current_block_number, block_validation: 10 };
 	let auth_str = serde_json::to_string(&auth).unwrap();
 	let signature = admin.sign(auth_str.as_bytes());
 
@@ -244,7 +244,7 @@ async fn generate_fetch_bulk(seed_phrase: String) {
 async fn generate_push_bulk(seed_phrase: String, file_path: String) {
 	let admin = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
 
-	let last_block_number = get_current_block_number().await.unwrap();
+	let current_block_number = get_current_block_number().await.unwrap();
 
 	let admin_address = admin.public().to_ss58check();
 
@@ -255,7 +255,7 @@ async fn generate_push_bulk(seed_phrase: String, file_path: String) {
 	let hash = sha256::digest(zipdata.as_slice());
 
 	let auth = StoreAuthenticationToken {
-		block_number: last_block_number,
+		block_number: current_block_number,
 		block_validation: 10,
 		data_hash: hash,
 	};
