@@ -758,28 +758,33 @@ impl AuthenticationToken {
 		format!("{}_{}", self.block_number, self.block_validation)
 	}
 
-	pub fn is_valid(&self, last_block_number: u32) -> ValidationResult {
-		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
+	pub fn is_valid(&self, current_block_number: u32) -> ValidationResult {
+		if self.block_number > current_block_number + MAX_BLOCK_VARIATION {
 			// for finalization delay
 			debug!(
-				"last block number = {} < request block number = {}",
-				last_block_number, self.block_number
+				"current block number = {} << request block number = {}",
+				current_block_number, self.block_number
 			);
-			return ValidationResult::ExpiredBlockNumber;
+			return ValidationResult::FutureBlockNumber;
 		}
 
 		if self.block_validation > MAX_VALIDATION_PERIOD {
 			// A finite validity period
+			debug!(
+				"MAX VALIDATION = {} < block_validation = {}",
+				MAX_VALIDATION_PERIOD, self.block_validation
+			);
 			return ValidationResult::InvalidPeriod;
 		}
-
-		if last_block_number > self.block_number + self.block_validation + MAX_BLOCK_VARIATION {
-			debug!(
-				"last block number = {} > request block number = {} + validation_interval = {} + MAX_BLOCK_VARIATION = {}",
-				last_block_number, self.block_number, self.block_validation, MAX_BLOCK_VARIATION
-			);
+		
+		if self.block_number + self.block_validation < current_block_number {
 			// validity period
-			return ValidationResult::FutureBlockNumber;
+			debug!(
+				"current block number = {} >> request block number = {}",
+				current_block_number, self.block_number
+			);
+
+			return ValidationResult::ExpiredBlockNumber;			
 		}
 
 		ValidationResult::Success
@@ -920,13 +925,13 @@ impl StoreKeysharePacket {
 	}
 
 	// Verify signatures
-	pub fn verify_signer(&self, last_block_number: u32) -> Result<bool, VerificationError> {
+	pub fn verify_signer(&self, current_block_number: u32) -> Result<bool, VerificationError> {
 		let signer = match self.get_signer() {
 			Ok(pk) => pk,
 			Err(_) => return Err(VerificationError::INVALIDSIGNERADDRESS),
 		};
 
-		let verify = signer.auth_token.is_valid(last_block_number);
+		let verify = signer.auth_token.is_valid(current_block_number);
 		match verify {
 			ValidationResult::Success => debug!("Signer auth-token is valid"),
 			_ => return Err(VerificationError::EXPIREDSIGNER(verify)),
@@ -965,9 +970,9 @@ impl StoreKeysharePacket {
 		state: &SharedState,
 		nft_type: &str,
 	) -> Result<StoreKeyshareData, VerificationError> {
-		let last_block_number = get_blocknumber(state).await;
+		let current_block_number = get_blocknumber(state).await;
 
-		match self.verify_signer(last_block_number) {
+		match self.verify_signer(current_block_number) {
 			Ok(true) => match self.verify_data() {
 				Ok(true) => {
 					let parsed_data = match self.parse_store_data() {
@@ -1005,7 +1010,7 @@ impl StoreKeysharePacket {
 						}
 					}
 
-					let verify = parsed_data.auth_token.clone().is_valid(last_block_number);
+					let verify = parsed_data.auth_token.clone().is_valid(current_block_number);
 					match verify {
 						ValidationResult::Success => debug!("Signer auth-token is valid"),
 						_ => return Err(VerificationError::EXPIREDDATA(verify)),
@@ -1040,9 +1045,9 @@ impl StoreKeysharePacket {
 	#[allow(dead_code)]
 	pub fn verify_free_store_request(
 		&self,
-		last_block_number: u32,
+		current_block_number: u32,
 	) -> Result<StoreKeyshareData, VerificationError> {
-		match self.verify_signer(last_block_number) {
+		match self.verify_signer(current_block_number) {
 			Ok(true) => {
 				let data = match self.parse_store_data() {
 					Ok(sec) => sec,
@@ -1129,13 +1134,13 @@ impl RetrieveKeysharePacket {
 	}
 
 	// VERIFY KEYSHARE DATA : TOKEN & SIGNATURE
-	pub fn verify_data(&self, last_block_number: u32) -> Result<bool, VerificationError> {
+	pub fn verify_data(&self, current_block_number: u32) -> Result<bool, VerificationError> {
 		let data = match self.parse_retrieve_data() {
 			Ok(sec) => sec,
 			Err(err) => return Err(err),
 		};
 
-		let verify = data.auth_token.is_valid(last_block_number);
+		let verify = data.auth_token.is_valid(current_block_number);
 		match verify {
 			ValidationResult::Success => debug!("Data auth-token is valid"),
 			_ => return Err(VerificationError::EXPIREDDATA(verify)),
@@ -1157,9 +1162,9 @@ impl RetrieveKeysharePacket {
 		state: &SharedState,
 		nft_type: &str,
 	) -> Result<RetrieveKeyshareData, VerificationError> {
-		let last_block_number = get_blocknumber(state).await;
+		let current_block_number = get_blocknumber(state).await;
 
-		match self.verify_data(last_block_number) {
+		match self.verify_data(current_block_number) {
 			Ok(true) => {
 				let parsed_data = match self.parse_retrieve_data() {
 					Ok(parsed) => parsed,
@@ -1195,7 +1200,7 @@ impl RetrieveKeysharePacket {
 					}
 				}
 
-				let verify = parsed_data.auth_token.clone().is_valid(last_block_number);
+				let verify = parsed_data.auth_token.clone().is_valid(current_block_number);
 				match verify {
 					ValidationResult::Success => debug!("Data auth-token is valid"),
 					_ => return Err(VerificationError::EXPIREDDATA(verify)),
@@ -1226,14 +1231,14 @@ impl RetrieveKeysharePacket {
 	#[allow(dead_code)]
 	pub async fn verify_free_retrieve_request(
 		&self,
-		last_block_number: u32,
+		current_block_number: u32,
 	) -> Result<RetrieveKeyshareData, VerificationError> {
 		let data = match self.parse_retrieve_data() {
 			Ok(sec) => sec,
 			Err(err) => return Err(err),
 		};
 
-		match self.verify_data(last_block_number) {
+		match self.verify_data(current_block_number) {
 			Ok(true) => Ok(data),
 			Ok(false) => Err(VerificationError::DATAVERIFICATIONFAILED),
 			Err(err) => Err(err),

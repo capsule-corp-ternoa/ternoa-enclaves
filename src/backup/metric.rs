@@ -22,7 +22,7 @@ use tracing::{debug, error};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AuthenticationToken {
 	pub block_number: u32,
-	pub block_validation: u8,
+	pub block_validation: u32,
 	pub data_hash: String,
 }
 
@@ -35,26 +35,33 @@ pub struct MetricNftListRequest {
 }
 
 impl AuthenticationToken {
-	pub async fn is_valid(&self, last_block_number: u32) -> ValidationResult {
-		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
+	pub fn is_valid(&self, current_block_number: u32) -> ValidationResult {
+		if self.block_number > current_block_number + MAX_BLOCK_VARIATION {
 			// for finalization delay
 			debug!(
-				"METRIC : last block number = {} < request block number = {}",
-				last_block_number, self.block_number
+				"current block number = {} < request block number = {}",
+				current_block_number, self.block_number
 			);
-			return ValidationResult::ExpiredBlockNumber;
+			return ValidationResult::FutureBlockNumber;
 		}
 
-		if self.block_validation > (MAX_VALIDATION_PERIOD as u8) {
+		if self.block_validation > MAX_VALIDATION_PERIOD {
 			// A finite validity period
+			debug!(
+				"MAX VALIDATION = {} < block_validation = {}",
+				MAX_VALIDATION_PERIOD, self.block_validation
+			);
 			return ValidationResult::InvalidPeriod;
 		}
-
-		if last_block_number
-			> self.block_number + ((self.block_validation + MAX_BLOCK_VARIATION as u8) as u32)
-		{
+		
+		if self.block_number + self.block_validation < current_block_number {
 			// validity period
-			return ValidationResult::FutureBlockNumber;
+			debug!(
+				"current block number = {} >> request block number = {}",
+				current_block_number, self.block_number
+			);
+
+			return ValidationResult::ExpiredBlockNumber;			
 		}
 
 		ValidationResult::Success
@@ -142,7 +149,7 @@ pub async fn metric_reconcilliation(
 	Json(request): Json<MetricNftListRequest>,
 ) -> impl IntoResponse {
 	debug!("\n\t**\nMETRIC GET NFT LIST IN BLOCK INTERVAL\n\t**\n");
-	let last_block_number = get_blocknumber(&state).await;
+	let current_block_number = get_blocknumber(&state).await;
 
 	debug!("METRIC GET NFT LIST : VERIFY ACCOUNT ID");
 	if verify_account_id(&state, &request.metric_account).await {
@@ -202,7 +209,7 @@ pub async fn metric_reconcilliation(
 	}
 
 	debug!("METRIC GET NFT LIST : Validating the authentication token");
-	let validity = auth_token.is_valid(last_block_number).await;
+	let validity = auth_token.is_valid(current_block_number);
 	match validity {
 		ValidationResult::Success => debug!("METRIC GET NFT LIST : Authentication token is valid."),
 		_ => {

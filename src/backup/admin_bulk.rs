@@ -110,20 +110,33 @@ pub enum ValidationResult {
 
 /// Retrieving the stored Keyshare
 impl FetchAuthenticationToken {
-	pub fn is_valid(&self, last_block_number: u32) -> ValidationResult {
-		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
+	pub fn is_valid(&self, current_block_number: u32) -> ValidationResult {
+		if self.block_number > current_block_number + MAX_BLOCK_VARIATION {
 			// for finalization delay
-			return ValidationResult::ExpiredBlockNumber;
+			debug!(
+				"current block number = {} < request block number = {}",
+				current_block_number, self.block_number
+			);
+			return ValidationResult::FutureBlockNumber;
 		}
 
 		if self.block_validation > MAX_VALIDATION_PERIOD {
 			// A finite validity period
+			debug!(
+				"MAX VALIDATION = {} < block_validation = {}",
+				MAX_VALIDATION_PERIOD, self.block_validation
+			);
 			return ValidationResult::InvalidPeriod;
 		}
-
-		if last_block_number > self.block_number + self.block_validation + MAX_BLOCK_VARIATION {
+		
+		if self.block_number + self.block_validation < current_block_number {
 			// validity period
-			return ValidationResult::FutureBlockNumber;
+			debug!(
+				"current block number = {} >> request block number = {}",
+				current_block_number, self.block_number
+			);
+
+			return ValidationResult::ExpiredBlockNumber;			
 		}
 
 		ValidationResult::Success
@@ -131,20 +144,33 @@ impl FetchAuthenticationToken {
 }
 
 impl StoreAuthenticationToken {
-	pub fn is_valid(&self, last_block_number: u32) -> ValidationResult {
-		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
+	pub fn is_valid(&self, current_block_number: u32) -> ValidationResult {
+		if self.block_number > current_block_number + MAX_BLOCK_VARIATION {
 			// for finalization delay
-			return ValidationResult::ExpiredBlockNumber;
+			debug!(
+				"current block number = {} < request block number = {}",
+				current_block_number, self.block_number
+			);
+			return ValidationResult::FutureBlockNumber;
 		}
 
 		if self.block_validation > MAX_VALIDATION_PERIOD {
 			// A finite validity period
+			debug!(
+				"MAX VALIDATION = {} < block_validation = {}",
+				MAX_VALIDATION_PERIOD, self.block_validation
+			);
 			return ValidationResult::InvalidPeriod;
 		}
-
-		if last_block_number > self.block_number + self.block_validation + MAX_BLOCK_VARIATION {
+		
+		if self.block_number + self.block_validation < current_block_number {
 			// validity period
-			return ValidationResult::FutureBlockNumber;
+			debug!(
+				"current block number = {} >> request block number = {}",
+				current_block_number, self.block_number
+			);
+
+			return ValidationResult::ExpiredBlockNumber;			
 		}
 
 		ValidationResult::Success
@@ -322,10 +348,10 @@ pub async fn admin_backup_fetch_bulk(
 		return Json(json!({"error": "Invalid Signature".to_string()})).into_response();
 	}
 
-	let last_block_number = get_blocknumber(&state).await;
+	let current_block_number = get_blocknumber(&state).await;
 
 	debug!("Validating the authentication token");
-	let validation = auth_token.is_valid(last_block_number);
+	let validation = auth_token.is_valid(current_block_number);
 	match validation {
 		ValidationResult::Success => debug!("Authentication token is valid."),
 		_ => {
@@ -565,9 +591,9 @@ pub async fn admin_backup_push_bulk(
 		},
 	};
 
-	let last_block_number = get_blocknumber(&state).await;
+	let current_block_number = get_blocknumber(&state).await;
 
-	let validation = token.is_valid(last_block_number);
+	let validation = token.is_valid(current_block_number);
 	match validation {
 		ValidationResult::Success => debug!("Authentication token is valid."),
 		_ => {
@@ -692,10 +718,10 @@ mod test {
 			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
 
 		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
-		let last_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_new_api().await.unwrap();
 
 		let auth =
-			FetchAuthenticationToken { block_number: last_block_number, block_validation: 10 };
+			FetchAuthenticationToken { block_number: current_block_number, block_validation: 10 };
 		let auth_bytes = serde_json::to_vec(&auth).unwrap();
 		let sig = admin_keypair.sign(&auth_bytes);
 		let sig_str = serde_json::to_string(&sig).unwrap();
@@ -718,12 +744,12 @@ mod test {
 		let mut zipfile = std::fs::File::open("./test/test.zip").unwrap();
 		let _ = zipfile.read_to_end(&mut zipdata).unwrap();
 
-		let last_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_new_api().await.unwrap();
 
 		let hash = sha256::digest(zipdata.as_slice());
 
 		let auth = StoreAuthenticationToken {
-			block_number: last_block_number,
+			block_number: current_block_number,
 			block_validation: 10,
 			data_hash: hash,
 		};

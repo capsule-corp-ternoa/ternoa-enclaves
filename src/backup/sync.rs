@@ -97,7 +97,7 @@ pub struct Cluster {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AuthenticationToken {
 	pub block_number: u32,
-	pub block_validation: u8,
+	pub block_validation: u32,
 	pub data_hash: String,
 	pub quote_hash: String,
 }
@@ -133,26 +133,33 @@ pub enum ValidationResult {
 
 /// Retrieving the stored Keyshare
 impl AuthenticationToken {
-	pub async fn is_valid(&self, last_block_number: u32) -> ValidationResult {
-		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
+	pub fn is_valid(&self, current_block_number: u32) -> ValidationResult {
+		if self.block_number > current_block_number + MAX_BLOCK_VARIATION {
 			// for finalization delay
 			debug!(
-				"last block number = {} < request block number = {}",
-				last_block_number, self.block_number
+				"current block number = {} < request block number = {}",
+				current_block_number, self.block_number
 			);
-			return ValidationResult::ExpiredBlockNumber;
+			return ValidationResult::FutureBlockNumber;
 		}
 
-		if self.block_validation > (MAX_VALIDATION_PERIOD as u8) {
+		if self.block_validation > MAX_VALIDATION_PERIOD {
 			// A finite validity period
+			debug!(
+				"MAX VALIDATION = {} < block_validation = {}",
+				MAX_VALIDATION_PERIOD, self.block_validation
+			);
 			return ValidationResult::InvalidPeriod;
 		}
-
-		if last_block_number
-			> self.block_number + ((self.block_validation + MAX_BLOCK_VARIATION as u8) as u32)
-		{
+		
+		if self.block_number + self.block_validation < current_block_number {
 			// validity period
-			return ValidationResult::FutureBlockNumber;
+			debug!(
+				"current block number = {} >> request block number = {}",
+				current_block_number, self.block_number
+			);
+
+			return ValidationResult::ExpiredBlockNumber;			
 		}
 
 		ValidationResult::Success
@@ -250,7 +257,7 @@ pub async fn sync_keyshares(
 
 	//update_health_status(&state, "Enclave is Syncing Keyshare, please wait...".to_string()).await;
 
-	let last_block_number = get_blocknumber(&state).await;
+	let current_block_number = get_blocknumber(&state).await;
 
 	debug!("SYNC KEYSHARES : START CLUSTER DISCOVERY");
 	let slot_enclaves = slot_discovery(&state).await;
@@ -317,7 +324,7 @@ pub async fn sync_keyshares(
 	}
 
 	debug!("SYNC KEYSHARES : Validating the authentication token");
-	let validity = auth_token.is_valid(last_block_number).await;
+	let validity = auth_token.is_valid(current_block_number);
 	match validity {
 		ValidationResult::Success => debug!("SYNC KEYSHARES : Authentication token is valid."),
 		_ => {
@@ -619,10 +626,10 @@ pub async fn sync_keyshares(
 				match parse_token[1].parse::<u32>() {
 					Ok(token_block) => {
 						if (token_block != auth_token.block_number)
-							|| (last_block_number < token_block)
-							|| (last_block_number - token_block > 5)
+							|| (current_block_number < token_block)
+							|| (current_block_number - token_block > 5)
 						{
-							let message = format!("SYNC KEYSHARES : TOKEN : Incompatible block numbers :\n Current blocknumber: {} >~ Token blocknumber: {} == Request blocknumber: {} ?", last_block_number, token_block, auth_token.block_number);
+							let message = format!("SYNC KEYSHARES : TOKEN : Incompatible block numbers :\n Current blocknumber: {} >~ Token blocknumber: {} == Request blocknumber: {} ?", current_block_number, token_block, auth_token.block_number);
 							sentry::with_scope(
 								|scope| {
 									scope.set_tag("sync-keyshare", "attestation");
@@ -671,7 +678,7 @@ pub async fn sync_keyshares(
 		return error_handler(message, &state).await.into_response();
 	} // FAILED ATTESTATION REPORT
 
-	let backup_file = format!("/temporary/backup_{last_block_number}.zip");
+	let backup_file = format!("/temporary/backup_{current_block_number}.zip");
 	//let counter = 1;
 	// remove previously generated backup
 	if std::path::Path::new(&backup_file.clone()).exists() {
@@ -736,7 +743,7 @@ pub async fn fetch_keyshares(
 	debug!("\n\t----\nFETCH KEYSHARES : START\n\t----\n");
 
 	let mut last_synced = 0u32;
-	let last_block_number = get_blocknumber(state).await;
+	let current_block_number = get_blocknumber(state).await;
 	let account_id = get_accountid(state).await;
 	let account_keypair = get_keypair(state).await;
 
@@ -785,7 +792,7 @@ pub async fn fetch_keyshares(
 		let message =
 			"FETCH KEYSHARES : the new nft is ORIGINALLY stored on this cluster".to_string();
 		debug!(message);
-		return Ok(last_block_number);
+		return Ok(current_block_number);
 	} else {
 		// Normal : there are some nftid in the list
 		match serde_json::to_string(&nftids) {
@@ -801,7 +808,7 @@ pub async fn fetch_keyshares(
 
 	let nftid_hash = sha256::digest(nftids_str.as_bytes());
 
-	let user_data_token = format!("{account_id}_{last_block_number}");
+	let user_data_token = format!("{account_id}_{current_block_number}");
 	debug!("FETCH KEYSHARES : QUOTE : report_data token  = {}", user_data_token);
 
 	let user_data = account_keypair.sign(user_data_token.as_bytes());
@@ -829,7 +836,7 @@ pub async fn fetch_keyshares(
 
 	let quote = match get_quote_content() {
 		Ok(quote) => match serde_json::to_string(&QuoteResponse {
-			block_number: last_block_number,
+			block_number: current_block_number,
 			data: hex::encode(quote),
 		}) {
 			Ok(ser_quote) => ser_quote,
@@ -867,7 +874,7 @@ pub async fn fetch_keyshares(
 	let quote_hash = sha256::digest(quote.clone());
 
 	let auth = AuthenticationToken {
-		block_number: last_block_number,
+		block_number: current_block_number,
 		block_validation: 15,
 		data_hash: nftid_hash,
 		quote_hash,
@@ -929,7 +936,7 @@ pub async fn fetch_keyshares(
 		// TODO : otherwise we should have two clusters registered before starting enclaves with sync capability.
 		if get_identity(state).await.is_some() {
 			warn!("FETCH KEYSHARES : No other similar slots found in other clusters, is this primary cluster?");
-			return Ok(last_block_number);
+			return Ok(current_block_number);
 		} else {
 			// not registered
 			error!("FETCH KEYSHARES : This enclave is not registered yet.");
@@ -1066,7 +1073,7 @@ pub async fn fetch_keyshares(
 		let fetch_body_bytes = fetch_response.bytes().await?;
 		trace!("FETCH KEYSHARES : zip body length : {}", fetch_body_bytes.len());
 
-		let backup_file = format!("{SEALPATH}backup_{last_block_number}.zip");
+		let backup_file = format!("{SEALPATH}backup_{current_block_number}.zip");
 		let mut zipfile = match std::fs::File::create(backup_file.clone()) {
 			Ok(file) => file,
 			Err(err) => {
@@ -2199,7 +2206,7 @@ mod test {
 		/* ------------------------------
 		  Test Finding TEE update ext.
 		--------------------------------*/
-		let test_block_number: u32 = 1364585;
+		let test_block_number: u32 = 550;
 		let block_number = BlockNumber::from(test_block_number); // Block contains a failed request
 		let block_hash = api
 			.rpc()
