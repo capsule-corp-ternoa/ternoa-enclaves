@@ -2143,9 +2143,18 @@ mod test {
 
 	#[tokio::test]
 	async fn test_cluster_discovery() {
-		let subscriber = FmtSubscriber::builder().with_max_level(Level::DEBUG).finish();
-		tracing::subscriber::set_global_default(subscriber)
-			.expect("main: setting default subscriber failed");
+		let _ = tracing::subscriber::set_default(FmtSubscriber::builder().with_max_level(Level::ERROR).finish());
+		// while match tracing::subscriber::set_global_default(FmtSubscriber::builder().with_max_level(Level::ERROR).finish()) {
+		// 	Ok(_) => false,
+		// 	Err(e) => {
+		// 		println!("test_cluster_discovery: setting default subscriber failed {:?}",e);
+		// 		true
+		// 	},
+		// }
+		// {
+		// 	println!("Wait for 5 seconds to prevent conflicts during concurrent tests");
+		// 	tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+		// }
 
 		// Test environment
 		let api = create_chain_api().await.unwrap();

@@ -419,9 +419,18 @@ mod test {
 
 	#[tokio::test]
 	async fn id_fetch_test() {
-		let subscriber = FmtSubscriber::builder().with_max_level(Level::DEBUG).finish();
-		tracing::subscriber::set_global_default(subscriber)
-			.expect("main: setting default subscriber failed");
+		let _ = tracing::subscriber::set_default(FmtSubscriber::builder().with_max_level(Level::ERROR).finish());
+		// while match tracing::subscriber::set_global_default(FmtSubscriber::builder().with_max_level(Level::ERROR).finish()) {
+		// 	Ok(_) => false,
+		// 	Err(e) => {
+		// 		println!("id_fetch_test: setting default subscriber failed {:?}",e);
+		// 		true
+		// 	},
+		// }
+		// {
+		// 	println!("Wait for 5 seconds to prevent conflicts during concurrent tests");
+		// 	tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+		// }
 
 		let seed_phrase: &str =
 			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
@@ -461,7 +470,7 @@ mod test {
 			enclave_keypair,
 			String::new(),
 			create_chain_api().await.unwrap(),
-			"0.3.0".to_string(),
+			"0.4.0".to_string(),
 			0,
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));
@@ -488,13 +497,14 @@ mod test {
 			.call(request1)
 			.await
 			.unwrap();
+
 		assert_eq!(response.status(), StatusCode::OK);
 		let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
 		let body: Value = serde_json::from_slice(&body).unwrap();
 		println!("Health Check Result: {:#?}", body);
 
-		info!("Wait for 5 seconds to update the block number between requests");
-		tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+		//info!("Wait for 5 seconds to update the block number between requests");
+		//tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
 
 		let request = Request::builder()
 			.method(http::Method::POST)
