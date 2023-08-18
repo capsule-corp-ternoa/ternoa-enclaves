@@ -59,7 +59,7 @@ const BACKUP_WHITELIST: [&str; 3] = [
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AuthenticationToken {
 	pub block_number: u32,
-	pub block_validation: u8,
+	pub block_validation: u32,
 	pub data_hash: String,
 }
 
@@ -93,26 +93,33 @@ pub enum ValidationResult {
 
 /// Retrieving the stored Keyshare
 impl AuthenticationToken {
-	pub async fn is_valid(&self, last_block_number: u32) -> ValidationResult {
-		if last_block_number < self.block_number - MAX_BLOCK_VARIATION {
+	pub fn is_valid(&self, current_block_number: u32) -> ValidationResult {
+		if self.block_number > current_block_number + MAX_BLOCK_VARIATION {
 			// for finalization delay
 			debug!(
-				"last block number = {} < request block number = {}",
-				last_block_number, self.block_number
+				"current block number = {} < request block number = {}",
+				current_block_number, self.block_number
 			);
-			return ValidationResult::ExpiredBlockNumber;
+			return ValidationResult::FutureBlockNumber;
 		}
 
-		if self.block_validation > MAX_VALIDATION_PERIOD as u8 {
+		if self.block_validation > MAX_VALIDATION_PERIOD {
 			// A finite validity period
+			debug!(
+				"MAX VALIDATION = {} < block_validation = {}",
+				MAX_VALIDATION_PERIOD, self.block_validation
+			);
 			return ValidationResult::InvalidPeriod;
 		}
-
-		if last_block_number
-			> self.block_number + ((self.block_validation + MAX_BLOCK_VARIATION as u8) as u32)
-		{
+		
+		if self.block_number + self.block_validation < current_block_number {
 			// validity period
-			return ValidationResult::FutureBlockNumber;
+			debug!(
+				"current block number = {} >> request block number = {}",
+				current_block_number, self.block_number
+			);
+
+			return ValidationResult::ExpiredBlockNumber;			
 		}
 
 		ValidationResult::Success
@@ -296,10 +303,10 @@ pub async fn admin_backup_fetch_id(
 		return error_handler("Invalid Signature".to_string(), &state).await.into_response();
 	}
 
-	let last_block_number = get_blocknumber(&state).await;
+	let current_block_number = get_blocknumber(&state).await;
 
 	debug!("Validating the authentication token");
-	let validity = auth_token.is_valid(last_block_number).await;
+	let validity = auth_token.is_valid(current_block_number);
 	match validity {
 		ValidationResult::Success => debug!("Authentication token is valid."),
 		_ => {
@@ -420,14 +427,14 @@ mod test {
 			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
 
 		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
-		let last_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_new_api().await.unwrap();
 		let nftids: &[u32] = &[10, 200, 3000, 40000, 500000, 6000000];
 
 		let nftids_str = serde_json::to_string(nftids).unwrap();
 		let hash = sha256::digest(nftids_str.as_bytes());
 
 		let auth = AuthenticationToken {
-			block_number: last_block_number,
+			block_number: current_block_number,
 			block_validation: 15,
 			data_hash: hash,
 		};
