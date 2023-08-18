@@ -1,16 +1,18 @@
-name: Rust
+name: Tertnoa-SGX-Enclave
 
 on:
   push:
     branches: [ "phase-5" ]
+    tags: [v0.4.*]
   pull_request:
     branches: [ "phase-5" ]
+    types: [opened]
+
   workflow_dispatch:
-    
-  
+
 env:
   CARGO_TERM_COLOR: always
-        
+
 jobs:
   build:
 
@@ -22,27 +24,27 @@ jobs:
       run: sudo apt install -y clang llvm pkg-config nettle-dev
     
     - name: Build
-      run: cargo build --no-default-features --features dev-1 --release --verbose
-    
+      run: cargo build --no-default-features --features dev-1 --release 
+
     - name: Run tests
-      run: cargo test --no-default-features --features dev-1 --release --verbose
-    
+      run: cargo test --no-default-features --features dev-1 --release
+
     - name: Install Cosign
-      if: github.event_name != 'pull_request'
+      # if: github.event_name != 'pull_request'
       uses: sigstore/cosign-installer@main
-    
+
     - name: Check install!
       run: cosign version
-  
+
     - name: Sign the binary
-      if: ${{ github.event_name != 'pull_request' }}
+      # if: ${{ github.event_name != 'pull_request' }}
       env:
        PRIVATE_KEY: ${{secrets.COSIGN_KEY}}
        PASSWORD: ${{secrets.COSIGN_PASSWORD}}
       run: echo "y" | COSIGN_PASSWORD="$PASSWORD" cosign sign-blob --key env://PRIVATE_KEY target/release/sgx_server --output-file target/release/sgx_server.sig
 
     - name: Upload binary to release
-      if: github.event_name != 'pull_request'
+      # if: github.event_name != 'pull_request'
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -53,7 +55,7 @@ jobs:
         body: "Ternoa TEE Server"
     
     - name: Upload binary signature to release
-      if: github.event_name != 'pull_request'
+      # if: github.event_name != 'pull_request'
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}

@@ -420,17 +420,6 @@ mod test {
 	#[tokio::test]
 	async fn id_fetch_test() {
 		let _ = tracing::subscriber::set_default(FmtSubscriber::builder().with_max_level(Level::ERROR).finish());
-		// while match tracing::subscriber::set_global_default(FmtSubscriber::builder().with_max_level(Level::ERROR).finish()) {
-		// 	Ok(_) => false,
-		// 	Err(e) => {
-		// 		println!("id_fetch_test: setting default subscriber failed {:?}",e);
-		// 		true
-		// 	},
-		// }
-		// {
-		// 	println!("Wait for 5 seconds to prevent conflicts during concurrent tests");
-		// 	tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-		// }
 
 		let seed_phrase: &str =
 			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
