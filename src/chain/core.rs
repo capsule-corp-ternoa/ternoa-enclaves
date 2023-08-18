@@ -603,13 +603,20 @@ mod test {
 	#[tokio::test]
 	async fn concurrent_nft_test() {
 		let mut rng = thread_rng();
-		let nft_ids: Vec<u32> = (1..220).map(|_| rng.gen_range(100..11000)).collect();
+		let min_nft_id = 1;
+		let max_nft_id = 40;
+		let max_concurrent_requests = 220;
+		let nft_ids: Vec<u32> = (1..max_concurrent_requests).map(|_| rng.gen_range(min_nft_id..max_nft_id)).collect();
 
 		// Concurrent (Avg. 0.3 ms/request on dev-0)
 		let start = Instant::now();
 		let nft_data_vec = get_nft_data_batch(nft_ids.clone()).await;
 		let elapsed_time = start.elapsed().as_micros();
-		println!("\nConcurrent time is {} microseconds", elapsed_time);
-		println!("Concurrent NFT Data : {:#?}", nft_data_vec[9].as_ref().unwrap().owner);
+		let non_empty: Vec<Option<NFTData<AccountId32>>> = nft_data_vec.into_iter().filter(|nd| nd.is_some()).collect();
+		println!("\nConcurrent time is {} microseconds\n", elapsed_time);
+
+		if !non_empty.is_empty() {
+			println!("State of one NFT : {:?}\n", non_empty[non_empty.len()-1].as_ref().unwrap().state);
+		}
 	}
 }

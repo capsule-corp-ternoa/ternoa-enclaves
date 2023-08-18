@@ -22,9 +22,6 @@ fs.mounts = [
   
   { path = "/temporary", type = "tmpfs" },
 
-  # ------ ALLOWED (only dev)
-  { path = "/sync.state", uri = "file:./sync.state", type = "chroot" },
-
   # ------ SEALED!
   { path = "/certificates", uri = "file:certificates", type = "chroot" },
   { path = "/nft" , uri = "file:nft",  type = "chroot"},
@@ -38,7 +35,6 @@ fs.mounts = [
 sgx.allowed_files = [
   "file:nft/",
   "file:certificates/",
-  "file:./sync.state",
 ]
 
 sgx.allowed_files = [
