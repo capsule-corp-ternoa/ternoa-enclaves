@@ -622,7 +622,7 @@ pub async fn http_server() -> Result<Router, Error> {
 	Ok(http_app)
 }
 
-/*  ------------------------------
+/* ------------------------------
 		ERROR HANDLING
 ------------------------------ */
 /// Handle errors from the router.
@@ -631,7 +631,7 @@ async fn handle_timeout_error(method: Method, uri: Uri, err: BoxError) -> impl I
 	debug!("Timeout Handler start");
 
 	let message = format!(
-		"Timeout Handler : Request timeout,  method: {:?}, uri: {}, error: {}",
+		"Timeout Handler : Request timeout, method: {:?}, uri: {}, error: {}",
 		method, uri, err
 	);
 	warn!(message);
@@ -674,7 +674,7 @@ async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
 		.into_response()
 }
 
-/*  ------------------------------
+/* ------------------------------
 	HEALTH CHECK
 ------------------------------ */
 

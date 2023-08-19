@@ -28,7 +28,7 @@ use serde_json::{json, to_value};
 use sp_core::H256;
 
 /* **********************
-   KEYSHARE AVAILABLE API
+ KEYSHARE AVAILABLE API
 ********************** */
 #[derive(Serialize)]
 pub struct NFTExistsResponse {
@@ -423,7 +423,7 @@ pub async fn nft_store_keyshare(
 
 			match f.write_all(&verified_data.keyshare) {
 				Ok(_) => info!(
-					"Keyshare is stored to TEE, nft_id = {}  Owner = {}",
+					"Keyshare is stored to TEE, nft_id = {} Owner = {}",
 					verified_data.nft_id, request.owner_address
 				),
 
@@ -607,9 +607,9 @@ fn nft_keyshare_oracle_results(
 	txh: H256,
 ) -> bool {
 	info!(
-        "Proof of storage has been sent to blockchain nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
-        verified_data.nft_id, request.owner_address, txh
-    );
+ "Proof of storage has been sent to blockchain nft-pallet, nft_id = {} Owner = {} tx-hash = {}",
+ verified_data.nft_id, request.owner_address, txh
+ );
 
 	// Log file for tracing the NFT key-share VIEW history in Marketplace.
 	let file_path = format!("{SEALPATH}{}.log", verified_data.nft_id);

@@ -28,7 +28,7 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 	let block_number = get_blocknumber(&state).await;
 	let sign_data = format!("{enclave_id}_{block_number}");
 
-	debug!("QUOTE : report_data token  = {}", sign_data);
+	debug!("QUOTE : report_data token = {}", sign_data);
 
 	// Signer
 	let enclave_account = get_keypair(&state).await;
@@ -76,7 +76,7 @@ pub fn get_quote_content() -> Result<Vec<u8>, Error> {
 			})
 		})
 		.map(|_| {
-			trace!("\nQuote : content  {:?}\n", content);
+			trace!("\nQuote : content {:?}\n", content);
 			content
 		})
 }
@@ -103,7 +103,7 @@ fn read_attestation_type(file_path: Option<String>) -> Result<String, Error> {
 		})
 }
 
-///  Writes user report data or else throws an Error
+/// Writes user report data or else throws an Error
 /// # Arguments
 /// * `file_path` - The path to the user report data
 /// # Returns

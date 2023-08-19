@@ -7,7 +7,7 @@ use tracing::{debug, error, info};
 
 use crate::sign::cosign;
 
-/*  ------------------------------
+/* ------------------------------
 		SIGNATURE
 ------------------------------ */
 /// This function is called by the health check endpoint

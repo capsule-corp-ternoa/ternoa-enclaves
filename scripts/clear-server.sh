@@ -41,12 +41,11 @@ while :; do
 done
 
 #find . -name "*~" | xargs rm
-rm -rf $GRAMINEPATH/quote/*
+#rm -rf $SEALPATH/*.key
+#rm -rf $GRAMINEPATH/bin/*
+rm -rf $GRAMINEPATH/certificates/*
 rm -rf $SEALPATH/*.keyshare
 rm -rf $SEALPATH/*.log
-#rm -rf $SEALPATH/*.key
-#rm -rf $SEALPATH/*.state
-
 
 cd $GRAMINEPATH
 make clean

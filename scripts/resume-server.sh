@@ -4,9 +4,6 @@
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )
 SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
-CERT_PATH=$GRAMINE_PATH/certificates
-QUOTE_PATH=$GRAMINE_PATH/quote
-CREDENTIALS_PATH=$BASEDIR/credentials
 
 # DEFAULT VALUES
 CHAIN=${CHAIN:-alphanet}
@@ -122,9 +119,6 @@ echo -n -e "\n${BIWhite}Creating Enclave ${NC}"
 make 	SGX=1 \
 	SGX_DOMAIN=$DOMAIN \
 	SGX_PORT=$PORT \
-	SGX_BASE_PATH=$BASEDIR \
-	SGX_QUOTE_PATH=$QUOTE_PATH \
-	SGX_CERT_PATH=$CERT_PATH \
 	SGX_VERBOSITY=$VERBOSITY_LEVLE\
 	SGX_DEV_BUILD=$DEV_BUILD\
 	start-gramine-server >> $GRAMINE_PATH/make.log 2>&1 &
