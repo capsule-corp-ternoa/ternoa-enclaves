@@ -30,7 +30,26 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
-	info!("\n\n\t***********\n \tMAIN function started\n\t***********\n\n");
+	println!(
+		"\n\n\t**********************\n\n
+	MAIN function started
+	 	\n\n\t**********************\n\n"
+	);
+
+	let args = Args::parse();
+
+	let verbosity_level = match args.verbose {
+		0 => Level::ERROR,
+		1 => Level::WARN,
+		2 => Level::INFO,
+		3 => Level::DEBUG,
+		4 => Level::TRACE,
+		_ => Level::INFO,
+	};
+
+	let subscriber = FmtSubscriber::builder().with_max_level(verbosity_level).finish();
+	tracing::subscriber::set_global_default(subscriber)
+		.expect("MAIN : setting default subscriber failed");
 
 	match servers::binary_check::self_checksig() {
 		Ok(str) => {
@@ -50,22 +69,6 @@ async fn main() {
 			return;
 		},
 	}
-
-	let args = Args::parse();
-
-	let verbosity_level = match args.verbose {
-		0 => Level::ERROR,
-		1 => Level::WARN,
-		2 => Level::INFO,
-		3 => Level::DEBUG,
-		4 => Level::TRACE,
-		_ => Level::INFO,
-	};
-
-	info!("MAIN : Start Tracing");
-	let subscriber = FmtSubscriber::builder().with_max_level(verbosity_level).finish();
-	tracing::subscriber::set_global_default(subscriber)
-		.expect("MAIN : setting default subscriber failed");
 
 	info!("MAIN : Start Sentry");
 	let env = if cfg!(feature = "mainnet") {
