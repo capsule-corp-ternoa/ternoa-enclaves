@@ -32,27 +32,16 @@ use crate::{
 		constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
 		core::get_current_block_number,
 	},
-	servers::state::{get_blocknumber, SharedState, StateConfig},
+	servers::state::{get_blocknumber, get_clusters, SharedState, StateConfig},
 };
 
-use super::zipdir::{add_dir_zip, zip_extract};
-
-#[cfg(any(feature = "alphanet", feature = "mainnet"))]
-const BACKUP_WHITELIST: [&str; 3] = [
-	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ",
-	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
-	"5HmNNUGDRNJgKScvDu1yUKFeqKkXeGjsK5SMGW744Uo2YgFj",
-];
-
-#[cfg(any(feature = "dev-0", feature = "dev-1"))]
-const BACKUP_WHITELIST: [&str; 3] = [
-	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ",
-	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
-	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
-];
+use super::{
+	sync::ClusterType,
+	zipdir::{add_dir_zip, zip_extract},
+};
 
 /* *************************************
-	FETCH  NFTID DATA STRUCTURES
+	FETCH NFTID DATA STRUCTURES
 **************************************** */
 
 // Validity time of Keyshare Data
@@ -111,7 +100,7 @@ impl AuthenticationToken {
 			);
 			return ValidationResult::InvalidPeriod;
 		}
-		
+
 		if self.block_number + self.block_validation < current_block_number {
 			// validity period
 			debug!(
@@ -119,7 +108,7 @@ impl AuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber;			
+			return ValidationResult::ExpiredBlockNumber;
 		}
 
 		ValidationResult::Success
@@ -141,8 +130,26 @@ impl AuthenticationToken {
 /// ```
 /// # Errors
 /// * `PublicError` - If the account ID is not a valid SS58 string
-fn verify_account_id(account_id: &str) -> bool {
-	BACKUP_WHITELIST.contains(&account_id)
+async fn verify_account_id(state: &SharedState, account_id: &String) -> bool {
+	let clusters = get_clusters(state).await;
+	let allowed_id: Vec<String> = clusters
+		.into_iter()
+		.filter_map(|c| {
+			if c.cluster_type == ClusterType::Admin {
+				Some(
+					c.enclaves
+						.iter()
+						.map(|e| e.enclave_account.to_string())
+						.collect::<Vec<String>>(),
+				)
+			} else {
+				None
+			}
+		})
+		.flat_map(|x| x.into_iter())
+		.collect();
+
+	allowed_id.contains(&account_id.to_string())
 }
 
 /// Get the public key of an Account ID
@@ -231,7 +238,7 @@ async fn update_health_status(state: &SharedState, message: String) {
 
 pub async fn error_handler(message: String, state: &SharedState) -> impl IntoResponse {
 	error!(message);
-	update_health_status(state, String::new()).await;
+	//update_health_status(state, String::new()).await;
 	(StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
 }
 
@@ -251,13 +258,17 @@ pub async fn admin_backup_fetch_id(
 	State(state): State<SharedState>,
 	Json(backup_request): Json<FetchIdPacket>,
 ) -> impl IntoResponse {
-	debug!("3-15 API : backup fetch NFTID");
+	debug!("ADMIN FETCH ID : backup fetch NFTID");
 
-	update_health_status(&state, "Enclave is doing backup, please wait...".to_string()).await;
+	update_health_status(
+		&state,
+		"ADMIN FETCH ID : Enclave is doing backup, please wait...".to_string(),
+	)
+	.await;
 
-	if !verify_account_id(&backup_request.admin_address) {
+	if !verify_account_id(&state, &backup_request.admin_address).await {
 		let message = format!(
-			"Error backup key shares : Requester is not whitelisted : {}",
+			"ADMIN FETCH ID : Error backup key shares : Requester is not whitelisted : {}",
 			backup_request.admin_address
 		);
 
@@ -279,9 +290,12 @@ pub async fn admin_backup_fetch_id(
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
 			_ => {
-				return error_handler("Strip Token suffix error".to_string(), &state)
-					.await
-					.into_response();
+				return error_handler(
+					"ADMIN FETCH ID : Strip Token suffix error".to_string(),
+					&state,
+				)
+				.await
+				.into_response();
 			},
 		}
 	}
@@ -290,7 +304,7 @@ pub async fn admin_backup_fetch_id(
 		Ok(token) => token,
 		Err(err) => {
 			let message =
-				format!("Error backup key shares : Authentication token is not parsable : {}", err);
+				format!("ADMIN FETCH ID :Error backup key shares : Authentication token is not parsable : {}", err);
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -300,17 +314,22 @@ pub async fn admin_backup_fetch_id(
 		backup_request.signature.clone(),
 		backup_request.auth_token.as_bytes(),
 	) {
-		return error_handler("Invalid Signature".to_string(), &state).await.into_response();
+		return error_handler("ADMIN FETCH ID :Invalid Signature".to_string(), &state)
+			.await
+			.into_response();
 	}
 
 	let current_block_number = get_blocknumber(&state).await;
 
-	debug!("Validating the authentication token");
+	debug!("ADMIN FETCH ID :Validating the authentication token");
 	let validity = auth_token.is_valid(current_block_number);
 	match validity {
-		ValidationResult::Success => debug!("Authentication token is valid."),
+		ValidationResult::Success => debug!("ADMIN FETCH ID :Authentication token is valid."),
 		_ => {
-			let message = format!("Authentication Token is not valid, or expired : {:?}", validity);
+			let message = format!(
+				"ADMIN FETCH ID :Authentication Token is not valid, or expired : {:?}",
+				validity
+			);
 			return error_handler(message, &state).await.into_response();
 		},
 	}
@@ -318,7 +337,7 @@ pub async fn admin_backup_fetch_id(
 	let hash = sha256::digest(backup_request.nftid_vec.as_bytes());
 
 	if auth_token.data_hash != hash {
-		return error_handler("Admin backup : Mismatch Data Hash".to_string(), &state)
+		return error_handler("ADMIN FETCH ID : Mismatch Data Hash".to_string(), &state)
 			.await
 			.into_response();
 	}
@@ -326,7 +345,7 @@ pub async fn admin_backup_fetch_id(
 	let nftidv: Vec<u32> = match serde_json::from_str(&backup_request.nftid_vec) {
 		Ok(v) => v,
 		Err(err) => {
-			let message = format!("unable to deserialize nftid vector : {err:?}");
+			let message = format!("ADMIN FETCH ID :unable to deserialize nftid vector : {err:?}");
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -339,11 +358,11 @@ pub async fn admin_backup_fetch_id(
 	while std::path::Path::new(&backup_file.clone()).exists() {
 		match std::fs::remove_file(backup_file.clone()) {
 			Ok(_) => {
-				debug!("Successfully removed previous zip file")
+				debug!("ADMIN FETCH ID :Successfully removed previous zip file")
 			},
 			Err(err) => {
 				let message = format!(
-					"Error backup key shares : Can not remove previous backup file : {}",
+					"ADMIN FETCH ID :Error backup key shares : Can not remove previous backup file : {}",
 					err
 				);
 				warn!(message);
@@ -353,11 +372,11 @@ pub async fn admin_backup_fetch_id(
 		}
 	}
 
-	debug!("Start zippping file");
+	debug!("ADMIN FETCH ID :Start zippping file");
 	add_list_zip(SEALPATH, nftids, &backup_file);
 
 	// `File` implements `AsyncRead`
-	debug!("Opening backup file");
+	debug!("ADMIN FETCH ID :Opening backup file");
 	let file = match tokio::fs::File::open(backup_file).await {
 		Ok(file) => file,
 		Err(err) => {
@@ -367,11 +386,11 @@ pub async fn admin_backup_fetch_id(
 	};
 
 	// convert the `AsyncRead` into a `Stream`
-	debug!("Create reader-stream");
+	debug!("ADMIN FETCH ID :Create reader-stream");
 	let stream = ReaderStream::new(file);
 
 	// convert the `Stream` into an `axum::body::HttpBody`
-	debug!("Create body-stream");
+	debug!("ADMIN FETCH ID :Create body-stream");
 	let body = StreamBody::new(stream);
 
 	let headers = [
@@ -381,7 +400,7 @@ pub async fn admin_backup_fetch_id(
 
 	update_health_status(&state, String::new()).await;
 
-	debug!("Sending the backup data to the client ...");
+	debug!("ADMIN FETCH ID :Sending the backup data to the client ...");
 	(headers, body).into_response()
 }
 
@@ -419,7 +438,9 @@ mod test {
 
 	#[tokio::test]
 	async fn id_fetch_test() {
-		let _ = tracing::subscriber::set_default(FmtSubscriber::builder().with_max_level(Level::ERROR).finish());
+		let _ = tracing::subscriber::set_default(
+			FmtSubscriber::builder().with_max_level(Level::ERROR).finish(),
+		);
 
 		let seed_phrase: &str =
 			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
@@ -523,7 +544,7 @@ mod test {
 
 	#[test]
 	fn test_get_signature_valid() {
-		let input  = "0xb7255023814e304b72bc880cc993d5c654ce060db0c3f0772b453714c760521962943747af605a90d0503812c6a62c5c1080cbf377095551af0c168a8c724da8".to_string();
+		let input = "0xb7255023814e304b72bc880cc993d5c654ce060db0c3f0772b453714c760521962943747af605a90d0503812c6a62c5c1080cbf377095551af0c168a8c724da8".to_string();
 		let expected = Signature(<[u8; 64]>::from_hex(input.strip_prefix("0x").unwrap()).unwrap());
 		let results = get_signature(input).unwrap();
 		assert_eq!(results, expected);

@@ -34,7 +34,7 @@ pub const CHAIN_URL: &str = "wss://dev-0.ternoa.com:443";
 #[cfg(feature = "dev-0")]
 pub const INDEXER_URL: &str = "https://dev-0.ternoa.dev/";
 
-/*  ----------------------------------
+/* ----------------------------------
 	Convert NFTID to NodeID
 ---------------------------------- */
 
@@ -65,7 +65,7 @@ pub async fn get_node_from_id(nftid: u32) -> Result<String, Box<dyn Error>> {
 	Ok(node_id)
 }
 
-/*  ----------------------------------
+/* ----------------------------------
 Get the Total Number of Synced NFT
 ---------------------------------- */
 
@@ -94,7 +94,7 @@ pub async fn get_total_synced(after_nftid: u32) -> Result<i64, Box<dyn Error>> {
 	Ok(total)
 }
 
-/*  ----------------------------------
+/* ----------------------------------
 	Get the List of Synced NFT
 ---------------------------------- */
 

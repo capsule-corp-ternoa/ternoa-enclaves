@@ -193,7 +193,7 @@ fn keypair_to_public(keypair: sp_core::sr25519::Pair) -> Option<sp_core::sr25519
 }
 
 /* ---------------
-  READ HELPERS
+ READ HELPERS
 ----------------*/
 
 pub async fn get_chain_api(state: &SharedState) -> DefaultApi {
@@ -256,7 +256,7 @@ pub async fn get_nft_availability(state: &SharedState, nftid: u32) -> Option<hel
 }
 
 /* ---------------
-  WRITE HELPERS
+ WRITE HELPERS
 ----------------*/
 
 pub async fn set_blocknumber(state: &SharedState, block_number: u32) {

@@ -2,8 +2,8 @@
 
 loader.entrypoint = "file:{{ gramine.libos }}"
 libos.entrypoint = "{{ self_exe }}"
-#loader.log_level = "{{ log_level }}"
 loader.log_level = "error"
+#loader.log_level = "{{ log_level }}"
 
 loader.env.LD_LIBRARY_PATH = "/lib:{{ arch_libdir }}"
 
@@ -23,12 +23,9 @@ fs.mounts = [
   { path = "/temporary", type = "tmpfs" },
 
   # ------ SEALED!
-  { path = "/certificates", uri = "file:certificates", type = "chroot" },
-  { path = "/nft" , uri = "file:nft",  type = "chroot"},
+  { path = "/certificates", uri = "file:certificates/", type = "chroot" },
+  { path = "/nft" , uri = "file:nft/",  type = "chroot"},
 ]
-
-# Only for development and debug, it will be replaced with _sgx_mrenclave/_sgx_mrsigner for production
-# fs.insecure__keys."DevOnlyKey" = "0123456789ABCDEF0123456789ABCDEF"
 
 # ONLY for DEV!
 # THEY all be SEALED for production
@@ -37,14 +34,10 @@ sgx.allowed_files = [
   "file:certificates/",
 ]
 
-sgx.allowed_files = [
-  "file:{{ quote_path }}/",
-  "file:{{ seal_path }}/",
-]
-
 sgx.trusted_files = [
   "file:{{ gramine.libos }}",
   "file:{{ self_exe }}",
+  "file:bin/sgx_server.sig",
   "file:{{ gramine.runtimedir() }}/",
   "file:{{ arch_libdir }}/",
   "file:/etc/nsswitch.conf",
@@ -58,9 +51,6 @@ sgx.trusted_files = [
 
   # NATIVE TLS ONLY
   "file:/etc/ssl/certs/ca-certificates.crt",
-
-  # DEV ONLY
-  "file:bin/sgx_server.sig",
 ]
 
 # The Tokio runtime requires eventfd, and the Gramine implementation
@@ -85,7 +75,7 @@ sgx.require_avx    = true
 #sgx.require_amx    = false
 #sgx.require_exinfo = false
 
-#sgx.file_check_policy = "strict"
+sgx.file_check_policy = "strict"
 
 sgx.remote_attestation = "epid"
 sgx.ra_client_spid = "15AD86B4CFA46B327A8BFB79AA0D67B7"
