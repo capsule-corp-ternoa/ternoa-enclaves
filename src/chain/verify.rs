@@ -43,8 +43,10 @@ use super::core::get_current_block_number_new_api;
 pub enum APICALL {
 	NFTSTORE,
 	NFTRETRIEVE,
+	NFTREMOVE,
 	CAPSULESET,
 	CAPSULERETRIEVE,
+	CAPSULEREMOVE,
 }
 
 #[derive(Serialize, PartialEq)]
@@ -200,7 +202,8 @@ pub struct RetrieveKeysharePacket {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RemoveKeysharePacket {
 	pub requester_address: sr25519::Public,
-	pub nft_id: u32,
+	pub data: String,
+	pub signature: String,
 }
 
 #[derive(Debug, PartialEq)]
@@ -882,11 +885,11 @@ impl StoreKeysharePacket {
 		};
 
 		let keyshare_size = keyshare.len() as u16;
-		if keyshare_size < 16 {
+		if keyshare_size < MIN_KEYSHARE_SIZE {
 			return Err(VerificationError::KEYSHAREISTOOSHORT);
 		}
 
-		if keyshare_size > 3000 {
+		if keyshare_size > MAX_KEYSHARE_SIZE {
 			return Err(VerificationError::KEYSHAREISTOOLONG);
 		}
 
@@ -1246,6 +1249,172 @@ impl RetrieveKeysharePacket {
 	}
 }
 
+/* ----------------------------------
+	REMOVE-PACKET IMPLEMENTATION
+----------------------------------*/
+
+impl RemoveKeysharePacket {
+	// Extract signatures from hex
+	pub fn parse_signature(&self) -> Result<sr25519::Signature, SignatureError> {
+		let sig = self.signature.clone();
+
+		let strip_sig = match sig.strip_prefix("0x") {
+			Some(ssig) => ssig,
+			_ => return Err(SignatureError::PREFIXERROR),
+		};
+
+		let sig_bytes = match <[u8; 64]>::from_hex(strip_sig) {
+			Ok(bsig) => bsig,
+			Err(_) => return Err(SignatureError::LENGHTERROR),
+		};
+
+		Ok(sr25519::Signature::from_raw(sig_bytes))
+	}
+
+	pub fn parse_retrieve_data(&self) -> Result<RetrieveKeyshareData, VerificationError> {
+		let mut data = self.data.clone();
+
+		if data.starts_with("<Bytes>") && data.ends_with("</Bytes>") {
+			data = data
+				.strip_prefix("<Bytes>")
+				.ok_or(VerificationError::MALFORMATEDDATA)?
+				.strip_suffix("</Bytes>")
+				.ok_or(VerificationError::MALFORMATEDDATA)?
+				.to_string();
+		}
+
+		let parsed_data: Vec<&str> = if data.contains('_') {
+			data.split('_').collect()
+		} else {
+			return Err(VerificationError::MALFORMATEDDATA);
+		};
+
+		if parsed_data.len() != 3 {
+			return Err(VerificationError::MALFORMATEDDATA);
+		}
+
+		let nft_id = match parsed_data[0].parse::<u32>() {
+			Ok(n) => n,
+			Err(_) => return Err(VerificationError::INVALIDNFTID),
+		};
+
+		let block_number = match parsed_data[1].parse::<u32>() {
+			Ok(bn) => bn,
+			Err(_) => return Err(VerificationError::INVALIDAUTHTOKEN),
+		};
+
+		let block_validation = match parsed_data[2].parse::<u32>() {
+			Ok(bv) => bv,
+			Err(_) => return Err(VerificationError::INVALIDAUTHTOKEN),
+		};
+
+		Ok(RetrieveKeyshareData {
+			nft_id,
+			auth_token: AuthenticationToken { block_number, block_validation },
+		})
+	}
+
+	// VERIFY KEYSHARE DATA : TOKEN & SIGNATURE
+	pub fn verify_data(&self, current_block_number: u32) -> Result<bool, VerificationError> {
+		let data = match self.parse_retrieve_data() {
+			Ok(sec) => sec,
+			Err(err) => return Err(err),
+		};
+
+		let verify = data.auth_token.is_valid(current_block_number);
+		match verify {
+			ValidationResult::Success => debug!("Data auth-token is valid"),
+			_ => return Err(VerificationError::EXPIREDDATA(verify)),
+		}
+
+		let sig = match self.parse_signature() {
+			Ok(sig) => sig,
+			Err(err) => return Err(VerificationError::INVALIDSIGNERSIG(err)),
+		};
+
+		let result = sr25519::Pair::verify(&sig, self.data.clone(), &self.requester_address);
+
+		Ok(result)
+	}
+
+	/// Verify the requester is the owner of the NFT
+	pub async fn verify_remove_request(
+		&self,
+		state: &SharedState,
+		nft_type: &str,
+	) -> Result<RetrieveKeyshareData, VerificationError> {
+		let current_block_number = get_blocknumber(state).await;
+
+		match self.verify_data(current_block_number) {
+			Ok(true) => {
+				let parsed_data = match self.parse_retrieve_data() {
+					Ok(parsed) => parsed,
+					Err(err) => return Err(err),
+				};
+
+				let onchain_nft_data = match get_onchain_nft_data(state, parsed_data.nft_id).await {
+					Some(nftdata) => nftdata,
+					_ => return Err(VerificationError::INVALIDNFTID),
+				};
+
+				let nft_status = onchain_nft_data.state;
+
+				if nft_type == "secret-nft" {
+					if !nft_status.is_secret {
+						return Err(VerificationError::IDISNOTSECRETNFT);
+					}
+
+					debug!("nft syncing status : {}", nft_status.is_syncing_secret);
+					if nft_status.is_syncing_secret {
+						return Err(VerificationError::NOTSYNCED);
+					}
+				}
+
+				if nft_type == "capsule" {
+					if !nft_status.is_capsule {
+						return Err(VerificationError::IDISNOTCAPSULE);
+					}
+
+					debug!("capsule syncing status : {}", nft_status.is_syncing_capsule);
+					if nft_status.is_syncing_capsule {
+						return Err(VerificationError::NOTSYNCED);
+					}
+				}
+
+				let verify = parsed_data.auth_token.clone().is_valid(current_block_number);
+				match verify {
+					ValidationResult::Success => debug!("Data auth-token is valid"),
+					_ => return Err(VerificationError::EXPIREDDATA(verify)),
+				}
+
+				Ok(parsed_data)
+			},
+			// INVALID DATA SIGNATURE
+			Ok(false) => Err(VerificationError::SIGNERVERIFICATIONFAILED),
+
+			Err(err) => Err(err),
+		}
+	}
+
+	// VERIFTY FREE RETRIVE REQUEST
+	#[allow(dead_code)]
+	pub async fn verify_free_retrieve_request(
+		&self,
+		current_block_number: u32,
+	) -> Result<RetrieveKeyshareData, VerificationError> {
+		let data = match self.parse_retrieve_data() {
+			Ok(sec) => sec,
+			Err(err) => return Err(err),
+		};
+
+		match self.verify_data(current_block_number) {
+			Ok(true) => Ok(data),
+			Ok(false) => Err(VerificationError::DATAVERIFICATIONFAILED),
+			Err(err) => Err(err),
+		}
+	}
+}
+
 /* **********************
 		 TEST
 ********************** */
@@ -1330,11 +1499,14 @@ mod test {
 		.unwrap()
 		.0;
 
+		let current_block_number = get_current_block_number_new_api().await.unwrap();
+		let data = format!("{}_{}_10", nftid, current_block_number);
 		let requester_address = signer.public();
 
 		let packet = RemoveKeysharePacket {
 			requester_address, // Because anybody can ask to remove burnt data
-			nft_id: nftid,
+			data,
+			signature: format!("{}{:?}", "0x", signer.sign(&nftid.to_le_bytes())),
 		};
 
 		println!("RemoveKeysharePacket = {}\n", serde_json::to_string_pretty(&packet).unwrap());

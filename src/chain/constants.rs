@@ -24,3 +24,5 @@ pub const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024; // 400MB for 6 millio
 // ----------- VERIFY
 pub const MAX_VALIDATION_PERIOD: u32 = 20;
 pub const MAX_BLOCK_VARIATION: u32 = 2;
+pub const MAX_KEYSHARE_SIZE: u16 = 3000;
+pub const MIN_KEYSHARE_SIZE: u16 = 16;
