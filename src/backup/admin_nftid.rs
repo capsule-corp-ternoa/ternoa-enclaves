@@ -538,7 +538,7 @@ mod test {
 		println!("parts header len {}", parts.headers.len());
 		println!("body len {}", body_bytes.len());
 
-		let mut file = File::create("/tmp/seal/ReceivedBackup.zip").unwrap();
+		let mut file = File::create("/tmp/ReceivedBackup.zip").unwrap();
 		file.write_all(&body_bytes).unwrap();
 	}
 
