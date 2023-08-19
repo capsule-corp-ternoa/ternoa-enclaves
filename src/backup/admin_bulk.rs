@@ -9,6 +9,7 @@ use axum::{
 	response::IntoResponse,
 	Json,
 };
+use subxt::utils::AccountId32;
 use tokio_util::io::ReaderStream;
 
 use hex::{FromHex, FromHexError};
@@ -30,27 +31,16 @@ use crate::{
 		constants::{ENCLAVE_ACCOUNT_FILE, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
 		core::get_current_block_number,
 	},
-	servers::state::{get_blocknumber, set_keypair, SharedState, StateConfig},
+	servers::state::{get_blocknumber, get_clusters, set_keypair, SharedState, StateConfig},
 };
 
-use super::zipdir::{add_dir_zip, zip_extract};
-
-#[cfg(any(feature = "alphanet", feature = "mainnet"))]
-const BACKUP_WHITELIST: [&str; 3] = [
-	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ",
-	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
-	"5HmNNUGDRNJgKScvDu1yUKFeqKkXeGjsK5SMGW744Uo2YgFj",
-];
-
-#[cfg(any(feature = "dev-0", feature = "dev-1"))]
-const BACKUP_WHITELIST: [&str; 3] = [
-	"5FsD8XDoCWPkpwKCnqj9SuP3E7GhkQWQwUSVoZJPoMcvKqWZ",
-	"5CfFQLwchs3ujcysbFgVMhSVqC1NdXbGHfRvnRrToWthW5PW",
-	"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC", // Tests
-];
+use super::{
+	sync::ClusterType,
+	zipdir::{add_dir_zip, zip_extract},
+};
 
 /* *************************************
-		FETCH  BULK DATA STRUCTURES
+		FETCH BULK DATA STRUCTURES
 **************************************** */
 
 // Validity time of Keyshare Data
@@ -76,7 +66,7 @@ pub struct FetchBulkResponse {
 }
 
 /* *************************************
-		STORE  BULK DATA STRUCTURES
+		STORE BULK DATA STRUCTURES
 **************************************** */
 
 // Validity time of Keyshare Data
@@ -128,7 +118,7 @@ impl FetchAuthenticationToken {
 			);
 			return ValidationResult::InvalidPeriod;
 		}
-		
+
 		if self.block_number + self.block_validation < current_block_number {
 			// validity period
 			debug!(
@@ -136,7 +126,7 @@ impl FetchAuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber;			
+			return ValidationResult::ExpiredBlockNumber;
 		}
 
 		ValidationResult::Success
@@ -162,7 +152,7 @@ impl StoreAuthenticationToken {
 			);
 			return ValidationResult::InvalidPeriod;
 		}
-		
+
 		if self.block_number + self.block_validation < current_block_number {
 			// validity period
 			debug!(
@@ -170,7 +160,7 @@ impl StoreAuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber;			
+			return ValidationResult::ExpiredBlockNumber;
 		}
 
 		ValidationResult::Success
@@ -181,21 +171,37 @@ impl StoreAuthenticationToken {
 		 VERIFICATION FUNCTIONS
 **************************************** */
 
-/// Verifies the signature of the backup data
+//// Verify Account Id if it is Whitelisted
 /// # Arguments
 /// * `account_id` - Account ID
-/// * `signature` - Signature
-/// * `data` - Data
 /// # Returns
-/// * `Result<bool, PublicError>` - Result
+/// * `bool` - Result
 /// # Example
 /// ```
-/// verify_signature(account_id, signature, data)
+/// verify_account_id(account_id)
 /// ```
 /// # Errors
 /// * `PublicError` - If the account ID is not a valid SS58 string
-fn verify_account_id(account_id: &str) -> bool {
-	BACKUP_WHITELIST.contains(&account_id)
+async fn verify_account_id(state: &SharedState, account_id: &String) -> bool {
+	let clusters = get_clusters(state).await;
+	let allowed_id: Vec<String> = clusters
+		.into_iter()
+		.filter_map(|c| {
+			if c.cluster_type == ClusterType::Admin {
+				Some(
+					c.enclaves
+						.iter()
+						.map(|e| e.enclave_account.to_string())
+						.collect::<Vec<String>>(),
+				)
+			} else {
+				None
+			}
+		})
+		.flat_map(|x| x.into_iter())
+		.collect();
+
+	allowed_id.contains(&account_id.to_string())
 }
 
 /// Verifies the signature of the backup data
@@ -297,10 +303,10 @@ pub async fn admin_backup_fetch_bulk(
 	State(state): State<SharedState>,
 	Json(backup_request): Json<FetchBulkPacket>,
 ) -> impl IntoResponse {
-	debug!("3-15 API : backup fetch bulk");
+	debug!("ADMIN FETCH BULK : backup fetch bulk");
 	update_health_status(&state, "Enclave is doing backup, please wait...".to_string()).await;
 
-	if !verify_account_id(&backup_request.admin_address) {
+	if !verify_account_id(&state, &backup_request.admin_address).await {
 		let message = format!(
 			"Error backup key shares : Requester is not whitelisted : {}",
 			backup_request.admin_address
@@ -350,14 +356,14 @@ pub async fn admin_backup_fetch_bulk(
 
 	let current_block_number = get_blocknumber(&state).await;
 
-	debug!("Validating the authentication token");
+	debug!("ADMIN FETCH BULK : Validating the authentication token");
 	let validation = auth_token.is_valid(current_block_number);
 	match validation {
-		ValidationResult::Success => debug!("Authentication token is valid."),
+		ValidationResult::Success => debug!("ADMIN FETCH BULK : Authentication token is valid."),
 		_ => {
 			let message =
 				format!("Authentication Token is not valid, or expired : {:?}", validation);
-			error!("Admin Backup Fetch Buld : {}", message);
+			error!("ADMIN FETCH BULK : Admin Backup Fetch Buld : {}", message);
 			return Json(json!({ "error": message })).into_response();
 		},
 	}
@@ -368,11 +374,11 @@ pub async fn admin_backup_fetch_bulk(
 	while std::path::Path::new(&backup_file.clone()).exists() {
 		match std::fs::remove_file(backup_file.clone()) {
 			Ok(_) => {
-				debug!("Successfully removed previous zip file")
+				debug!("ADMIN FETCH BULK : Successfully removed previous zip file")
 			},
 			Err(err) => {
 				let message = format!(
-					"Error backup key shares : Can not remove previous backup file : {}",
+					"ADMIN FETCH BULK : Error backup key shares : Can not remove previous backup file : {}",
 					err
 				);
 				warn!(message);
@@ -382,11 +388,11 @@ pub async fn admin_backup_fetch_bulk(
 		}
 	}
 
-	debug!("Start zippping file");
+	debug!("ADMIN FETCH BULK : Start zippping file");
 	add_dir_zip(SEALPATH, &backup_file);
 
 	// `File` implements `AsyncRead`
-	debug!("Opening backup file");
+	debug!("ADMIN FETCH BULK : Opening backup file");
 	let file = match tokio::fs::File::open(backup_file).await {
 		Ok(file) => file,
 		Err(err) => {
@@ -396,11 +402,11 @@ pub async fn admin_backup_fetch_bulk(
 	};
 
 	// convert the `AsyncRead` into a `Stream`
-	debug!("Create reader-stream");
+	debug!("ADMIN FETCH BULK : Create reader-stream");
 	let stream = ReaderStream::new(file);
 
 	// convert the `Stream` into an `axum::body::HttpBody`
-	debug!("Create body-stream");
+	debug!("ADMIN FETCH BULK : Create body-stream");
 	let body = StreamBody::new(stream);
 
 	let headers = [
@@ -410,7 +416,7 @@ pub async fn admin_backup_fetch_bulk(
 
 	update_health_status(&state, String::new()).await;
 
-	debug!("Sending the backup data to the client ...");
+	debug!("ADMIN FETCH BULK : Sending the backup data to the client ...");
 	(headers, body).into_response()
 }
 
@@ -450,8 +456,8 @@ pub async fn admin_backup_push_bulk(
 	State(state): State<SharedState>,
 	mut store_request: Multipart,
 ) -> Json<Value> {
-	debug!("3-16 API : backup push bulk");
-	debug!("received request = {:?}", store_request);
+	debug!("ADMIN PUSH BULK : backup push bulk");
+	debug!("ADMIN PUSH BULK : received request = {:?}", store_request);
 	//update_health_status(&state, "Restoring the backups".to_string()).await;
 
 	let mut admin_address = String::new();
@@ -459,22 +465,23 @@ pub async fn admin_backup_push_bulk(
 	let mut auth_token = String::new();
 	let mut signature = String::new();
 
-	while let Some(field) = match store_request.next_field().await {
-		Ok(field) => field,
-		Err(err) => {
-			let message =
-				format!("Error backup key shares : Can not parse request form-data : {}", err);
-			warn!(message);
-			return Json(json!({ "error": message }));
-		},
-	} {
+	while let Some(field) =
+		match store_request.next_field().await {
+			Ok(field) => field,
+			Err(err) => {
+				let message =
+				format!("ADMIN PUSH BULK : Error backup key shares : Can not parse request form-data : {}", err);
+				warn!(message);
+				return Json(json!({ "error": message }));
+			},
+		} {
 		let name = match field.name() {
 			Some(name) => name.to_string(),
 			_ => {
-				info!("Admin restore :  field name : {:?}", field);
+				info!("ADMIN PUSH BULK : field name : {:?}", field);
 
 				return Json(json!({
-						"error": format!("Admin restore : Error request field name {:?}", field),
+						"error": format!("ADMIN PUSH BULK : Error request field name {:?}", field),
 				}));
 			},
 		};
@@ -484,10 +491,10 @@ pub async fn admin_backup_push_bulk(
 				admin_address = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(err) => {
-						info!("Admin restore :  Error request admin_address {err:?}");
+						info!("ADMIN PUSH BULK : Error request admin_address {err:?}");
 
 						return Json(json!({
-								"error": format!("Admin restore : Error request admin_address {err:?}"),
+								"error": format!("ADMIN PUSH BULK : Error request admin_address {err:?}"),
 						}));
 					},
 				}
@@ -497,10 +504,10 @@ pub async fn admin_backup_push_bulk(
 				restore_file = match field.bytes().await {
 					Ok(bytes) => bytes.to_vec(),
 					Err(err) => {
-						info!("Admin restore :  Error request restore_file {err:?}");
+						info!("ADMIN PUSH BULK : Error request restore_file {err:?}");
 
 						return Json(json!({
-								"error": format!("Admin restore : Error request restore_file {err:?}"),
+								"error": format!("ADMIN PUSH BULK : Error request restore_file {err:?}"),
 						}));
 					},
 				}
@@ -510,10 +517,10 @@ pub async fn admin_backup_push_bulk(
 				auth_token = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(err) => {
-						info!("Admin restore :  Error request auth_token {err:?}");
+						info!("ADMIN PUSH BULK : Error request auth_token {err:?}");
 
 						return Json(json!({
-							"error": format!("Admin restore : Error request auth_token {err:?}"),
+							"error": format!("ADMIN PUSH BULK : Error request auth_token {err:?}"),
 						}));
 					},
 				}
@@ -524,19 +531,19 @@ pub async fn admin_backup_push_bulk(
 					Ok(sig) => match sig.strip_prefix("0x") {
 						Some(hexsig) => hexsig.to_owned(),
 						_ => {
-							info!("Admin restore :  Error request signature format, expectex 0x prefix, {sig}");
+							info!("ADMIN PUSH BULK : Error request signature format, expectex 0x prefix, {sig}");
 
 							return Json(json!({
-									"error": format!("Admin restore : Error request signature format, expectex 0x prefix"),
+									"error": format!("ADMIN PUSH BULK : Error request signature format, expectex 0x prefix"),
 							}));
 						},
 					},
 
 					Err(err) => {
-						info!("Admin restore :  Error request signature {err:?}");
+						info!("ADMIN PUSH BULK : Error request signature {err:?}");
 
 						return Json(json!({
-								"error": format!("Admin restore : Error request signature {err:?}"),
+								"error": format!("ADMIN PUSH BULK : Error request signature {err:?}"),
 						}));
 					},
 				}
@@ -545,14 +552,14 @@ pub async fn admin_backup_push_bulk(
 			_ => {
 				info!("Error restore backup keyshares : Error request field name {:?}", field);
 				return Json(json!({
-						"error": format!("Admin restore : Error request field name {:?}", field),
+						"error": format!("ADMIN PUSH BULK : Error request field name {:?}", field),
 				}));
 			},
 		}
 	}
 
-	if !verify_account_id(&admin_address.clone()) {
-		let message = format!("Admin restore :  Requester is not whitelisted : {}", admin_address);
+	if !verify_account_id(&state, &admin_address.clone()).await {
+		let message = format!("ADMIN PUSH BULK : Requester is not whitelisted : {}", admin_address);
 
 		warn!(message);
 
@@ -572,7 +579,7 @@ pub async fn admin_backup_push_bulk(
 	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
 		auth_token = match auth_token.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => return Json(json! ({"error": "Admin restore : Strip Token prefix error"})),
+			_ => return Json(json! ({"error": "ADMIN PUSH BULK : Strip Token prefix error"})),
 		};
 
 		auth_token = match auth_token.strip_suffix("</Bytes>") {
@@ -585,7 +592,7 @@ pub async fn admin_backup_push_bulk(
 		Ok(token) => token,
 		Err(err) => {
 			let message =
-				format!("Admin restore : Can not parse the authentication token : {}", err);
+				format!("ADMIN PUSH BULK : Can not parse the authentication token : {}", err);
 			warn!(message);
 			return Json(json!({ "error": message }));
 		},
@@ -599,7 +606,7 @@ pub async fn admin_backup_push_bulk(
 		_ => {
 			let message =
 				format!("Authentication Token is not valid, or expired : {:?}", validation);
-			error!("Admin restore :  token expired : {}", message);
+			error!("ADMIN PUSH BULK : token expired : {}", message);
 			return Json(json!({ "error": message }));
 		},
 	}
@@ -607,10 +614,10 @@ pub async fn admin_backup_push_bulk(
 	let hash = sha256::digest(restore_file.as_slice());
 
 	if token.data_hash != hash {
-		warn!("Admin restore :  mismatch data hash : admin = {}", admin_address);
+		warn!("ADMIN PUSH BULK : mismatch data hash : admin = {}", admin_address);
 
 		return Json(json! ({
-			"error": "Admin restore : Mismatch Data Hash",
+			"error": "ADMIN PUSH BULK : Mismatch Data Hash",
 		}));
 	}
 
@@ -619,7 +626,7 @@ pub async fn admin_backup_push_bulk(
 	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
 		Ok(file) => file,
 		Err(err) => {
-			let message = format!("Admin restore :  Can not create file on disk : {}", err);
+			let message = format!("ADMIN PUSH BULK : Can not create file on disk : {}", err);
 			warn!(message);
 			return Json(json!({ "error": message }));
 		},
@@ -628,7 +635,7 @@ pub async fn admin_backup_push_bulk(
 	match zipfile.write_all(&restore_file) {
 		Ok(_) => debug!("zip file is stored on disk."),
 		Err(err) => {
-			let message = format!("Admin restore :  writing zip file to disk{err:?}");
+			let message = format!("ADMIN PUSH BULK : writing zip file to disk{err:?}");
 			error!(message);
 			return Json(json!({
 				"error": message,
@@ -640,7 +647,7 @@ pub async fn admin_backup_push_bulk(
 	match zip_extract(&backup_file, SEALPATH) {
 		Ok(_) => debug!("zip_extract success"),
 		Err(err) => {
-			let message = format!("Admin restore :  extracting zip file {err:?}");
+			let message = format!("ADMIN PUSH BULK : extracting zip file {err:?}");
 			error!(message);
 			return Json(json!({
 				"error": message,
@@ -649,7 +656,7 @@ pub async fn admin_backup_push_bulk(
 	}
 
 	match remove_file(backup_file) {
-		Ok(_) => debug!("remove zip file successful"),
+		Ok(_) => debug!("ADMIN PUSH BULK : remove zip file successful"),
 		Err(err) => {
 			return Json(json!({
 				"warning": format!("Backup success with Error in removing zip file, {:?}",err),
@@ -660,16 +667,19 @@ pub async fn admin_backup_push_bulk(
 	// Update Enclave Account, if it is updated.;
 	if !std::path::Path::new(&ENCLAVE_ACCOUNT_FILE).exists() {
 		return Json(json!({
-			"error": format!("Admin restore : Enclave Account file not found"),
+			"error": format!("ADMIN PUSH BULK : Enclave Account file not found"),
 		}));
 	};
 
-	debug!("Admin restore : Found Enclave Account, Importing it! : path: {}", ENCLAVE_ACCOUNT_FILE);
+	debug!(
+		"ADMIN PUSH BULK : Found Enclave Account, Importing it! : path: {}",
+		ENCLAVE_ACCOUNT_FILE
+	);
 
 	let phrase = match std::fs::read_to_string(ENCLAVE_ACCOUNT_FILE) {
 		Ok(phrase) => phrase,
 		Err(err) => {
-			let message = format!("Admin restore : Error reading enclave account file: {err:?}");
+			let message = format!("ADMIN PUSH BULK : Error reading enclave account file: {err:?}");
 			error!(message);
 			return Json(json!({
 				"error": message,
@@ -677,12 +687,12 @@ pub async fn admin_backup_push_bulk(
 		},
 	};
 
-	debug!("Admin restore : Phrase read, converting it to keypair.");
+	debug!("ADMIN PUSH BULK : Phrase read, converting it to keypair.");
 
 	let enclave_keypair = match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
 		Ok((keypair, _seed)) => keypair,
 		Err(err) => {
-			let message = format!("Admin restore : Error creating keypair from phrase: {err:?}");
+			let message = format!("ADMIN PUSH BULK : Error creating keypair from phrase: {err:?}");
 			error!(message);
 			return Json(json!({
 				"error": message,
@@ -690,7 +700,7 @@ pub async fn admin_backup_push_bulk(
 		},
 	};
 
-	debug!("Admin restore : Keypair success");
+	debug!("ADMIN PUSH BULK : Keypair success");
 
 	set_keypair(&state, enclave_keypair).await;
 	debug!("share-state Enclave Account updated");
@@ -768,7 +778,7 @@ mod test {
 
 	#[test]
 	fn test_get_signature_valid() {
-		let input  = "0xb7255023814e304b72bc880cc993d5c654ce060db0c3f0772b453714c760521962943747af605a90d0503812c6a62c5c1080cbf377095551af0c168a8c724da8".to_string();
+		let input = "0xb7255023814e304b72bc880cc993d5c654ce060db0c3f0772b453714c760521962943747af605a90d0503812c6a62c5c1080cbf377095551af0c168a8c724da8".to_string();
 		let expected = Signature(<[u8; 64]>::from_hex(input.strip_prefix("0x").unwrap()).unwrap());
 		let results = get_signature(input).unwrap();
 		assert_eq!(results, expected);

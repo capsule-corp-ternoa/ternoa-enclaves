@@ -59,7 +59,7 @@ pub async fn get_chain_api() -> Result<DefaultApi, Error> {
 		return Err(Error::Other("Unknown chain".to_string()));
 	};
 
-	println!("endpoint  = {rpc_endoint}\n");
+	println!("endpoint = {rpc_endoint}\n");
 
 	DefaultApi::from_url(rpc_endoint).await
 }
@@ -93,7 +93,7 @@ pub async fn get_current_block_number() -> Result<u32, Error> {
 }
 
 /* *************************************
-		FETCH  BULK DATA STRUCTURES
+		FETCH BULK DATA STRUCTURES
 **************************************** */
 
 // Validity time of Keyshare Data
@@ -119,7 +119,7 @@ pub struct FetchBulkResponse {
 }
 
 /* *************************************
-		STORE  BULK DATA STRUCTURES
+		STORE BULK DATA STRUCTURES
 **************************************** */
 
 // Validity time of Keyshare Data
@@ -265,7 +265,7 @@ async fn generate_push_bulk(seed_phrase: String, file_path: String) {
 	let sig_str = format!("{}{:?}", "0x", sig);
 
 	println!(
-		"==================================  Push Bulk Packet = \n Admin:\t\t {} \n Auth_Token:\t {} \n Signature:\t {} \n ",
+		"================================== Push Bulk Packet = \n Admin:\t\t {} \n Auth_Token:\t {} \n Signature:\t {} \n ",
 		admin.public(),
 		auth_str,
 		sig_str
@@ -273,7 +273,7 @@ async fn generate_push_bulk(seed_phrase: String, file_path: String) {
 }
 
 /* ************************
-   SECRET STORE REQUEST
+  SECRET STORE REQUEST
 *************************/
 // Validity time of Keyshare Data
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -351,7 +351,7 @@ async fn generate_store_request(args: Args) {
 	};
 
 	println!(
-		"\n==================================  Secret Store Request = \n{}\n",
+		"\n================================== Secret Store Request = \n{}\n",
 		serde_json::to_string_pretty(&packet).unwrap()
 	);
 }
@@ -397,7 +397,7 @@ async fn generate_retrieve_request(args: Args) {
 	};
 
 	println!(
-		"\n==================================  Secret Retrieve Request = \n{}\n",
+		"\n================================== Secret Retrieve Request = \n{}\n",
 		serde_json::to_string_pretty(&packet).unwrap()
 	);
 }

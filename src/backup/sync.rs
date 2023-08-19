@@ -69,10 +69,10 @@ use anyhow::{anyhow, Result};
 ------------------------------------------ */
 #[derive(Debug, Clone)]
 pub struct Enclave {
-	slot: u32,
-	operator_account: AccountId32,
-	enclave_account: AccountId32,
-	enclave_url: String,
+	pub slot: u32,
+	pub operator_account: AccountId32,
+	pub enclave_account: AccountId32,
+	pub enclave_url: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -85,13 +85,13 @@ pub enum ClusterType {
 
 #[derive(Debug, Clone)]
 pub struct Cluster {
-	id: u32,
-	cluster_type: ClusterType,
-	enclaves: Vec<Enclave>,
+	pub id: u32,
+	pub cluster_type: ClusterType,
+	pub enclaves: Vec<Enclave>,
 }
 
 /* *************************************
-	FETCH  NFTID DATA STRUCTURES
+	FETCH NFTID DATA STRUCTURES
 **************************************** */
 // Validity time of Keyshare Data
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -151,7 +151,7 @@ impl AuthenticationToken {
 			);
 			return ValidationResult::InvalidPeriod;
 		}
-		
+
 		if self.block_number + self.block_validation < current_block_number {
 			// validity period
 			debug!(
@@ -159,7 +159,7 @@ impl AuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber;			
+			return ValidationResult::ExpiredBlockNumber;
 		}
 
 		ValidationResult::Success
@@ -595,7 +595,7 @@ pub async fn sync_keyshares(
 		if let Some(report_data) = quote["report_data"].as_str() {
 			let token = format!("{}_{}", request.enclave_account, auth_token.block_number);
 
-			debug!("SYNC KEYSHARES : report_data token  = {token}");
+			debug!("SYNC KEYSHARES : report_data token = {token}");
 
 			if !verify_signature(
 				&request.enclave_account.clone(),
@@ -809,10 +809,10 @@ pub async fn fetch_keyshares(
 	let nftid_hash = sha256::digest(nftids_str.as_bytes());
 
 	let user_data_token = format!("{account_id}_{current_block_number}");
-	debug!("FETCH KEYSHARES : QUOTE : report_data token  = {}", user_data_token);
+	debug!("FETCH KEYSHARES : QUOTE : report_data token = {}", user_data_token);
 
 	let user_data = account_keypair.sign(user_data_token.as_bytes());
-	debug!("FETCH KEYSHARES : QUOTE : report_data signature  = {:?}", user_data);
+	debug!("FETCH KEYSHARES : QUOTE : report_data signature = {:?}", user_data);
 
 	match write_user_report_data(None, &user_data.0) {
 		Ok(_) => debug!("FETCH KEYSHARES : QUOTE : Successfully wrote user_data into the quote."),
@@ -1419,7 +1419,7 @@ pub async fn crawl_sync_events(
 
 	for block_counter in from_block_num..=to_block_num {
 		// Find block hash
-		debug!("CRAWLER : block number  = {}", block_counter);
+		debug!("CRAWLER : block number = {}", block_counter);
 		let block_number = BlockNumber::from(block_counter);
 		let block_hash = match api.rpc().block_hash(Some(block_number)).await? {
 			Some(hash) => hash,
@@ -1459,7 +1459,7 @@ pub async fn parse_block_body(
 		let ext = ext?;
 		let pallet = ext.pallet_name()?;
 		let call = ext.variant_name()?;
-		//debug!("  - crawler extrinsic  = {} : {}", pallet, call);
+		//debug!(" - crawler extrinsic = {} : {}", pallet, call);
 
 		match pallet.to_uppercase().as_str() {
 			"NFT" => {
@@ -1539,7 +1539,7 @@ pub async fn parse_block_body(
 
 					_ => debug!("BLOCK-PARSER : NFT : extrinsic is not about shards : {}", call),
 				} // end - call
-			}, // end  - NFT pallet
+			}, // end - NFT pallet
 
 			// If the extrinsic pallet is TC
 			"TECHNICALCOMMITTEE" => {
@@ -2143,7 +2143,9 @@ mod test {
 
 	#[tokio::test]
 	async fn test_cluster_discovery() {
-		let _ = tracing::subscriber::set_default(FmtSubscriber::builder().with_max_level(Level::ERROR).finish());
+		let _ = tracing::subscriber::set_default(
+			FmtSubscriber::builder().with_max_level(Level::ERROR).finish(),
+		);
 
 		// Test environment
 		let api = create_chain_api().await.unwrap();
@@ -2196,13 +2198,13 @@ mod test {
 		println!("{:?}\n", clusters);
 
 		/* ----------------------------
-		   Test Finding NFT add Shard
+		 Test Finding NFT add Shard
 		------------------------------*/
 		let cluster_nft_map = crawl_sync_events(&state_config, 550, 560).await;
 		println!("\n To be fetched from cluster-slot : {:?}\n", cluster_nft_map.unwrap());
 
 		/* ------------------------------
-		  Test Finding TEE update ext.
+		 Test Finding TEE update ext.
 		--------------------------------*/
 		let test_block_number: u32 = 550;
 		let block_number = BlockNumber::from(test_block_number); // Block contains a failed request

@@ -100,7 +100,7 @@ where
 				// Synching in Runtime mode Or Admin NFTID backup
 				let name_parts: Vec<&str> = file_name.split('_').collect();
 
-				// Keyshare file name  = [nft/capsule]_[nftid]_[blocknumber].keyshare
+				// Keyshare file name = [nft/capsule]_[nftid]_[blocknumber].keyshare
 				debug!("\t ZIPDIR => nameparts = {:?}, list = {:?}\n", name_parts, list);
 
 				// File Name : NFT_NFTID_BLOCKNUMBER : nft_123_2345
@@ -204,15 +204,17 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 			},
 		};
 
-		let fullpath_str =
-			outdir.to_string()
-				+ match outpath.to_str() {
-					Some(st) => st,
-					None => {
-						error!("Backup extract : error converting path to str  index = {}, path = {:?}", i, outpath);
-						continue;
-					},
-				};
+		let fullpath_str = outdir.to_string()
+			+ match outpath.to_str() {
+				Some(st) => st,
+				None => {
+					error!(
+						"Backup extract : error converting path to str index = {}, path = {:?}",
+						i, outpath
+					);
+					continue;
+				},
+			};
 
 		let fullpath = Path::new(&fullpath_str);
 

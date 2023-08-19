@@ -9,7 +9,7 @@ use crate::{
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 
 use std::{
-	fs::{OpenOptions, File},
+	fs::{File, OpenOptions},
 	io::{Read, Write},
 };
 
@@ -27,7 +27,7 @@ use serde::Serialize;
 use serde_json::to_value;
 
 /* **********************
-   KEY-SHARE AVAILABLE API
+ KEY-SHARE AVAILABLE API
 ********************** */
 
 #[derive(Serialize)]
@@ -423,7 +423,7 @@ pub async fn capsule_set_keyshare(
 			// WRITE KEY-SHARE DATA TO FILE
 			match f.write_all(&verified_data.keyshare) {
 				Ok(_) => info!(
-					"Capsule key-share is successfully stored to TEE, nft_id = {}  Owner = {}",
+					"Capsule key-share is successfully stored to TEE, nft_id = {} Owner = {}",
 					verified_data.nft_id, request.owner_address
 				),
 				Err(err) => {
@@ -465,7 +465,7 @@ pub async fn capsule_set_keyshare(
 			match capsule_keyshare_oracle(&state, verified_data.nft_id).await {
 				Ok(txh) => {
 					info!(
-						"Proof of storage has been sent to blockchain nft-pallet, nft_id = {}  Owner = {}  tx-hash = {}",
+						"Proof of storage has been sent to blockchain nft-pallet, nft_id = {} Owner = {} tx-hash = {}",
 						verified_data.nft_id, request.owner_address, txh
 					);
 
@@ -485,7 +485,6 @@ pub async fn capsule_set_keyshare(
 					let file_path = format!("{enclave_sealpath}{}.log", verified_data.nft_id);
 
 					if !std::path::Path::new(&file_path).exists() {
-
 						match File::create(file_path.clone()) {
 							Ok(_) => {
 								let mut log_file_struct = LogFile::new();
