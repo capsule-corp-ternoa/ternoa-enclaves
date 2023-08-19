@@ -68,7 +68,7 @@ impl AuthenticationToken {
 	}
 }
 
-async fn verify_account_id(state: &SharedState, account_id: &str) -> bool {
+pub async fn verify_account_id(state: &SharedState, account_id: &str) -> bool {
 	debug!("METRIC : Verify Metric-Server Accound Id");
 
 	if let Some(metric_vec) = get_metric_server(state).await {

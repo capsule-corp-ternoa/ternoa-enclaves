@@ -920,51 +920,95 @@ pub async fn nft_remove_keyshare(
 	let enclave_account = get_accountid(&state).await;
 	let enclave_sealpath = SEALPATH.to_string();
 
-	// TODO : Verify requester_address with Registered Metric Server
+	// STRUCTURAL VALIDITY OF REQUEST
+	let request_data = match request.verify_remove_request(&state, "secret-nft").await {
+		Ok(rd) => rd,
+		Err(err) => {
+			let parsed_data = match request.parse_retrieve_data() {
+				Ok(parsed_data) => parsed_data,
+				Err(err) => {
+					return err.express_verification_error(
+						APICALL::NFTREMOVE,
+						request.requester_address.to_string(),
+						0,
+						enclave_account,
+					)
+				},
+			};
 
-	// Is nft burnt?
-	if get_onchain_nft_data(&state, request.nft_id).await.is_some() {
-		error!("Error removing NFT key-share from TEE : nft is not in burnt state, nft-id.{}, requester : {}", request.nft_id, request.requester_address);
+			return err.express_verification_error(
+				APICALL::NFTREMOVE,
+				request.requester_address.to_string(),
+				parsed_data.nft_id,
+				enclave_account,
+			);
+		},
+	};
+
+	// IS IT FROM A METRIC SERVER?
+	if !crate::backup::metric::verify_account_id(&state, &request.requester_address.to_string())
+		.await
+	{
+		warn!(
+			"NFT REMOVE : Invalid requester, nft-id.{}, requester : {}",
+			request_data.nft_id, request.requester_address
+		);
 		return (
 			StatusCode::BAD_REQUEST,
-			Json(RemoveKeyshareResponse {
-				status: ReturnStatus::NOTBURNT,
-				nft_id: request.nft_id,
-				enclave_account,
-				description: "Error removing NFT key-share from TEE, NFT is not in burnt state."
-					.to_string(),
-			}),
+			Json(
+				to_value(RemoveKeyshareResponse {
+					status: ReturnStatus::REQUESTERVERIFICATIONFAILED,
+					nft_id: request_data.nft_id,
+					enclave_account,
+					description: "Requester is not authorized".to_string(),
+				})
+				.unwrap(),
+			),
 		);
 	}
 
-	// BAD-REQUEST
-	if !std::path::Path::new(&enclave_sealpath).exists() {
-		error!("Error removing NFT key-share from TEE : seal path does not exist, nft_id : {}, path : {}", request.nft_id, enclave_sealpath);
-		return (
-			StatusCode::INTERNAL_SERVER_ERROR,
-			Json(RemoveKeyshareResponse {
-				status: ReturnStatus::DATABASEFAILURE,
-				nft_id: request.nft_id,
-				enclave_account,
-				description: "Error removing NFT key-share from TEE, use another enclave please."
-					.to_string(),
-			}),
+	// Is nft burnt?
+	if get_onchain_nft_data(&state, request_data.nft_id).await.is_some() {
+		error!(
+			"NFT REMOVE : nft is not in burnt state, nft-id.{}, requester : {}",
+			request_data.nft_id, request.requester_address
 		);
-	};
+		return (
+			StatusCode::BAD_REQUEST,
+			Json(
+				to_value(RemoveKeyshareResponse {
+					status: ReturnStatus::NOTBURNT,
+					nft_id: request_data.nft_id,
+					enclave_account,
+					description:
+						"Error removing NFT key-share from TEE, NFT is not in burnt state."
+							.to_string(),
+				})
+				.unwrap(),
+			),
+		);
+	}
 
-	let av = match get_nft_availability(&state, request.nft_id).await {
+	let av = match get_nft_availability(&state, request_data.nft_id).await {
 		Some(av) => {
 			if av.nft_type == helper::NftType::Secret {
 				av
 			} else {
+				error!(
+					"NFT REMOVE : nft is not in available, nft-id.{}, requester : {}",
+					request_data.nft_id, request.requester_address
+				);
 				return (
 					StatusCode::BAD_REQUEST,
-					Json(RemoveKeyshareResponse {
-						status: ReturnStatus::REMOVESUCCESS,
-						nft_id: request.nft_id,
-						enclave_account,
-						description: "NFTID is not a secret-nft".to_string(),
-					}),
+					Json(
+						to_value(RemoveKeyshareResponse {
+							status: ReturnStatus::IDISNOTASECRETNFT,
+							nft_id: request_data.nft_id,
+							enclave_account,
+							description: "NFTID for secret-nft is not available".to_string(),
+						})
+						.unwrap(),
+					),
 				);
 			}
 		},
@@ -972,88 +1016,92 @@ pub async fn nft_remove_keyshare(
 		None => {
 			return (
 				StatusCode::OK,
-				Json(RemoveKeyshareResponse {
-					status: ReturnStatus::REMOVESUCCESS,
-					nft_id: request.nft_id,
-					enclave_account,
-					description: "NFT Keyshare was not available already".to_string(),
-				}),
+				Json(
+					to_value(RemoveKeyshareResponse {
+						status: ReturnStatus::REMOVESUCCESS,
+						nft_id: request_data.nft_id,
+						enclave_account,
+						description: "NFT Keyshare was not available already".to_string(),
+					})
+					.unwrap(),
+				),
 			)
 		},
 	};
 
 	let file_path =
-		format!("{}nft_{}_{}.keyshare", enclave_sealpath, request.nft_id, av.block_number);
+		format!("{}nft_{}_{}.keyshare", enclave_sealpath, request_data.nft_id, av.block_number);
 
-	let exist = std::path::Path::new(file_path.as_str()).exists();
-
-	if !exist {
-		info!(
-			"Error removing NFT key-share from TEE : nft_id does not exist, nft_id = {}",
-			request.nft_id
-		);
+	if !std::path::Path::new(file_path.as_str()).exists() {
+		info!("REMOVE NFT : nft_id does not exist, nft_id = {}", request_data.nft_id);
 
 		return (
 			StatusCode::INTERNAL_SERVER_ERROR,
-			Json(RemoveKeyshareResponse {
-				status: ReturnStatus::DATABASEFAILURE,
-				nft_id: request.nft_id,
-				enclave_account,
-				description: "Error removing NFT key-share from TEE : nft_id does not exist"
-					.to_string(),
-			}),
+			Json(
+				to_value(RemoveKeyshareResponse {
+					status: ReturnStatus::DATABASEFAILURE,
+					nft_id: request_data.nft_id,
+					enclave_account,
+					description: "REMOVE NFT : nft_id does not exist".to_string(),
+				})
+				.unwrap(),
+			),
 		);
 	}
 
 	match std::fs::remove_file(file_path.clone()) {
 		Ok(_) => {
-			let file_path = format!("{enclave_sealpath}{}.log", request.nft_id);
-			match std::fs::remove_file(file_path) {
+			let log_path = format!("{enclave_sealpath}{}.log", request_data.nft_id);
+			match std::fs::remove_file(log_path) {
 				Ok(_) => info!(
-					"Keyshare is successfully removed from enclave. nft_id = {}",
-					request.nft_id
+					"REMOVE NFT :  log is successfully removed from enclave. nft_id = {}",
+					request_data.nft_id
 				),
+
 				Err(err) => {
 					error!(
-						"Error removing Keyshare from Enclave {:?}, nft_id = {}",
-						err, request.nft_id
-					);
-
-					return (
-						StatusCode::INTERNAL_SERVER_ERROR,
-						Json(RemoveKeyshareResponse {
-							status: ReturnStatus::DATABASEFAILURE,
-							nft_id: request.nft_id,
-							enclave_account,
-							description: "Error removing Keyshare from Enclave.".to_string(),
-						}),
+						"REMOVE NFT : Error removing log from Enclave {:?}, nft_id = {}",
+						err, request_data.nft_id
 					);
 				},
 			}
 
-			remove_nft_availability(&state, request.nft_id).await;
+			remove_nft_availability(&state, request_data.nft_id).await;
+
+			info!(
+				"REMOVE NFT :  Keyshare is successfully removed from enclave. nft_id = {}",
+				request_data.nft_id
+			);
 
 			(
 				StatusCode::OK,
-				Json(RemoveKeyshareResponse {
-					status: ReturnStatus::REMOVESUCCESS,
-					nft_id: request.nft_id,
-					enclave_account,
-					description: "Keyshare is successfully removed from enclave.".to_string(),
-				}),
+				Json(
+					to_value(RemoveKeyshareResponse {
+						status: ReturnStatus::REMOVESUCCESS,
+						nft_id: request_data.nft_id,
+						enclave_account,
+						description: "Keyshare is successfully removed from enclave.".to_string(),
+					})
+					.unwrap(),
+				),
 			)
 		},
 
 		Err(err) => {
-			info!("Error removing NFT key-share from TEE : error in removing file on disk, nft_id : {}, path : {}, Error : {}", request.nft_id, file_path, err);
-			(StatusCode::INTERNAL_SERVER_ERROR, Json(RemoveKeyshareResponse {
+			error!(
+				"REMOVE NFT :  error in removing file on disk, nft_id : {}, path : {}, Error : {}",
+				request_data.nft_id, file_path, err
+			);
+
+			(StatusCode::INTERNAL_SERVER_ERROR,
+			Json(to_value(RemoveKeyshareResponse {
 					status: ReturnStatus::DATABASEFAILURE,
-					nft_id: request.nft_id,
+					nft_id: request_data.nft_id,
 					enclave_account,
 					description:
 						"Error removing NFT key-share from TEE, try again or contact cluster admin please."
 							.to_string(),
-				}))
+				}).unwrap()))
 		},
 	}
 }
