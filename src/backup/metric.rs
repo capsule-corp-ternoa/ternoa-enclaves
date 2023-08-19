@@ -53,7 +53,7 @@ impl AuthenticationToken {
 			);
 			return ValidationResult::InvalidPeriod;
 		}
-		
+
 		if self.block_number + self.block_validation < current_block_number {
 			// validity period
 			debug!(
@@ -61,7 +61,7 @@ impl AuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber;			
+			return ValidationResult::ExpiredBlockNumber;
 		}
 
 		ValidationResult::Success
@@ -142,7 +142,7 @@ pub async fn error_handler(message: String, state: &SharedState) -> impl IntoRes
 }
 
 /* --------------------
-  METRIC GET NFT LIST
+ METRIC GET NFT LIST
 --------------------*/
 pub async fn metric_reconcilliation(
 	State(state): State<SharedState>,

@@ -553,16 +553,16 @@ struct JsonNFTData {
 impl fmt::Display for NFTData<AccountId32> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(
-            f,
-            "owner: {:#?},\n creator: {:#?}\n offchain_data: {:#?},\n royalty: {},\n collection_id: {},\n state: {:#?},\n",
-            self.owner,
-            self.creator,
-            //std::str::from_utf8(&self.offchain_data.0).unwrap(),
-	    	self.offchain_data.0,
-            self.royalty.0,
-            self.collection_id.unwrap_or(0u32),
-            self.state
-        )
+ f,
+ "owner: {:#?},\n creator: {:#?}\n offchain_data: {:#?},\n royalty: {},\n collection_id: {},\n state: {:#?},\n",
+ self.owner,
+ self.creator,
+ //std::str::from_utf8(&self.offchain_data.0).unwrap(),
+	 	self.offchain_data.0,
+ self.royalty.0,
+ self.collection_id.unwrap_or(0u32),
+ self.state
+ )
 	}
 }
 
@@ -606,17 +606,23 @@ mod test {
 		let min_nft_id = 1;
 		let max_nft_id = 40;
 		let max_concurrent_requests = 220;
-		let nft_ids: Vec<u32> = (1..max_concurrent_requests).map(|_| rng.gen_range(min_nft_id..max_nft_id)).collect();
+		let nft_ids: Vec<u32> = (1..max_concurrent_requests)
+			.map(|_| rng.gen_range(min_nft_id..max_nft_id))
+			.collect();
 
 		// Concurrent (Avg. 0.3 ms/request on dev-0)
 		let start = Instant::now();
 		let nft_data_vec = get_nft_data_batch(nft_ids.clone()).await;
 		let elapsed_time = start.elapsed().as_micros();
-		let non_empty: Vec<Option<NFTData<AccountId32>>> = nft_data_vec.into_iter().filter(|nd| nd.is_some()).collect();
+		let non_empty: Vec<Option<NFTData<AccountId32>>> =
+			nft_data_vec.into_iter().filter(|nd| nd.is_some()).collect();
 		println!("\nConcurrent time is {} microseconds\n", elapsed_time);
 
 		if !non_empty.is_empty() {
-			println!("State of one NFT : {:?}\n", non_empty[non_empty.len()-1].as_ref().unwrap().state);
+			println!(
+				"State of one NFT : {:?}\n",
+				non_empty[non_empty.len() - 1].as_ref().unwrap().state
+			);
 		}
 	}
 }

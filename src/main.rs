@@ -2,6 +2,8 @@ use clap::Parser;
 use tracing::{error, info, Level};
 use tracing_subscriber::FmtSubscriber;
 
+use crate::chain::constants::{SENTRY_URL, VERSION};
+
 mod attestation;
 mod backup;
 mod chain;
@@ -79,9 +81,9 @@ async fn main() {
 	};
 
 	let _guard = sentry::init((
-		"https://089e5c79239442bfb6af6e5d7676644c@error.ternoa.dev/22",
+		SENTRY_URL,
 		sentry::ClientOptions {
-			release: Some(format!("Ternoa Enclave Version v{}", chain::constants::VERSION).into()),
+			release: Some(format!("Ternoa Enclave Version v{}", VERSION).into()),
 			traces_sample_rate: 1.0,
 			debug: true,
 			environment: Some(env.into()),

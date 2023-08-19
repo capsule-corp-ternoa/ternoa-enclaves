@@ -776,7 +776,7 @@ impl AuthenticationToken {
 			);
 			return ValidationResult::InvalidPeriod;
 		}
-		
+
 		if self.block_number + self.block_validation < current_block_number {
 			// validity period
 			debug!(
@@ -784,7 +784,7 @@ impl AuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber;			
+			return ValidationResult::ExpiredBlockNumber;
 		}
 
 		ValidationResult::Success
@@ -1410,7 +1410,7 @@ mod test {
 	async fn parse_signature_test() {
 		let correct_sig = sr25519::Signature::from_raw(<[u8;64]>::from_hex("42bb4b16fb9d6f1a7c902edac7d511679827b262cb1d0e5e5fd5d3af6c3dc715ef4c5e1810056db80bfa866c207b786d79987242608ca6944e857772cb1b858b").unwrap());
 
-		let mut packet_sdk  = StoreKeysharePacket {
+		let mut packet_sdk = StoreKeysharePacket {
 			owner_address: sr25519::Public::from_slice(&[0u8;32]).unwrap(),
 			signer_address: sr25519::Public::from_slice(&[1u8;32]).unwrap().to_string(),
 			data: "xxx".to_string(),

@@ -4,9 +4,6 @@
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )
 SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
-CERT_PATH=$GRAMINE_PATH/certificates
-QUOTE_PATH=$GRAMINE_PATH/quote
-CREDENTIALS_PATH=$BASEDIR/credentials
 
 # DEFAULT VALUES
 CHAIN=${CHAIN:-alphanet}
@@ -38,18 +35,18 @@ while :; do
     case $1 in
         -d|--domain)
 	    if [ "$2" ]; then
-		DOMAIN=$2
-		shift
+			DOMAIN=$2
+			shift
 	    else
-		die 'ERROR: "--domian" requires a non-empty option argument.'
+			die 'ERROR: "--domian" requires a non-empty option argument.'
 	    fi
         ;;
 		-p|--port)
 	    if [ "$2" ]; then
-		PORT=$2
-		shift
+			PORT=$2
+			shift
 	    else
-		die 'ERROR: "--port" requires a non-empty option argument.'
+			die 'ERROR: "--port" requires a non-empty option argument.'
 	    fi
         ;;
 	-d|--dev)
@@ -82,14 +79,17 @@ while :; do
 		echo "Downloading binary and signature from Ternoa github repository"
 		$SCRIPTS_PATH/fetch-release.sh
 		mv ./sgx_server $GRAMINE_PATH/bin/
+		mv ./sgx_server.sig $GRAMINE_PATH/bin/
+		chmod 775 $GRAMINE_PATH/bin/sgx_server
+		chmod 775 $GRAMINE_PATH/bin/sgx_server.sig
 	;;
 	-v|--verbose)
 	if [ "$2" ]; then
 		VERBOSITY_LEVLE=$2
 		shift
-	    else
+	else
 		die 'ERROR: "--verbosity" requires a non-empty option argument.'
-	    fi
+	fi
 	;;
 	-h|--help)
 	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n [-d | --dev] [-r | --release] \n -d | --domain <server domain name> \n -p | --port <port-number> \n -s | --secrets <Seal Path> \n -i | --identity <Optional Enclave Name> "
@@ -119,10 +119,6 @@ echo -n -e "\n${BIWhite}Creating Enclave ${NC}"
 make 	SGX=1 \
 	SGX_DOMAIN=$DOMAIN \
 	SGX_PORT=$PORT \
-	SGX_BASE_PATH=$BASEDIR \
-	SGX_QUOTE_PATH=$QUOTE_PATH \
-	SGX_CREDENTIALS_PATH=$CREDENTIALS_PATH \
-	SGX_CERT_PATH=$CERT_PATH \
 	SGX_VERBOSITY=$VERBOSITY_LEVLE\
 	SGX_DEV_BUILD=$DEV_BUILD\
 	start-gramine-server >> $GRAMINE_PATH/make.log 2>&1 &

@@ -1,22 +1,28 @@
 AUTHTOKEN=
-VERSION=
+VERSION_TAG=
 
 if [ "$1" ]; then
     AUTHTOKEN=$1
 else
-    read -p "Please enter your github authentication-token to access private repository : " AUTHTOKEN
+    read -p "Github Authentication Token :" AUTHTOKEN
 fi
 
 if [ "$2" ]; then
-    VERSION=$2
+    VERSION_TAG=$2
 else
-    read -p "Please enter the binary version : " VERSION
+    read -p "Binary Version/Tag :" VERSION_TAG
 fi
 
 CURL="curl -H 'Authorization: token $AUTHTOKEN' https://api.github.com/repos/capsule-corp-ternoa/sgx_server/releases"
 
-BINARY=$(eval "$CURL/tags/$VERSION" | jq .assets[0].id)
-SIGNATURE=$(eval "$CURL/tags/$VERSION" | jq .assets[1].id)
+CURL_BINARY_ID="$CURL/tags/$VERSION_TAG"
+BINARY=$(eval $CURL_BINARY_ID | jq .assets[0].id)
 
-eval "$CURL/assets/$BINARY -LJOH 'Accept: application/octet-stream'"
-eval "$CURL/assets/$SIGNATURE -LJOH 'Accept: application/octet-stream'"
+CURL_SIGNATURE_ID="$CURL/tags/$VERSION_TAG"
+SIGNATURE=$(eval $CURL_SIGNATURE_ID | jq .assets[1].id)
+
+EVAL_BINARY="$CURL/assets/$BINARY -LJOH 'Accept: application/octet-stream'"
+eval $EVAL_BINARY
+
+EVAL_SIGNATURE="$CURL/assets/$SIGNATURE -LJOH 'Accept: application/octet-stream'"
+eval $EVAL_SIGNATURE
