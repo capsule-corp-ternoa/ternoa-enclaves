@@ -5,11 +5,10 @@ SECURITY :
   - SIGN the responses from enclave 
   
 RELIABILITY / ERROR-HANDLING / PERFORMANCE:
-  - Admin Cluster onchain Authentication
   - Rate Limit Quote API
   - ADD RPC PROBLEM/TIMEOUT handler (middleware)
   - Syncing wildcard Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
-    - Only whitelisted metric server will call Remove-Keyshare
+  - Only whitelisted metric server will call Remove-Keyshare
   - use metric-server ranking instead of simple loop as Retry mechanism
   - Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
   
