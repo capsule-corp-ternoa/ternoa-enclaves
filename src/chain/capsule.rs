@@ -943,151 +943,196 @@ pub struct RemoveKeyshareResponse {
 	description: String,
 }
 
-/// Remove key-share from enclave
+/// Remove keyshare from the enclave
 /// # Arguments
-/// * `state` - StateConfig
 /// * `request` - RemoveKeysharePacket
 /// # Returns
-/// * `RemoveKeyshareResponse`
-
+/// * `RemoveKeyshareResponse` - Response of the remove keyshare request
 #[axum::debug_handler]
 pub async fn capsule_remove_keyshare(
 	State(state): State<SharedState>,
 	Json(request): Json<RemoveKeysharePacket>,
 ) -> impl IntoResponse {
 	debug!("\n\t*****\nCAPSULE REMOVE KEYSHARE API\n\t*****\n");
-
 	let enclave_account = get_accountid(&state).await;
-	let enclave_sealpath = SEALPATH;
+	let enclave_sealpath = SEALPATH.to_string();
 
-	// TODO : Verify requester_address with Registered Metric Server
+	// STRUCTURAL VALIDITY OF REQUEST
+	let request_data = match request.verify_remove_request(&state, "capsule-nft").await {
+		Ok(rd) => rd,
+		Err(err) => {
+			let parsed_data = match request.parse_retrieve_data() {
+				Ok(parsed_data) => parsed_data,
+				Err(err) => {
+					return err.express_verification_error(
+						APICALL::CAPSULEREMOVE,
+						request.requester_address.to_string(),
+						0,
+						enclave_account,
+					)
+				},
+			};
 
-	// Check if CAPSULE is burnt
-	if get_onchain_nft_data(&state, request.nft_id).await.is_some() {
-		return (
-			StatusCode::BAD_REQUEST,
-			Json(RemoveKeyshareResponse {
-				status: ReturnStatus::NOTBURNT,
-				nft_id: request.nft_id,
+			return err.express_verification_error(
+				APICALL::CAPSULEREMOVE,
+				request.requester_address.to_string(),
+				parsed_data.nft_id,
 				enclave_account,
-				description:
-					"Error removing capsule key-share from TEE, Capsule is not in burnt state."
-						.to_string(),
-			}),
-		)
-			.into_response();
-	}
-
-	if !std::path::Path::new(&enclave_sealpath).exists() {
-		info!("Error removing capsule key-share from TEE : seal path does not exist, Capsule nft_id : {}, path : {}", request.nft_id, enclave_sealpath);
-
-		return (
-			StatusCode::INTERNAL_SERVER_ERROR,
-			Json(RemoveKeyshareResponse {
-				status: ReturnStatus::DATABASEFAILURE,
-				nft_id: request.nft_id,
-				enclave_account,
-				description:
-					"Error removing capsule key-share from TEE, use another enclave please."
-						.to_string(),
-			}),
-		)
-			.into_response();
+			);
+		},
 	};
 
-	let av = match get_nft_availability(&state, request.nft_id).await {
+	// IS IT FROM A METRIC SERVER?
+	if !crate::backup::metric::verify_account_id(&state, &request.requester_address.to_string())
+		.await
+	{
+		warn!(
+			"CAPSULE REMOVE : Invalid requester, nft-id.{}, requester : {}",
+			request_data.nft_id, request.requester_address
+		);
+		return (
+			StatusCode::BAD_REQUEST,
+			Json(
+				to_value(RemoveKeyshareResponse {
+					status: ReturnStatus::REQUESTERVERIFICATIONFAILED,
+					nft_id: request_data.nft_id,
+					enclave_account,
+					description: "Requester is not authorized".to_string(),
+				})
+				.unwrap(),
+			),
+		);
+	}
+
+	// Is nft burnt?
+	if get_onchain_nft_data(&state, request_data.nft_id).await.is_some() {
+		error!(
+			"CAPSULE REMOVE : capsule is not in burnt state, nft-id.{}, requester : {}",
+			request_data.nft_id, request.requester_address
+		);
+		return (
+			StatusCode::BAD_REQUEST,
+			Json(
+				to_value(RemoveKeyshareResponse {
+					status: ReturnStatus::NOTBURNT,
+					nft_id: request_data.nft_id,
+					enclave_account,
+					description:
+						"Error removing CAPSULE key-share from TEE, CAPSULE is not in burnt state."
+							.to_string(),
+				})
+				.unwrap(),
+			),
+		);
+	}
+
+	let av = match get_nft_availability(&state, request_data.nft_id).await {
 		Some(av) => {
-			if av.nft_type == helper::NftType::Capsule {
+			if av.nft_type == helper::NftType::Secret {
 				av
 			} else {
+				error!(
+					"CAPSULE REMOVE : capsule is not in available, nft-id.{}, requester : {}",
+					request_data.nft_id, request.requester_address
+				);
 				return (
-					StatusCode::OK,
-					Json(RemoveKeyshareResponse {
-						status: ReturnStatus::REMOVESUCCESS,
-						nft_id: request.nft_id,
-						enclave_account,
-						description: "Capsule Keyshare was not available already".to_string(),
-					}),
-				)
-					.into_response();
+					StatusCode::BAD_REQUEST,
+					Json(
+						to_value(RemoveKeyshareResponse {
+							status: ReturnStatus::IDISNOTASECRETNFT,
+							nft_id: request_data.nft_id,
+							enclave_account,
+							description: "NFTID for capsule is not available".to_string(),
+						})
+						.unwrap(),
+					),
+				);
 			}
 		},
+
 		None => {
 			return (
 				StatusCode::OK,
-				Json(RemoveKeyshareResponse {
-					status: ReturnStatus::REMOVESUCCESS,
-					nft_id: request.nft_id,
-					enclave_account,
-					description: "Capsule Keyshare was not available already".to_string(),
-				}),
+				Json(
+					to_value(RemoveKeyshareResponse {
+						status: ReturnStatus::REMOVESUCCESS,
+						nft_id: request_data.nft_id,
+						enclave_account,
+						description: "CAPSULE Keyshare was not available already".to_string(),
+					})
+					.unwrap(),
+				),
 			)
-				.into_response()
 		},
 	};
 
 	let file_path =
-		format!("{enclave_sealpath}capsule_{}_{}.keyshare", request.nft_id, av.block_number);
+		format!("{}capsule_{}_{}.keyshare", enclave_sealpath, request_data.nft_id, av.block_number);
 
-	let exist = std::path::Path::new(file_path.as_str()).exists();
-
-	if !exist {
-		warn!(
-				"Error removing capsule key-share from TEE : Capsule nft_id does not exist, nft_id = {}",
-				request.nft_id
-			);
+	if !std::path::Path::new(file_path.as_str()).exists() {
+		info!("REMOVE CAPSULE : file does not exist, nft_id = {}", request_data.nft_id);
 
 		return (
-			StatusCode::OK,
-			Json(RemoveKeyshareResponse {
-				status: ReturnStatus::KEYNOTEXIST,
-				nft_id: request.nft_id,
-				enclave_account,
-				description:
-					"Error removing capsule key-share from TEE : Capsule nft_id does not exist"
-						.to_string(),
-			}),
-		)
-			.into_response();
+			StatusCode::INTERNAL_SERVER_ERROR,
+			Json(
+				to_value(RemoveKeyshareResponse {
+					status: ReturnStatus::DATABASEFAILURE,
+					nft_id: request_data.nft_id,
+					enclave_account,
+					description: "REMOVE CAPSULE : file does not exist".to_string(),
+				})
+				.unwrap(),
+			),
+		);
 	}
 
-	match std::fs::remove_file(file_path) {
+	match std::fs::remove_file(file_path.clone()) {
 		Ok(_) => {
-			let file_path = format!("{enclave_sealpath}{}.log", request.nft_id);
+			let log_path = format!("{enclave_sealpath}{}.log", request_data.nft_id);
+			match std::fs::remove_file(log_path) {
+				Ok(_) => info!(
+					"REMOVE CAPSULE :  log is successfully removed from enclave. nft_id = {}",
+					request_data.nft_id
+				),
 
-			match std::fs::remove_file(file_path) {
-				Ok(_) => info!("Successfully removed capsule log-file."),
-				Err(err) => warn!("Error removing capsule log-file : {}", err),
+				Err(err) => {
+					error!(
+						"REMOVE CAPSULE : Error removing log from Enclave {:?}, nft_id = {}",
+						err, request_data.nft_id
+					);
+				},
 			}
 
-			remove_nft_availability(&state, request.nft_id).await;
-
+			remove_nft_availability(&state, request_data.nft_id).await;
 			info!(
-				"Successfully removed capsule key-share from TEE, Capsule nft_id : {}",
-				request.nft_id
+				"REMOVE CAPSULE :  Keyshare is successfully removed from enclave. nft_id = {}",
+				request_data.nft_id
 			);
+
 			(
 				StatusCode::OK,
-				Json(RemoveKeyshareResponse {
-					status: ReturnStatus::REMOVESUCCESS,
-					nft_id: request.nft_id,
-					enclave_account,
-					description: "Keyshare ia successfully removed from enclave.".to_string(),
-				}),
+				Json(
+					to_value(RemoveKeyshareResponse {
+						status: ReturnStatus::REMOVESUCCESS,
+						nft_id: request_data.nft_id,
+						enclave_account,
+						description: "Keyshare is successfully removed from enclave.".to_string(),
+					})
+					.unwrap(),
+				),
 			)
-				.into_response()
 		},
 
 		Err(err) => {
-			info!("Error removing Capsule key-share from TEE : error in removing file on disk, nft_id : {}, Error : {}", request.nft_id, err);
-			(StatusCode::INTERNAL_SERVER_ERROR, Json(RemoveKeyshareResponse {
+			error!("REMOVE CAPSULE :  error in removing file on disk, nft_id : {}, path : {}, Error : {}", request_data.nft_id, file_path, err);
+			(StatusCode::INTERNAL_SERVER_ERROR, Json(to_value(RemoveKeyshareResponse {
 					status: ReturnStatus::DATABASEFAILURE,
-					nft_id: request.nft_id,
+					nft_id: request_data.nft_id,
 					enclave_account,
 					description:
-						"Error removing Capsule key-share from TEE, try again or contact cluster admin please."
+						"Error removing CAPSULE key-share from TEE, try again or contact cluster admin please."
 							.to_string(),
-				})).into_response()
+				}).unwrap()))
 		},
 	}
 }
