@@ -27,7 +27,6 @@ struct Args {
 }
 
 /* MAIN */
-
 #[tokio::main]
 async fn main() {
 	println!(
@@ -71,16 +70,16 @@ async fn main() {
 	}
 
 	info!("MAIN : Start Sentry");
-	let env = if cfg!(feature = "mainnet") {
-		"mainnet"
-	} else if cfg!(feature = "alphanet") {
-		"alphanet"
-	} else if cfg!(feature = "dev-0") {
-		"dev-0"
-	} else if cfg!(feature = "dev-1") {
-		"dev-1"
+	let env = if cfg!(feature = "main-net") {
+		"main-net"
+	} else if cfg!(feature = "alpha-net") {
+		"alpha-net"
+	} else if cfg!(feature = "dev0-net") {
+		"dev0-net"
+	} else if cfg!(feature = "dev1-net") {
+		"dev1-net"
 	} else {
-		"unknown"
+		"local-net"
 	};
 
 	let _guard = sentry::init((

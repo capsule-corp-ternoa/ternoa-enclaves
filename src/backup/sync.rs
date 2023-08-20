@@ -362,7 +362,7 @@ pub async fn sync_keyshares(
 		.danger_accept_invalid_certs(true)
 		.https_only(true)
 		.use_rustls_tls()
-		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
+		// .min_tls_version(if cfg!(any(feature = "main-net", feature = "alpha-net")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
 		// 	tls::Version::TLS_1_0
@@ -957,7 +957,7 @@ pub async fn fetch_keyshares(
 		// WebPKI
 		//.use_rustls_tls()
 		.use_native_tls()
-		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
+		// .min_tls_version(if cfg!(any(feature = "main-net", feature = "alpha-net")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
 		// 	tls::Version::TLS_1_0

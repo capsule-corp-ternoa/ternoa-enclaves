@@ -24,7 +24,7 @@ jobs:
       run: sudo apt install -y clang llvm pkg-config nettle-dev
 
     - name: Run tests
-      run: cargo test --no-default-features --features dev-1 --release
+      run: cargo test --no-default-features --features dev1-net  --release
 
     - name: Install Cosign
       uses: sigstore/cosign-installer@main
@@ -33,7 +33,7 @@ jobs:
       run: cosign version
 
     - name: Build
-      run: cargo build --no-default-features --features dev-1 --release 
+      run: cargo build --no-default-features --features dev-1,release-build --release 
 
     - name: Sign the binary
       env:
