@@ -20,19 +20,19 @@ use sp_core::{crypto::PublicError, sr25519::Signature};
 use subxt::{tx::PairSigner, utils::AccountId32, Error, OnlineClient, PolkadotConfig};
 
 #[cfg_attr(
-	feature = "mainnet",
+	feature = "main-net",
 	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_mainnet.scale")
 )]
 #[cfg_attr(
-	feature = "alphanet",
+	feature = "alpha-net",
 	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_alphanet.scale")
 )]
 #[cfg_attr(
-	feature = "dev-1",
+	feature = "dev1-net",
 	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev1.scale")
 )]
 #[cfg_attr(
-	feature = "dev-0",
+	feature = "dev0-net",
 	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev0.scale")
 )]
 
@@ -47,13 +47,13 @@ type DefaultApi = OnlineClient<PolkadotConfig>;
 pub async fn get_chain_api() -> Result<DefaultApi, Error> {
 	debug!("5-1 get chain API");
 
-	let rpc_endoint = if cfg!(feature = "mainnet") {
+	let rpc_endoint = if cfg!(feature = "main-net") {
 		"wss://mainnet.ternoa.network:443".to_string()
-	} else if cfg!(feature = "alphanet") {
+	} else if cfg!(feature = "alpha-net") {
 		"wss://alphanet.ternoa.com:443".to_string()
-	} else if cfg!(feature = "dev-1") {
+	} else if cfg!(feature = "dev1-net") {
 		"wss://dev-1.ternoa.network:443".to_string()
-	} else if cfg!(feature = "dev-0") {
+	} else if cfg!(feature = "dev0-net") {
 		"wss://dev-0.ternoa.network:443".to_string()
 	} else {
 		return Err(Error::Other("Unknown chain".to_string()));

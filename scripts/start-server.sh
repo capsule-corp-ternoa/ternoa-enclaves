@@ -6,7 +6,7 @@ SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
 
 # DEFAULT VALUES
-CHAIN=${CHAIN:-alphanet}
+CHAIN=${CHAIN:-alpha-net}
 
 DOMAIN=${DOMIAN:-alphanet-c1n1v2.ternoa.dev}
 PORT=${PORT:-8100}
@@ -33,23 +33,23 @@ die() {
 
 while :; do
     case $1 in
-        -d|--domain)
+    -d|--domain)
 	    if [ "$2" ]; then
 			DOMAIN=$2
 			shift
 	    else
 			die 'ERROR: "--domian" requires a non-empty option argument.'
 	    fi
-        ;;
-		-p|--port)
+    ;;
+	-p|--port)
 	    if [ "$2" ]; then
 			PORT=$2
 			shift
 	    else
 			die 'ERROR: "--port" requires a non-empty option argument.'
 	    fi
-        ;;
-	-d|--dev)
+    ;;
+	-b|--build)
 	# Compiling the source code
 		if [ -z "$(which cargo)" ]
 		then
@@ -69,7 +69,7 @@ while :; do
 		tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
 		mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
 	;;
-	-r|--release)
+	-f|--fetch)
 	# Download the binary from github
 		mkdir -p $GRAMINE_PATH/bin/
 		

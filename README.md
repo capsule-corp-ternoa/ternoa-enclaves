@@ -67,24 +67,23 @@ You have to specify the chain which you want to use.
 This command will build a binary for dev-0 chain :
 
 ```shell
-sudo CHAIN="dev-0" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --dev
+sudo CHAIN="dev0-net" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --build --verbose 2
 ```
 
 For official binary which uses mainnet chain, you need this command :
 This command will build a binary for mainnet chain :
 
 ```shell
-sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --release
+sudo CHAIN="main-net" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --fetch --verbose 2
 ```
 
 ### Start Parameters
 
  CHAIN         environment variable that specifies for which wss endpoint the binary should be built
 
- --dev         builds and signs the binary everytime, so you need to provide password for signing with cosign private-key.
+ --build         builds and signs the binary everytime, so you need to provide password for signing with cosign private-key.
 
- --release     downloads binary and signature from Ternoa github
- repository
+ --fetch     downloads binary and signature from Ternoa github repository
 
  --domain      is critical for certificates of tls/https
 
@@ -96,7 +95,7 @@ sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.netw
 It is similar to Start, but it won't compile the binary :
 
 ```shell
-sudo CHAIN="alphanet" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8100 --dev
+sudo CHAIN="alpha-net" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8100 --build
 ```
 
 ## Stop an Enclave

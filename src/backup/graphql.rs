@@ -19,19 +19,19 @@ type Cursor = String;
 
 const PAGE_SIZE: i64 = 100;
 
-#[cfg(feature = "mainnet")]
+#[cfg(feature = "main-net")]
 pub const CHAIN_URL: &str = "wss://mainnet.ternoa.network:443";
-#[cfg(feature = "mainnet")]
+#[cfg(feature = "main-net")]
 pub const INDEXER_URL: &str = "https://indexer-mainnet.ternoa.dev/";
 
-#[cfg(feature = "alphanet")]
+#[cfg(feature = "alpha-net")]
 pub const CHAIN_URL: &str = "wss://alphanet.ternoa.com:443";
-#[cfg(feature = "alphanet")]
+#[cfg(feature = "alpha-net")]
 pub const INDEXER_URL: &str = "https://indexer-alphanet.ternoa.dev/";
 
-#[cfg(feature = "dev-0")]
+#[cfg(feature = "dev0-net")]
 pub const CHAIN_URL: &str = "wss://dev-0.ternoa.com:443";
-#[cfg(feature = "dev-0")]
+#[cfg(feature = "dev0-net")]
 pub const INDEXER_URL: &str = "https://dev-0.ternoa.dev/";
 
 /* ----------------------------------
