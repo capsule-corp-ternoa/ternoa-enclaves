@@ -33,7 +33,7 @@ jobs:
       run: cosign version
 
     - name: Build
-      run: cargo build --no-default-features --features dev-1,release-build --release 
+      run: cargo build --no-default-features --features dev1-net,release-build --release 
 
     - name: Sign the binary
       env:
