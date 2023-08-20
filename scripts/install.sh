@@ -176,7 +176,7 @@ cd sgx_server
 # --domain      is critical for certificates of tls/https 
 # --port        different enclaves on the same machine need to have different ports
 
-sudo CHAIN="mainnet" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --dev
+sudo CHAIN="main-net release-build" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --dev
 
 # You can test the server on the specific DOMAIN and PORT with
 curl -s https://mainnet-c1n1.ternoa.network:8100/api/health | jq .
@@ -185,4 +185,4 @@ curl -s https://mainnet-c1n1.ternoa.network:8100/api/health | jq .
 sudo scripts/stop-server.sh --port 8100
 
 # Resume the server without clearing previous files
-sudo CHAIN="mainnet" ./scripts/resume-server.sh --domain dev-c1n1.ternoa.network --port 8100 --dev
+sudo CHAIN="main-net release-build" ./scripts/resume-server.sh --domain dev-c1n1.ternoa.network --port 8100 --dev

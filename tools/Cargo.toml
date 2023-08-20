@@ -47,8 +47,8 @@ sha256 = "1.1.2"
 
 
 [features]
-default = ["alphanet"]
-mainnet = []
-alphanet = []
-dev-1 = []
-dev-0 = []
+default = ["alpha-net"]
+main-net = []
+alpha-net = []
+dev1-net = []
+dev0-net = []
