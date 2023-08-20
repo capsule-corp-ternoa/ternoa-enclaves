@@ -117,7 +117,7 @@ mod test {
 		assert!(result);
 	}
 
-	#[cfg(any(feature = "dev-1", feature = "dev-0"))]
+	#[cfg(any(feature = "dev1-net", feature = "dev0-net"))]
 	#[test]
 	fn sign_test() {
 		const DATA: &str = "DATA TO BE SIGNED BY COSIGN";
@@ -132,7 +132,7 @@ mod test {
 		assert_eq!(encoded_sig, "MEYCIQCXvIjmJLmMNuMfWcFLDuseXhBgK+j68ZNJWRkmrIrZ0gIhAK7yFn9pUHOa5W1tQuU34snv4kmCMN0uTQAXwvnAz7Ld");
 	}
 
-	#[cfg(any(feature = "dev-1", feature = "dev-0"))]
+	#[cfg(any(feature = "dev1-net", feature = "dev0-net"))]
 	#[test]
 	fn verify_binary_test() {
 		let binary_path = match sysinfo::get_current_pid() {
