@@ -16,7 +16,7 @@ pub const RETRY_DELAY: u8 = 6;
 pub const _MAX_STREAM_SIZE: usize = 1000 * 3 * 1024; // 3KB is the size of keyshare, 1000 is maximum number of extrinsics in block
 
 // ---------- HTTP SERVER
-pub const SEALPATH: &str = "/nft/";
+pub const SEALPATH: &str = "/nft";
 pub const SYNC_STATE_FILE: &str = "/nft/sync.state";
 pub const ENCLAVE_ACCOUNT_FILE: &str = "/nft/enclave_account.key";
 pub const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024; // 400MB for 6 millions of keyshares

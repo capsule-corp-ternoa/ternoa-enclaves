@@ -31,8 +31,11 @@ use crate::{
 	chain::{
 		constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
 		core::get_current_block_number,
+		helper,
 	},
-	servers::state::{get_blocknumber, get_clusters, SharedState, StateConfig},
+	servers::state::{
+		get_blocknumber, get_clusters, set_nft_availability, SharedState, StateConfig,
+	},
 };
 
 use super::{
@@ -54,16 +57,16 @@ pub struct AuthenticationToken {
 
 /// Fetch NFTID Data
 #[derive(Serialize, Deserialize, Debug)]
-pub struct FetchIdPacket {
-	admin_address: String,
-	nftid_vec: String,
+pub struct IdPacket {
+	admin_account: String,
+	id_vec: String,
 	auth_token: String,
 	signature: String,
 }
 
 /// Fetch NFTID Response
 #[derive(Serialize)]
-pub struct FetchIdResponse {
+pub struct IdResponse {
 	data: String,
 	signature: String,
 }
@@ -256,7 +259,7 @@ pub async fn error_handler(message: String, state: &SharedState) -> impl IntoRes
 #[axum::debug_handler]
 pub async fn admin_backup_fetch_id(
 	State(state): State<SharedState>,
-	Json(backup_request): Json<FetchIdPacket>,
+	Json(backup_request): Json<IdPacket>,
 ) -> impl IntoResponse {
 	debug!("ADMIN FETCH ID : backup fetch NFTID");
 
@@ -266,10 +269,10 @@ pub async fn admin_backup_fetch_id(
 	)
 	.await;
 
-	if !verify_account_id(&state, &backup_request.admin_address).await {
+	if !verify_account_id(&state, &backup_request.admin_account).await {
 		let message = format!(
 			"ADMIN FETCH ID : Error backup key shares : Requester is not whitelisted : {}",
-			backup_request.admin_address
+			backup_request.admin_account
 		);
 
 		return error_handler(message, &state).await.into_response();
@@ -310,7 +313,7 @@ pub async fn admin_backup_fetch_id(
 	};
 
 	if !verify_signature(
-		&backup_request.admin_address,
+		&backup_request.admin_account,
 		backup_request.signature.clone(),
 		backup_request.auth_token.as_bytes(),
 	) {
@@ -334,7 +337,7 @@ pub async fn admin_backup_fetch_id(
 		},
 	}
 
-	let hash = sha256::digest(backup_request.nftid_vec.as_bytes());
+	let hash = sha256::digest(backup_request.id_vec.as_bytes());
 
 	if auth_token.data_hash != hash {
 		return error_handler("ADMIN FETCH ID : Mismatch Data Hash".to_string(), &state)
@@ -342,7 +345,7 @@ pub async fn admin_backup_fetch_id(
 			.into_response();
 	}
 
-	let nftidv: Vec<u32> = match serde_json::from_str(&backup_request.nftid_vec) {
+	let nftidv: Vec<u32> = match serde_json::from_str(&backup_request.id_vec) {
 		Ok(v) => v,
 		Err(err) => {
 			let message = format!("ADMIN FETCH ID :unable to deserialize nftid vector : {err:?}");
@@ -404,6 +407,170 @@ pub async fn admin_backup_fetch_id(
 	(headers, body).into_response()
 }
 
+/*
+   Admin Restore Keyshares By NFTID
+*/
+#[axum::debug_handler]
+pub async fn admin_backup_store_id(
+	State(state): State<SharedState>,
+	Json(backup_request): Json<IdPacket>,
+) -> impl IntoResponse {
+	debug!("ADMIN RESTORE ID : backup fetch NFTID");
+
+	update_health_status(
+		&state,
+		"ADMIN RESTORE ID : Enclave is doing backup, please wait...".to_string(),
+	)
+	.await;
+
+	if !verify_account_id(&state, &backup_request.admin_account).await {
+		let message = format!(
+			"ADMIN RESTORE ID : Error backup key shares : Requester is not whitelisted : {}",
+			backup_request.admin_account
+		);
+
+		return error_handler(message, &state).await.into_response();
+	}
+
+	let mut auth = backup_request.auth_token.clone();
+
+	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
+		auth = match auth.strip_prefix("<Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				return error_handler("Strip Token prefix error".to_string(), &state)
+					.await
+					.into_response();
+			},
+		};
+
+		auth = match auth.strip_suffix("</Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				return error_handler(
+					"ADMIN RESTORE ID : Strip Token suffix error".to_string(),
+					&state,
+				)
+				.await
+				.into_response();
+			},
+		}
+	}
+
+	let auth_token: AuthenticationToken = match serde_json::from_str(&auth) {
+		Ok(token) => token,
+		Err(err) => {
+			let message =
+				format!("ADMIN RESTORE ID :Error backup key shares : Authentication token is not parsable : {}", err);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+
+	if !verify_signature(
+		&backup_request.admin_account,
+		backup_request.signature.clone(),
+		backup_request.auth_token.as_bytes(),
+	) {
+		return error_handler("ADMIN RESTORE ID :Invalid Signature".to_string(), &state)
+			.await
+			.into_response();
+	}
+
+	let current_block_number = get_blocknumber(&state).await;
+
+	debug!("ADMIN RESTORE ID :Validating the authentication token");
+	let validity = auth_token.is_valid(current_block_number);
+	match validity {
+		ValidationResult::Success => debug!("ADMIN RESTORE ID :Authentication token is valid."),
+		_ => {
+			let message = format!(
+				"ADMIN RESTORE ID :Authentication Token is not valid, or expired : {:?}",
+				validity
+			);
+			return error_handler(message, &state).await.into_response();
+		},
+	}
+
+	let hash = sha256::digest(backup_request.id_vec.as_bytes());
+
+	if auth_token.data_hash != hash {
+		return error_handler("ADMIN RESTORE ID : Mismatch Data Hash".to_string(), &state)
+			.await
+			.into_response();
+	}
+
+	let nftidv: Vec<String> = match serde_json::from_str(&backup_request.id_vec) {
+		Ok(v) => v,
+		Err(err) => {
+			let message =
+				format!("ADMIN RESTORE ID : unable to deserialize nftid vector : {err:?}");
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+
+	let id_keyshare: Vec<Option<(&str, &str)>> =
+		nftidv.iter().map(|x| x.rsplit_once('_')).collect();
+	for id_key in id_keyshare {
+		if let Some((filename, keyshare)) = id_key {
+			// TODO : REMOVE PREVIOUS FILE WITH SAME NFTID
+			let filepath = format!("{SEALPATH}/{filename}.keyshare");
+			match std::fs::write(filepath.clone(), keyshare) {
+				Ok(_) => {
+					let nft_details: Vec<&str> = filename.split('_').collect();
+					debug!("ADMIN RESTORE ID : Success writing keyshare to file: {filepath}");
+					let nft_id = match nft_details[1].parse::<u32>() {
+						Ok(num) => num,
+						Err(err) => {
+							error!("ADMIN RESTORE ID : error set availability-map, error parse nftid: {}. {:?}", filename, err);
+							continue;
+						},
+					};
+
+					let block_number = match nft_details[2].parse::<u32>() {
+						Ok(num) => num,
+						Err(err) => {
+							error!("ADMIN RESTORE ID : error set availability-map, error parse block-number: {}. {:?}", filename, err);
+							continue;
+						},
+					};
+
+					set_nft_availability(
+						&state,
+						(
+							nft_id,
+							helper::Availability {
+								block_number,
+								nft_type: if nft_details[0] == "nft" {
+									helper::NftType::Secret
+								} else {
+									helper::NftType::Capsule
+								},
+							},
+						),
+					)
+					.await;
+				},
+				Err(err) => error!(
+					"ADMIN RESTORE ID : error writing keyshare to file: {:?}. {:?}",
+					filepath, err
+				),
+			}
+		} else {
+			let message =
+				"ADMIN RESTORE ID : unable to destructure one of id_keyshares".to_string();
+			return error_handler(message, &state).await.into_response();
+		}
+	}
+
+	(
+		StatusCode::OK,
+		Json(json!({
+			"success": format!("Success restoring backups"),
+		})),
+	)
+		.into_response()
+}
+
 /* **********************
 		 TEST
 ********************** */
@@ -462,9 +629,9 @@ mod test {
 		let sig = admin_keypair.sign(auth_str.as_bytes());
 		let sig_str = format!("{}{:?}", "0x", sig);
 
-		let request = FetchIdPacket {
-			admin_address: admin_keypair.public().to_string(),
-			nftid_vec: nftids_str,
+		let request = IdPacket {
+			admin_account: admin_keypair.public().to_string(),
+			id_vec: nftids_str,
 			auth_token: auth_str,
 			signature: sig_str,
 		};
