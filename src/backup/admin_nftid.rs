@@ -34,7 +34,8 @@ use crate::{
 		helper,
 	},
 	servers::state::{
-		get_blocknumber, get_clusters, set_nft_availability, SharedState, StateConfig,
+		get_blocknumber, get_clusters, get_nft_availability, set_nft_availability, SharedState,
+		StateConfig,
 	},
 };
 
@@ -411,21 +412,21 @@ pub async fn admin_backup_fetch_id(
    Admin Restore Keyshares By NFTID
 */
 #[axum::debug_handler]
-pub async fn admin_backup_store_id(
+pub async fn admin_backup_push_id(
 	State(state): State<SharedState>,
 	Json(backup_request): Json<IdPacket>,
 ) -> impl IntoResponse {
-	debug!("ADMIN RESTORE ID : backup fetch NFTID");
+	debug!("ADMIN PUSH ID : backup fetch NFTID");
 
 	update_health_status(
 		&state,
-		"ADMIN RESTORE ID : Enclave is doing backup, please wait...".to_string(),
+		"ADMIN PUSH ID : Enclave is doing backup, please wait...".to_string(),
 	)
 	.await;
 
 	if !verify_account_id(&state, &backup_request.admin_account).await {
 		let message = format!(
-			"ADMIN RESTORE ID : Error backup key shares : Requester is not whitelisted : {}",
+			"ADMIN PUSH ID : Error backup key shares : Requester is not whitelisted : {}",
 			backup_request.admin_account
 		);
 
@@ -448,7 +449,7 @@ pub async fn admin_backup_store_id(
 			Some(stripped) => stripped.to_owned(),
 			_ => {
 				return error_handler(
-					"ADMIN RESTORE ID : Strip Token suffix error".to_string(),
+					"ADMIN PUSH ID : Strip Token suffix error".to_string(),
 					&state,
 				)
 				.await
@@ -461,7 +462,7 @@ pub async fn admin_backup_store_id(
 		Ok(token) => token,
 		Err(err) => {
 			let message =
-				format!("ADMIN RESTORE ID :Error backup key shares : Authentication token is not parsable : {}", err);
+				format!("ADMIN PUSH ID :Error backup key shares : Authentication token is not parsable : {}", err);
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -471,20 +472,20 @@ pub async fn admin_backup_store_id(
 		backup_request.signature.clone(),
 		backup_request.auth_token.as_bytes(),
 	) {
-		return error_handler("ADMIN RESTORE ID :Invalid Signature".to_string(), &state)
+		return error_handler("ADMIN PUSH ID :Invalid Signature".to_string(), &state)
 			.await
 			.into_response();
 	}
 
 	let current_block_number = get_blocknumber(&state).await;
 
-	debug!("ADMIN RESTORE ID :Validating the authentication token");
+	debug!("ADMIN PUSH ID :Validating the authentication token");
 	let validity = auth_token.is_valid(current_block_number);
 	match validity {
-		ValidationResult::Success => debug!("ADMIN RESTORE ID :Authentication token is valid."),
+		ValidationResult::Success => debug!("ADMIN PUSH ID :Authentication token is valid."),
 		_ => {
 			let message = format!(
-				"ADMIN RESTORE ID :Authentication Token is not valid, or expired : {:?}",
+				"ADMIN PUSH ID :Authentication Token is not valid, or expired : {:?}",
 				validity
 			);
 			return error_handler(message, &state).await.into_response();
@@ -494,7 +495,7 @@ pub async fn admin_backup_store_id(
 	let hash = sha256::digest(backup_request.id_vec.as_bytes());
 
 	if auth_token.data_hash != hash {
-		return error_handler("ADMIN RESTORE ID : Mismatch Data Hash".to_string(), &state)
+		return error_handler("ADMIN PUSH ID : Mismatch Data Hash".to_string(), &state)
 			.await
 			.into_response();
 	}
@@ -502,8 +503,7 @@ pub async fn admin_backup_store_id(
 	let nftidv: Vec<String> = match serde_json::from_str(&backup_request.id_vec) {
 		Ok(v) => v,
 		Err(err) => {
-			let message =
-				format!("ADMIN RESTORE ID : unable to deserialize nftid vector : {err:?}");
+			let message = format!("ADMIN PUSH ID : unable to deserialize nftid vector : {err:?}");
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -512,52 +512,120 @@ pub async fn admin_backup_store_id(
 		nftidv.iter().map(|x| x.rsplit_once('_')).collect();
 	for id_key in id_keyshare {
 		if let Some((filename, keyshare)) = id_key {
-			// TODO : REMOVE PREVIOUS FILE WITH SAME NFTID
+			let nft_details: Vec<&str> = filename.split('_').collect();
+
+			let nft_id = match nft_details[1].parse::<u32>() {
+				Ok(num) => num,
+				Err(err) => {
+					let message =
+						format!("ADMIN PUSH ID : error parse nftid: {}. {:?}", filename, err);
+					error!(message);
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag("admin-push-id", filename);
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
+					);
+					continue;
+				},
+			};
+
+			let block_number = match nft_details[2].parse::<u32>() {
+				Ok(num) => num,
+				Err(err) => {
+					let message = format!(
+						"ADMIN PUSH ID : error parse block-number: {}. {:?}",
+						filename, err
+					);
+					error!(message);
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag("admin-push-id", filename);
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
+					);
+					continue;
+				},
+			};
+
+			let nft_type = match nft_details[0] {
+				"nft" => helper::NftType::Secret,
+				"capsule" => helper::NftType::Capsule,
+				_ => {
+					let message = format!(
+						"ADMIN PUSH ID : invalid nft type: {} {}",
+						nft_details[0], filename
+					);
+					error!(message);
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag("admin-push-id", filename);
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
+					);
+					continue;
+				},
+			};
+
+			// REMOVE PREVIOUS NFTID IF AVAILABLE
+			if let Some(av) = get_nft_availability(&state, nft_id).await {
+				if nft_type == av.nft_type {
+					let file_path = format!(
+						"{SEALPATH}/{}_{}_{}.keyshare",
+						nft_details[0], nft_id, av.block_number
+					);
+
+					match std::fs::remove_file(file_path.clone()) {
+						Ok(_) => {
+							debug!(
+							"ADMIN PUSH ID : Remove the old keyshare of the nft_id.{} from enclave disk. {}", nft_id, file_path)
+						},
+						Err(err) => {
+							let message = format!(
+							"ADMIN PUSH ID : Error Removing the old keyshare of the nft_id.{nft_id} from enclave disk, path : {file_path} ,err: {err:?}.");
+
+							error!(message);
+
+							sentry::with_scope(
+								|scope| {
+									scope.set_tag("admin-push-id", nft_id.to_string());
+								},
+								|| sentry::capture_message(&message, sentry::Level::Error),
+							);
+						},
+					}
+				}
+			}
+
+			// STORE NEW KEYSHARE ON DISK
 			let filepath = format!("{SEALPATH}/{filename}.keyshare");
+
 			match std::fs::write(filepath.clone(), keyshare) {
 				Ok(_) => {
-					let nft_details: Vec<&str> = filename.split('_').collect();
-					debug!("ADMIN RESTORE ID : Success writing keyshare to file: {filepath}");
-					let nft_id = match nft_details[1].parse::<u32>() {
-						Ok(num) => num,
-						Err(err) => {
-							error!("ADMIN RESTORE ID : error set availability-map, error parse nftid: {}. {:?}", filename, err);
-							continue;
-						},
-					};
-
-					let block_number = match nft_details[2].parse::<u32>() {
-						Ok(num) => num,
-						Err(err) => {
-							error!("ADMIN RESTORE ID : error set availability-map, error parse block-number: {}. {:?}", filename, err);
-							continue;
-						},
-					};
-
+					debug!("ADMIN PUSH ID : Success writing keyshare to file: {filepath}");
 					set_nft_availability(
 						&state,
-						(
-							nft_id,
-							helper::Availability {
-								block_number,
-								nft_type: if nft_details[0] == "nft" {
-									helper::NftType::Secret
-								} else {
-									helper::NftType::Capsule
-								},
-							},
-						),
+						(nft_id, helper::Availability { block_number, nft_type }),
 					)
 					.await;
 				},
-				Err(err) => error!(
-					"ADMIN RESTORE ID : error writing keyshare to file: {:?}. {:?}",
-					filepath, err
-				),
+				Err(err) => {
+					let message = format!(
+						"ADMIN PUSH ID : error writing keyshare to file: {:?}. {:?}",
+						filepath, err
+					);
+					error!(message);
+
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag("admin-push-id", filename);
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
+					);
+				},
 			}
 		} else {
-			let message =
-				"ADMIN RESTORE ID : unable to destructure one of id_keyshares".to_string();
+			let message = "ADMIN PUSH ID : unable to destructure one of id_keyshares".to_string();
 			return error_handler(message, &state).await.into_response();
 		}
 	}

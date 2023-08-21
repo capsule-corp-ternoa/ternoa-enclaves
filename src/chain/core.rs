@@ -115,6 +115,7 @@ pub async fn get_current_block_number(state: &SharedState) -> Result<u32, Error>
 			Ok(last_block) => return Ok(last_block.number()),
 			Err(err) => {
 				error!("CHAIN : unable to get latest block, retry num.{}, {:?}", retry, err);
+				sentry::capture_error(&err);
 				std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 			},
 		}
@@ -125,6 +126,7 @@ pub async fn get_current_block_number(state: &SharedState) -> Result<u32, Error>
 		Ok(last_block) => last_block,
 		Err(err) => {
 			error!("CHAIN : unable to get latest block, retry num.{} : {}", RETRY_COUNT, err);
+			sentry::capture_error(&err);
 			return Err(err);
 		},
 	};
@@ -187,13 +189,17 @@ pub async fn get_onchain_nft_data(
 				Ok(storage) => storage,
 				Err(err) => {
 					error!("CHAIN : Failed to get nft storagem, retry num.{}: {:?}", retry, err);
+					sentry::capture_error(&err);
 					continue;
 				},
 			};
 
 		match storage.fetch(&storage_address).await {
 			Ok(nft_data) => return nft_data,
-			Err(err) => error!("CHAIN : Failed to fetch NFT data, retry num.{} : {:?}", retry, err),
+			Err(err) => {
+				error!("CHAIN : Failed to fetch NFT data, retry num.{} : {:?}", retry, err);
+				sentry::capture_error(&err);
+			},
 		}
 
 		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
@@ -205,6 +211,7 @@ pub async fn get_onchain_nft_data(
 			Ok(storage) => storage,
 			Err(err) => {
 				error!("CHAIN : Failed to get nft storage: {err:?}");
+				sentry::capture_error(&err);
 				return None;
 			},
 		};
@@ -213,6 +220,7 @@ pub async fn get_onchain_nft_data(
 		Ok(nft_data) => nft_data,
 		Err(err) => {
 			error!("CHAIN : Failed to fetch NFT data: {err:?}");
+			sentry::capture_error(&err);
 			None
 		},
 	}
@@ -238,6 +246,7 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 					"CHAIN : Failed to get storage for delegatee, retry num.{}: {:?}",
 					retry, err
 				);
+				sentry::capture_error(&err);
 				continue;
 			},
 		};
@@ -248,7 +257,8 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 				error!(
 					"CHAIN : Failed to fetch NFT data for delegatee, retry num.{} : {:?}",
 					retry, err
-				)
+				);
+				sentry::capture_error(&err);
 			},
 		}
 
@@ -259,6 +269,7 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 		Ok(storage) => storage,
 		Err(err) => {
 			error!("CHAIN : Failed to get storage for delegatee: {err:?}");
+			sentry::capture_error(&err);
 			return None;
 		},
 	};
@@ -267,6 +278,7 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 		Ok(delegated) => delegated,
 		Err(err) => {
 			error!("CHAIN : Failed to fetch NFT data for delegatee : {err:?}");
+			sentry::capture_error(&err);
 			None
 		},
 	}
@@ -289,6 +301,7 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 			Ok(storage) => storage,
 			Err(err) => {
 				error!("CHAIN : Failed to get storage for rentee, retry num.{} : {:?}", retry, err);
+				sentry::capture_error(&err);
 				continue;
 			},
 		};
@@ -296,10 +309,13 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 		match storage.fetch(&storage_address).await {
 			Ok(rent_contract) => match rent_contract {
 				Some(data) => return data.rentee,
-				_ => error!(
-					"CHAIN : Failed to parse NFT data for rentee, retry num.{} : {:?}",
-					retry, rent_contract
-				),
+				_ => {
+					error!(
+						"CHAIN : Failed to parse NFT data for rentee, retry num.{} : {:?}",
+						retry, rent_contract
+					);
+					sentry::capture_message("CHAIN : Failed to parse NFT data for rentee", sentry::Level::Error);
+				},
 			},
 
 			Err(err) => {
@@ -307,6 +323,7 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 					"CHAIN : Failed to fetch NFT data for rentee, retry num.{} : {:?}",
 					retry, err
 				);
+				sentry::capture_error(&err);
 			},
 		}
 
@@ -317,6 +334,7 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 		Ok(storage) => storage,
 		Err(err) => {
 			error!("CHAIN : Failed to get storage for rentee: {err:?}");
+			sentry::capture_error(&err);
 			return None;
 		},
 	};
@@ -326,11 +344,13 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 			Some(data) => data.rentee,
 			_ => {
 				error!("CHAIN : Failed to fetch NFT data for rentee : {:?}", rent_contract);
+				sentry::capture_message("CHAIN : Failed to fetch NFT data for rentee", sentry::Level::Error);
 				None
 			},
 		},
 		Err(err) => {
 			error!("CHAIN : Failed to fetch NFT data: {err:?}");
+			sentry::capture_error(&err);
 			None
 		},
 	}
@@ -466,6 +486,7 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 			Ok(storage) => storage,
 			Err(err) => {
 				error!("CHAIN : GET METRIC SERVER : Failed to get storage for metric server, retry num.{} : {:?}", retry, err);
+				sentry::capture_error(&err);
 				continue;
 			},
 		};
@@ -477,7 +498,7 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 					error!("CHAIN : GET METRIC SERVER : Failed to parse metric server vector, retry num.{} : {:?}",
 						retry, metric_servers
 						);
-
+					sentry::capture_message("CHAIN : GET METRIC SERVER : Failed to parse metric server vector", sentry::Level::Error);
 					return None;
 				},
 			},
@@ -486,6 +507,7 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 				error!("CHAIN : GET METRIC SERVER : Failed to fetch metric servers, retry num.{} : {:?}",
 					retry, err
 				);
+				sentry::capture_error(&err);
 				std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 			},
 		}
