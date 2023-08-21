@@ -119,7 +119,6 @@ pub async fn nft_get_views(
 ) -> impl IntoResponse {
 	debug!("\n\t**\nNFT GET VIEWS\n\t**\n");
 	let enclave_account = get_accountid(&state).await;
-	let enclave_sealpath = SEALPATH.to_string();
 
 	let nft_state = match get_onchain_nft_data(&state, nft_id).await {
 		Some(data) => data.state,
@@ -156,7 +155,7 @@ pub async fn nft_get_views(
 		);
 	}
 
-	let file_path = format!("{enclave_sealpath}{nft_id}.log");
+	let file_path = format!("{SEALPATH}/{nft_id}.log");
 
 	if std::path::Path::new(&file_path).exists() {
 		debug!("NFT GET VIEWS : Log path checked, path: {}", file_path);
@@ -379,7 +378,7 @@ pub async fn nft_store_keyshare(
 			}
 
 			let new_file_path =
-				format!("{enclave_sealpath}nft_{}_{block_number}.keyshare", verified_data.nft_id);
+				format!("{SEALPATH}/nft_{}_{block_number}.keyshare", verified_data.nft_id);
 
 			let mut f = match File::create(new_file_path.clone()) {
 				Ok(file) => file,
@@ -667,7 +666,6 @@ pub async fn nft_retrieve_keyshare(
 ) -> impl IntoResponse {
 	debug!("\n\t*****\nNFT RETRIEVE KEYSHARE API\n\t*****\n");
 	let enclave_account = get_accountid(&state).await;
-	let enclave_sealpath = SEALPATH.to_string();
 	let block_number = get_blocknumber(&state).await;
 
 	match request.verify_retrieve_request(&state, "secret-nft").await {
@@ -713,10 +711,8 @@ pub async fn nft_retrieve_keyshare(
 				},
 			};
 
-			let file_path = format!(
-				"{enclave_sealpath}nft_{}_{}.keyshare",
-				verified_data.nft_id, av.block_number
-			);
+			let file_path =
+				format!("{SEALPATH}/nft_{}_{}.keyshare", verified_data.nft_id, av.block_number);
 
 			if !std::path::Path::new(&file_path).is_file() {
 				let status = ReturnStatus::KEYNOTEXIST;
@@ -835,7 +831,7 @@ pub async fn nft_retrieve_keyshare(
 			};
 
 			// Put a VIEWING history log
-			let file_path = format!("{enclave_sealpath}{}.log", verified_data.nft_id);
+			let file_path = format!("{SEALPATH}/{}.log", verified_data.nft_id);
 
 			update_log_file_view(
 				block_number,
@@ -918,7 +914,6 @@ pub async fn nft_remove_keyshare(
 ) -> impl IntoResponse {
 	debug!("\n\t*****\nNFT REMOVE KEYSHARE API\n\t*****\n");
 	let enclave_account = get_accountid(&state).await;
-	let enclave_sealpath = SEALPATH.to_string();
 
 	// STRUCTURAL VALIDITY OF REQUEST
 	let request_data = match request.verify_remove_request(&state, "secret-nft").await {
@@ -1029,8 +1024,7 @@ pub async fn nft_remove_keyshare(
 		},
 	};
 
-	let file_path =
-		format!("{}nft_{}_{}.keyshare", enclave_sealpath, request_data.nft_id, av.block_number);
+	let file_path = format!("{SEALPATH}/nft_{}_{}.keyshare", request_data.nft_id, av.block_number);
 
 	if !std::path::Path::new(file_path.as_str()).exists() {
 		info!("REMOVE NFT : nft_id does not exist, nft_id = {}", request_data.nft_id);
@@ -1051,7 +1045,7 @@ pub async fn nft_remove_keyshare(
 
 	match std::fs::remove_file(file_path.clone()) {
 		Ok(_) => {
-			let log_path = format!("{enclave_sealpath}{}.log", request_data.nft_id);
+			let log_path = format!("{SEALPATH}/{}.log", request_data.nft_id);
 			match std::fs::remove_file(log_path) {
 				Ok(_) => info!(
 					"REMOVE NFT :  log is successfully removed from enclave. nft_id = {}",
