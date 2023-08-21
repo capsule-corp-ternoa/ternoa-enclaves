@@ -38,11 +38,12 @@ use tracing::{debug, error, info, trace, warn};
 use crate::{
 	attestation::ra::ra_get_quote,
 	backup::{
+		admin_nftid::admin_backup_push_id,
 		metric::metric_reconcilliation,
 		sync::{
 			cluster_discovery, crawl_sync_events, fetch_keyshares, get_sync_state,
 			parse_block_body, set_sync_state, sync_keyshares, Cluster,
-		}, admin_nftid::admin_backup_store_id,
+		},
 	},
 	chain::{
 		capsule::{
@@ -355,7 +356,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		.route("/api/quote", get(ra_get_quote))
 		// CENTRALIZED BACKUP API
 		.route("/api/backup/fetch-id", post(admin_backup_fetch_id))
-		.route("/api/backup/store-id", post(admin_backup_store_id))
+		.route("/api/backup/push-id", post(admin_backup_push_id))
 		.route("/api/backup/fetch-bulk", post(admin_backup_fetch_bulk))
 		.route("/api/backup/push-bulk", post(admin_backup_push_bulk))
 		.layer(DefaultBodyLimit::max(CONTENT_LENGTH_LIMIT))

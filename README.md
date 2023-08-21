@@ -70,8 +70,7 @@ This command will build a binary for dev-0 chain :
 sudo CHAIN="dev0-net" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --build --verbose 2
 ```
 
-For official binary which uses mainnet chain, you need this command :
-This command will build a binary for mainnet chain :
+To use official binary in github :
 
 ```shell
 sudo CHAIN="main-net" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --fetch --verbose 2
@@ -79,23 +78,22 @@ sudo CHAIN="main-net" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.net
 
 ### Start Parameters
 
- CHAIN         environment variable that specifies for which wss endpoint the binary should be built
+ CHAIN         environment variable that specifies for which endpoint the binary should be built, it also specifies the signing key
 
- --build         builds and signs the binary everytime, so you need to provide password for signing with cosign private-key.
+ --build       Builds the source code and signs the binary everytime
 
- --fetch     downloads binary and signature from Ternoa github repository
+ --fetch       Downloads binary and signature from Ternoa github repository
 
- --domain      is critical for certificates of tls/https
+ --domain      Domain of SGX machine
 
- --port        different enclaves on the same machine need to have
- different ports
+ --port        Different enclaves on the same machine need to have different ports
 
 ## Resume an Enclave
 
 It is similar to Start, but it won't compile the binary :
 
 ```shell
-sudo CHAIN="alpha-net" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8100 --build
+sudo CHAIN="alpha-net" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8100 --build --verbose 2
 ```
 
 ## Stop an Enclave
@@ -114,12 +112,6 @@ To clear the Enclave and remove all intermediate sgx files and binaries :
 sudo scripts/clear-server.sh
 ```
 
-To stop the Enclave properly :
-
-```shell
-sudo scripts/stop-server.sh --port 8100
-```
-
 ## Client
 
 An importable Postman [json file](./client/postman.json) is available at client folder. CA Certificate file for the machine should be introduced to Postman.
@@ -127,4 +119,5 @@ Sample ```curl``` commands are provided on [client.sh](./client/client.sh) file.
 
 ## Signing Tool
 
-[Readme](./toolds/README.md)
+A simple tool provide correct request format to enclave API endpoints
+[Readme](./tools/README.md)
