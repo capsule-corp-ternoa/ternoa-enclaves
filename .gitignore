@@ -20,5 +20,4 @@ gramine/sgx_server.manifest
 gramine/sgx_server.sig
 gramine/sgx_server.token
 gramine/sgx_server.manifest.sgx
-credentials/*
 root/*
