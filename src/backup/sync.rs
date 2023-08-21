@@ -1073,7 +1073,7 @@ pub async fn fetch_keyshares(
 		let fetch_body_bytes = fetch_response.bytes().await?;
 		trace!("FETCH KEYSHARES : zip body length : {}", fetch_body_bytes.len());
 
-		let backup_file = format!("{SEALPATH}backup_{current_block_number}.zip");
+		let backup_file = format!("{SEALPATH}/backup_{current_block_number}.zip");
 		let mut zipfile = match std::fs::File::create(backup_file.clone()) {
 			Ok(file) => file,
 			Err(err) => {
@@ -1864,7 +1864,7 @@ pub async fn sync_zip_extract(
 				);
 
 				let out_file_path =
-					format!("{}{}_{}_{}.keyshare", SEALPATH, name_parts[0], nftid, block_number);
+					format!("{SEALPATH}/{}_{nftid}_{block_number}.keyshare", name_parts[0]);
 
 				// CREATE NEW FILE ON DISK
 				let outfile = match OpenOptions::new()
@@ -1961,7 +1961,7 @@ pub async fn sync_zip_extract(
 
 					// NEW FILE NAME
 					let out_file_path =
-						format!("{}capsule_{}_{}.keyshare", SEALPATH, nftid, block_number);
+						format!("{SEALPATH}capsule_{nftid}_{block_number}.keyshare");
 
 					// CREATE FILE
 					let outfile = match OpenOptions::new()
@@ -2034,7 +2034,7 @@ pub async fn sync_zip_extract(
 						);
 
 					let out_file_path =
-						format!("{}capsule_{}_{}.keyshare", SEALPATH, nftid, block_number);
+						format!("{SEALPATH}/capsule_{nftid}_{block_number}.keyshare");
 
 					let outfile = match OpenOptions::new()
 						.write(true)
@@ -2096,7 +2096,7 @@ pub async fn sync_zip_extract(
 					set_nft_availability(state, (nftid, availability)).await;
 
 					let old_file_path =
-						format!("{}/capsule_{}_{}.keyshare", SEALPATH, nftid, av.block_number);
+						format!("{SEALPATH}/capsule_{nftid}_{}.keyshare", av.block_number);
 					match std::fs::remove_file(old_file_path.clone()) {
 						Ok(_) => {
 							debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : removed outdated file {}", old_file_path)

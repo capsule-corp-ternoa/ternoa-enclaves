@@ -621,7 +621,7 @@ pub async fn admin_backup_push_bulk(
 		}));
 	}
 
-	let backup_file = SEALPATH.to_string() + "backup.zip";
+	let backup_file = SEALPATH.to_string() + "/" + "backup.zip";
 
 	let mut zipfile = match std::fs::File::create(backup_file.clone()) {
 		Ok(file) => file,

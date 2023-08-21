@@ -123,7 +123,6 @@ pub async fn capsule_get_views(
 	debug!("\n\t**\nGET CAPSULE VIEWS\n\t**\n");
 
 	let enclave_account = get_accountid(&state).await;
-	let enclave_sealpath = SEALPATH;
 
 	let capsule_state = match get_onchain_nft_data(&state, nft_id).await {
 		Some(data) => data.state,
@@ -155,7 +154,7 @@ pub async fn capsule_get_views(
 		);
 	}
 
-	let file_path = format!("{enclave_sealpath}{nft_id}.log");
+	let file_path = format!("{SEALPATH}/{nft_id}.log");
 
 	// CHECK LOG-FILE PATH
 	if !std::path::Path::new(&file_path).exists() {
@@ -302,20 +301,19 @@ pub async fn capsule_set_keyshare(
 	debug!("\n\t*****\nCAPSULE SET KEYSHARE API\n\t*****\n");
 
 	let enclave_account = get_accountid(&state).await;
-	let enclave_sealpath = SEALPATH;
 	let block_number = get_blocknumber(&state).await;
 
 	match request.verify_store_request(&state, "capsule").await {
 		// DATA-FILED IS VALID
 		Ok(verified_data) => {
 			// IS ENCLAVE SEAL-PATH READY?
-			if !std::path::Path::new(&enclave_sealpath).exists() {
+			if !std::path::Path::new(SEALPATH).exists() {
 				let status = ReturnStatus::DATABASEFAILURE;
 				let description = format!(
 					"TEE Key-share {:?}: seal path doe not exist, nft_id : {}, Seal-Path : {}",
 					APICALL::CAPSULESET,
 					verified_data.nft_id,
-					enclave_sealpath
+					SEALPATH
 				);
 
 				let message = format!("{}, requester : {}", description, request.owner_address);
@@ -346,7 +344,7 @@ pub async fn capsule_set_keyshare(
 			// If it is an update keyshare request :
 			if let Some(av) = get_nft_availability(&state, verified_data.nft_id).await {
 				let file_path = format!(
-					"{enclave_sealpath}capsule_{}_{}.keyshare",
+					"{SEALPATH}/capsule_{}_{}.keyshare",
 					verified_data.nft_id, av.block_number
 				);
 
@@ -375,10 +373,8 @@ pub async fn capsule_set_keyshare(
 				}
 			}
 
-			let file_path = format!(
-				"{enclave_sealpath}capsule_{}_{}.keyshare",
-				verified_data.nft_id, block_number
-			);
+			let file_path =
+				format!("{SEALPATH}/capsule_{}_{}.keyshare", verified_data.nft_id, block_number);
 
 			// CREATE KEY-SHARE FILE ON ENCLAVE DISK
 			let mut f = match std::fs::File::create(file_path.clone()) {
@@ -482,7 +478,7 @@ pub async fn capsule_set_keyshare(
 					.await;
 
 					// Log file for tracing the capsule key-share VIEW history in Marketplace.
-					let file_path = format!("{enclave_sealpath}{}.log", verified_data.nft_id);
+					let file_path = format!("{SEALPATH}/{}.log", verified_data.nft_id);
 
 					if !std::path::Path::new(&file_path).exists() {
 						match File::create(file_path.clone()) {
@@ -680,7 +676,6 @@ pub async fn capsule_retrieve_keyshare(
 	debug!("\n\t*****\nCAPSULE RETRIEVE KEYSHARE API\n\t*****\n");
 
 	let enclave_account = get_accountid(&state).await;
-	let enclave_sealpath = SEALPATH.to_string();
 
 	match request.verify_retrieve_request(&state, "capsule").await {
 		Ok(verified_data) => {
@@ -726,10 +721,8 @@ pub async fn capsule_retrieve_keyshare(
 				},
 			};
 
-			let file_path = format!(
-				"{enclave_sealpath}capsule_{}_{}.keyshare",
-				verified_data.nft_id, av.block_number
-			);
+			let file_path =
+				format!("{SEALPATH}/capsule_{}_{}.keyshare", verified_data.nft_id, av.block_number);
 
 			if !std::path::Path::new(&file_path).is_file() {
 				let status = ReturnStatus::KEYNOTEXIST;
@@ -859,7 +852,7 @@ pub async fn capsule_retrieve_keyshare(
 			};
 
 			// Put a VIEWING history log
-			let file_path = format!("{enclave_sealpath}{}.log", verified_data.nft_id);
+			let file_path = format!("{SEALPATH}/{}.log", verified_data.nft_id);
 
 			match get_current_block_number(&state).await {
 				Ok(block_number) => {
@@ -955,7 +948,6 @@ pub async fn capsule_remove_keyshare(
 ) -> impl IntoResponse {
 	debug!("\n\t*****\nCAPSULE REMOVE KEYSHARE API\n\t*****\n");
 	let enclave_account = get_accountid(&state).await;
-	let enclave_sealpath = SEALPATH.to_string();
 
 	// STRUCTURAL VALIDITY OF REQUEST
 	let request_data = match request.verify_remove_request(&state, "capsule-nft").await {
@@ -1067,7 +1059,7 @@ pub async fn capsule_remove_keyshare(
 	};
 
 	let file_path =
-		format!("{}capsule_{}_{}.keyshare", enclave_sealpath, request_data.nft_id, av.block_number);
+		format!("{SEALPATH}/capsule_{}_{}.keyshare", request_data.nft_id, av.block_number);
 
 	if !std::path::Path::new(file_path.as_str()).exists() {
 		info!("REMOVE CAPSULE : file does not exist, nft_id = {}", request_data.nft_id);
@@ -1088,7 +1080,7 @@ pub async fn capsule_remove_keyshare(
 
 	match std::fs::remove_file(file_path.clone()) {
 		Ok(_) => {
-			let log_path = format!("{enclave_sealpath}{}.log", request_data.nft_id);
+			let log_path = format!("{SEALPATH}/{}.log", request_data.nft_id);
 			match std::fs::remove_file(log_path) {
 				Ok(_) => info!(
 					"REMOVE CAPSULE :  log is successfully removed from enclave. nft_id = {}",
