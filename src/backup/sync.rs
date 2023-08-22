@@ -359,7 +359,7 @@ pub async fn sync_keyshares(
 	// Create a client
 	let client = match reqwest::Client::builder()
 		// This is for development, will be removed for production certs
-		.danger_accept_invalid_certs(true)
+		.danger_accept_invalid_certs(!cfg!(any(feature = "main-net", feature = "alpha-net")))
 		.https_only(true)
 		.use_rustls_tls()
 		// .min_tls_version(if cfg!(any(feature = "main-net", feature = "alpha-net")) {
@@ -952,7 +952,7 @@ pub async fn fetch_keyshares(
 
 	let client = reqwest::Client::builder()
 		// This is for development, will be removed for production certs
-		.danger_accept_invalid_certs(true)
+		.danger_accept_invalid_certs(!cfg!(any(feature = "main-net", feature = "alpha-net")))
 		.https_only(true)
 		// WebPKI
 		//.use_rustls_tls()
@@ -1113,7 +1113,7 @@ pub async fn fetch_keyshares(
 		match sync_zip_extract(state, &backup_file).await {
 			Ok(_) => debug!("FETCH KEYSHARES : zip_extract success"),
 			Err(err) => {
-				let message = format!("FETCH KEYSHARES : extracting zip file {err:?}");
+				let message = format!("FETCH KEYSHARES : extracting zip file : {err:?}");
 				error!(message);
 				sentry::with_scope(
 					|scope| {
