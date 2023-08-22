@@ -582,8 +582,11 @@ pub async fn http_server() -> Result<Router, Error> {
 				} // BLOCK LAG DETECTED
 			} else {
 				// Non Numeric SyncState file content:
-				debug!("\t <<< Enclaved is not registered >>>");
-				// wait until enclave get registered and go to runtime-mode
+				if block_number % 10 == 0 {
+					debug!("\t <<< Enclaved is not registered >>>");
+				}
+				// Prevent Crawling after first registration
+				set_processed_block(&state_config, block_number).await;
 				continue;
 			}
 
