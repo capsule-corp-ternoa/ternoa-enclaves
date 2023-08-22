@@ -46,17 +46,17 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: target/release/sgx_server
-        asset_name: sgx_server
+        asset_name: sgx_server_dev0
         tag: ${{ github.ref }}
         overwrite: true
-        body: "Ternoa TEE Server"
+        body: "Ternoa SGX Server for dev-0 chain"
     
     - name: Upload binary signature to release
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: target/release/sgx_server.sig
-        asset_name: sgx_server.sig
+        asset_name: sgx_server_dev0.sig
         tag: ${{ github.ref }}
         overwrite: true
-        body: "Ternoa TEE Server Signature"
+        body: "Ternoa SGX Server Signature for dev-0 chain"

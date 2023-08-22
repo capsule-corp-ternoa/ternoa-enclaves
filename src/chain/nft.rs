@@ -611,7 +611,7 @@ fn nft_keyshare_oracle_results(
  );
 
 	// Log file for tracing the NFT key-share VIEW history in Marketplace.
-	let file_path = format!("{SEALPATH}{}.log", verified_data.nft_id);
+	let file_path = format!("{SEALPATH}/{}.log", verified_data.nft_id);
 
 	let mut file = match File::create(file_path) {
 		Ok(file) => file,

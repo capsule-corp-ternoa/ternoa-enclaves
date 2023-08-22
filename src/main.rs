@@ -87,7 +87,7 @@ async fn main() {
 		sentry::ClientOptions {
 			release: Some(format!("Ternoa Enclave Version v{}", VERSION).into()),
 			traces_sample_rate: 1.0,
-			debug: true,
+			debug: false,
 			environment: Some(env.into()),
 			before_send: Some(std::sync::Arc::new(|mut event| {
 				// Modify event here
@@ -99,7 +99,7 @@ async fn main() {
 	));
 
 	sentry::configure_scope(|scope| {
-		scope.set_level(Some(sentry::Level::Warning));
+		scope.set_level(Some(sentry::Level::Error));
 
 		let now = chrono::prelude::Utc::now().to_string();
 		let mut map = std::collections::BTreeMap::new();
@@ -110,7 +110,7 @@ async fn main() {
 
 		scope.set_user(Some(sentry::User {
 			id: Some("Ternoa Operator".into()),
-			email: Some("john.doe@example.com".into()),
+			email: Some("john.doe@ternoa.com".into()),
 			..Default::default()
 		}));
 	});
