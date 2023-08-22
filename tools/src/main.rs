@@ -106,7 +106,7 @@ pub struct FetchAuthenticationToken {
 /// Fetch Bulk Data
 #[derive(Serialize, Deserialize)]
 pub struct FetchBulkPacket {
-	admin_address: String,
+	admin_account: String,
 	auth_token: String, //FetchAuthenticationToken,
 	signature: String,
 }
@@ -133,7 +133,7 @@ pub struct StoreAuthenticationToken {
 /// Store Bulk Packet
 #[derive(Serialize, Deserialize)]
 pub struct StoreBulkPacket {
-	admin_address: String,
+	admin_account: String,
 	restore_file: Vec<u8>,
 	auth_token: StoreAuthenticationToken,
 	signature: String,
@@ -141,15 +141,39 @@ pub struct StoreBulkPacket {
 
 #[derive(Serialize, Deserialize)]
 pub struct FetchBulkPacketOld {
-	admin_address: String,
+	admin_account: String,
 	auth_token: FetchAuthenticationToken,
 	signature: String,
 }
 
+/* *************************************
+		ADMIN ID DATA STRUCTURES
+**************************************** */
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct IdAuthenticationToken {
+	pub block_number: u32,
+	pub block_validation: u32,
+	pub data_hash: String,
+}
+
+/// Fetch NFTID Data
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IdPacket {
+	admin_account: String,
+	id_vec: String,
+	auth_token: String,
+	signature: String,
+}
+
+/* *************************************
+			INPUT ARGUMENTS
+**************************************** */
+
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-	/// Request type : [retrieve, store] for secrets [fetch, restore] for backup
+	/// Request type : [retrieve, store] for secrets [fetch-bulk, push-bulk, fetch-id, push-id] for backup
 	#[arg(short, long, default_value_t = String::new())]
 	request: String,
 
@@ -164,6 +188,10 @@ struct Args {
 	/// NFTID of the secret to be stored or retrived, If 'Custom-Data' option is present, this option will be ignored
 	#[arg(short, long, default_value_t = 0)]
 	nftid: u32,
+
+	/// NFTID Vector of the secret to be fetched or pushed by admin
+	#[arg(short, long, default_value_t = String::new())]
+	id_vec: String,
 
 	/// Secret_data for storing keyshares in enclave
 	#[arg(short, long, default_value_t = String::new())]
@@ -182,7 +210,9 @@ struct Args {
 	custom_data: String,
 }
 
-/* MAIN */
+/* *************************************
+				MAIN
+**************************************** */
 #[tokio::main]
 async fn main() {
 	let args = Args::parse();
@@ -201,13 +231,20 @@ async fn main() {
 		return;
 	}else if std::path::Path::new(&args.file).exists() {
 		match args.request.to_lowercase().as_str() {
-			"restore" => generate_push_bulk(args.seed.clone(), args.file).await,
-			"fetch" => generate_fetch_bulk(args.seed.clone()).await,
+			"push-bulk" => generate_push_bulk(args.seed.clone(), args.file).await,
+			"fetch-bulk" => generate_fetch_bulk(args.seed.clone()).await,
+			_ => println!("\n Please provide a valid request type \n"),
+		}
+		return;
+	}else if !args.id_vec.is_empty() {
+		match args.request.to_lowercase().as_str() {
+			"push-id" => generate_push_id(args.seed.clone(), args.id_vec).await,
+			"fetch-id" => generate_fetch_id(args.seed.clone(), args.id_vec).await,
 			_ => println!("\n Please provide a valid request type \n"),
 		}
 		return;
 	}else {
-		println!("\n Please provide either a NFTID or a Custom Data \n");
+		println!("\n Please provide either a valid NFTID, ID_VEC or Custom Data \n");
 		return;
 	}
 }
@@ -221,13 +258,13 @@ async fn generate_fetch_bulk(seed_phrase: String) {
 
 	let current_block_number = get_current_block_number().await.unwrap();
 
-	let admin_address = admin.public().to_ss58check();
+	let admin_account = admin.public().to_ss58check();
 	let auth = FetchAuthenticationToken { block_number: current_block_number, block_validation: 10 };
 	let auth_str = serde_json::to_string(&auth).unwrap();
 	let signature = admin.sign(auth_str.as_bytes());
 
 	let packet = FetchBulkPacket {
-		admin_address,
+		admin_account,
 		auth_token: auth_str,
 		signature: format!("{}{:?}", "0x", signature),
 	};
@@ -246,7 +283,7 @@ async fn generate_push_bulk(seed_phrase: String, file_path: String) {
 
 	let current_block_number = get_current_block_number().await.unwrap();
 
-	let admin_address = admin.public().to_ss58check();
+	let admin_account = admin.public().to_ss58check();
 
 	let mut zipdata = Vec::new();
 	let mut zipfile = std::fs::File::open(&file_path).unwrap();
@@ -269,6 +306,70 @@ async fn generate_push_bulk(seed_phrase: String, file_path: String) {
 		admin.public(),
 		auth_str,
 		sig_str
+	);
+}
+
+/* ************************
+	 ADMIN FETCH ID
+*************************/
+
+async fn generate_fetch_id(seed_phrase: String, id_vec: String) {
+	let admin = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
+
+	let current_block_number = get_current_block_number().await.unwrap();
+
+	let admin_account = admin.public().to_ss58check();
+	let hash = sha256::digest(id_vec.as_bytes());
+	let auth = IdAuthenticationToken { block_number: current_block_number, block_validation: 10, data_hash: hash };
+	let auth_str = serde_json::to_string(&auth).unwrap();
+	let sig = admin.sign(auth_str.as_bytes());
+	let signature = format!("0x{:?}",sig);
+
+	let packet = IdPacket {
+		admin_account,
+		id_vec,
+		auth_token: auth_str,
+		signature,
+	};
+
+	println!(
+		"================================== Backup Fetch ID Packet = \n{}\n",
+		serde_json::to_string_pretty(&packet).unwrap()
+	);
+}
+
+/* ************************
+	 ADMIN PUSH ID
+*************************/
+async fn generate_push_id(seed_phrase: String, id_vec: String) {
+	let admin = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
+
+	let block_number = get_current_block_number().await.unwrap();
+
+	let admin_account = admin.public().to_ss58check();
+
+	let data_hash = sha256::digest(id_vec.as_bytes());
+
+	let auth = IdAuthenticationToken {
+		block_number,
+		block_validation: 10,
+		data_hash,
+	};
+
+	let auth_str = serde_json::to_string(&auth).unwrap();
+	let sig = admin.sign(auth_str.as_bytes());
+	let signature = format!("0x{:?}", sig);
+
+	let packet = IdPacket {
+		admin_account,
+		id_vec,
+		auth_token: auth_str,
+		signature,
+	};
+
+	println!(
+		"================================== Backup Push ID Packet = \n{}\n",
+		serde_json::to_string_pretty(&packet).unwrap()
 	);
 }
 

@@ -314,7 +314,10 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 						"CHAIN : Failed to parse NFT data for rentee, retry num.{} : {:?}",
 						retry, rent_contract
 					);
-					sentry::capture_message("CHAIN : Failed to parse NFT data for rentee", sentry::Level::Error);
+					sentry::capture_message(
+						"CHAIN : Failed to parse NFT data for rentee",
+						sentry::Level::Error,
+					);
 				},
 			},
 
@@ -344,7 +347,10 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 			Some(data) => data.rentee,
 			_ => {
 				error!("CHAIN : Failed to fetch NFT data for rentee : {:?}", rent_contract);
-				sentry::capture_message("CHAIN : Failed to fetch NFT data for rentee", sentry::Level::Error);
+				sentry::capture_message(
+					"CHAIN : Failed to fetch NFT data for rentee",
+					sentry::Level::Error,
+				);
 				None
 			},
 		},
@@ -498,7 +504,10 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 					error!("CHAIN : GET METRIC SERVER : Failed to parse metric server vector, retry num.{} : {:?}",
 						retry, metric_servers
 						);
-					sentry::capture_message("CHAIN : GET METRIC SERVER : Failed to parse metric server vector", sentry::Level::Error);
+					sentry::capture_message(
+						"CHAIN : GET METRIC SERVER : Failed to parse metric server vector",
+						sentry::Level::Error,
+					);
 					return None;
 				},
 			},

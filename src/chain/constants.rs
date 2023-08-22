@@ -1,5 +1,10 @@
 pub const VERSION: &str = "0.4.3";
-pub const ATTESTATION_SERVER_URL: &str = "https://51.222.44.147:9100/attest";
+pub const ATTESTATION_SERVER_URL: &str = if cfg!(any(feature = "main-net", feature = "alphanet-net")) {
+	"https://51.222.44.147:9200/attest"
+} else {
+	"https://51.222.44.147:9100/attest"
+};
+
 //pub const ATTESTATION_SERVER_URL = "https://dev-c1n1.ternoa.network:9100";
 
 pub const GITHUB_SIGN_PUBLIC_KEY: &str = if cfg!(feature = "release-build") {

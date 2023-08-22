@@ -60,7 +60,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"data\": \"020001002b0c00000e000e000000000015ad86b4cfa46b327a8bfb79aa0d67b70000000000000000000000000000000006080216ffff0400000000000000000000000000000000000000000000000000000000000000000000000000000000000700000000000000e700000000000000cd8628a378ce00ccf379fbd1ace88bebe2385ad5bc6a59abb0be81f1be4797730000000000000000000000000000000000000000000000000000000000000000ae790e644a1476cf87d2b64e547ed454879d351825507104e055a13048e71f6d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b00660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002d25c71e1ee90ef325f11f907e6c5d5f709d8d87450c20d1499ef830990fa35673a64a930dec9f99b197e0c3ccd120d68a1cacf0db789735ada08213a81618ca8020000ba4c180a89812389b648d96dc765c6a6fb32aafafdbe086a4d5bc271b3b207d8cff5f6ec168954e1496371532c99c5c29560b842d534fc4c3170d9b4f27bdd1ed5a470b20483c01352cc90cc0a9c9a634823891b2bc73abd74dcf4c886dbd0d469623bac0862c863c1e92fc5714fe5a8d71f124072304bd63aeda8e3135fc778c66e0c1102045c769e10bfee9b370ac205dc0464e2776d83f7e9ac71ec67feadc78ec868eb1581b026455dd2a64ddf835bf7d41b96b72ae8fe58f89d65e2d134679a6d54563fc73efd692af966bd2b58dba0c057340ac1357b43a2b1353f8000b4675df88b70e60b561328a74645fea3bc15b3dc7f79ef3ff88c77b81049b693905e55ec27fde7342ef43adb8d754843a315ec6f920327b24aa91a4424d8a784778a7f6ad7e42f5c9c66326968010000b39d172a9a0d9db9a9f5f36dc5b974bc13cccbb56b49ae298de482adc350b4918cc99dffd9696df9da3b0375f9fa6946c0ce510f2dfb449e6832ba85fca2a8a33afa8ae7a2d1a068c77132b85a3b6e58530013728229c8ddf313dae6762e1b758038c2e3948a65bc901f3758a58fbfe9e1345cb8da95ca8f9b6c5d39adbe1a861f4d0ef35d751bb67ed50ae373bec731e7470668e021e00e1fb621873b3188c1408a5a49e96c3a26b819228d1d8b6686e230cae39a004c7209f6a0712d21e1e5dd49199921a70533a7c1f7d0b9a2945741808997d072ad82952e925bca2b9ce3395fa67dc183480155c5b83b346c456db9ea7e1b2f6f818ea5e87f99e6e597702f28a3e85a9234585d163ce93c35b2c5703c45981c3598b1c10e66d1d3c0b78ec569a11e5c5212fa5fce0adbf5a6c3d6eb70192db88b7209489fe23cf6bcd6b637557b72845d309d4be354062cf290c70a12e1a8b0e17d1583b7db7a587e2c2257313cdaf2df6326b24113b76552687e0d0f44309850406e\"\n}",
+							"raw": "{\n    \"data\": \"020001002b0c00000e000e000000000015ad86b4cfa46b327a8bfb79aa0d67b70000000000000000000000000000000006080216ffff0400000000000000000000000000000000000000000000000000000000000000000000000000000000000700000000000000e70000000000000088e1a708310b52d0b9c1e152ec74fc74f48b0331ee7cecd73f1e2917b4ca2a120000000000000000000000000000000000000000000000000000000000000000ae790e644a1476cf87d2b64e547ed454879d351825507104e055a13048e71f6d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b0066000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008a96414fdc416b73cf10518e6a8aeb483c72f4d5a03139a308d043ad583b5f4b89bd4f3932549b91bd4ce4b2f8f2048cf45ae378a835277f13bdec88acc5028da80200007d9f605dc6b45de15a2db8cfc5b50a19cfd7997ab0183d63259583f6a880da49b1033cdd2e66a255453577e3504990ccd094831d0a97ae89529c3a14f00a6dfe9eea94c1dd41fc3ba245ff8d1f71e8a7d11dc916eb0fa81420c45855b6cd08e16af1e9542c94d8ad576b19aeae64f8205c219372c0f9f516545718cb46cf2470991fa1e3ec5176db6f300c43c4c912ddb1b871b01a1b633eaf3790288960c5737734ec85a708766e4a8852e131cd9adfc99b1cfdae758570a57cb6d24db44d1df7a5774dfa92f4c0c8cc22e9a23ca3b9e347fc6e5f78a8c0db683b63f2512037229b38dbdfc0e25c6b2dfabb99afcf35c091620a1787011b08616764c0a94189798b975f34dfaf0fb7b368f2afeaba76677725acf8627fa855ae4a2b9e2533408eab27dcb30ad7785afe17406801000068f324150a4b86cca3105c4ad6b4a6e6eba9f50aa467757300e2c56133e80fc1f8adfe2b5c250c419a3aa7d82889a898b05e1a677883574f021fd0c97887b2f6c74fc9d7246907eca768ceae848a644debb23e9df81e7003011838172cd570e1a8b850e2a443c8facc3d3eaa66c1d5b25106075de8bea2db5167e93eff6eaebc73f0a8dda625cf2821d9ec65bdced5500a3477cf996cdfdf8869c8620483fc831d55b70ec89e9390a049b5615b9a11485baf53f23519d37595bd9a7ba87e20c21b2b5fa245c69e9a93cb12f33fea4a1b09f4d6d9d44c27ad233a4ddbb85a4568e20b0ef4ed17aea3270d027d2852ac5ef5484149903fee74f6283977ff59e2d379801f6ca3ba32aed18a1f8e1b33c4f5fc005475977e30b1e2d21065273bd7e9aa54da4936105f325fc3db886d01d9533317933ff3b4013fa11fd68137b13cd77bba996c2e8d42e3026def176d4cd085948a86fbe2fff431dcd8e36675de8d3816df30d57d801bbb1f95ea3ba19cd59168690cc286a39d8a\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -68,14 +68,14 @@
 							}
 						},
 						"url": {
-							"raw": "https://dev-c1n1.ternoa.network:9101/attest",
+							"raw": "https://dev-c1n1.ternoa.network:9100/attest",
 							"protocol": "https",
 							"host": [
 								"dev-c1n1",
 								"ternoa",
 								"network"
 							],
-							"port": "9101",
+							"port": "9100",
 							"path": [
 								"attest"
 							]
@@ -94,19 +94,19 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://dev-c1n1.ternoa.network:9201/api/secret-nft/is-keyshare-available/38",
+							"raw": "https://dev-c1n2.ternoa.network:8100/api/secret-nft/is-keyshare-available/1",
 							"protocol": "https",
 							"host": [
-								"dev-c1n1",
+								"dev-c1n2",
 								"ternoa",
 								"network"
 							],
-							"port": "9201",
+							"port": "8100",
 							"path": [
 								"api",
 								"secret-nft",
 								"is-keyshare-available",
-								"38"
+								"1"
 							]
 						}
 					},
@@ -143,7 +143,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"owner_address\": \"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n  \"signer_address\": \"5GedvuE5hKmmegBkpJDSZwqE69emurMmza9Ki9kqkkg9o7aT_45377_15\",\n  \"signersig\": \"0xdc3025f987e7d6944924153e07b6f6ddbe657b43c084d10902f10a2d18912e2c5324133a8d763d1f8c5fab2be97e0e17cfc8ff3adfe219698214a5ab7e30b282\",\n  \"data\": \"37_IT-IS-SO-SECRET-AAAAAABBBBBBccccccDDDDDD111111111_45377_15\",\n  \"signature\": \"0x2a45be03d0c3a82299cad0ee290a125b6cab3f13916626dcdd9e3d6ac780eb28ba8983faa2293be927b51a07d0cac45108f4fa9e0d24d07bfbbb64f917223c80\"\n}\n\n\n\n\n\n\n",
+							"raw": "{\n  \"owner_address\": \"5HgQ621ngLGeegeXnMg6Qt14eZHSuMsbQYGwa7iTvGaAc9sh\",\n  \"signer_address\": \"5FvhfVF5aFL9Fhd2chz25fQAbNn5H9knDu2M7Dy9pa5eZ7Zi_4820_15\",\n  \"signersig\": \"0x5837a990e5495890d4e75c709ae595ec9e1837c27720dc72fa6164ead29a606271e782954a0484cb5575f02da3c612dd6f5a384f3316aa63e9415e8a4b382c84\",\n  \"data\": \"1_IT-IS-SO-SECRET-AAAAAABBBBBBccccccDDDDDD111111111_4820_15\",\n  \"signature\": \"0x8250e0a79a8b1e3c5f1ed237ef5c1f4a6c72620f9bec3e35591bb1b09d10242472b676e0e925952b9ea54e482ce1464fabd16f12be4ff92b4b7e1bcbdb1a3380\"\n}\n\n\n\n\n\n\n\n\n",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -151,14 +151,14 @@
 							}
 						},
 						"url": {
-							"raw": "https://dev-c1n1.ternoa.network:9106/api/secret-nft/store-keyshare",
+							"raw": "https://dev-c1n2.ternoa.network:8100/api/secret-nft/store-keyshare",
 							"protocol": "https",
 							"host": [
-								"dev-c1n1",
+								"dev-c1n2",
 								"ternoa",
 								"network"
 							],
-							"port": "9106",
+							"port": "8100",
 							"path": [
 								"api",
 								"secret-nft",
@@ -478,7 +478,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"admin_address\":\"5CcqaTBwWvbB2MvmeteSDLVujL3oaFHtdf24pPVT3Xf8v7tC\",\n    \"nftid_vec\":\"[10,200,3000,40000,500000,6000000]\",\n    \"auth_token\":\"{\\\"block_number\\\":85894,\\\"block_validation\\\":15,\\\"data_hash\\\":\\\"c9db6d28608df12915237a0853c9d6052677a01e30232dfad443bd01861615e0\\\"}\",\n    \"signature\":\"0x667310eb9c7bb23686609984e38c200c61708417af2570e23effffe25d5abf778185880f18ae345f1559dcc6e363d4abab6c4f24cc689753efaffd1a827af785\"\n}\n\n\n\n",
+							"raw": "{\n  \"admin_account\": \"5HgQ621ngLGeegeXnMg6Qt14eZHSuMsbQYGwa7iTvGaAc9sh\",\n  \"id_vec\": \"[1,2,3,4,5,6,7]\",\n  \"auth_token\": \"{\\\"block_number\\\":10993,\\\"block_validation\\\":10,\\\"data_hash\\\":\\\"cc9cd81c3110bc37d6c9bfd30bce0267b6cbfc3ffef7fb9abdc8615e42d10575\\\"}\",\n  \"signature\": \"0x40d4d40edb91cac7620f26b4fed12cb4542aad7739108abdc408720b82c6be21c42a1be23865aa1c067e58cd1a95784796364f3173e6b45ad7998b8b395dbd87\"\n}\n\n\n",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -486,10 +486,10 @@
 							}
 						},
 						"url": {
-							"raw": "https://dev-c1n1.ternoa.network:9101/api/backup/fetch-id",
+							"raw": "https://dev-c1n2.ternoa.network:9101/api/backup/fetch-id",
 							"protocol": "https",
 							"host": [
-								"dev-c1n1",
+								"dev-c1n2",
 								"ternoa",
 								"network"
 							],
@@ -498,6 +498,38 @@
 								"api",
 								"backup",
 								"fetch-id"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Admin-push-ID",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"admin_account\": \"5HgQ621ngLGeegeXnMg6Qt14eZHSuMsbQYGwa7iTvGaAc9sh\",\n  \"id_vec\": \"[nft_1_123456_THIS-IS-SECRETPART,capsule_2_13456_THIS-IS-SECRET-PART2]\",\n  \"auth_token\": \"{\\\"block_number\\\":11027,\\\"block_validation\\\":10,\\\"data_hash\\\":\\\"fb213cdd131be72f5bbb93c95723141b33b56bcda864866fdbb83bae21a99cb6\\\"}\",\n  \"signature\": \"0x3489ea79099984ebb60d2bd941e81d558ab3abd8c75bf70a49772fbff1327b4c79ca11081f2590dabc1b8a6c72be292562bf6c3107bdb522ea8d54c8f3d15986\"\n}\n\n\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://dev-c1n2.ternoa.network:9101/api/backup/push-id",
+							"protocol": "https",
+							"host": [
+								"dev-c1n2",
+								"ternoa",
+								"network"
+							],
+							"port": "9101",
+							"path": [
+								"api",
+								"backup",
+								"push-id"
 							]
 						}
 					},
@@ -546,10 +578,10 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://dev-c1n1.ternoa.network:9101/api/set-block/45380",
+							"raw": "https://dev-c1n2.ternoa.network:9101/api/set-block/4660",
 							"protocol": "https",
 							"host": [
-								"dev-c1n1",
+								"dev-c1n2",
 								"ternoa",
 								"network"
 							],
@@ -557,7 +589,7 @@
 							"path": [
 								"api",
 								"set-block",
-								"45380"
+								"4660"
 							]
 						}
 					},
