@@ -20,11 +20,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions-rust-lang/setup-rust-toolchain@v1
-    - uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
       with:
-        sparse-checkout: |
-          deployment
+          toolchain: stable
+          override: true
+          target: x86_64-unknown-linux-musl
+
+    - name: Configure sccache env var and set build profile to ephemeral build
+      run: | 
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+	        echo “SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+
+    - name: Run sccache-cache
+      uses: mozilla-actions/sccache-action@v0.0.2
     
     - name: Install Nettle
       run: |
@@ -41,7 +53,10 @@ jobs:
       run: cosign version
 
     - name: Build
-      run: cargo build --no-default-features --features dev0-net,release-build --release 
+      uses: actions-rs/cargo@v1
+        with:
+            command: build
+            args: --no-default-features --features dev0-net,release-build --release 
 
     - name: Sign the binary
       env:
