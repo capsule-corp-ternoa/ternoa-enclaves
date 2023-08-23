@@ -831,7 +831,7 @@ pub async fn fetch_keyshares(
 									nft_type: NftType::Capsule,
 								},
 							),
-						);
+						).await;
 					},
 					Err(err) => {
 						let message = format!("FETCH KEYSHARES : ORIGINALS : ERROR RENAMING : {capsule_file} to {capsule_new_file} : {err:?}");
