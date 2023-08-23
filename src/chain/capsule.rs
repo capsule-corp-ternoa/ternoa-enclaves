@@ -373,8 +373,8 @@ pub async fn capsule_set_keyshare(
 				}
 			}
 
-			let file_path =
-				format!("{SEALPATH}/capsule_{}_{}.keyshare", verified_data.nft_id, block_number);
+			// Block Number is set at 0 until Synced state is detected
+			let file_path = format!("{SEALPATH}/capsule_{}_{0}.keyshare", verified_data.nft_id);
 
 			// CREATE KEY-SHARE FILE ON ENCLAVE DISK
 			let mut f = match std::fs::File::create(file_path.clone()) {
@@ -465,12 +465,13 @@ pub async fn capsule_set_keyshare(
 						verified_data.nft_id, request.owner_address, txh
 					);
 
+					// Set Block Number to 0 until Synced event detected
 					set_nft_availability(
 						&state,
 						(
 							verified_data.nft_id,
 							helper::Availability {
-								block_number,
+								block_number: 0, //block_number,
 								nft_type: helper::NftType::Capsule,
 							},
 						),
