@@ -55,7 +55,7 @@ sgx_signer --request fetch-id --seed "12 words seed of a whitelisted admin" --id
 * Generate request for id-based restore
   
 ``` shell
-sgx_signer --request push-id --seed "12 words seed of a whitelisted admin" --id-vec ["nft_12_45678_NFT12SECRETPART","capsule_134_56789_CAPSULE134SECRETPART"]
+sgx_signer --request push-id --seed "12 words seed of a whitelisted admin" --id-vec "[\"nft_1_123456_THIS-IS-SECRETPART\",\"capsule_2_13456_THIS-IS-SECRET-PART2\"]"
 ```
 
 * Generate request for retrieving secret share of a nftid with default parameters

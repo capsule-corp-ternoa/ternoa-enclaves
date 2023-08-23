@@ -173,15 +173,10 @@ impl AuthenticationToken {
 fn verify_account_id(
 	slot_enclaves: Vec<(u32, Enclave)>,
 	account_id: &String,
-	address: SocketAddr,
 ) -> Option<(u32, Enclave)> {
-	// TODO [future security] : can we check requester URL or IP? What if it uses proxy?
-	debug!("Verify Accound Id : Requester Address : {}", address);
-
-	let registered =
-		slot_enclaves.iter().find(|(_, enclave)| {
-			enclave.enclave_account.to_string() == *account_id
-		} /*&& (address == enclave.enclave_url)*/);
+	let registered = slot_enclaves
+		.iter()
+		.find(|(_, enclave)| enclave.enclave_account.to_string() == *account_id);
 
 	registered.cloned()
 }
@@ -263,7 +258,7 @@ pub async fn sync_keyshares(
 	let slot_enclaves = slot_discovery(&state).await;
 
 	debug!("SYNC KEYSHARES : VERIFY ACCOUNT ID");
-	let requester = match verify_account_id(slot_enclaves, &request.enclave_account, addr) {
+	let requester = match verify_account_id(slot_enclaves, &request.enclave_account) {
 		Some(enclave) => enclave,
 		None => {
 			let message = format!(
