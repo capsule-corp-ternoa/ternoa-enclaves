@@ -42,7 +42,7 @@ jobs:
     
     - name: Install Nettle
       run: |
-        sudo apt update
+        # sudo apt update
         sudo apt install -y clang llvm pkg-config nettle-dev
 
     - name: Run tests
@@ -68,8 +68,9 @@ jobs:
     
     - name: Create the Deployment ZIP
       run: |
+        mkdir -p deployment/ternoa_enclave/gramine/bin/
         cp target/release/sgx_server     deployment/ternoa_enclave/gramine/bin/
-        cp target/release/sgx_server.sig deployment/ternoa_enclave/gramine/bin/
+        # cp target/release/sgx_server.sig deployment/ternoa_enclave/gramine/bin/
         cd deployment
         zip ternoa_enclave_deployment.zip ternoa_enclave/gramine/bin/
         cd ..
@@ -115,3 +116,8 @@ jobs:
         tag: ${{ github.ref }}
         overwrite: true
         body: "Ternoa SGX Server MRENCLAVE for dev-0 chain"
+    
+    - name: Clean th ZIP file
+      run: |
+        zip -d deployment/ternoa_enclave_deployment.zip "ternoa_enclave/gramine/bin/sgx_server"
+        zip -d deployment/ternoa_enclave_deployment.zip "ternoa_enclave/gramine/bin/sgx_server.sig"
