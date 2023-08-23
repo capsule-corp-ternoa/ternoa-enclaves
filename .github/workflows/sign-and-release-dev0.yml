@@ -68,8 +68,8 @@ jobs:
     
     - name: Create the Deployment ZIP
       run: |
-        cp target/release/sgx_server     deployment/ternoa_deployment/gramine/bin/
-        cp target/release/sgx_server.sig deployment/ternoa_deployment/gramine/bin/
+        cp target/release/sgx_server     deployment/ternoa_enclave/gramine/bin/
+        cp target/release/sgx_server.sig deployment/ternoa_enclave/gramine/bin/
         cd deployment
         zip ternoa_enclave_deployment.zip ternoa_enclave/gramine/bin/
         cd ..
