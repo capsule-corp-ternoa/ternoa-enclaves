@@ -1,4 +1,4 @@
-SDK_VERSION="2.20.100.4"
+DK_VERSION="2.20.100.4"
 PSW_VERSION="1.17.100.4"
 
 # ----- Driver for old kernels
@@ -167,7 +167,7 @@ cd ~
 git clone https://github.com/capsule-corp-ternoa/sgx_server.git
 cd sgx_server
 
-# NOTE: On new DOMAIN, credentials/certificates will be invalid, you'll need to remove them before start
+# NOTE: On new DOMAIN, gramine/certificates will be invalid, you'll need to remove them before start
 # NOTE: For production, please be careful about certs, never delete them, because every domain has 5 times quota every week.
 # NOTE: It takes 20 seconds for sgx_server to start, that's because of fetch new certificates.
 

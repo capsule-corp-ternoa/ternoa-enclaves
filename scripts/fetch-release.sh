@@ -14,6 +14,7 @@ else
 fi
 
 CURL="curl -H 'Authorization: token $AUTHTOKEN' https://api.github.com/repos/capsule-corp-ternoa/sgx_server/releases"
+echo $(eval $CURL/tags/$VERSION_TAG) | jq .
 
 CURL_BINARY_ID="$CURL/tags/$VERSION_TAG"
 BINARY=$(eval $CURL_BINARY_ID | jq .assets[0].id)
