@@ -318,7 +318,7 @@ pub async fn admin_backup_fetch_id(
 		backup_request.signature.clone(),
 		backup_request.auth_token.as_bytes(),
 	) {
-		return error_handler("ADMIN FETCH ID :Invalid Signature".to_string(), &state)
+		return error_handler("ADMIN FETCH ID : Invalid Signature".to_string(), &state)
 			.await
 			.into_response();
 	}
@@ -328,10 +328,10 @@ pub async fn admin_backup_fetch_id(
 	debug!("ADMIN FETCH ID :Validating the authentication token");
 	let validity = auth_token.is_valid(current_block_number);
 	match validity {
-		ValidationResult::Success => debug!("ADMIN FETCH ID :Authentication token is valid."),
+		ValidationResult::Success => debug!("ADMIN FETCH ID : Authentication token is valid."),
 		_ => {
 			let message = format!(
-				"ADMIN FETCH ID :Authentication Token is not valid, or expired : {:?}",
+				"ADMIN FETCH ID : Authentication Token is not valid, or expired : {:?}",
 				validity
 			);
 			return error_handler(message, &state).await.into_response();
@@ -349,7 +349,7 @@ pub async fn admin_backup_fetch_id(
 	let nftidv: Vec<u32> = match serde_json::from_str(&backup_request.id_vec) {
 		Ok(v) => v,
 		Err(err) => {
-			let message = format!("ADMIN FETCH ID :unable to deserialize nftid vector : {err:?}");
+			let message = format!("ADMIN FETCH ID : unable to deserialize nftid vector : {err:?}");
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -362,11 +362,11 @@ pub async fn admin_backup_fetch_id(
 	while std::path::Path::new(&backup_file.clone()).exists() {
 		match std::fs::remove_file(backup_file.clone()) {
 			Ok(_) => {
-				debug!("ADMIN FETCH ID :Successfully removed previous zip file")
+				debug!("ADMIN FETCH ID : Successfully removed previous zip file")
 			},
 			Err(err) => {
 				let message = format!(
-					"ADMIN FETCH ID :Error backup key shares : Can not remove previous backup file : {}",
+					"ADMIN FETCH ID : Error backup key shares : Can not remove previous backup file : {}",
 					err
 				);
 				warn!(message);
@@ -380,7 +380,7 @@ pub async fn admin_backup_fetch_id(
 	add_list_zip(SEALPATH, nftids, &backup_file);
 
 	// `File` implements `AsyncRead`
-	debug!("ADMIN FETCH ID :Opening backup file");
+	debug!("ADMIN FETCH ID : Opening backup file");
 	let file = match tokio::fs::File::open(backup_file).await {
 		Ok(file) => file,
 		Err(err) => {
@@ -390,11 +390,11 @@ pub async fn admin_backup_fetch_id(
 	};
 
 	// convert the `AsyncRead` into a `Stream`
-	debug!("ADMIN FETCH ID :Create reader-stream");
+	debug!("ADMIN FETCH ID : Create reader-stream");
 	let stream = ReaderStream::new(file);
 
 	// convert the `Stream` into an `axum::body::HttpBody`
-	debug!("ADMIN FETCH ID :Create body-stream");
+	debug!("ADMIN FETCH ID : Create body-stream");
 	let body = StreamBody::new(stream);
 
 	let headers = [
@@ -404,7 +404,7 @@ pub async fn admin_backup_fetch_id(
 
 	update_health_status(&state, String::new()).await;
 
-	debug!("ADMIN FETCH ID :Sending the backup data to the client ...");
+	debug!("ADMIN FETCH ID : Sending the backup data to the client ...");
 	(headers, body).into_response()
 }
 
@@ -462,7 +462,7 @@ pub async fn admin_backup_push_id(
 		Ok(token) => token,
 		Err(err) => {
 			let message =
-				format!("ADMIN PUSH ID :Error backup key shares : Authentication token is not parsable : {}", err);
+				format!("ADMIN PUSH ID : Error backup key shares : Authentication token is not parsable : {}", err);
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -472,7 +472,7 @@ pub async fn admin_backup_push_id(
 		backup_request.signature.clone(),
 		backup_request.auth_token.as_bytes(),
 	) {
-		return error_handler("ADMIN PUSH ID :Invalid Signature".to_string(), &state)
+		return error_handler("ADMIN PUSH ID : Invalid Signature".to_string(), &state)
 			.await
 			.into_response();
 	}
@@ -482,10 +482,10 @@ pub async fn admin_backup_push_id(
 	debug!("ADMIN PUSH ID :Validating the authentication token");
 	let validity = auth_token.is_valid(current_block_number);
 	match validity {
-		ValidationResult::Success => debug!("ADMIN PUSH ID :Authentication token is valid."),
+		ValidationResult::Success => debug!("ADMIN PUSH ID : Authentication token is valid."),
 		_ => {
 			let message = format!(
-				"ADMIN PUSH ID :Authentication Token is not valid, or expired : {:?}",
+				"ADMIN PUSH ID : Authentication Token is not valid, or expired : {:?}",
 				validity
 			);
 			return error_handler(message, &state).await.into_response();

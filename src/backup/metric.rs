@@ -127,7 +127,7 @@ fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool
 	}
 }
 
-async fn update_health_status(state: &SharedState, message: String) {
+async fn _update_health_status(state: &SharedState, message: String) {
 	let shared_state_write = &mut state.write().await;
 	debug!("METRIC : got shared state to write.");
 
@@ -135,9 +135,9 @@ async fn update_health_status(state: &SharedState, message: String) {
 	debug!("METRIC : Maintenance state is set.");
 }
 
-pub async fn error_handler(message: String, state: &SharedState) -> impl IntoResponse {
+pub async fn error_handler(message: String, _state: &SharedState) -> impl IntoResponse {
 	error!(message);
-	update_health_status(state, String::new()).await;
+	//update_health_status(state, String::new()).await;
 	(StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
 }
 

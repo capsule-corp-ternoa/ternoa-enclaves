@@ -204,7 +204,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 			},
 		};
 
-		let fullpath_str = outdir.to_string()
+		let fullpath_str = outdir.to_string() + "/"
 			+ match outpath.to_str() {
 				Some(st) => st,
 				None => {
@@ -254,7 +254,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 					file
 				},
 				Err(err) => {
-					error!("Backup extract : error (re)creating the file : {err:?}");
+					error!("Backup extract : error (re)creating the file {:?} : {err:?}", fullpath);
 					return Err(zip::result::ZipError::Io(err));
 				},
 			};
