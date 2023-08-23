@@ -31,9 +31,9 @@ jobs:
           target: x86_64-unknown-linux-musl
 
     - name: Configure sccache env var and set build profile to ephemeral build
-      run: | 
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-	        echo “SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+      run: |
+        echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+        echo “SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
 
     - name: Run sccache-cache
       uses: mozilla-actions/sccache-action@v0.0.2
