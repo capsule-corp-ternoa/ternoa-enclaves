@@ -20,9 +20,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
     - uses: actions/checkout@v3
+      with:
+        sparse-checkout: |
+          deployment
+    
     - name: Install Nettle
-      run: sudo apt install -y clang llvm pkg-config nettle-dev
+      run: |
+        sudo apt update
+        sudo apt install -y clang llvm pkg-config nettle-dev
 
     - name: Run tests
       run: echo "bypass tests temporarily" #cargo test --no-default-features --features dev0-net  --release
@@ -41,7 +48,7 @@ jobs:
        PRIVATE_KEY: ${{secrets.COSIGN_KEY}}
        PASSWORD: ${{secrets.COSIGN_PASSWORD}}
       run: echo "y" | COSIGN_PASSWORD="$PASSWORD" cosign sign-blob --key env://PRIVATE_KEY target/release/sgx_server --output-file target/release/sgx_server.sig
-
+    
     - name: Create the Deployment ZIP
       run: |
         cp target/release/sgx_server     deployment/ternoa_deployment/gramine/bin/
@@ -49,8 +56,7 @@ jobs:
         cd deployment
         zip ternoa_enclave_deployment.zip ternoa_enclave/gramine/bin/
         cd ..
-        rm deployment/ternoa_deployment/gramine/bin/*
-        run: echo ${{env.MRENCLAVE}} >> mrenclave
+        echo ${{env.MRENCLAVE}} >> mrenclave
 
     - name: Upload ZIP to release
       uses: svenstaro/upload-release-action@v2
