@@ -30,13 +30,15 @@ jobs:
           override: true
           target: x86_64-unknown-linux-musl
 
-    - name: Configure sccache env var and set build profile to ephemeral build
+    - name: Configure sccache env var
       run: |
         echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
         echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
 
     - name: Run sccache-cache
-      uses: mozilla-actions/sccache-action@v0.0.2
+      uses: mozilla-actions/sccache-action@v0.0.3
+      with:
+        version: "v0.5.2"
     
     - name: Install Nettle
       run: |
