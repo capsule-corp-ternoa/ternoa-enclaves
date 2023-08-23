@@ -54,9 +54,9 @@ jobs:
 
     - name: Build
       uses: actions-rs/cargo@v1
-        with:
-            command: build
-            args: --no-default-features --features dev0-net,release-build --release 
+      with:
+        command: build
+        args: --no-default-features --features dev0-net,release-build --release
 
     - name: Sign the binary
       env:
