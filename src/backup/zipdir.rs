@@ -3,7 +3,7 @@ use std::{
 	io::{self, prelude::*, Seek, Write},
 	iter::Iterator,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use zip::{result::ZipError, write::FileOptions};
 
 use std::{fs::File, path::Path};
@@ -58,7 +58,7 @@ where
 		let file_ext = match path.extension().and_then(std::ffi::OsStr::to_str) {
 			Some(ext) => ext,
 			None => {
-				warn!("ZIPDIR => CAN NOT extract file-extention from {:?}", path);
+				error!("ZIPDIR => CAN NOT extract file-extention from {:?}", path);
 				continue;
 			},
 		};
@@ -66,7 +66,7 @@ where
 		let file_name = match path.file_stem().and_then(std::ffi::OsStr::to_str) {
 			Some(name) => name,
 			None => {
-				warn!("ZIPDIR => CAN NOT extract file-name from {:?}", path);
+				error!("ZIPDIR => CAN NOT extract file-name from {:?}", path);
 				continue;
 			},
 		};
@@ -105,13 +105,18 @@ where
 
 				// File Name : NFT_NFTID_BLOCKNUMBER : nft_123_2345
 				if file_ext.is_empty()
+					// The file is not keyshare
 					|| file_ext != "keyshare"
-					|| name_parts.len() != 3
+					// File does not have keyshare format
+					|| name_parts.len() < 3
+					// NFTID not in the list
 					|| !list.contains(&name_parts[1].to_string())
+					// Capsules waiting to be synced
+					|| name_parts[2].parse::<u32>() == Ok(0)
 				{
 					debug!(
-						"\t ZIPDIR => improper file name-parts for synchronization = {:?}",
-						name_parts
+						"\t ZIPDIR => Improper file name-parts for synchronization = {:?}",
+						file_name
 					);
 					continue;
 				}
@@ -204,17 +209,17 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 			},
 		};
 
-		let fullpath_str = outdir.to_string() + "/"
-			+ match outpath.to_str() {
-				Some(st) => st,
-				None => {
-					error!(
-						"Backup extract : error converting path to str index = {}, path = {:?}",
-						i, outpath
-					);
-					continue;
-				},
-			};
+		let fullpath_str = outdir.to_string()
+			+ "/" + match outpath.to_str() {
+			Some(st) => st,
+			None => {
+				error!(
+					"Backup extract : error converting path to str index = {}, path = {:?}",
+					i, outpath
+				);
+				continue;
+			},
+		};
 
 		let fullpath = Path::new(&fullpath_str);
 

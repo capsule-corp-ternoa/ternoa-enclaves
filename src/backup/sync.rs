@@ -733,7 +733,7 @@ pub async fn sync_keyshares(
 
 pub async fn fetch_keyshares(
 	state: &SharedState,
-	new_nft: &HashMap<u32, u32>,
+	new_nft_map: &HashMap<u32, SyncedNFT>,
 ) -> Result<u32, anyhow::Error> {
 	debug!("\n\t----\nFETCH KEYSHARES : START\n\t----\n");
 
@@ -754,20 +754,27 @@ pub async fn fetch_keyshares(
 		},
 	};
 
-	// TODO [future reliability] Check if new nfts are already on the disk and updated, check nftids , if they are in range, ...
-
-	// Convert HashMap to Vector of nftid
-	let nftids: Vec<String> = new_nft
+	// Convert HashMap to Vector of nftid and filter new ones
+	let new_nftid_vec_str: Vec<String> = new_nft_map
 		.clone()
 		.into_iter()
 		// Ignore it, if it is in current cluster
-		.filter(|(_, cluster)| *cluster != enclave_identity.0)
+		.filter(|(_, cluster)| cluster.cluster_id != enclave_identity.0)
+		.map(|kv| kv.0.to_string())
+		.collect();
+
+	// Convert HashMap to Vector of nftid and filter existing ones
+	let existing_nftid_vec_str: Vec<String> = new_nft_map
+		.clone()
+		.into_iter()
+		// Ignore it, if it is in current cluster
+		.filter(|(_, cluster)| cluster.cluster_id == enclave_identity.0)
 		.map(|kv| kv.0.to_string())
 		.collect();
 
 	// Encode nftid to String
 	// If HashMap is empty, then it is called by a setup syncronization
-	let nftids_str = if new_nft.is_empty() {
+	let nftids_request = if new_nft_map.is_empty() {
 		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard for synchronization
 		// It is the first time running enclave
 		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
@@ -782,15 +789,9 @@ pub async fn fetch_keyshares(
 				return Err(anyhow!(message));
 			},
 		}
-	} else if nftids.is_empty() {
-		// nftids are all filtered out : they are already stored on this cluster
-		let message =
-			"FETCH KEYSHARES : the new nft is ORIGINALLY stored on this cluster".to_string();
-		debug!(message);
-		return Ok(current_block_number);
-	} else {
+	} else if !new_nftid_vec_str.is_empty() {
 		// Normal : there are some nftid in the list
-		match serde_json::to_string(&nftids) {
+		match serde_json::to_string(&new_nftid_vec_str) {
 			Ok(strng) => strng,
 			Err(err) => {
 				let message =
@@ -799,9 +800,60 @@ pub async fn fetch_keyshares(
 				return Err(anyhow!(message));
 			},
 		}
+	} else {
+		// nftids are all filtered out : they are already stored on this cluster
+		let message =
+			"FETCH KEYSHARES : the new nft is ORIGINALLY stored on this cluster".to_string();
+		debug!(message);
+		// There are some keyshares to be renamed due to synced event
+		for nftid in existing_nftid_vec_str {
+			let capsule_file = format!("{SEALPATH}/capsule_{nftid}_0.keyshare");
+			let capsule_path = std::path::Path::new(&capsule_file);
+
+			if capsule_path.exists() {
+				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced capsule exists : {capsule_file}");
+
+				let nftid_num = nftid.parse::<u32>().unwrap(); //unwrap is allowed here, we just created the nftid string
+				let sync_block = new_nft_map.get(&nftid_num).unwrap(); //unwrap is allowed here, we just created the map
+
+				let capsule_new_file =
+					format!("{SEALPATH}/capsule_{nftid}_{}.keyshare", sync_block.block_number);
+
+				match std::fs::rename(capsule_file.clone(), capsule_new_file.clone()) {
+					Ok(_) => {
+						debug!("FETCH KEYSHARES : ORIGINALS : RENAME TO NEW BLOCK SUCCESSFULL");
+						set_nft_availability(
+							state,
+							(
+								nftid_num,
+								Availability {
+									block_number: sync_block.block_number,
+									nft_type: NftType::Capsule,
+								},
+							),
+						);
+					},
+					Err(err) => {
+						let message = format!("FETCH KEYSHARES : ORIGINALS : ERROR RENAMING : {capsule_file} to {capsule_new_file} : {err:?}");
+						error!(message);
+
+						sentry::with_scope(
+							|scope| {
+								scope.set_tag("fetch-keyshares", "originals");
+							},
+							|| sentry::capture_message(&message, sentry::Level::Error),
+						);
+					},
+				}
+			} else {
+				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced capsule NOT exist : {capsule_file}");
+			}
+		}
+
+		return Ok(current_block_number);
 	};
 
-	let nftid_hash = sha256::digest(nftids_str.as_bytes());
+	let nftid_hash = sha256::digest(nftids_request.as_bytes());
 
 	let user_data_token = format!("{account_id}_{current_block_number}");
 	debug!("FETCH KEYSHARES : QUOTE : report_data token = {}", user_data_token);
@@ -898,7 +950,7 @@ pub async fn fetch_keyshares(
 
 	let request = FetchIdPacket {
 		enclave_account: account_id,
-		nftid_vec: nftids_str,
+		nftid_vec: nftids_request,
 		auth_token: auth_str,
 		signature: sig_str,
 		quote,
@@ -942,7 +994,7 @@ pub async fn fetch_keyshares(
 	}
 
 	// Check other enclaves for new NFT keyshares
-	let nft_clusters: Vec<u32> = new_nft.clone().into_values().collect();
+	let nft_clusters: Vec<u32> = new_nft_map.clone().into_values().map(|c| c.cluster_id).collect();
 	debug!("FETCH KEYSHARES : nfts-cluster {:?}\n", nft_clusters);
 
 	let client = reqwest::Client::builder()
@@ -968,7 +1020,7 @@ pub async fn fetch_keyshares(
 		// It is faster for Runtime synchronization
 		// It may be problematic for First time Synchronization
 		// Because it is possible that original enclave is down now.
-		if !new_nft.is_empty() && !nft_clusters.contains(&cluster_id) {
+		if !new_nft_map.is_empty() && !nft_clusters.contains(&cluster_id) {
 			debug!(
 				"FETCH KEYSHARES : NFTs does not belong to cluster {}, continue to next cluster",
 				cluster_id
@@ -1401,7 +1453,7 @@ pub async fn crawl_sync_events(
 	state: &SharedState,
 	from_block_num: u32,
 	to_block_num: u32,
-) -> Result<HashMap<u32, u32>, anyhow::Error> {
+) -> Result<HashMap<u32, SyncedNFT>, anyhow::Error> {
 	debug!("CRAWLING ...");
 
 	let api = get_chain_api(state).await;
@@ -1410,7 +1462,7 @@ pub async fn crawl_sync_events(
 	let storage_api = api.storage().at_latest().await?;
 
 	// Hashmap for fetch nftid-cluste
-	let mut nftid_cluster_map = HashMap::<u32, u32>::new();
+	let mut nftid_cluster_map = HashMap::<u32, SyncedNFT>::new();
 
 	for block_counter in from_block_num..=to_block_num {
 		// Find block hash
@@ -1430,7 +1482,7 @@ pub async fn crawl_sync_events(
 		// Extract block events
 		//let events = block.events().await?;
 
-		let (parsed, _) = parse_block_body(body, &storage_api).await?;
+		let (parsed, _) = parse_block_body(block_counter, body, &storage_api).await?;
 		nftid_cluster_map.extend(parsed);
 	}
 
@@ -1440,13 +1492,19 @@ pub async fn crawl_sync_events(
 /* --------------------------------------
 			 PARSE BLOCK BODY
 ----------------------------------------- */
+#[derive(Debug, Clone)]
+pub struct SyncedNFT {
+	cluster_id: u32,
+	block_number: u32,
+}
 
 pub async fn parse_block_body(
+	block_number: u32,
 	body: BlockBody<PolkadotConfig, OnlineClient<PolkadotConfig>>,
 	storage: &Storage<PolkadotConfig, OnlineClient<PolkadotConfig>>,
-) -> Result<(HashMap<u32, u32>, bool)> {
+) -> Result<(HashMap<u32, SyncedNFT>, bool)> {
 	trace!("BLOCK-PARSER");
-	let mut new_nft = HashMap::<u32, u32>::new();
+	let mut new_nft = HashMap::<u32, SyncedNFT>::new();
 	let mut update_cluster_data = false;
 
 	// For all extrinsics in the block body
@@ -1485,10 +1543,10 @@ pub async fn parse_block_body(
 												continue
 											},
 										};
-										new_nft.insert(nftid, cluster_id);
+										new_nft.insert(nftid, SyncedNFT {block_number, cluster_id});
 										info!("BLOCK-PARSER : NFT : ADD_CAPSULE_SHARD : CAPSULE SYNCED EVENT DETECTED, Cluster_ID {}, NFT_ID: {}", cluster_id, nftid);
 									},
-									None => debug!("BLOCK-PARSER : NFT : ADD_CAPSULE_SHARD : ERROR : Capsule Synced Event Detected, BUT there is not corresponding CapsuleShardAdded event for nft_id: {}", nftid),
+									None => warn!("BLOCK-PARSER : NFT : ADD_CAPSULE_SHARD : ERROR : CAPSULE SYNCED EVENT DETECTED, BUT there is not corresponding CapsuleShardAdded event for nft_id: {}", nftid),
 								}
 							},
 							None => debug!(
@@ -1522,7 +1580,7 @@ pub async fn parse_block_body(
 												continue
 											},
 										};
-										new_nft.insert(nftid, cluster_id);
+										new_nft.insert(nftid, SyncedNFT {block_number, cluster_id});
 										info!("BLOCK-PARSER : NFT : ADD_SECRET_SHARD : Secret-NFT Synced Event Detected, Cluster_ID {}, NFT_ID: {}", cluster_id, nftid);
 									},
 									None => debug!("BLOCK-PARSER : NFT : ADD_SECRET_SHARD : Secret-NFT Synced Event Detected, but there is not corresponding ShardAdded event for nft_id: {}", nftid),
@@ -2218,7 +2276,8 @@ mod test {
 
 		let storage_api = block.storage();
 		//(new_nft, update_cluster_data)
-		let (_, tee_events) = parse_block_body(body, &storage_api).await.unwrap();
+		let (_, tee_events) =
+			parse_block_body(test_block_number, body, &storage_api).await.unwrap();
 		println!("\n A tee event has happened, fetch the cluster data? : {}\n", tee_events);
 	}
 }

@@ -358,7 +358,8 @@ pub async fn admin_backup_fetch_bulk(
 		backup_request.signature.clone(),
 		backup_request.auth_token.clone().as_bytes(),
 	) {
-		return (StatusCode::FORBIDDEN, Json(json!({"error": "Invalid Signature".to_string()}))).into_response();
+		return (StatusCode::FORBIDDEN, Json(json!({"error": "Invalid Signature".to_string()})))
+			.into_response();
 	}
 
 	let current_block_number = get_blocknumber(&state).await;
@@ -403,7 +404,10 @@ pub async fn admin_backup_fetch_bulk(
 	let file = match tokio::fs::File::open(backup_file).await {
 		Ok(file) => file,
 		Err(err) => {
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Backup File not found: {}", err) })))
+			return (
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(json!({ "error": format!("Backup File not found: {}", err) })),
+			)
 				.into_response()
 		},
 	};
@@ -472,24 +476,29 @@ pub async fn admin_backup_push_bulk(
 	let mut auth_token = String::new();
 	let mut signature = String::new();
 
-	while let Some(field) =
-		match store_request.next_field().await {
-			Ok(field) => field,
-			Err(err) => {
-				let message =
-				format!("ADMIN PUSH BULK : Error backup key shares : Can not parse request form-data : {}", err);
-				warn!(message);
-				return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
-			},
-		} {
+	while let Some(field) = match store_request.next_field().await {
+		Ok(field) => field,
+		Err(err) => {
+			let message = format!(
+				"ADMIN PUSH BULK : Error backup key shares : Can not parse request form-data : {}",
+				err
+			);
+			warn!(message);
+			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
+		},
+	} {
 		let name = match field.name() {
 			Some(name) => name.to_string(),
 			_ => {
 				info!("ADMIN PUSH BULK : field name : {:?}", field);
 
-				return (StatusCode::BAD_REQUEST, Json(json!({
-						"error": format!("ADMIN PUSH BULK : Error request field name {:?}", field),
-				}))).into_response();
+				return (
+					StatusCode::BAD_REQUEST,
+					Json(json!({
+							"error": format!("ADMIN PUSH BULK : Error request field name {:?}", field),
+					})),
+				)
+					.into_response();
 			},
 		};
 
@@ -500,9 +509,13 @@ pub async fn admin_backup_push_bulk(
 					Err(err) => {
 						info!("ADMIN PUSH BULK : Error request admin_address {err:?}");
 
-						return (StatusCode::BAD_REQUEST, Json(json!({
-								"error": format!("ADMIN PUSH BULK : Error request admin_address {err:?}"),
-						}))).into_response();
+						return (
+							StatusCode::BAD_REQUEST,
+							Json(json!({
+									"error": format!("ADMIN PUSH BULK : Error request admin_address {err:?}"),
+							})),
+						)
+							.into_response();
 					},
 				}
 			},
@@ -513,9 +526,13 @@ pub async fn admin_backup_push_bulk(
 					Err(err) => {
 						info!("ADMIN PUSH BULK : Error request restore_file {err:?}");
 
-						return (StatusCode::BAD_REQUEST, Json(json!({
-								"error": format!("ADMIN PUSH BULK : Error request restore_file {err:?}"),
-						}))).into_response();
+						return (
+							StatusCode::BAD_REQUEST,
+							Json(json!({
+									"error": format!("ADMIN PUSH BULK : Error request restore_file {err:?}"),
+							})),
+						)
+							.into_response();
 					},
 				}
 			},
@@ -526,9 +543,13 @@ pub async fn admin_backup_push_bulk(
 					Err(err) => {
 						info!("ADMIN PUSH BULK : Error request auth_token {err:?}");
 
-						return (StatusCode::BAD_REQUEST, Json(json!({
-							"error": format!("ADMIN PUSH BULK : Error request auth_token {err:?}"),
-						}))).into_response();
+						return (
+							StatusCode::BAD_REQUEST,
+							Json(json!({
+								"error": format!("ADMIN PUSH BULK : Error request auth_token {err:?}"),
+							})),
+						)
+							.into_response();
 					},
 				}
 			},
@@ -540,27 +561,39 @@ pub async fn admin_backup_push_bulk(
 						_ => {
 							info!("ADMIN PUSH BULK : Error request signature format, expectex 0x prefix, {sig}");
 
-							return (StatusCode::BAD_REQUEST, Json(json!({
-									"error": format!("ADMIN PUSH BULK : Error request signature format, expectex 0x prefix"),
-							}))).into_response();
+							return (
+								StatusCode::BAD_REQUEST,
+								Json(json!({
+										"error": format!("ADMIN PUSH BULK : Error request signature format, expectex 0x prefix"),
+								})),
+							)
+								.into_response();
 						},
 					},
 
 					Err(err) => {
 						info!("ADMIN PUSH BULK : Error request signature {err:?}");
 
-						return (StatusCode::BAD_REQUEST, Json(json!({
-								"error": format!("ADMIN PUSH BULK : Error request signature {err:?}"),
-						}))).into_response();
+						return (
+							StatusCode::BAD_REQUEST,
+							Json(json!({
+									"error": format!("ADMIN PUSH BULK : Error request signature {err:?}"),
+							})),
+						)
+							.into_response();
 					},
 				}
 			},
 
 			_ => {
 				info!("Error restore backup keyshares : Error request field name {:?}", field);
-				return (StatusCode::BAD_REQUEST, Json(json!({
-						"error": format!("ADMIN PUSH BULK : Error request field name {:?}", field),
-				}))).into_response();
+				return (
+					StatusCode::BAD_REQUEST,
+					Json(json!({
+							"error": format!("ADMIN PUSH BULK : Error request field name {:?}", field),
+					})),
+				)
+					.into_response();
 			},
 		}
 	}
@@ -570,28 +603,48 @@ pub async fn admin_backup_push_bulk(
 
 		warn!(message);
 
-		return (StatusCode::FORBIDDEN, Json(json! ({
-			"error": message,
-		}))).into_response();
+		return (
+			StatusCode::FORBIDDEN,
+			Json(json! ({
+				"error": message,
+			})),
+		)
+			.into_response();
 	}
 
 	if !verify_signature(&admin_address, signature.clone(), auth_token.clone().as_bytes()) {
 		warn!("Error restore backup keyshares : Invalid signature : admin = {}", admin_address);
 
-		return (StatusCode::FORBIDDEN, Json(json! ({
-			"error": "Invalid token signature",
-		}))).into_response();
+		return (
+			StatusCode::FORBIDDEN,
+			Json(json! ({
+				"error": "Invalid token signature",
+			})),
+		)
+			.into_response();
 	}
 
 	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
 		auth_token = match auth_token.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => return (StatusCode::BAD_REQUEST, Json(json! ({"error": "ADMIN PUSH BULK : Strip Token prefix error"}))).into_response(),
+			_ => {
+				return (
+					StatusCode::BAD_REQUEST,
+					Json(json! ({"error": "ADMIN PUSH BULK : Strip Token prefix error"})),
+				)
+					.into_response()
+			},
 		};
 
 		auth_token = match auth_token.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => return (StatusCode::BAD_REQUEST, Json(json! ({"error": "Strip Token suffix error"}))).into_response(),
+			_ => {
+				return (
+					StatusCode::BAD_REQUEST,
+					Json(json! ({"error": "Strip Token suffix error"})),
+				)
+					.into_response()
+			},
 		}
 	}
 
@@ -623,9 +676,13 @@ pub async fn admin_backup_push_bulk(
 	if token.data_hash != hash {
 		warn!("ADMIN PUSH BULK : mismatch data hash : admin = {}", admin_address);
 
-		return (StatusCode::BAD_REQUEST, Json(json! ({
-			"error": "ADMIN PUSH BULK : Mismatch Data Hash",
-		}))).into_response();
+		return (
+			StatusCode::BAD_REQUEST,
+			Json(json! ({
+				"error": "ADMIN PUSH BULK : Mismatch Data Hash",
+			})),
+		)
+			.into_response();
 	}
 
 	let backup_file = SEALPATH.to_string() + "/" + "backup.zip";
@@ -635,7 +692,8 @@ pub async fn admin_backup_push_bulk(
 		Err(err) => {
 			let message = format!("ADMIN PUSH BULK : Can not create file on disk : {}", err);
 			warn!(message);
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message }))).into_response();
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
+				.into_response();
 		},
 	};
 
@@ -644,9 +702,13 @@ pub async fn admin_backup_push_bulk(
 		Err(err) => {
 			let message = format!("ADMIN PUSH BULK : writing zip file to disk{err:?}");
 			error!(message);
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
-				"error": message,
-			}))).into_response();
+			return (
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(json!({
+					"error": message,
+				})),
+			)
+				.into_response();
 		},
 	}
 
@@ -656,26 +718,38 @@ pub async fn admin_backup_push_bulk(
 		Err(err) => {
 			let message = format!("ADMIN PUSH BULK : extracting zip file {err:?}");
 			error!(message);
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
-				"error": message,
-			}))).into_response();
+			return (
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(json!({
+					"error": message,
+				})),
+			)
+				.into_response();
 		},
 	}
 
 	match remove_file(backup_file) {
 		Ok(_) => debug!("ADMIN PUSH BULK : remove zip file successful"),
 		Err(err) => {
-			return (StatusCode::OK, Json(json!({
-				"warning": format!("Backup success with Error in removing zip file, {:?}",err),
-			}))).into_response();
+			return (
+				StatusCode::OK,
+				Json(json!({
+					"warning": format!("Backup success with Error in removing zip file, {:?}",err),
+				})),
+			)
+				.into_response();
 		},
 	};
 
 	// Update Enclave Account, if it is updated.;
 	if !std::path::Path::new(&ENCLAVE_ACCOUNT_FILE).exists() {
-		return (StatusCode::NO_CONTENT, Json(json!({
-			"error": format!("ADMIN PUSH BULK : Enclave Account file not found"),
-		}))).into_response();
+		return (
+			StatusCode::NO_CONTENT,
+			Json(json!({
+				"error": format!("ADMIN PUSH BULK : Enclave Account file not found"),
+			})),
+		)
+			.into_response();
 	};
 
 	debug!(
@@ -688,9 +762,13 @@ pub async fn admin_backup_push_bulk(
 		Err(err) => {
 			let message = format!("ADMIN PUSH BULK : Error reading enclave account file: {err:?}");
 			error!(message);
-			return (StatusCode::NO_CONTENT, Json(json!({
-				"error": message,
-			}))).into_response();
+			return (
+				StatusCode::NO_CONTENT,
+				Json(json!({
+					"error": message,
+				})),
+			)
+				.into_response();
 		},
 	};
 
@@ -701,9 +779,13 @@ pub async fn admin_backup_push_bulk(
 		Err(err) => {
 			let message = format!("ADMIN PUSH BULK : Error creating keypair from phrase: {err:?}");
 			error!(message);
-			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
-				"error": message,
-			}))).into_response();
+			return (
+				StatusCode::INTERNAL_SERVER_ERROR,
+				Json(json!({
+					"error": message,
+				})),
+			)
+				.into_response();
 		},
 	};
 
@@ -714,9 +796,13 @@ pub async fn admin_backup_push_bulk(
 
 	//update_health_status(&state, String::new()).await;
 
-	(StatusCode::OK, Json(json!({
-		"success": format!("Success restoring backups"),
-	}))).into_response()
+	(
+		StatusCode::OK,
+		Json(json!({
+			"success": format!("Success restoring backups"),
+		})),
+	)
+		.into_response()
 }
 
 /* **********************

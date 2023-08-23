@@ -42,7 +42,7 @@ use crate::{
 		metric::metric_reconcilliation,
 		sync::{
 			cluster_discovery, crawl_sync_events, fetch_keyshares, get_sync_state,
-			parse_block_body, set_sync_state, sync_keyshares, Cluster,
+			parse_block_body, set_sync_state, sync_keyshares, Cluster, SyncedNFT,
 		},
 	},
 	chain::{
@@ -198,7 +198,7 @@ pub async fn http_server() -> Result<Router, Error> {
 				for _retry in 0..RETRY_COUNT {
 					match fetch_keyshares(
 						&state_config,
-						&std::collections::HashMap::<u32, u32>::new(),
+						&std::collections::HashMap::<u32, SyncedNFT>::new(),
 					)
 					.await
 					{
@@ -442,16 +442,17 @@ pub async fn http_server() -> Result<Router, Error> {
 
 			let storage_api = block.storage();
 
-			let (new_nft, is_tee_events) = match parse_block_body(body, &storage_api).await {
-				Ok(tuple) => {
-					trace!(" > Block Number Thread : parsed the block body.");
-					tuple
-				},
-				Err(err) => {
-					error!(" > Block Number Thread : Unable to parse the block body : {err:?}");
-					continue;
-				},
-			};
+			let (new_nft, is_tee_events) =
+				match parse_block_body(block_number, body, &storage_api).await {
+					Ok(tuple) => {
+						trace!(" > Block Number Thread : parsed the block body.");
+						tuple
+					},
+					Err(err) => {
+						error!(" > Block Number Thread : Unable to parse the block body : {err:?}");
+						continue;
+					},
+				};
 
 			// A change in clusters/enclaves data is detected.
 			if is_tee_events {
@@ -474,7 +475,7 @@ pub async fn http_server() -> Result<Router, Error> {
 							for _retry in 0..RETRY_COUNT {
 								match fetch_keyshares(
 									&state_config.clone(),
-									&std::collections::HashMap::<u32, u32>::new(),
+									&std::collections::HashMap::<u32, SyncedNFT>::new(),
 								)
 								.await
 								{
@@ -507,6 +508,31 @@ pub async fn http_server() -> Result<Router, Error> {
 					},
 				}
 			} // TEE EVENT
+
+			// New Capsule/Secret are found
+			if !new_nft.is_empty() {
+				debug!(
+					" > Runtime mode : NEW-NFT : New nft/capsul event detected, block number = {}",
+					block_number
+				);
+
+				for _retry in 0..RETRY_COUNT {
+					match fetch_keyshares(&state_config.clone(), &new_nft).await {
+						Ok(_) => {
+							let _ = set_sync_state(block_number.to_string());
+							debug!("\t > Runtime mode : NEW-NFT : Synchronization of Keyshares complete.");
+							break;
+						},
+						Err(err) => {
+							error!("\t > Runtime mode : NEW-NFT : Error during running-mode nft-based syncing : {err:?}");
+							debug!("\t > Runtime mode : NEW-NFT : wait before retry");
+							std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
+						},
+					} // FETCH
+				} // RETRY FETCH
+			}
+			// TODO : Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
+			// Maybe in another thread
 
 			// Regular CRAWL Check
 			let sync_state = match get_sync_state() {
@@ -589,31 +615,6 @@ pub async fn http_server() -> Result<Router, Error> {
 				set_processed_block(&state_config, block_number).await;
 				continue;
 			}
-
-			// New Capsule/Secret are found
-			if !new_nft.is_empty() {
-				debug!(
-					" > Runtime mode : NEW-NFT : New nft/capsul event detected, block number = {}",
-					block_number
-				);
-
-				for _retry in 0..RETRY_COUNT {
-					match fetch_keyshares(&state_config.clone(), &new_nft).await {
-						Ok(_) => {
-							let _ = set_sync_state(block_number.to_string());
-							debug!("\t > Runtime mode : NEW-NFT : Synchronization of Keyshares complete.");
-							break;
-						},
-						Err(err) => {
-							error!("\t > Runtime mode : NEW-NFT : Error during running-mode nft-based syncing : {err:?}");
-							debug!("\t > Runtime mode : NEW-NFT : wait before retry");
-							std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
-						},
-					} // FETCH
-				} // RETRY FETCH
-			}
-			// TODO : Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
-			// Maybe in another thread
 
 			// Update runtime block tracking variable
 			trace!("\t > Runtime mode : update last processed block");
