@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  MRENCLAVE: "1234567890abcdef"
+  MRENCLAVE: "01234567890abcdef01234567890abcdef01234567890abcdef01234567890abcdef"
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -74,7 +74,7 @@ jobs:
         cd deployment
         zip ternoa_enclave_deployment.zip ternoa_enclave/gramine/bin/*
         cd ..
-        echo ${{env.MRENCLAVE}} >> mrenclave
+        echo ${{env.MRENCLAVE}} >> MRENCLAVE
 
     - name: Upload ZIP to release
       uses: svenstaro/upload-release-action@v2
@@ -86,33 +86,33 @@ jobs:
         overwrite: true
         body: "Ternoa SGX Package for dev-0 chain"
     
-    - name: Upload binary to release
-      uses: svenstaro/upload-release-action@v2
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: target/release/sgx_server
-        asset_name: sgx_server_dev0
-        tag: ${{ github.ref }}
-        overwrite: true
-        body: "Ternoa SGX Server for dev-0 chain"
+    # - name: Upload binary to release
+    #   uses: svenstaro/upload-release-action@v2
+    #   with:
+    #     repo_token: ${{ secrets.GITHUB_TOKEN }}
+    #     file: target/release/sgx_server
+    #     asset_name: sgx_server_dev0
+    #     tag: ${{ github.ref }}
+    #     overwrite: true
+    #     body: "Ternoa SGX Server for dev-0 chain"
     
-    - name: Upload binary signature to release
-      uses: svenstaro/upload-release-action@v2
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: target/release/sgx_server.sig
-        asset_name: sgx_server_dev0.sig
-        tag: ${{ github.ref }}
-        overwrite: true
-        body: "Ternoa SGX Server Signature for dev-0 chain"
+    # - name: Upload binary signature to release
+    #   uses: svenstaro/upload-release-action@v2
+    #   with:
+    #     repo_token: ${{ secrets.GITHUB_TOKEN }}
+    #     file: target/release/sgx_server.sig
+    #     asset_name: sgx_server_dev0.sig
+    #     tag: ${{ github.ref }}
+    #     overwrite: true
+    #     body: "Ternoa SGX Server Signature for dev-0 chain"
 
     - name: Upload MRENCLAVE
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         
-        file: mrenclave
-        asset_name: mrenclave
+        file: MRENCLAVE
+        asset_name: MRENCLAVE
         tag: ${{ github.ref }}
         overwrite: true
         body: "Ternoa SGX Server MRENCLAVE for dev-0 chain"
