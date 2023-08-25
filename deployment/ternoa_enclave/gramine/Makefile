@@ -13,7 +13,7 @@ DEBUG ?= 0
 .PHONY: all
 all: sgx_server.manifest
 ifeq ($(SGX),1)
-all: sgx_server.manifest.sgx sgx_server.sig sgx_server.token
+all: sgx_server.manifest.sgx sgx_server.sig 
 endif
 
 ifeq ($(DEBUG),1)
@@ -45,10 +45,6 @@ sgx_sign: sgx_server.manifest
 	gramine-sgx-sign \
 		--manifest $< \
 		--output $<.sgx
-
-sgx_server.token: sgx_server.sig
-	gramine-sgx-get-token \
-		--output $@ --sig $<
 
 ifeq ($(SGX),)
 GRAMINE = gramine-direct
