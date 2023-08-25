@@ -1,11 +1,11 @@
-# Rust manifest example
+# Ternoa Rust PROD manifest
 
-loader.entrypoint = "file:{{ gramine.libos }}"
+loader.entrypoint = "file:trusted/gramine/libsysdb.so"
 libos.entrypoint = "{{ self_exe }}"
 loader.log_level = "error"
 #loader.log_level = "{{ log_level }}"
 
-loader.env.LD_LIBRARY_PATH = "/lib:{{ arch_libdir }}"
+loader.env.LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 
 # See https://gramine.readthedocs.io/en/latest/devel/performance.html#glibc-malloc-tuning
 loader.env.MALLOC_ARENA_MAX = "1"
@@ -16,9 +16,9 @@ loader.env.RUST_BACKTRACE = "full"
 # MOUNTING FROM "URI" ON HOST, TO "PATH" ON GRAMINE
 # TYPE can be chroot, encrypted, tmpfs(in-memory)
 fs.mounts = [
-  { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
-  { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
-  { path = "/etc", uri = "file:/etc" },
+  { path = "/lib", uri = "file:trusted/gramine/runtime/glibc" },
+  { path = "/lib/x86_64-linux-gnu", uri = "file:trusted/arch_libdir" },
+  { path = "/etc", uri = "file:trusted/etc" },
   
   { path = "/temporary", type = "tmpfs" },
   
@@ -30,22 +30,9 @@ fs.mounts = [
 #sgx.allowed_files = []
 
 sgx.trusted_files = [
-  "file:{{ gramine.libos }}",
   "file:{{ self_exe }}",
   "file:bin/sgx_server.sig",
-  "file:{{ gramine.runtimedir() }}/",
-  "file:{{ arch_libdir }}/",
-  "file:/etc/nsswitch.conf",
-  "file:/etc/host.conf",
-  "file:/etc/resolv.conf",
-  "file:/etc/hosts",
-  "file:/etc/group",
-  "file:/etc/passwd",
-  "file:/etc/gai.conf",
-  "file:/etc/localtime",
-
-  # TODO [security]
-  "file:/etc/ssl/certs/ca-certificates.crt",
+  "file:trusted/",
 ]
 
 # The Tokio runtime requires eventfd, and the Gramine implementation
