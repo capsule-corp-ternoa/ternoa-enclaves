@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  MRENCLAVE: "01234567890abcdef01234567890abcdef01234567890abcdef01234567890abcdef"
+  MRENCLAVE: "9e26329e0d451e02e3c7622025921397ead737ec0d09d1f31fe35c7486a6cfb0"
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -74,7 +74,7 @@ jobs:
         cd deployment
         zip ternoa_enclave_deployment.zip ternoa_enclave/gramine/bin/*
         cd ..
-        echo ${{env.MRENCLAVE}} >> MRENCLAVE
+        echo -n ${{env.MRENCLAVE}} >> MRENCLAVE
 
     - name: Upload ZIP to release
       uses: svenstaro/upload-release-action@v2
