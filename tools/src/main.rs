@@ -193,8 +193,12 @@ struct Args {
 	#[arg(short, long, default_value_t = String::new())]
 	id_vec: String,
 
-	/// Secret_data for storing keyshares in enclave
+	/// Path to (ZIP-) File, containing sealed NFT key-shares backups
 	#[arg(short, long, default_value_t = String::new())]
+	quote: String,
+
+	/// Secret_data for storing keyshares in enclave
+	#[arg(long, default_value_t = String::new())]
 	secret_share: String,
 
 	/// BlockNumber (Optional)
@@ -240,6 +244,12 @@ async fn main() {
 		match args.request.to_lowercase().as_str() {
 			"push-id" => generate_push_id(args.seed.clone(), args.id_vec).await,
 			"fetch-id" => generate_fetch_id(args.seed.clone(), args.id_vec).await,
+			_ => println!("\n Please provide a valid request type \n"),
+		}
+		return;
+	}else if !args.quote.is_empty() {
+		match args.request.to_lowercase().as_str() {
+			"attest" => generate_attestation(args.seed.clone(), args.quote).await,
 			_ => println!("\n Please provide a valid request type \n"),
 		}
 		return;
@@ -499,6 +509,34 @@ async fn generate_retrieve_request(args: Args) {
 
 	println!(
 		"\n================================== Secret Retrieve Request = \n{}\n",
+		serde_json::to_string_pretty(&packet).unwrap()
+	);
+}
+
+/* ************************
+	 ATTESTATION
+*************************/
+#[derive(Serialize, Clone)]
+pub struct AttestationPacket {
+	pub account_id: String,
+	pub data: String,
+	pub signature: String,
+}
+
+async fn generate_attestation(seed_phrase: String, quote: String) {
+	let enclave_pair = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
+
+	let enclave_account = enclave_pair.public().to_ss58check();
+	let signature = enclave_pair.sign(quote.as_bytes());
+
+	let packet = AttestationPacket {
+		account_id: enclave_account,
+		data: quote,
+		signature: format!("{}{:?}", "0x", signature),
+	};
+
+	println!(
+		"================================== Attestation Packet = \n{}\n",
 		serde_json::to_string_pretty(&packet).unwrap()
 	);
 }
