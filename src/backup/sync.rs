@@ -633,6 +633,21 @@ pub async fn sync_keyshares(
 		return error_handler(message, &state).await.into_response();
 	}
 
+	if !crate::backup::metric::verify_account_id(&state, &attestation_server_account)
+		.await
+	{
+		let message = format!(
+			"SYNC KEYSHARES : Invalid Attestation Server, It is not registered on blockchain , account : {attestation_server_account}"
+		);
+		sentry::with_scope(
+			|scope| {
+				scope.set_tag("sync-keyshare", "attestation");
+			},
+			|| sentry::capture_message(&message, sentry::Level::Error),
+		);
+		return error_handler(message, &state).await.into_response();
+	}
+
 	// Deserialize again to Json
 	let report: Value = match serde_json::from_value(attest_dynamic_json["report"].clone()) {
 		Ok(report) => report,

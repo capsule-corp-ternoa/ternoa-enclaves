@@ -294,7 +294,7 @@ mod test {
 
 	#[tokio::test]
 	async fn zip_list_test() {
-		let nftids = vec!["11", "25", "141", "330"].iter().map(|s| s.to_string()).collect();
+		let nftids = ["11", "25", "141", "330"].iter().map(|s| s.to_string()).collect();
 		add_list_zip("/tmp", nftids, "/tmp/zip/backup2.zip");
 		let _ = zip_extract("/tmp/zip/backup2.zip", "/tmp/test2/");
 	}
