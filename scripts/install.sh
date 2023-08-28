@@ -1,5 +1,5 @@
-DK_VERSION="2.20.100.4"
-PSW_VERSION="1.17.100.4"
+SDK_VERSION="2.21.100.1"
+PSW_VERSION="1.18.100.4"
 
 # ----- Driver for old kernels
 #wget https://download.01.org/intel-sgx/latest/linux-latest/distro/ubuntu22.04-server/sgx_linux_x64_driver_2.11.054c9c4c.bin
@@ -29,16 +29,13 @@ sudo apt install jq -y
 
 # ----- Rust
 sudo apt install clang llvm pkg-config nettle-dev -y
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source "$HOME/.cargo/env"
 rustup update
  
 # Rust for sudo
-sudo su
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source "$HOME/.cargo/env"
-rustup update
-exit
+sudo -- bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source "$HOME/.cargo/env" && rustup update'
+
 
 # ----- Subxt
 cargo install subxt-cli
