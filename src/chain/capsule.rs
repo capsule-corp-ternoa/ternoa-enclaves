@@ -374,7 +374,7 @@ pub async fn capsule_set_keyshare(
 			}
 
 			// Block Number is set at 0 until Synced state is detected
-			let file_path = format!("{SEALPATH}/capsule_{}_{0}.keyshare", verified_data.nft_id);
+			let file_path = format!("{SEALPATH}/capsule_{}_0.keyshare", verified_data.nft_id);
 
 			// CREATE KEY-SHARE FILE ON ENCLAVE DISK
 			let mut f = match std::fs::File::create(file_path.clone()) {
