@@ -686,6 +686,7 @@ async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HealthResponse {
+	pub chain: String,
 	pub block_number: u32,
 	pub sync_state: String,
 	pub version: String,
@@ -724,9 +725,22 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 				},
 			};
 
+			let chain = if cfg!(feature = "main-net") {
+				"main-net".to_string()
+			} else if cfg!(feature = "alpha-net") {
+				"alpha-net".to_string()
+			} else if cfg!(feature = "dev0-net") {
+				"dev0-net".to_string()
+			} else if cfg!(feature = "dev1-net") {
+				"dev1-net".to_string()
+			} else {
+				"local-net".to_string()
+			};
+
 			(
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(HealthResponse {
+					chain, 
 					sync_state,
 					description: "Healthcheck returned NONE".to_string(),
 					block_number,
@@ -762,10 +776,24 @@ async fn evalueate_health_status(
 	};
 
 	let maintenance = get_maintenance(state).await;
+
+	let chain = if cfg!(feature = "main-net") {
+		"main-net".to_string()
+	} else if cfg!(feature = "alpha-net") {
+		"alpha-net".to_string()
+	} else if cfg!(feature = "dev0-net") {
+		"dev0-net".to_string()
+	} else if cfg!(feature = "dev1-net") {
+		"dev1-net".to_string()
+	} else {
+		"local-net".to_string()
+	};
+
 	if !maintenance.is_empty() {
 		return Some((
 			StatusCode::PROCESSING,
 			Json(HealthResponse {
+				chain,
 				sync_state,
 				block_number,
 				version: binary_version,
@@ -778,6 +806,7 @@ async fn evalueate_health_status(
 	Some((
 		StatusCode::OK,
 		Json(HealthResponse {
+			chain,
 			sync_state,
 			block_number,
 			version: binary_version,
