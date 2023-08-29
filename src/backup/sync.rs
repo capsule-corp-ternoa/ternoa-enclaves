@@ -43,7 +43,7 @@ use tracing::{debug, error, info, trace, warn};
 use zip::result::ZipError;
 
 use crate::{
-	attestation::ra::{get_quote_content, write_user_report_data, QuoteResponse},
+	attestation::ra::{get_quote_content, write_user_report_data, QuoteResponse, QUOTE_REPORT_DATA_OFFSET, QUOTE_REPORT_DATA_LENGTH},
 	backup::zipdir::{add_list_zip, zip_extract},
 	chain::{
 		constants::{
@@ -679,10 +679,24 @@ pub async fn sync_keyshares(
 	} // FAILED ATTESTATION REPORT
 
 	// Deserialize the quote
-	let quote: Value = match serde_json::from_value(attest_dynamic_json["quote"].clone()) {
-		Ok(quote) => quote,
-		Err(err) => {
-			let message = format!("SYNC KEYSHARES : Error deserializing attestation quote {err:?}");
+	let quote = match attest_dynamic_json.get("quote") {
+		Some(qval) => match qval.as_str() {
+			Some(qstr) => qstr,
+		
+			None => {
+				let message = "SYNC KEYSHARES : Error converting attestation quote-body to string".to_string();
+				sentry::with_scope(
+					|scope| {
+						scope.set_tag("sync-keyshare", "attestation");
+					},
+					|| sentry::capture_message(&message, sentry::Level::Error),
+				);
+				return error_handler(message, &state).await.into_response();
+			},
+		},
+		
+		None => {
+			let message = "SYNC KEYSHARES : Error deserializing attestation quote-body".to_string();
 			sentry::with_scope(
 				|scope| {
 					scope.set_tag("sync-keyshare", "attestation");
@@ -693,35 +707,12 @@ pub async fn sync_keyshares(
 		},
 	};
 
-	debug!("SYNC KEYSHARES : quote['report_data'] = {}", quote["report_data"]);
-
-	// Verify Report_Data
-	if let Some(report_data) = quote["report_data"].as_str() {
-		let token = format!(
-			"{}_{}_{}",
-			request.enclave_account, auth_token.block_number, request.encryption_account
-		);
-
-		debug!("SYNC KEYSHARES : report_data token = {token}");
-
-		if !verify_signature(
-			&request.enclave_account.clone(),
-			report_data.to_string(),
-			token.as_bytes(),
-		) {
-			let message = "SYNC KEYSHARES : Invalid Signature".to_string();
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "quote");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-		}
-
-		let parse_token: Vec<&str> = token.split('_').collect();
-		if request.enclave_account != parse_token[0] {
-			let message = "SYNC KEYSHARES : TOKEN : Mismatch between <Requester Account> and <Report Data Token>".to_string();
+	// SEPARATE ATTESTATION SERVER : We need to compare sending and receiving quote
+	// to make sure the receiving report, belongs to the proper quote
+	if !quote_body.data.starts_with(quote) {
+		debug!("Requested Quote = {} \n Returned Quote = {quote}", quote_body.data);
+		let message =
+				"SYNC KEYSHARES : Quote Mismatch".to_string();
 			sentry::with_scope(
 				|scope| {
 					scope.set_tag("sync-keyshare", "attestation");
@@ -729,41 +720,51 @@ pub async fn sync_keyshares(
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
 			return error_handler(message, &state).await.into_response();
-		} else {
-			match parse_token[1].parse::<u32>() {
-				Ok(token_block) => {
-					if (token_block != auth_token.block_number)
-						|| (current_block_number < token_block)
-						|| (current_block_number - token_block > 5)
-					{
-						let message = format!("SYNC KEYSHARES : TOKEN : Incompatible block numbers :\n Current blocknumber: {} >~ Token blocknumber: {} == Request blocknumber: {} ?", current_block_number, token_block, auth_token.block_number);
-						sentry::with_scope(
-							|scope| {
-								scope.set_tag("sync-keyshare", "attestation");
-							},
-							|| sentry::capture_message(&message, sentry::Level::Error),
-						);
-						return error_handler(message, &state).await.into_response();
-					}
-				},
-
-				Err(err) => {
-					let message = format!("SYNC KEYSHARES : TOKEN : Can not parse Token Block Number {} , error = {:?}", parse_token[1], err);
-					sentry::with_scope(
-						|scope| {
-							scope.set_tag("sync-keyshare", "attestation");
-						},
-						|| sentry::capture_message(&message, sentry::Level::Error),
-					);
-					return error_handler(message, &state).await.into_response();
-				},
-			} // VALID TOKEN BLOCK
-		} // PARSE TOKEN
 	}
-	// SUCCESS REPORT_DATA TOKEN
-	else {
-		let message =
-			format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
+
+	let report_data: String = quote.chars().skip(QUOTE_REPORT_DATA_OFFSET*2).take(QUOTE_REPORT_DATA_LENGTH*2).collect();
+
+	if report_data.len() < 128 {
+			debug!("SYNC KEYSHARES : quote-body in report = {quote}");
+			let message =
+				format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
+			sentry::with_scope(
+				|scope| {
+					scope.set_tag("sync-keyshare", "attestation");
+				},
+				|| sentry::capture_message(&message, sentry::Level::Error),
+			);
+			return error_handler(message, &state).await.into_response();
+	
+	}// FAILED EXTRACTING REPORT DATA
+
+	// Verify Report_Data
+
+	let token = format!(
+		"{}_{}_{}",
+		request.enclave_account, auth_token.block_number, request.encryption_account
+	);
+
+	debug!("SYNC KEYSHARES : report_data token = {token}");
+
+	if !verify_signature(
+		&request.enclave_account.clone(),
+		report_data.to_string(),
+		token.as_bytes(),
+	) {
+		let message = "SYNC KEYSHARES : Invalid Signature".to_string();
+		sentry::with_scope(
+			|scope| {
+				scope.set_tag("sync-keyshare", "quote");
+			},
+			|| sentry::capture_message(&message, sentry::Level::Error),
+		);
+		return error_handler(message, &state).await.into_response();
+	}
+
+	let parse_token: Vec<&str> = token.split('_').collect();
+	if request.enclave_account != parse_token[0] {
+		let message = "SYNC KEYSHARES : TOKEN : Mismatch between <Requester Account> and <Report Data Token>".to_string();
 		sentry::with_scope(
 			|scope| {
 				scope.set_tag("sync-keyshare", "attestation");
@@ -771,7 +772,36 @@ pub async fn sync_keyshares(
 			|| sentry::capture_message(&message, sentry::Level::Error),
 		);
 		return error_handler(message, &state).await.into_response();
-	} // FAILED REPORT DATA
+	} else {
+		match parse_token[1].parse::<u32>() {
+			Ok(token_block) => {
+				if (token_block != auth_token.block_number)
+					|| (current_block_number < token_block)
+					|| (current_block_number - token_block > 5)
+				{
+					let message = format!("SYNC KEYSHARES : TOKEN : Incompatible block numbers :\n Current blocknumber: {} >~ Token blocknumber: {} == Request blocknumber: {} ?", current_block_number, token_block, auth_token.block_number);
+					sentry::with_scope(
+						|scope| {
+							scope.set_tag("sync-keyshare", "attestation");
+						},
+						|| sentry::capture_message(&message, sentry::Level::Error),
+					);
+					return error_handler(message, &state).await.into_response();
+				}
+			},
+
+			Err(err) => {
+				let message = format!("SYNC KEYSHARES : TOKEN : Can not parse Token Block Number {} , error = {:?}", parse_token[1], err);
+				sentry::with_scope(
+					|scope| {
+						scope.set_tag("sync-keyshare", "attestation");
+					},
+					|| sentry::capture_message(&message, sentry::Level::Error),
+				);
+				return error_handler(message, &state).await.into_response();
+			},
+		} // VALID TOKEN BLOCK
+	} // PARSE TOKEN
 
 	let random_number = rand::rngs::OsRng.next_u32();
 	let backup_file = format!("/temporary/backup_{random_number}.zip");
