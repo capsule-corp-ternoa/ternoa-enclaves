@@ -567,8 +567,12 @@ pub async fn sync_keyshares(
 			return error_handler(message, &state).await.into_response();
 		},
 	};
+	
+	debug!("SYNC KEYSHARES : Report map : {}", attest_dynamic_json["report"]);
+	let report_body_string = serde_json::to_string(&attest_dynamic_json["report"]);
+	debug!("SYNC KEYSHARES : Stringified report map : {:?}", report_body_string);
 
-	let report: String = match serde_json::from_value(attest_dynamic_json["report"].clone()) {
+	let report: String = match report_body_string {
 		Ok(report) => report,
 		Err(err) => {
 			let message = format!(
@@ -586,7 +590,7 @@ pub async fn sync_keyshares(
 
 	let attestation_server_account: String =
 		match serde_json::from_value(attest_dynamic_json["account"].clone()) {
-			Ok(report) => report,
+			Ok(attest_account) => attest_account,
 			Err(err) => {
 				let message =
 					format!("SYNC KEYSHARES : Error deserializing attestation account {err:?}");
@@ -679,7 +683,7 @@ pub async fn sync_keyshares(
 	} // FAILED ATTESTATION REPORT
 
 	// Deserialize the quote
-	let quote = match attest_dynamic_json.get("quote") {
+	let quote = match report.get("quote") {
 		Some(qval) => match qval.as_str() {
 			Some(qstr) => qstr,
 		
@@ -820,12 +824,15 @@ pub async fn sync_keyshares(
 	};
 
 	// Public-Key Encryption
+	let encryption_key = hex::decode(request.encryption_account).unwrap();
+	debug!("SYNC KEYSHARES : Encryption public key = {:?}", encryption_key);
+	debug!("SYNC KEYSHARES : Encryption zip data length = {}", zip_data.len());
 	let encrypted_zip_data =
-		match encrypt(&hex::decode(request.encryption_account).unwrap(), &zip_data) {
+		match encrypt(&encryption_key, &zip_data) {
 			Ok(encrypted) => encrypted,
 			Err(err) => {
 				return Json(json!({
-					"error": format!("SYNC KEYSHARES : Failed to encrypt the zip data : {}", err)
+					"error": format!("SYNC KEYSHARES : Failed to encrypt the zip data : {:?}", err)
 				}))
 				.into_response()
 			},
@@ -1007,7 +1014,7 @@ pub async fn fetch_keyshares(
 					},
 				}
 			} else {
-				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced capsule NOT exist : {capsule_file}");
+				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced capsule does NOT exist : {capsule_file}");
 			}
 		}
 
@@ -1015,9 +1022,13 @@ pub async fn fetch_keyshares(
 	};
 
 	let nftid_hash = sha256::digest(nftids_request.as_bytes());
+	
 	let (sk, pk) = generate_keypair();
-	let encryption_public_key = hex::encode(pk.serialize());
+	let encryption_pk = pk.serialize();
 	let encryption_private_key = sk.serialize();
+
+	debug!("Fetch KEYSHARES : Encryption public key = {:?}", encryption_pk);
+	let encryption_public_key = hex::encode(encryption_pk);
 
 	let user_data_token = format!("{account_id}_{current_block_number}_{encryption_public_key}");
 	debug!("FETCH KEYSHARES : QUOTE : report_data token = {}", user_data_token);
@@ -1306,7 +1317,7 @@ pub async fn fetch_keyshares(
 			Ok(decrypted) => decrypted,
 			Err(err) => {
 				let message =
-					format!("FETCH KEYSHARES : Can not decrypt the received file : {}", err);
+					format!("FETCH KEYSHARES : Can not decrypt the received file : {:?}", err);
 				error!(message);
 				sentry::with_scope(
 					|scope| {
@@ -1510,7 +1521,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 				match self_identity {
 					None => {
 						info!(
-							"SELF-IDENTITY : NEW REGISTRATION DETECTET FOR cluster.{} slot.{}",
+							"SELF-IDENTITY : NEW REGISTRATION DETECTED FOR cluster.{} slot.{}",
 							cluster.id, enclave.slot
 						);
 						info!("SELF-IDENTITY : ENTERING SETUP-MODE.");
