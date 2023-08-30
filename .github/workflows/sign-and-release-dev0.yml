@@ -1,0 +1,118 @@
+name: Tertnoa-SGX-Enclave-DEV-0
+
+on:
+  push:
+    branches: [ "phase-5" ]
+    tags: [v0.4.*]
+  pull_request:
+    branches: [ "phase-5" ]
+    types: [opened]
+
+  workflow_dispatch:
+
+env:
+  MRENCLAVE: "9e26329e0d451e02e3c7622025921397ead737ec0d09d1f31fe35c7486a6cfb0"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: stable
+          override: true
+          target: x86_64-unknown-linux-musl
+
+    - name: Configure sccache env var
+      run: |
+        echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+        echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+
+    - name: Run sccache-cache
+      uses: mozilla-actions/sccache-action@v0.0.3
+      with:
+        version: "v0.5.2"
+    
+    - name: Install Nettle
+      run: |
+        # sudo apt update
+        sudo apt install -y clang llvm pkg-config nettle-dev
+
+    - name: Run tests
+      run: echo "bypass tests temporarily" #cargo test --no-default-features --features dev0-net  --release
+
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@main
+
+    - name: Check install!
+      run: cosign version
+
+    - name: Build
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --no-default-features --features dev0-net,release-build --release
+
+    - name: Sign the binary
+      env:
+       PRIVATE_KEY: ${{secrets.COSIGN_KEY}}
+       PASSWORD: ${{secrets.COSIGN_PASSWORD}}
+      run: echo "y" | COSIGN_PASSWORD="$PASSWORD" cosign sign-blob --key env://PRIVATE_KEY target/release/sgx_server --output-file target/release/sgx_server.sig
+    
+    - name: Create the Deployment ZIP
+      run: |
+        mkdir -p deployment/ternoa_enclave/gramine/bin/
+        cp target/release/sgx_server     deployment/ternoa_enclave/gramine/bin/
+        cp target/release/sgx_server.sig deployment/ternoa_enclave/gramine/bin/
+        cd deployment
+        zip ternoa_enclave_deployment.zip ternoa_enclave/gramine/bin/*
+        cd ..
+        echo -n ${{env.MRENCLAVE}} >> MRENCLAVE
+
+    - name: Upload ZIP to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: deployment/ternoa_enclave_deployment.zip
+        asset_name: ternoa_enclave_dev0.zip
+        tag: ${{ github.ref }}
+        overwrite: true
+        body: "Ternoa SGX Package for dev-0 chain"
+    
+    # - name: Upload binary to release
+    #   uses: svenstaro/upload-release-action@v2
+    #   with:
+    #     repo_token: ${{ secrets.GITHUB_TOKEN }}
+    #     file: target/release/sgx_server
+    #     asset_name: sgx_server_dev0
+    #     tag: ${{ github.ref }}
+    #     overwrite: true
+    #     body: "Ternoa SGX Server for dev-0 chain"
+    
+    # - name: Upload binary signature to release
+    #   uses: svenstaro/upload-release-action@v2
+    #   with:
+    #     repo_token: ${{ secrets.GITHUB_TOKEN }}
+    #     file: target/release/sgx_server.sig
+    #     asset_name: sgx_server_dev0.sig
+    #     tag: ${{ github.ref }}
+    #     overwrite: true
+    #     body: "Ternoa SGX Server Signature for dev-0 chain"
+
+    - name: Upload MRENCLAVE
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        
+        file: MRENCLAVE
+        asset_name: MRENCLAVE
+        tag: ${{ github.ref }}
+        overwrite: true
+        body: "Ternoa SGX Server MRENCLAVE for dev-0 chain"

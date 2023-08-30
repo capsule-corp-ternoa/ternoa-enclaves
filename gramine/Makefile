@@ -13,7 +13,7 @@ DEBUG ?= 0
 .PHONY: all
 all: sgx_server.manifest
 ifeq ($(SGX),1)
-all: sgx_server.manifest.sgx sgx_server.sig sgx_server.token
+all: sgx_server.manifest.sgx sgx_server.sig
 endif
 
 ifeq ($(DEBUG),1)
@@ -32,11 +32,7 @@ sgx_server.manifest: $(MANIFEST_FILE)
 	gramine-manifest \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
 		-Darch_libdir=$(ARCH_LIBDIR) \
-		-Dquote_path=$(SGX_QUOTE_PATH) \
-		-Dcredentials_path=$(SGX_CREDENTIALS_PATH) \
-		-Dcertificates_path=$(SGX_CERT_PATH) \
 		-Dself_exe=$(SELF_EXE) \
-		-Dseal_path=$(SGX_SEAL_PATH) \
 		$< $@
 
 # Make on Ubuntu <= 20.04 doesn't support "Rules with Grouped Targets" (`&:`),
@@ -50,10 +46,6 @@ sgx_sign: sgx_server.manifest
 		--manifest $< \
 		--output $<.sgx
 
-sgx_server.token: sgx_server.sig
-	gramine-sgx-get-token \
-		--output $@ --sig $<
-
 ifeq ($(SGX),)
 GRAMINE = gramine-direct
 else
@@ -65,8 +57,6 @@ start-gramine-server: all
 	$(GRAMINE) sgx_server \
 		--domain $(SGX_DOMAIN) \
 		--port $(SGX_PORT) \
-		--sealpath "/nft/" \
-		--identity $(SGX_IDENTITY) \
 		--verbose $(SGX_VERBOSITY) \
 		>> enclave.log 2>&1 &
 
