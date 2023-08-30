@@ -1,6 +1,6 @@
 [package]
-name = "sgx_signer"
-version = "0.1.0"
+name = "signer_bin"
+version = "0.2.0"
 edition = "2021"
 
 [[bin]]
@@ -39,18 +39,16 @@ futures = "0.3.27"
 
 # Ternoa/Polkadot
 parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive", "full", "bit-vec"] }
-subxt = { git = "https://github.com/paritytech/subxt.git" , features = ["substrate-compat"]}
-
-sp-core = { version = "20.0.0", default-features = false, features = ["full_crypto"] }
+subxt = { version = "0.29.0" , features = ["substrate-compat"]}
+sp-core = { version = "21.0.0", default-features = false, features = ["full_crypto"] }
 
 # Crypto / Keys
-schnorrkel = "0.10.2"
 sha256 = "1.1.2"
 
 
 [features]
-default = ["alphanet"]
-mainnet = []
-alphanet = []
-dev-1 = []
-dev-0 = []
+default = ["alpha-net"]
+main-net = []
+alpha-net = []
+dev1-net = []
+dev0-net = []

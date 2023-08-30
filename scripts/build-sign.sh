@@ -13,7 +13,7 @@ limitations under the License.
 LICENSE
 
 if [ -z $1 ]; then 
-  echo "Error! please provide a 'Chain name' i.e alphanet, mainnet, dev-0"
+  echo "Error! please provide a 'Chain name' i.e alpha-net, main-net, dev0-net, dev1-net"
   exit
 else
   CHAIN=$1
@@ -50,10 +50,6 @@ fi
 mkdir -p $GRAMINE_PATH/bin/
 rm $GRAMINE_PATH/bin/*
 cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
-
-echo "creating binary checksum ..."
-cat $GRAMINE_PATH/bin/sgx_server | sha256sum | sed -e 's/\s.*$//' | xargs -I{} sh -c  'echo "$1" > /tmp/checksum' -- {}
-mv /tmp/checksum $GRAMINE_PATH/bin/checksum
 
 echo "signing the binary ..."
 COSIGN_PASSWORD="Test123456" cosign sign-blob --key $BASEDIR/credentials/keys/dev/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
