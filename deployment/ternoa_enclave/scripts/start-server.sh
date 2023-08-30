@@ -13,8 +13,8 @@ PORT=${PORT:-8100}
 
 MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
 
-VERBOSITY_LEVLE=2
-DEV_BUILD=0
+VERBOSITY_LEVLE=3
+DEV_BUILD=1
 
 # OVERWRITE WITH PRODUCTION VALUES
 ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}

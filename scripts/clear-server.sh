@@ -41,6 +41,7 @@ while :; do
 done
 
 #find . -name "*~" | xargs rm
+#rm -rf $SEALPATH/*.state
 #rm -rf $SEALPATH/*.key
 #rm -rf $GRAMINEPATH/bin/*
 rm -rf $GRAMINEPATH/certificates/*
