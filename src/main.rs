@@ -1,13 +1,14 @@
 use clap::Parser;
-use tracing::{info, Level};
+use tracing::{error, info, Level};
 use tracing_subscriber::FmtSubscriber;
+
+use crate::chain::constants::{SENTRY_URL, VERSION};
 
 mod attestation;
 mod backup;
 mod chain;
 mod servers;
 mod sign;
-use servers::http_server;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -20,38 +21,19 @@ struct Args {
 	#[arg(short, long)]
 	port: u16,
 
-	/// Path to the location for storing sealed NFT key-shares
-	#[arg(short, long, default_value_t = String::from("/nft/"))]
-	sealpath: String,
-
-	/// Enclave unique name
-	#[arg(short, long, default_value_t = String::from("DEV-C1N1E1"))]
-	identity: String,
-
 	/// Server Port
 	#[arg(short, long, default_value_t = 2)]
 	verbose: u8,
 }
 
 /* MAIN */
-
 #[tokio::main]
 async fn main() {
-	info!("1-1 Main function started self-check.");
-
-	match http_server::self_checksig() {
-		Ok(str) =>
-			if str == "Successful" {
-				info!("Binary verification successful.");
-			} else {
-				tracing::error!("ERROR: Binary verfification Failed :  {}", str);
-				return
-			},
-		Err(str) => {
-			tracing::error!("ERROR: Binary verfification Failed :  {}", str);
-			return
-		},
-	}
+	println!(
+		"\n\n\t**********************\n\n
+	MAIN function started
+	 	\n\n\t**********************\n\n"
+	);
 
 	let args = Args::parse();
 
@@ -64,26 +46,91 @@ async fn main() {
 		_ => Level::INFO,
 	};
 
-	info!("1-2 Starting Tracing");
-
 	let subscriber = FmtSubscriber::builder().with_max_level(verbosity_level).finish();
 	tracing::subscriber::set_global_default(subscriber)
-		.expect("main: setting default subscriber failed");
+		.expect("MAIN : setting default subscriber failed");
 
-	info!("1-3 Starting Sentry");
+	match servers::binary_check::self_checksig() {
+		Ok(str) => {
+			if str == "Successful" {
+				info!("MAIN : Binary verification successful.");
+			} else {
+				tracing::error!("MAIN : ERROR : Binary verfification Failed : {}", str);
+				sentry::capture_message("Binary verfification Failed", sentry::Level::Error);
+				return;
+			}
+		},
+
+		Err(estr) => {
+			let message = format!("MAIN : ERROR: Binary verfification Failed : {}", estr);
+			tracing::error!(message);
+			sentry::capture_message(&message, sentry::Level::Error);
+			return;
+		},
+	}
+
+	info!("MAIN : Start Sentry");
+	let env = if cfg!(feature = "main-net") {
+		"main-net"
+	} else if cfg!(feature = "alpha-net") {
+		"alpha-net"
+	} else if cfg!(feature = "dev0-net") {
+		"dev0-net"
+	} else if cfg!(feature = "dev1-net") {
+		"dev1-net"
+	} else {
+		"local-net"
+	};
+
 	let _guard = sentry::init((
-		"https://089e5c79239442bfb6af6e5d7676644c@error.ternoa.dev/22",
+		SENTRY_URL,
 		sentry::ClientOptions {
-			release: sentry::release_name!(),
-			traces_sample_rate: 5.0,
-			debug: true,
+			release: Some(format!("Ternoa Enclave Version v{}", VERSION).into()),
+			traces_sample_rate: 1.0,
+			debug: false,
+			environment: Some(env.into()),
+			before_send: Some(std::sync::Arc::new(|mut event| {
+				// Modify event here
+				event.server_name = Some("TERNOA SGX ENCLAVE SERVER".into());
+				Some(event)
+			})),
 			..Default::default()
 		},
 	));
 
-	info!("1-4 Staring http-server");
+	sentry::configure_scope(|scope| {
+		scope.set_level(Some(sentry::Level::Error));
 
-	http_server::http_server(&args.domain, &args.port, &args.identity, &args.sealpath).await;
+		let now = chrono::prelude::Utc::now().to_string();
+		let mut map = std::collections::BTreeMap::new();
+		map.insert(String::from("domain"), args.domain.clone().into());
+		map.insert(String::from("port"), args.port.into());
+		map.insert(String::from("start-date"), now.into());
+		scope.set_context("ENCLAVE", sentry::protocol::Context::Other(map));
 
-	info!("1-5 http-server exited");
+		scope.set_user(Some(sentry::User {
+			id: Some("Ternoa Operator".into()),
+			email: Some("john.doe@ternoa.com".into()),
+			..Default::default()
+		}));
+	});
+
+	info!("MAIN : Define http-server");
+	let http_app = match servers::http_server::http_server().await {
+		Ok(app) => app,
+		Err(err) => {
+			error!("MAIN : Error creating http application, exiting : {err:?}");
+			sentry::integrations::anyhow::capture_anyhow(&err);
+			return;
+		},
+	};
+
+	info!("MAIN : Start Server with routes");
+	match servers::server_common::serve(http_app, &args.domain, &args.port).await {
+		Ok(_) => info!("MAIN : Server exited successfully"),
+		Err(err) => {
+			error!("MAIN : Server exited with error : {err:?}");
+			sentry::integrations::anyhow::capture_anyhow(&err);
+		},
+	}
 }

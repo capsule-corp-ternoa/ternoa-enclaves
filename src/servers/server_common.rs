@@ -23,23 +23,23 @@ use tracing::{debug, error, info};
 /// # Returns
 /// * `Result<(), anyhow::Error>` - The result of the server
 pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::Error> {
-	debug!("3-5-1 Startng server with app, domain, port.");
+	info!("SERVER INITIALIZATION : Startng server with app, domain, port.");
 
 	let socket_addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 443));
 
-	info!("starting certificate server on {}", socket_addr);
+	info!("SERVER INITIALIZATION : starting certificate server on {}", socket_addr);
 
 	let mut state = AcmeConfig::new([domain])
 		.contact(
 			["amin@capsule-corp.io", "soufiane@capsule-corp.io"]
 				.iter()
-				.map(|e| format!("mailto:{}", e)),
+				.map(|err| format!("mailto:{}", err)),
 		)
 		.cache_option(Some(DirCache::new(PathBuf::from(r"/certificates/"))))
-		.directory_lets_encrypt(true)
+		.directory_lets_encrypt(cfg!(any(feature = "main-net", feature = "alpha-net")))
 		.state();
 
-	debug!("3-5-2 Startng server : define rust-TLS config.");
+	info!("SERVER INITIALIZATION : define rust-TLS config.");
 	let rustls_config = ServerConfig::builder()
 		.with_safe_defaults()
 		.with_no_client_auth()
@@ -47,12 +47,17 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 	let acceptor = state.axum_acceptor(Arc::new(rustls_config.clone()));
 
-	debug!("3-5-3 Startng server : spawn cert state");
+	info!("SERVER INITIALIZATION : spawn cert state");
 	tokio::spawn(async move {
 		loop {
-			match state.next().await.unwrap() {
-				Ok(ok) => info!("event: {:?}", ok),
-				Err(err) => error!("error: {:?}", err),
+			match state.next().await {
+				Some(evt) => match evt {
+					Ok(ok) => info!("SERVER INITIALIZATION : SPAWN CERT EVENT : {:?}", ok),
+					Err(err) => {
+						error!("SERVER INITIALIZATION : SPAWN CERT EVENT : ERROR: {err:?}")
+					},
+				},
+				None => error!("SERVER INITIALIZATION : SPAWN CERT EVENT : error get event"),
 			}
 		}
 	});
@@ -66,53 +71,54 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	let handle = Handle::new();
 	tokio::spawn(cert_shutdown(handle.clone()));
 
-	debug!("3-5-4 Startng server : start cert server");
+	info!("SERVER INITIALIZATION : start cert server");
 	let cert_server = axum_server::bind_rustls(socket_addr, config.clone())
 		.acceptor(acceptor.clone())
 		.handle(handle)
 		.serve(dummy_app.into_make_service())
 		.await;
 	info!(
-		"Certificate Server is listening {} on Port 443, \nwait a minute please ...'\n",
+		"SERVER INITIALIZATION : Certificate Server is listening {} on Port 443, \nwait a minute please ...'\n",
 		socket_addr.ip()
 	);
 
 	//cert_shutdown(handle).await;
-	debug!("3-5-5 Startng server : cert server shutdown");
+	info!("SERVER INITIALIZATION : cert server shutdown");
 
 	match cert_server {
 		Ok(_) => {
-			info!("Certificate Server finished successfully");
+			info!("SERVER INITIALIZATION : Certificate Server finished successfully");
 		},
 
-		Err(e) => {
-			info!("Error in certificate server : {}", e);
-			return Err(anyhow::anyhow!(format!("Error in certificate server : {e}")))
+		Err(err) => {
+			info!("SERVER INITIALIZATION : Error in certificate server : {}", err);
+			return Err(anyhow::anyhow!(format!(
+				"SERVER INITIALIZATION : Error in certificate server : {err}"
+			)));
 		},
 	}
 
 	let socket_addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, *port));
-	debug!("3-5-6 Startng server : starting server \n");
-	info!("SGX Server is listening {}'\n", socket_addr);
+	info!("SERVER INITIALIZATION : SGX Server is listening {}'\n", socket_addr);
 
 	let sgx_server_handle = axum_server::bind_rustls(socket_addr, config)
 		//.acceptor(acceptor)
-		.serve(app.into_make_service());
+		.serve(app.into_make_service_with_connect_info::<SocketAddr>());
 
-	// TODO:  DOES IT MAKE SENSE? SINCE AXUM IS INSIDE TOKIO THREAD IN MAIN FUNCTION!
+	// DOES IT MAKE SENSE? SINCE AXUM IS INSIDE TOKIO THREAD IN MAIN FUNCTION!
 	//let sgx_server = tokio::spawn(sgx_server_handle);
 
-	debug!("3-5-7 Startng server : server exit\n");
+	debug!("SERVER INITIALIZATION : server exit\n");
 	//match tokio::try_join!(sgx_server) {
 	match sgx_server_handle.await {
 		Ok(_) => {
-			info!("SGX Server finished successfully");
+			info!("SERVER INITIALIZATION : SGX Server finished successfully");
 			Ok(())
 		},
 
-		Err(e) => {
-			info!("Error in SGX server : {}", e);
-			Err(anyhow::anyhow!(format!("Error in sgx server : {e}")))
+		Err(err) => {
+			error!("SERVER INITIALIZATION : Error in SGX server : {}", err);
+			Err(anyhow::anyhow!(format!("SERVER INITIALIZATION : Error in sgx server : {err}")))
 		},
 	}
 }
@@ -122,13 +128,13 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 /// * `handle` - The handle to shutdown the server
 async fn cert_shutdown(handle: Handle) {
 	// Wait 20 seconds.
-	info!("wait 20 seconds before shutdown cert server");
+	info!("SERVER INITIALIZATION : wait 20 seconds before shutdown cert server");
 	sleep(Duration::from_secs(20)).await;
 
-	info!("sending shutdown signal to Certificate server");
+	info!("SERVER INITIALIZATION : sending shutdown signal to Certificate server");
 
 	// Signal the server to shutdown using Handle.
 	handle.shutdown();
 
-	info!("Certificate server is down.");
+	info!("SERVER INITIALIZATION : Certificate server is down.");
 }
