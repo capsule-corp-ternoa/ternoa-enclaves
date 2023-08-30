@@ -63,7 +63,7 @@ use crate::{
 	},
 	servers::state::{
 		get_accountid, get_blocknumber, get_maintenance, get_nonce, get_processed_block,
-		get_version, reset_nonce, set_blocknumber, set_processed_block, SharedState, StateConfig,
+		get_version, reset_nonce, set_blocknumber, set_processed_block, SharedState, StateConfig, get_identity,
 	},
 };
 
@@ -609,7 +609,11 @@ pub async fn http_server() -> Result<Router, Error> {
 			} else {
 				// Non Numeric SyncState file content:
 				if block_number % 10 == 0 {
-					debug!("\t <<< Enclaved is not registered >>>");
+					if get_identity(&state_config).await.is_none() {
+						debug!("\t <<< Enclave has is not registered >>>");
+					}else {
+						debug!("\t <<< Enclave has never Synced >>>");
+					}
 				}
 				// Prevent Crawling after first registration
 				set_processed_block(&state_config, block_number).await;

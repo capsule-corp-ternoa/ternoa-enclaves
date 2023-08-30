@@ -6,9 +6,13 @@ echo -e "Example: sudo ./clear-all.sh ./cluster_old_0\n"
 clear_enclave() {
   printf 'Cleaning : "%s"\n' "$1" >&2
   cd "$1"
-  ./scripts/clear-server.sh
-  rm ./gramine/sync.state
-  touch ./gramine/sync.state
+  #./scripts/clear-server.sh
+  rm gramine/*.log gramine/*.manifest gramine/*.sgx gramine/*.sig gramine/certificates/*
+  rm ./gramine/bin/*
+  rm ./gramine/nft/*.log
+  rm ./gramine/nft/*.keyshare
+  rm ./gramine/nft/sync.state
+  touch ./gramine/nft/sync.state
   rm start.log
   cd ..
 }
