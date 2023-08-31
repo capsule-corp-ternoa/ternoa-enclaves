@@ -1,11 +1,11 @@
-name: Tertnoa-SGX-Enclave-DEV-0
+name: Tertnoa-SGX-Enclave
 
 on:
   push:
-    branches: [ "phase-5" ]
+    branches: [ "master" ]
     tags: [v0.4.*]
   pull_request:
-    branches: [ "phase-5" ]
+    branches: [ "master" ]
     types: [opened]
 
   workflow_dispatch:
@@ -46,7 +46,7 @@ jobs:
         sudo apt install -y clang llvm pkg-config nettle-dev
 
     - name: Run tests
-      run: echo "bypass tests temporarily" #cargo test --no-default-features --features dev0-net  --release
+      run: echo "bypass tests temporarily" #cargo test --no-default-features --features alpha-net  --release
 
     - name: Install Cosign
       uses: sigstore/cosign-installer@main
@@ -58,7 +58,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: --no-default-features --features dev0-net,release-build --release
+        args: --no-default-features --features alpha-net,release-build --release
 
     - name: Sign the binary
       env:
@@ -81,30 +81,30 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: deployment/ternoa_enclave_deployment.zip
-        asset_name: ternoa_enclave_dev0.zip
+        asset_name: ternoa_enclave_apha.zip
         tag: ${{ github.ref }}
         overwrite: true
-        body: "Ternoa SGX Package for dev-0 chain"
+        body: "Ternoa SGX Package for alphanet chain"
     
     # - name: Upload binary to release
     #   uses: svenstaro/upload-release-action@v2
     #   with:
     #     repo_token: ${{ secrets.GITHUB_TOKEN }}
     #     file: target/release/sgx_server
-    #     asset_name: sgx_server_dev0
+    #     asset_name: sgx_server_alpha
     #     tag: ${{ github.ref }}
     #     overwrite: true
-    #     body: "Ternoa SGX Server for dev-0 chain"
+    #     body: "Ternoa SGX Server for alphanet chain"
     
     # - name: Upload binary signature to release
     #   uses: svenstaro/upload-release-action@v2
     #   with:
     #     repo_token: ${{ secrets.GITHUB_TOKEN }}
     #     file: target/release/sgx_server.sig
-    #     asset_name: sgx_server_dev0.sig
+    #     asset_name: sgx_server_alpha-net.sig
     #     tag: ${{ github.ref }}
     #     overwrite: true
-    #     body: "Ternoa SGX Server Signature for dev-0 chain"
+    #     body: "Ternoa SGX Server Signature for alpha-net chain"
 
     - name: Upload MRENCLAVE
       uses: svenstaro/upload-release-action@v2
@@ -115,4 +115,4 @@ jobs:
         asset_name: MRENCLAVE
         tag: ${{ github.ref }}
         overwrite: true
-        body: "Ternoa SGX Server MRENCLAVE for dev-0 chain"
+        body: "Ternoa SGX Server MRENCLAVE for alphanet chain"
