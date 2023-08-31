@@ -1,5 +1,5 @@
 SDK_VERSION="2.21.100.1"
-PSW_VERSION="1.18.100.4"
+PSW_VERSION="1.18.100.1"
 
 # ----- Driver for old kernels
 #wget https://download.01.org/intel-sgx/latest/linux-latest/distro/ubuntu22.04-server/sgx_linux_x64_driver_2.11.054c9c4c.bin
