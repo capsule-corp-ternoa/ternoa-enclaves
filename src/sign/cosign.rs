@@ -57,7 +57,8 @@ fn import_vkey() -> Result<CosignVerificationKey, anyhow::Error> {
 		PRODUCTION_SIGN_PUBLIC_KEY.to_string()
 	} 
 	else {
-		let dev_pk = match downloader(url) {
+		
+		match downloader(url) {
 			Ok(data) => data,
 			Err(err) => {
 				let message =
@@ -65,8 +66,7 @@ fn import_vkey() -> Result<CosignVerificationKey, anyhow::Error> {
 				error!(message);
 				return Err(err);
 			},
-		};
-		dev_pk
+		}
 	};
 	let ecdsa_p256_asn1_public_pem = get_pub.as_bytes();
 

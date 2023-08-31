@@ -49,7 +49,9 @@ async fn main() {
 	let subscriber = FmtSubscriber::builder().with_max_level(verbosity_level).finish();
 	tracing::subscriber::set_global_default(subscriber)
 		.expect("MAIN : setting default subscriber failed");
-
+	
+	// SELF-CHECK IS REPLACED BY MRENCLAVE CHECK ON QUOTE
+	/*
 	match servers::binary_check::self_checksig() {
 		Ok(str) => {
 			if str == "Successful" {
@@ -68,7 +70,7 @@ async fn main() {
 			return;
 		},
 	}
-
+	*/
 	info!("MAIN : Start Sentry");
 	let env = if cfg!(feature = "main-net") {
 		"main-net"
