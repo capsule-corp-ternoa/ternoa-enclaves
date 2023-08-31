@@ -15,6 +15,11 @@ pub const GITHUB_SIGN_PUBLIC_KEY: &str = if cfg!(feature = "release-build") {
 	"https://gist.githubusercontent.com/zorvan/46b26ff51b27590683ddaf70c0ea9dac/raw/1f6d02e3232f556a31b1bfe4a6ba491e7d5b5ff7/cosign.pub"
 };
 
+pub const PRODUCTION_SIGN_PUBLIC_KEY: &str = "-----BEGIN PUBLIC KEY-----\n
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEP3rRdMrdqDujXJV30xjUh2WzWAe2\n
+bHJqMbnlRocYFo07kCI2SW41AxEVumpcqGSI1cxjUeEdMGfxD/liGj6msQ==\n
+-----END PUBLIC KEY-----";
+
 pub const SENTRY_URL: &str = "https://089e5c79239442bfb6af6e5d7676644c@error.ternoa.dev/22";
 
 // ---------- SYNC
