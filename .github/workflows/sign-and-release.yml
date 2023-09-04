@@ -53,7 +53,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: --no-default-features --features alpha-net,release-build --release
+        args: --no-default-features --features alpha-net --release
     
     - name: Create the Deployment ZIP
       run: |
@@ -62,7 +62,7 @@ jobs:
         cd deployment
         zip ternoa_enclave_deployment.zip ternoa_enclave/gramine/bin/*
         cd ..
-        echo -n ${{env.MRENCLAVE}} >> MRENCLAVE
+        echo -n ${{ env.MRENCLAVE }} >> MRENCLAVE
     
     - name: Upload ZIP to release
       uses: svenstaro/upload-release-action@v2
@@ -70,7 +70,7 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: deployment/ternoa_enclave_deployment.zip
         asset_name: ternoa_enclave_alpha.zip
-        tag: ${{env.TAG}}
+        tag: ${{ env.TAG }}
         overwrite: true
         body: "Ternoa SGX Package for alphanet chain"
     
@@ -81,6 +81,6 @@ jobs:
         
         file: MRENCLAVE
         asset_name: MRENCLAVE
-        tag: ${{env.TAG}}
+        tag: ${{ env.TAG }}
         overwrite: true
         body: "Ternoa SGX Server MRENCLAVE for alphanet chain"
