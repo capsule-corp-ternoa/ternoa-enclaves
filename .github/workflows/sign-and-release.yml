@@ -65,7 +65,7 @@ jobs:
    #    PRIVATE_KEY: ${{secrets.COSIGN_KEY}}
    #    PASSWORD: ${{secrets.COSIGN_PASSWORD}}
    #   run: echo "y" | COSIGN_PASSWORD="$PASSWORD" cosign sign-blob --key env://PRIVATE_KEY target/release/sgx_server --output-file target/release/sgx_server.sig
-    
+
     - name: Create the Deployment ZIP
       run: |
         mkdir -p deployment/ternoa_enclave/gramine/bin/
