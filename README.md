@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-All the following installation steps for Ubuntu 22.04 are automated in an [Install Script](./install.sh) .
+All the following installation steps for Ubuntu 22.04 are automated in an [Install Script](./scripts/install.sh) .
 
 ### ● Install build-tools
 
