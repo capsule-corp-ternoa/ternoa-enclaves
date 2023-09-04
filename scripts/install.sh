@@ -143,13 +143,13 @@ echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-sgx-deb.asc] https://d
 | sudo tee /etc/apt/sources.list.d/intel-sgx.list
 
 sudo apt-get update
-sudo apt-get install gramine
+sudo apt-get install gramine -y
 is-sgx-available
 gramine-sgx-gen-private-key
 sudo cp -r ~/.config /root/
 
 # ----- Python Substrate Interface
-sudo apt install python3-pip
+sudo apt install python3-pip -y
 pip install --upgrade pip
 pip install "scalecodec>=1.1.2"
 pip install substrate-interface
@@ -173,7 +173,7 @@ pip install base58
 # --domain      is critical for certificates of tls/https 
 # --port        different enclaves on the same machine need to have different ports
 
-# sudo CHAIN="main-net release-build" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --dev
+# sudo CHAIN="main-net" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --dev
 
 # You can test the server on the specific DOMAIN and PORT with
 # curl -s https://mainnet-c1n1.ternoa.network:8100/api/health | jq .
@@ -182,4 +182,4 @@ pip install base58
 # sudo scripts/stop-server.sh --port 8100
 
 # Resume the server without clearing previous files
-# sudo CHAIN="main-net release-build" ./scripts/resume-server.sh --domain dev-c1n1.ternoa.network --port 8100 --dev
+# sudo CHAIN="main-net" ./scripts/resume-server.sh --domain dev-c1n1.ternoa.network --port 8100 --dev
