@@ -46,7 +46,7 @@ jobs:
         sudo apt install -y clang llvm pkg-config nettle-dev
 
     - name: Run tests
-      run: echo "bypass tests temporarily" #cargo test --no-default-features --features alpha-net  --release
+      run: cargo test --no-default-features --features alpha-net  --release
     
     - name: Build
       uses: actions-rs/cargo@v1
@@ -68,7 +68,7 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: deployment/ternoa_enclave_deployment.zip
-        asset_name: ternoa_enclave_apha.zip
+        asset_name: ternoa_enclave_alpha.zip
         tag: ${{ github.ref }}
         overwrite: true
         body: "Ternoa SGX Package for alphanet chain"

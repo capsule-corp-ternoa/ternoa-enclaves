@@ -39,10 +39,10 @@ use crate::{
 	attestation::ra::ra_get_quote,
 	backup::{
 		admin_nftid::admin_backup_push_id,
-		metric::metric_reconcilliation,
+		metric::{metric_reconcilliation, set_crawl_block},
 		sync::{
 			cluster_discovery, crawl_sync_events, fetch_keyshares, get_sync_state,
-			parse_block_body, set_sync_state, sync_keyshares, Cluster, SyncedNFT,
+			parse_block_body, set_sync_state, sync_keyshares, SyncedNFT,
 		},
 	},
 	chain::{
@@ -54,7 +54,7 @@ use crate::{
 			CONTENT_LENGTH_LIMIT, ENCLAVE_ACCOUNT_FILE, RETRY_COUNT, RETRY_DELAY, SEALPATH,
 			SYNC_STATE_FILE, VERSION,
 		},
-		core::{create_chain_api, get_current_block_number, DefaultApi},
+		core::create_chain_api,
 		helper,
 		nft::{
 			is_nft_available, nft_get_views, nft_remove_keyshare, nft_retrieve_keyshare,
@@ -62,8 +62,9 @@ use crate::{
 		},
 	},
 	servers::state::{
-		get_accountid, get_blocknumber, get_maintenance, get_nonce, get_processed_block,
-		get_version, reset_nonce, set_blocknumber, set_processed_block, SharedState, StateConfig, get_identity,
+		get_accountid, get_blocknumber, get_identity, get_maintenance, get_nonce,
+		get_processed_block, get_version, reset_nonce, set_blocknumber, set_processed_block,
+		SharedState, StateConfig,
 	},
 };
 
@@ -203,10 +204,6 @@ pub async fn http_server() -> Result<Router, Error> {
 					.await
 					{
 						Ok(_) => {
-							// let current_block_hash = chain_api.rpc().finalized_head().await?;
-							// let current_block =
-							// 	chain_api.rpc().block(Some(current_block_hash)).await?.unwrap();
-							// let current_block_number = current_block.block.header.number;
 							// TODO [Disaster recovery] : What if all clusters are down, What block_number should be set as last_sync_block
 							let _ = set_sync_state(current_block_number.to_string());
 							info!(
@@ -216,9 +213,9 @@ pub async fn http_server() -> Result<Router, Error> {
 							break;
 						},
 						Err(err) => {
-							// TODO : for the primary cluster it should work fine.
+							// For the primary cluster it should work fine.
 							error!("ENCLAVE START : SETUP-MODE : Error during setup-mode fetch-keyshares : {err:?}");
-							debug!("ENCLAVE START : SETUP-MODE : wait before retry");
+							debug!("ENCLAVE START : SETUP-MODE : waiting before retry");
 							std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
 						},
 					} // FETCH
@@ -374,10 +371,9 @@ pub async fn http_server() -> Result<Router, Error> {
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
 		// SYNCHRONIZATION
 		.route("/api/backup/sync-keyshare", post(sync_keyshares))
-		// ONLY FOR DEV -- WILL BE REMOVED FOR PRODUCTION
-		.route("/api/set-block/:blocknumber", get(dev_set_block))
 		// METRIC SERVER
 		.route("/api/metric/interval-nft-list", post(metric_reconcilliation))
+		.route("/api/metric/set-crawl-block", post(set_crawl_block))
 		.layer(
 			ServiceBuilder::new()
 				.layer(HandleErrorLayer::new(handle_timeout_error))
@@ -611,7 +607,7 @@ pub async fn http_server() -> Result<Router, Error> {
 				if block_number % 10 == 0 {
 					if get_identity(&state_config).await.is_none() {
 						debug!("\t <<< Enclave has is not registered >>>");
-					}else {
+					} else {
 						debug!("\t <<< Enclave has never Synced >>>");
 					}
 				}
@@ -649,7 +645,7 @@ async fn handle_timeout_error(method: Method, uri: Uri, err: BoxError) -> impl I
 		|scope| {
 			scope.set_tag("timeout", uri.to_string());
 		},
-		|| sentry::capture_message(&message, sentry::Level::Warning),
+		|| sentry::capture_message(&message, sentry::Level::Error),
 	);
 
 	if err.is::<tower::timeout::error::Elapsed>() {
@@ -670,15 +666,13 @@ async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
 		|scope| {
 			scope.set_tag("fallback", uri.to_string());
 		},
-		|| sentry::capture_message(&message, sentry::Level::Warning),
+		|| sentry::capture_message(&message, sentry::Level::Debug),
 	);
 
-	debug!("Fallback handler for {uri}");
+	debug!("FALLBACK : {uri}");
 	(
 		StatusCode::BAD_REQUEST,
-		Json(json!({
-			"status": 432,
-			"description": format!("No route to URL : {}",uri),
+		Json(json!({"description": format!("No route to URL : {}",uri),
 		})),
 	)
 		.into_response()
@@ -744,7 +738,7 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 			(
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(HealthResponse {
-					chain, 
+					chain,
 					sync_state,
 					description: "Healthcheck returned NONE".to_string(),
 					block_number,
@@ -818,26 +812,4 @@ async fn evalueate_health_status(
 			enclave_address,
 		}),
 	))
-}
-
-/*
-	DEV ONLY
-	setting the last_processed_block for tests
-*/
-use axum::extract::Path as PathExtract;
-
-pub async fn dev_set_block(
-	State(state): State<SharedState>,
-	PathExtract(blocknumber): PathExtract<u32>,
-) -> impl IntoResponse {
-	debug!("DEV API : setting the last_processed_block");
-
-	set_processed_block(&state, blocknumber).await;
-
-	(
-		StatusCode::OK,
-		Json(json! ({
-		"description": format!("last_processed_block set to {}", blocknumber),
-		})),
-	)
 }
