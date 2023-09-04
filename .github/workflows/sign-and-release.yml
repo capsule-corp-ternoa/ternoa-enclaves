@@ -11,6 +11,7 @@ on:
   workflow_dispatch:
 
 env:
+  TAG: "v0.4-alpha"
   MRENCLAVE: "9e26329e0d451e02e3c7622025921397ead737ec0d09d1f31fe35c7486a6cfb0"
   CARGO_TERM_COLOR: always
 
@@ -69,7 +70,7 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: deployment/ternoa_enclave_deployment.zip
         asset_name: ternoa_enclave_alpha.zip
-        tag: ${{ github.ref }}
+        tag: ${{env.TAG}}
         overwrite: true
         body: "Ternoa SGX Package for alphanet chain"
     
@@ -80,6 +81,6 @@ jobs:
         
         file: MRENCLAVE
         asset_name: MRENCLAVE
-        tag: ${{ github.ref }}
+        tag: ${{env.TAG}}
         overwrite: true
         body: "Ternoa SGX Server MRENCLAVE for alphanet chain"
