@@ -8,7 +8,6 @@ mod attestation;
 mod backup;
 mod chain;
 mod servers;
-mod sign;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -49,28 +48,7 @@ async fn main() {
 	let subscriber = FmtSubscriber::builder().with_max_level(verbosity_level).finish();
 	tracing::subscriber::set_global_default(subscriber)
 		.expect("MAIN : setting default subscriber failed");
-	
-	// SELF-CHECK IS REPLACED BY MRENCLAVE CHECK ON QUOTE
-	/*
-	match servers::binary_check::self_checksig() {
-		Ok(str) => {
-			if str == "Successful" {
-				info!("MAIN : Binary verification successful.");
-			} else {
-				tracing::error!("MAIN : ERROR : Binary verfification Failed : {}", str);
-				sentry::capture_message("Binary verfification Failed", sentry::Level::Error);
-				return;
-			}
-		},
 
-		Err(estr) => {
-			let message = format!("MAIN : ERROR: Binary verfification Failed : {}", estr);
-			tracing::error!(message);
-			sentry::capture_message(&message, sentry::Level::Error);
-			return;
-		},
-	}
-	*/
 	info!("MAIN : Start Sentry");
 	let env = if cfg!(feature = "main-net") {
 		"main-net"
