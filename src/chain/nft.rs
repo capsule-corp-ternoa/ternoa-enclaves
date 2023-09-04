@@ -58,7 +58,7 @@ pub async fn is_nft_available(
 
 	match get_nft_availability(&state, nft_id).await {
 		Some(av) => {
-			if av.nft_type == helper::NftType::Secret {
+			if av.nft_type == helper::NftType::Secret || av.nft_type == helper::NftType::Hybrid {
 				debug!(
 				"NFT AVAILABILITY CHECK : NFT key-share exist, nft_id : {}, updated on block {}",
 				nft_id, av.block_number
