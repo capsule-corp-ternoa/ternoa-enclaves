@@ -1,4 +1,4 @@
-pub const VERSION: &str = "0.4.3";
+pub const VERSION: &str = "0.4.4";
 pub const ATTESTATION_SERVER_URL: &str = if cfg!(feature = "alpha-net") {
 	// PRODUCTION-KEY when binary is built by github
 	"https://alphanet-attestation.ternoa.network/attest"
@@ -7,7 +7,7 @@ pub const ATTESTATION_SERVER_URL: &str = if cfg!(feature = "alpha-net") {
 	"https://mainnet-attestation.ternoa.network/attest"
 } else {
 	// DEVELOPMENT-KEY when binary is built locally
-	"https://dev-c1n3.ternoa.network:9100/attest"
+	"https://dev-attestation.ternoa.network/attest"
 };
 
 pub const SENTRY_URL: &str = "https://089e5c79239442bfb6af6e5d7676644c@error.ternoa.dev/22";
