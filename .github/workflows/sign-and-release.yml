@@ -2,11 +2,10 @@ name: Tertnoa-SGX-Enclave
 
 on:
   push:
-    branches: [ "master" ]
-    tags: [v0.4.*]
+    tags: [v0.4*]
   pull_request:
     branches: [ "master" ]
-    types: [opened]
+    types: [opened, reopened]
 
   workflow_dispatch:
 
