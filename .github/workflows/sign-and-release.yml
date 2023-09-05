@@ -2,15 +2,15 @@ name: Tertnoa-SGX-Enclave
 
 on:
   push:
-    branches: [ "master" ]
-    tags: [v0.4.*]
+    tags: [v0.4*]
   pull_request:
     branches: [ "master" ]
-    types: [opened]
+    types: [opened, reopened]
 
   workflow_dispatch:
 
 env:
+  TAG: "v0.4-alpha"
   MRENCLAVE: "9e26329e0d451e02e3c7622025921397ead737ec0d09d1f31fe35c7486a6cfb0"
   CARGO_TERM_COLOR: always
 
@@ -52,7 +52,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: --no-default-features --features alpha-net,release-build --release
+        args: --no-default-features --features alpha-net --release
     
     - name: Create the Deployment ZIP
       run: |
@@ -61,15 +61,15 @@ jobs:
         cd deployment
         zip ternoa_enclave_deployment.zip ternoa_enclave/gramine/bin/*
         cd ..
-        echo -n ${{env.MRENCLAVE}} >> MRENCLAVE
+        echo -n ${{ env.MRENCLAVE }} >> MRENCLAVE
     
     - name: Upload ZIP to release
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: deployment/ternoa_enclave_deployment.zip
-        asset_name: ternoa_enclave_apha.zip
-        tag: ${{ github.ref }}
+        asset_name: ternoa_enclave_alpha.zip
+        tag: ${{ env.TAG }}
         overwrite: true
         body: "Ternoa SGX Package for alphanet chain"
     
@@ -80,6 +80,6 @@ jobs:
         
         file: MRENCLAVE
         asset_name: MRENCLAVE
-        tag: ${{ github.ref }}
+        tag: ${{ env.TAG }}
         overwrite: true
         body: "Ternoa SGX Server MRENCLAVE for alphanet chain"
