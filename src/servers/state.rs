@@ -304,6 +304,14 @@ pub async fn set_nft_availability(state: &SharedState, nftid_block: (u32, helper
 	shared_state_write.set_nft_availability(nftid_block);
 }
 
+pub async fn reset_nft_availability(
+	state: &SharedState,
+	availability_map: BTreeMap<u32, helper::Availability>,
+) {
+	let shared_state_write = &mut state.write().await;
+	shared_state_write.nft_block_map = availability_map;
+}
+
 pub async fn remove_nft_availability(state: &SharedState, nftid: u32) {
 	let shared_state_write = &mut state.write().await;
 	shared_state_write.remove_nft_availability(nftid);

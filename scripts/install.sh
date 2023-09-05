@@ -1,5 +1,5 @@
-SDK_VERSION="2.21.100.1"
-PSW_VERSION="1.18.100.1"
+export SDK_VERSION="2.21.100.1"
+export PSW_VERSION="1.18.100.1"
 
 # ----- Driver for old kernels
 #wget https://download.01.org/intel-sgx/latest/linux-latest/distro/ubuntu22.04-server/sgx_linux_x64_driver_2.11.054c9c4c.bin
@@ -59,7 +59,7 @@ sudo chmod +x ./linux/installer/bin/sgx_linux_x64_sdk_$SDK_VERSION.bin
 cp ./linux/installer/bin/sgx_linux_x64_sdk_$SDK_VERSION.bin ~
 
 sudo chown ubuntu:ubuntu /opt
-../sgx_linux_x64_sdk_$SDK_VERSION.bin --prefix /opt
+~/sgx_linux_x64_sdk_$SDK_VERSION.bin --prefix /opt
 source /opt/sgxsdk/environment
 
 # ----- Linux-sgx-psw
@@ -143,26 +143,26 @@ echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-sgx-deb.asc] https://d
 | sudo tee /etc/apt/sources.list.d/intel-sgx.list
 
 sudo apt-get update
-sudo apt-get install gramine
+sudo apt-get install gramine -y
 is-sgx-available
 gramine-sgx-gen-private-key
 sudo cp -r ~/.config /root/
 
 # ----- Python Substrate Interface
-sudo apt install python3-pip
+sudo apt install python3-pip -y
 pip install --upgrade pip
 pip install "scalecodec>=1.1.2"
 pip install substrate-interface
 pip install base58
 
 # ----- cosign
-wget https://github.com/sigstore/cosign/releases/download/v2.1.1/cosign_2.1.1_amd64.deb
-sudo dpkg -i cosign_2.1.1_amd64.deb
+# wget https://github.com/sigstore/cosign/releases/download/v2.1.1/cosign_2.1.1_amd64.deb
+# sudo dpkg -i cosign_2.1.1_amd64.deb
 
 # ----- Ternoa
-cd ~
-git clone https://github.com/capsule-corp-ternoa/sgx_server.git
-cd sgx_server
+# cd ~
+# git clone https://github.com/capsule-corp-ternoa/sgx_server.git
+# cd sgx_server
 
 # NOTE: On new DOMAIN, gramine/certificates will be invalid, you'll need to remove them before start
 # NOTE: For production, please be careful about certs, never delete them, because every domain has 5 times quota every week.
@@ -173,13 +173,13 @@ cd sgx_server
 # --domain      is critical for certificates of tls/https 
 # --port        different enclaves on the same machine need to have different ports
 
-sudo CHAIN="main-net release-build" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --dev
+# sudo CHAIN="main-net" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --dev
 
 # You can test the server on the specific DOMAIN and PORT with
-curl -s https://mainnet-c1n1.ternoa.network:8100/api/health | jq .
+# curl -s https://mainnet-c1n1.ternoa.network:8100/api/health | jq .
 
 # You can stop the server on the specific PORT and clean intermediate files with :
-sudo scripts/stop-server.sh --port 8100
+# sudo scripts/stop-server.sh --port 8100
 
 # Resume the server without clearing previous files
-sudo CHAIN="main-net release-build" ./scripts/resume-server.sh --domain dev-c1n1.ternoa.network --port 8100 --dev
+# sudo CHAIN="main-net" ./scripts/resume-server.sh --domain dev-c1n1.ternoa.network --port 8100 --dev

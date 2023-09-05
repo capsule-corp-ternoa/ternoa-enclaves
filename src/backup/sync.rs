@@ -43,7 +43,10 @@ use tracing::{debug, error, info, trace, warn};
 use zip::result::ZipError;
 
 use crate::{
-	attestation::ra::{get_quote_content, write_user_report_data, QuoteResponse, QUOTE_REPORT_DATA_OFFSET, QUOTE_REPORT_DATA_LENGTH},
+	attestation::ra::{
+		get_quote_content, write_user_report_data, QuoteResponse, QUOTE_REPORT_DATA_LENGTH,
+		QUOTE_REPORT_DATA_OFFSET,
+	},
 	backup::zipdir::{add_list_zip, zip_extract},
 	chain::{
 		constants::{
@@ -360,7 +363,7 @@ pub async fn sync_keyshares(
 		// This is for development, will be removed for production certs
 		.danger_accept_invalid_certs(!cfg!(any(feature = "main-net", feature = "alpha-net")))
 		.https_only(true)
-		.use_rustls_tls()
+		//.use_rustls_tls()
 		// .min_tls_version(if cfg!(any(feature = "main-net", feature = "alpha-net")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
@@ -567,7 +570,7 @@ pub async fn sync_keyshares(
 			return error_handler(message, &state).await.into_response();
 		},
 	};
-	
+
 	debug!("SYNC KEYSHARES : Report map : {}", attest_dynamic_json["report"]);
 	let report_body_string = serde_json::to_string(&attest_dynamic_json["report"]);
 	debug!("SYNC KEYSHARES : Stringified report map : {:?}", report_body_string);
@@ -637,9 +640,7 @@ pub async fn sync_keyshares(
 		return error_handler(message, &state).await.into_response();
 	}
 
-	if !crate::backup::metric::verify_account_id(&state, &attestation_server_account)
-		.await
-	{
+	if !crate::backup::metric::verify_account_id(&state, &attestation_server_account).await {
 		let message = format!(
 			"SYNC KEYSHARES : Invalid Attestation Server, It is not registered on blockchain , account : {attestation_server_account}"
 		);
@@ -686,9 +687,10 @@ pub async fn sync_keyshares(
 	let quote = match report.get("quote") {
 		Some(qval) => match qval.as_str() {
 			Some(qstr) => qstr,
-		
+
 			None => {
-				let message = "SYNC KEYSHARES : Error converting attestation quote-body to string".to_string();
+				let message = "SYNC KEYSHARES : Error converting attestation quote-body to string"
+					.to_string();
 				sentry::with_scope(
 					|scope| {
 						scope.set_tag("sync-keyshare", "attestation");
@@ -698,7 +700,7 @@ pub async fn sync_keyshares(
 				return error_handler(message, &state).await.into_response();
 			},
 		},
-		
+
 		None => {
 			let message = "SYNC KEYSHARES : Error deserializing attestation quote-body".to_string();
 			sentry::with_scope(
@@ -715,32 +717,34 @@ pub async fn sync_keyshares(
 	// to make sure the receiving report, belongs to the proper quote
 	if !quote_body.data.starts_with(quote) {
 		debug!("Requested Quote = {} \n Returned Quote = {quote}", quote_body.data);
-		let message =
-				"SYNC KEYSHARES : Quote Mismatch".to_string();
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "attestation");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
+		let message = "SYNC KEYSHARES : Quote Mismatch".to_string();
+		sentry::with_scope(
+			|scope| {
+				scope.set_tag("sync-keyshare", "attestation");
+			},
+			|| sentry::capture_message(&message, sentry::Level::Error),
+		);
+		return error_handler(message, &state).await.into_response();
 	}
 
-	let report_data: String = quote.chars().skip(QUOTE_REPORT_DATA_OFFSET*2).take(QUOTE_REPORT_DATA_LENGTH*2).collect();
+	let report_data: String = quote
+		.chars()
+		.skip(QUOTE_REPORT_DATA_OFFSET * 2)
+		.take(QUOTE_REPORT_DATA_LENGTH * 2)
+		.collect();
 
 	if report_data.len() < 128 {
-			debug!("SYNC KEYSHARES : quote-body in report = {quote}");
-			let message =
-				format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "attestation");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-	
-	}// FAILED EXTRACTING REPORT DATA
+		debug!("SYNC KEYSHARES : quote-body in report = {quote}");
+		let message =
+			format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
+		sentry::with_scope(
+			|scope| {
+				scope.set_tag("sync-keyshare", "attestation");
+			},
+			|| sentry::capture_message(&message, sentry::Level::Error),
+		);
+		return error_handler(message, &state).await.into_response();
+	} // FAILED EXTRACTING REPORT DATA
 
 	// Verify Report_Data
 
@@ -768,7 +772,9 @@ pub async fn sync_keyshares(
 
 	let parse_token: Vec<&str> = token.split('_').collect();
 	if request.enclave_account != parse_token[0] {
-		let message = "SYNC KEYSHARES : TOKEN : Mismatch between <Requester Account> and <Report Data Token>".to_string();
+		let message =
+			"SYNC KEYSHARES : TOKEN : Mismatch between <Requester Account> and <Report Data Token>"
+				.to_string();
 		sentry::with_scope(
 			|scope| {
 				scope.set_tag("sync-keyshare", "attestation");
@@ -795,7 +801,10 @@ pub async fn sync_keyshares(
 			},
 
 			Err(err) => {
-				let message = format!("SYNC KEYSHARES : TOKEN : Can not parse Token Block Number {} , error = {:?}", parse_token[1], err);
+				let message = format!(
+					"SYNC KEYSHARES : TOKEN : Can not parse Token Block Number {} , error = {:?}",
+					parse_token[1], err
+				);
 				sentry::with_scope(
 					|scope| {
 						scope.set_tag("sync-keyshare", "attestation");
@@ -827,16 +836,15 @@ pub async fn sync_keyshares(
 	let encryption_key = hex::decode(request.encryption_account).unwrap();
 	debug!("SYNC KEYSHARES : Encryption public key = {:?}", encryption_key);
 	debug!("SYNC KEYSHARES : Encryption zip data length = {}", zip_data.len());
-	let encrypted_zip_data =
-		match encrypt(&encryption_key, &zip_data) {
-			Ok(encrypted) => encrypted,
-			Err(err) => {
-				return Json(json!({
-					"error": format!("SYNC KEYSHARES : Failed to encrypt the zip data : {:?}", err)
-				}))
-				.into_response()
-			},
-		};
+	let encrypted_zip_data = match encrypt(&encryption_key, &zip_data) {
+		Ok(encrypted) => encrypted,
+		Err(err) => {
+			return Json(json!({
+				"error": format!("SYNC KEYSHARES : Failed to encrypt the zip data : {:?}", err)
+			}))
+			.into_response()
+		},
+	};
 
 	// Remove Plain Data
 	match std::fs::remove_file(backup_file) {
@@ -857,7 +865,11 @@ pub async fn sync_keyshares(
 		Ok(_) => debug!("SYNC KEYSHARES : Successfully write encrypted zip data to streamfile"),
 		Err(err) => {
 			return Json(json!({
-				"error": format!("SYNC KEYSHARES : Failed to write encrypted zip data to stream file : {}", err)
+				"error":
+					format!(
+						"SYNC KEYSHARES : Failed to write encrypted zip data to stream file : {}",
+						err
+					)
 			}))
 			.into_response()
 		},
@@ -1022,7 +1034,7 @@ pub async fn fetch_keyshares(
 	};
 
 	let nftid_hash = sha256::digest(nftids_request.as_bytes());
-	
+
 	let (sk, pk) = generate_keypair();
 	let encryption_pk = pk.serialize();
 	let encryption_private_key = sk.serialize();
@@ -1179,7 +1191,7 @@ pub async fn fetch_keyshares(
 		.https_only(true)
 		// WebPKI
 		//.use_rustls_tls()
-		.use_native_tls()
+		//.use_native_tls()
 		// .min_tls_version(if cfg!(any(feature = "main-net", feature = "alpha-net")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
