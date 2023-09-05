@@ -42,6 +42,18 @@ pub fn query_keyshare_file(dir_path: String) -> Result<BTreeMap<u32, Availabilit
 		let path = entry.path();
 
 		if let Ok((nftid, av)) = parse_keyshare_file(&path) {
+			if let Some(ks) = available_keys.get(&nftid) {
+				let block_number = std::cmp::max(av.block_number, ks.block_number);
+
+				if ks.nft_type != av.nft_type {
+					let hybrid_av = Availability { block_number, nft_type: NftType::Hybrid };
+
+					available_keys.insert(nftid, hybrid_av);
+
+					continue;
+				}
+			}
+
 			available_keys.insert(nftid, av);
 		}
 	}

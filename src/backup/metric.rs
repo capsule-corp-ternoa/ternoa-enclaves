@@ -4,7 +4,7 @@ use crate::{
 		constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD},
 		core::{get_metric_server, MetricServer},
 	},
-	servers::state::{get_blocknumber, SharedState},
+	servers::state::{get_blocknumber, set_processed_block, SharedState},
 };
 use axum::{extract::State, response::IntoResponse, Json};
 use hex::{FromHex, FromHexError};
@@ -30,6 +30,14 @@ pub struct AuthenticationToken {
 pub struct MetricNftListRequest {
 	pub metric_account: String,
 	pub block_interval: String,
+	pub auth_token: String,
+	pub signature: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MetricSetCrawlRequest {
+	pub metric_account: String,
+	pub block_number: String,
 	pub auth_token: String,
 	pub signature: String,
 }
@@ -254,4 +262,114 @@ pub async fn metric_reconcilliation(
 		.collect();
 
 	(StatusCode::OK, Json(json!({ "nftid": nftid }))).into_response()
+}
+
+/* --------------------
+ METRIC SET CRAWL BLOCK
+--------------------*/
+
+pub async fn set_crawl_block(
+	State(state): State<SharedState>,
+	Json(request): Json<MetricSetCrawlRequest>,
+) -> impl IntoResponse {
+	debug!("METRIC CRAWL API : setting the last_processed_block");
+	let current_block_number = get_blocknumber(&state).await;
+
+	debug!("METRIC CRAWL API : VERIFY ACCOUNT ID");
+	if verify_account_id(&state, &request.metric_account).await {
+		let message = "METRIC CRAWL API : Error : Requester Account is not authorized".to_string();
+		return error_handler(message, &state).await.into_response();
+	};
+
+	let mut auth = request.auth_token.clone();
+
+	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
+		auth = match auth.strip_prefix("<Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				return error_handler(
+					"METRIC CRAWL API : Strip Token prefix error".to_string(),
+					&state,
+				)
+				.await
+				.into_response();
+			},
+		};
+
+		auth = match auth.strip_suffix("</Bytes>") {
+			Some(stripped) => stripped.to_owned(),
+			_ => {
+				return error_handler(
+					"METRIC CRAWL API : Strip Token suffix error".to_string(),
+					&state,
+				)
+				.await
+				.into_response();
+			},
+		}
+	}
+
+	let auth_token: AuthenticationToken = match serde_json::from_str(&auth) {
+		Ok(token) => token,
+		Err(err) => {
+			let message = format!(
+				"METRIC CRAWL API : Error : Authentication token is not parsable : {}",
+				err
+			);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+
+	debug!("METRIC CRAWL API : VERIFY SIGNATURE");
+	if !verify_signature(
+		&request.metric_account.clone(),
+		request.signature.clone(),
+		request.auth_token.as_bytes(),
+	) {
+		return error_handler("METRIC CRAWL API : Invalid Signature".to_string(), &state)
+			.await
+			.into_response();
+	}
+
+	debug!("METRIC CRAWL API : Validating the authentication token");
+	let validity = auth_token.is_valid(current_block_number);
+	match validity {
+		ValidationResult::Success => debug!("METRIC CRAWL API : Authentication token is valid."),
+		_ => {
+			let message = format!(
+				"METRIC CRAWL API : Authentication Token is not valid, or expired : {:?}",
+				validity
+			);
+			return error_handler(message, &state).await.into_response();
+		},
+	}
+
+	let hash = sha256::digest(request.block_number.as_bytes());
+
+	if auth_token.data_hash != hash {
+		return error_handler("METRIC CRAWL API : Mismatch Data Hash".to_string(), &state)
+			.await
+			.into_response();
+	}
+
+	let crawl_start_block: u32 = match serde_json::from_str(&request.block_number) {
+		Ok(interval) => interval,
+		Err(err) => {
+			let message = format!(
+				"METRIC CRAWL API : Error : Authentication token is not parsable : {}",
+				err
+			);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+
+	set_processed_block(&state, crawl_start_block).await;
+
+	(
+		StatusCode::OK,
+		Json(json! ({
+		"description": format!("last_processed_block set to {}", crawl_start_block),
+		})),
+	)
+		.into_response()
 }

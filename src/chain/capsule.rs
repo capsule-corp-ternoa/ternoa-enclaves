@@ -57,7 +57,7 @@ pub async fn is_capsule_available(
 
 	match get_nft_availability(&state, nft_id).await {
 		Some(av) => {
-			if av.nft_type == helper::NftType::Capsule {
+			if av.nft_type == helper::NftType::Capsule || av.nft_type == helper::NftType::Hybrid {
 				debug!("CAPSULE AVAILABILITY CHECK : CAPSULE key-share exist, nft_id : {}, updated on block {}", nft_id, av.block_number);
 				return (
 					StatusCode::OK,

@@ -548,7 +548,7 @@ pub async fn admin_backup_push_id(
 				},
 			};
 
-			let nft_type = match nft_details[0] {
+			let mut nft_type = match nft_details[0] {
 				"nft" => helper::NftType::Secret,
 				"capsule" => helper::NftType::Capsule,
 				_ => {
@@ -594,6 +594,8 @@ pub async fn admin_backup_push_id(
 							);
 						},
 					}
+				}else {
+					nft_type = helper::NftType::Hybrid;
 				}
 			}
 

@@ -17,7 +17,6 @@ use anyhow::{anyhow, Result};
 pub const QUOTE_REPORT_DATA_OFFSET: usize = 368;
 pub const QUOTE_REPORT_DATA_LENGTH: usize = 64;
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QuoteResponse {
 	pub block_number: u32,

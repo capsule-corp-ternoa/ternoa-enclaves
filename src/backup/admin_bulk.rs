@@ -18,10 +18,10 @@ use serde_json::{json, Value};
 use sp_core::{crypto::Ss58Codec, sr25519, Pair};
 use std::{
 	collections::BTreeMap,
+	fs::{remove_file, File},
 	io::{Read, Write},
 };
 
-use std::fs::{remove_file, File};
 use tracing::{debug, error, info, warn};
 
 use serde::{Deserialize, Serialize};
@@ -31,12 +31,16 @@ use crate::{
 	chain::{
 		constants::{ENCLAVE_ACCOUNT_FILE, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
 		core::get_current_block_number,
+		helper,
 	},
-	servers::state::{get_blocknumber, get_clusters, set_keypair, SharedState, StateConfig},
+	servers::state::{
+		get_blocknumber, get_clusters, reset_nft_availability, set_keypair, SharedState,
+		StateConfig,
+	},
 };
 
 use super::{
-	sync::ClusterType,
+	sync::{set_sync_state, ClusterType},
 	zipdir::{add_dir_zip, zip_extract},
 };
 
@@ -795,6 +799,22 @@ pub async fn admin_backup_push_bulk(
 	debug!("share-state Enclave Account updated");
 
 	//update_health_status(&state, String::new()).await;
+	let keyshare_list: BTreeMap<u32, helper::Availability> =
+		match helper::query_keyshare_file(SEALPATH.to_string()) {
+			Ok(list) => list,
+			Err(err) => {
+				return (
+					StatusCode::INTERNAL_SERVER_ERROR,
+					Json(json!({
+						"error": format!("Unable to update keyshare availability, {err:?}"),
+					})),
+				).into_response()
+			},
+		};
+	
+	let last_synced = keyshare_list.values().map(|av| av.block_number).max().unwrap();
+	reset_nft_availability(&state, keyshare_list).await;
+	let _ = set_sync_state(last_synced.to_string());
 
 	(
 		StatusCode::OK,
