@@ -25,7 +25,7 @@ use crate::chain::{
 };
 use serde::Serialize;
 use serde_json::{json, to_value};
-use sp_core::H256;
+use subxt::ext::sp_core::H256;
 
 /* **********************
  KEYSHARE AVAILABLE API
@@ -963,34 +963,38 @@ pub async fn nft_remove_keyshare(
 	}
 
 	// Is nft burnt?
-	if get_onchain_nft_data(&state, request_data.nft_id).await.is_some() {
-		error!(
-			"NFT REMOVE : nft is not in burnt state, nft-id.{}, requester : {}",
-			request_data.nft_id, request.requester_address
-		);
-		return (
-			StatusCode::BAD_REQUEST,
-			Json(
-				to_value(RemoveKeyshareResponse {
-					status: ReturnStatus::NOTBURNT,
-					nft_id: request_data.nft_id,
-					enclave_account,
-					description:
-						"Error removing NFT key-share from TEE, NFT is not in burnt state."
-							.to_string(),
-				})
-				.unwrap(),
-			),
-		);
+	let nft_data_opts = get_onchain_nft_data(&state, request_data.nft_id).await;
+	if let Some(nft_data) = nft_data_opts {
+		if nft_data.state.is_secret {
+			error!(
+				"NFT REMOVE : secret-nft is not in burnt or converted state, nft-id.{}, requester : {}",
+				request_data.nft_id, request.requester_address
+			);
+			return (
+				StatusCode::BAD_REQUEST,
+				Json(
+					to_value(RemoveKeyshareResponse {
+						status: ReturnStatus::NOTBURNT,
+						nft_id: request_data.nft_id,
+						enclave_account,
+						description:
+							"Error removing NFT key-share from TEE, NFT is not in burnt or converted state."
+								.to_string(),
+					})
+					.unwrap(),
+				),
+			);
+		}
 	}
 
 	let av = match get_nft_availability(&state, request_data.nft_id).await {
 		Some(av) => {
-			if av.nft_type == helper::NftType::Secret {
+			// If it's not Secret or Hybrid
+			if av.nft_type == helper::NftType::Capsule {
 				av
 			} else {
 				error!(
-					"NFT REMOVE : nft is not in available, nft-id.{}, requester : {}",
+					"NFT REMOVE : nft is not in available on this enclave, nft-id.{}, requester : {}",
 					request_data.nft_id, request.requester_address
 				);
 				return (
@@ -1000,7 +1004,8 @@ pub async fn nft_remove_keyshare(
 							status: ReturnStatus::IDISNOTASECRETNFT,
 							nft_id: request_data.nft_id,
 							enclave_account,
-							description: "NFTID for secret-nft is not available".to_string(),
+							description: "NFTID for secret-nft is not available on this enclave"
+								.to_string(),
 						})
 						.unwrap(),
 					),
