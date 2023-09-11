@@ -25,7 +25,7 @@ use axum::{
 
 use reqwest;
 
-use sp_core::Pair;
+use subxt::ext::sp_core::{sr25519, Pair};
 
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -95,7 +95,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			},
 		};
 
-		match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
+		match sr25519::Pair::from_phrase(&phrase, None) {
 			Ok((keypair, _seed)) => keypair,
 			Err(err) => {
 				error!("\tENCLAVE START : ERROR creating keypair from phrase: {err:?}");
@@ -105,7 +105,7 @@ pub async fn http_server() -> Result<Router, Error> {
 	} else {
 		info!("ENCLAVE START : Creating new Enclave Account, Remember to send 1 CAPS to it!");
 
-		let (keypair, phrase, _s_seed) = sp_core::sr25519::Pair::generate_with_phrase(None);
+		let (keypair, phrase, _s_seed) = sr25519::Pair::generate_with_phrase(None);
 		let mut ekfile = match File::create(ENCLAVE_ACCOUNT_FILE) {
 			Ok(file_handle) => {
 				debug!("\tENCLAVE START : created enclave keypair file successfully");

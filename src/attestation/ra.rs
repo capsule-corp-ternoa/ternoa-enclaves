@@ -8,7 +8,7 @@ use std::{
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 //use cached::proc_macro::once;
-use sp_core::Pair;
+use subxt::ext::sp_core::Pair;
 use tracing::{debug, error, info, trace};
 
 use crate::servers::state::{get_accountid, get_blocknumber, get_keypair, SharedState};
