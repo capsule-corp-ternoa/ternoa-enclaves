@@ -23,14 +23,13 @@ use serde_json::{json, Value};
 use ecies::{decrypt, encrypt, utils::generate_keypair};
 use rand::RngCore;
 
-use sp_core::{
-	crypto::{PublicError, Ss58Codec},
-	sr25519::{self, Signature},
-	Pair,
-};
-
 use subxt::{
 	blocks::{BlockBody, ExtrinsicEvents},
+	ext::sp_core::{
+		crypto::{PublicError, Ss58Codec},
+		sr25519::{self, Signature},
+		Pair,
+	},
 	rpc::types::BlockNumber,
 	storage::Storage,
 	utils::AccountId32,
@@ -2382,8 +2381,8 @@ mod test {
 		http::{self, Request, StatusCode},
 	};
 	use serde_json::Value;
-	use sp_core::Pair;
 	use std::{collections::BTreeMap, sync::Arc};
+	use subxt::ext::sp_core::Pair;
 	use tokio::sync::RwLock;
 	use tower::Service; // for `call`
 	use tower::ServiceExt;

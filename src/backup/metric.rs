@@ -11,7 +11,7 @@ use hex::{FromHex, FromHexError};
 use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sp_core::{
+use subxt::ext::sp_core::{
 	crypto::{PublicError, Ss58Codec},
 	sr25519::{Public, Signature},
 	Pair,
@@ -122,7 +122,7 @@ fn get_signature(signature: String) -> Result<Signature, FromHexError> {
 fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool {
 	match get_public_key(account_id) {
 		Ok(pk) => match get_signature(signature) {
-			Ok(val) => sp_core::sr25519::Pair::verify(&val, message, &pk),
+			Ok(val) => subxt::ext::sp_core::sr25519::Pair::verify(&val, message, &pk),
 			Err(err) => {
 				debug!("METRIC : Error get signature {err:?}");
 				false

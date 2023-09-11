@@ -5,7 +5,10 @@
 use clap::Parser;
 use hex::{FromHex, FromHexError};
 use serde_json::{json, Value};
-use sp_core::{crypto::Ss58Codec, sr25519, Pair};
+use subxt::{
+	ext::sp_core::{crypto::Ss58Codec, sr25519, Pair, crypto::PublicError, sr25519::Signature},
+	tx::PairSigner, utils::AccountId32, Error, OnlineClient, PolkadotConfig, 
+};
 
 use std::{
 	collections::BTreeMap,
@@ -16,8 +19,6 @@ use std::fs::{remove_file, File};
 use tracing::{debug, error, info, warn};
 
 use serde::{Deserialize, Serialize};
-use sp_core::{crypto::PublicError, sr25519::Signature};
-use subxt::{tx::PairSigner, utils::AccountId32, Error, OnlineClient, PolkadotConfig};
 
 #[cfg_attr(
 	feature = "main-net",
