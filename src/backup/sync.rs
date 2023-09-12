@@ -2382,7 +2382,7 @@ mod test {
 	};
 	use serde_json::Value;
 	use std::{collections::BTreeMap, sync::Arc};
-	use subxt::ext::sp_core::Pair;
+	use subxt::ext::sp_core::{sr25519, Pair};
 	use tokio::sync::RwLock;
 	use tower::Service; // for `call`
 	use tower::ServiceExt;
@@ -2404,7 +2404,7 @@ mod test {
 
 		// Test environment
 		let api = create_chain_api().await.unwrap();
-		let (enclave_keypair, _, _) = sp_core::sr25519::Pair::generate_with_phrase(None);
+		let (enclave_keypair, _, _) = sr25519::Pair::generate_with_phrase(None);
 
 		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 			enclave_keypair,
