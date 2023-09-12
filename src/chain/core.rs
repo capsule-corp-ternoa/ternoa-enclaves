@@ -9,9 +9,10 @@ use serde::Serialize;
 
 use jsonrpsee_ws_client;
 use jsonrpsee_ws_client::WsClientBuilder;
-use sp_core::H256;
+
 use std::fmt;
 use subxt::{
+	ext::sp_core::H256,
 	storage::address::{Address, StaticStorageMapKey, Yes},
 	tx::PairSigner,
 	tx::Signer,
@@ -375,10 +376,7 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 /// * `nft_id` - The NFT/Capsule ID
 /// # Returns
 /// * `Result<sp_core::H256, subxt::Error>` - The transaction hash
-pub async fn nft_keyshare_oracle(
-	state: &SharedState,
-	nft_id: u32,
-) -> Result<sp_core::H256, subxt::Error> {
+pub async fn nft_keyshare_oracle(state: &SharedState, nft_id: u32) -> Result<H256, subxt::Error> {
 	debug!("CHAIN : NFT ORACLE");
 
 	let api = get_chain_api(state).await;
@@ -431,7 +429,7 @@ pub async fn nft_keyshare_oracle(
 pub async fn capsule_keyshare_oracle(
 	state: &SharedState,
 	nft_id: u32,
-) -> Result<sp_core::H256, subxt::Error> {
+) -> Result<H256, subxt::Error> {
 	debug!("CHAIN : CAPSULE ORACLE");
 
 	let api = get_chain_api(state).await;

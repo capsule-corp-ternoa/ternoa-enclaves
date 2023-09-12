@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
+use subxt::ext::sp_core::sr25519;
 use subxt::tx::PairSigner;
+
 use tokio::sync::RwLock;
 
 use crate::{
@@ -11,9 +13,9 @@ pub type SharedState = Arc<RwLock<StateConfig>>;
 
 /// StateConfig shared by all routes
 pub struct StateConfig {
-	enclave_key: sp_core::sr25519::Pair,
+	enclave_key: sr25519::Pair,
 	enclave_account: String,
-	enclave_signer: PairSigner<subxt::PolkadotConfig, sp_core::sr25519::Pair>,
+	enclave_signer: PairSigner<subxt::PolkadotConfig, sr25519::Pair>,
 	maintenance: String,
 	rpc_client: DefaultApi,
 	current_block: u32,
@@ -29,7 +31,7 @@ pub struct StateConfig {
 
 impl StateConfig {
 	pub fn new(
-		enclave_key: sp_core::sr25519::Pair,
+		enclave_key: sr25519::Pair,
 		maintenance: String,
 		rpc_client: DefaultApi,
 		binary_version: String,
@@ -60,7 +62,7 @@ impl StateConfig {
 		}
 	}
 
-	pub fn get_key(&self) -> sp_core::sr25519::Pair {
+	pub fn get_key(&self) -> sr25519::Pair {
 		self.enclave_key.clone()
 	}
 
@@ -68,11 +70,11 @@ impl StateConfig {
 		self.enclave_account.clone()
 	}
 
-	pub fn get_signer(&self) -> &PairSigner<subxt::PolkadotConfig, sp_core::sr25519::Pair> {
+	pub fn get_signer(&self) -> &PairSigner<subxt::PolkadotConfig, sr25519::Pair> {
 		&self.enclave_signer
 	}
 
-	pub fn set_key(&mut self, keypair: sp_core::sr25519::Pair) {
+	pub fn set_key(&mut self, keypair: sr25519::Pair) {
 		self.enclave_key = keypair.clone();
 
 		let public_key = match keypair_to_public(keypair.clone()) {
@@ -179,7 +181,7 @@ impl StateConfig {
 	}
 }
 
-fn keypair_to_public(keypair: sp_core::sr25519::Pair) -> Option<sp_core::sr25519::Public> {
+fn keypair_to_public(keypair: sr25519::Pair) -> Option<sr25519::Public> {
 	let pubkey: [u8; 32] = match keypair.as_ref().to_bytes()[64..].try_into() {
 		Ok(pk) => pk,
 		Err(err) => {
@@ -188,7 +190,7 @@ fn keypair_to_public(keypair: sp_core::sr25519::Pair) -> Option<sp_core::sr25519
 		},
 	};
 
-	let public_key = sp_core::sr25519::Public::from_raw(pubkey);
+	let public_key = sr25519::Public::from_raw(pubkey);
 	Some(public_key)
 }
 
@@ -205,7 +207,7 @@ pub async fn get_chain_api(state: &SharedState) -> DefaultApi {
 	shared_state_read.get_rpc_client()
 }
 
-pub async fn get_keypair(state: &SharedState) -> sp_core::sr25519::Pair {
+pub async fn get_keypair(state: &SharedState) -> sr25519::Pair {
 	let shared_state_read = state.read().await;
 	shared_state_read.get_key()
 }
@@ -269,7 +271,7 @@ pub async fn set_processed_block(state: &SharedState, block_number: u32) {
 	shared_state_write.set_processed_block(block_number);
 }
 
-pub async fn set_keypair(state: &SharedState, keypair: sp_core::sr25519::Pair) {
+pub async fn set_keypair(state: &SharedState, keypair: sr25519::Pair) {
 	let shared_state_write = &mut state.write().await;
 	shared_state_write.set_key(keypair);
 }
