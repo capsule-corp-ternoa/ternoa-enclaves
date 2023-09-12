@@ -10,12 +10,16 @@ use axum::{
 	Json,
 };
 use hyper::StatusCode;
-use subxt::utils::AccountId32;
+use subxt::{
+	ext::sp_core::{crypto::PublicError, crypto::Ss58Codec, sr25519, sr25519::Signature, Pair},
+	utils::AccountId32,
+};
+
 use tokio_util::io::ReaderStream;
 
 use hex::{FromHex, FromHexError};
 use serde_json::{json, Value};
-use sp_core::{crypto::Ss58Codec, sr25519, Pair};
+
 use std::{
 	collections::BTreeMap,
 	fs::{remove_file, File},
@@ -25,7 +29,6 @@ use std::{
 use tracing::{debug, error, info, warn};
 
 use serde::{Deserialize, Serialize};
-use sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
 	chain::{
@@ -778,7 +781,7 @@ pub async fn admin_backup_push_bulk(
 
 	debug!("ADMIN PUSH BULK : Phrase read, converting it to keypair.");
 
-	let enclave_keypair = match sp_core::sr25519::Pair::from_phrase(&phrase, None) {
+	let enclave_keypair = match sr25519::Pair::from_phrase(&phrase, None) {
 		Ok((keypair, _seed)) => keypair,
 		Err(err) => {
 			let message = format!("ADMIN PUSH BULK : Error creating keypair from phrase: {err:?}");
@@ -808,10 +811,11 @@ pub async fn admin_backup_push_bulk(
 					Json(json!({
 						"error": format!("Unable to update keyshare availability, {err:?}"),
 					})),
-				).into_response()
+				)
+					.into_response()
 			},
 		};
-	
+
 	let last_synced = keyshare_list.values().map(|av| av.block_number).max().unwrap();
 	reset_nft_availability(&state, keyshare_list).await;
 	let _ = set_sync_state(last_synced.to_string());
