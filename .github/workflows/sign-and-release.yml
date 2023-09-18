@@ -5,12 +5,12 @@ on:
     tags: [v0.4*]
   pull_request:
     branches: [ "master" ]
-    types: [opened, reopened]
+    types: [opened, edited]
 
   workflow_dispatch:
 
 env:
-  TAG: "v0.4-alpha"
+  TAG: "v0.4.5-mainnet"
   MRENCLAVE: "9e26329e0d451e02e3c7622025921397ead737ec0d09d1f31fe35c7486a6cfb0"
   CARGO_TERM_COLOR: always
 
@@ -46,13 +46,13 @@ jobs:
         sudo apt install -y clang llvm pkg-config nettle-dev
 
     - name: Run tests
-      run: cargo test --no-default-features --features alpha-net  --release
+      run: cargo test --no-default-features --features main-net  --release
     
     - name: Build
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: --no-default-features --features alpha-net --release
+        args: --no-default-features --features main-net --release
     
     - name: Create the Deployment ZIP
       run: |
@@ -68,10 +68,10 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: deployment/ternoa_enclave_deployment.zip
-        asset_name: ternoa_enclave_alpha.zip
+        asset_name: ternoa_enclave_mainnet.zip
         tag: ${{ env.TAG }}
         overwrite: true
-        body: "Ternoa SGX Package for alphanet chain"
+        body: "Ternoa SGX Package for mainnet"
     
     - name: Upload MRENCLAVE
       uses: svenstaro/upload-release-action@v2
@@ -82,4 +82,4 @@ jobs:
         asset_name: MRENCLAVE
         tag: ${{ env.TAG }}
         overwrite: true
-        body: "Ternoa SGX Server MRENCLAVE for alphanet chain"
+        body: "Ternoa SGX Server MRENCLAVE for mainnet"

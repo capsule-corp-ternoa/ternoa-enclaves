@@ -64,7 +64,7 @@ use crate::{
 	servers::state::{
 		get_accountid, get_blocknumber, get_identity, get_maintenance, get_nonce,
 		get_processed_block, get_version, reset_nonce, set_blocknumber, set_processed_block,
-		SharedState, StateConfig,
+		SharedState, StateConfig, get_nft_availability_map_len,
 	},
 };
 
@@ -687,6 +687,7 @@ pub struct HealthResponse {
 	pub chain: String,
 	pub block_number: u32,
 	pub sync_state: String,
+	pub secrets_number: u32,
 	pub version: String,
 	pub description: String,
 	pub enclave_address: String,
@@ -694,16 +695,16 @@ pub struct HealthResponse {
 
 /// Health check endpoint
 async fn get_health_status(State(state): State<SharedState>) -> impl IntoResponse {
-	debug!("\t Healthchek handler");
+	debug!("\t Healthcheck handler");
 
 	match evalueate_health_status(&state).await {
 		Some(response) => {
-			debug!("Healthchek exit successfully .");
+			debug!("Healthcheck exit successfully .");
 			response.into_response()
 		},
 
 		_ => {
-			let message = "Healthchek handler : exited with None.".to_string();
+			let message = "Healthcheck handler : exited with None.".to_string();
 			error!(message);
 			sentry::with_scope(
 				|scope| {
@@ -718,10 +719,11 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 			let sync_state = match get_sync_state() {
 				Ok(st) => st,
 				Err(err) => {
-					error!("Healthchek handler : error : unable to read the sync state");
+					error!("Healthcheck handler : error : unable to read the sync state");
 					"Unknown".to_string()
 				},
 			};
+			let secrets_number = get_nft_availability_map_len(&state).await;
 
 			let chain = if cfg!(feature = "main-net") {
 				"main-net".to_string()
@@ -740,6 +742,7 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 				Json(HealthResponse {
 					chain,
 					sync_state,
+					secrets_number,
 					description: "Healthcheck returned NONE".to_string(),
 					block_number,
 					version: binary_version,
@@ -772,7 +775,7 @@ async fn evalueate_health_status(
 			return None;
 		},
 	};
-
+	let secrets_number = get_nft_availability_map_len(state).await;
 	let maintenance = get_maintenance(state).await;
 
 	let chain = if cfg!(feature = "main-net") {
@@ -793,6 +796,7 @@ async fn evalueate_health_status(
 			Json(HealthResponse {
 				chain,
 				sync_state,
+				secrets_number,
 				block_number,
 				version: binary_version,
 				description: maintenance,
@@ -801,11 +805,22 @@ async fn evalueate_health_status(
 		));
 	}
 
+	let status = match sync_state.as_str() {
+		"" => StatusCode::NO_CONTENT,
+		"setup" => StatusCode::NOT_EXTENDED,
+		_ => if sync_state.parse::<u32>().is_ok() {
+			StatusCode::OK
+		}else{
+			StatusCode::NOT_ACCEPTABLE
+		}
+	};
+
 	Some((
-		StatusCode::OK,
+		status,
 		Json(HealthResponse {
 			chain,
 			sync_state,
+			secrets_number,
 			block_number,
 			version: binary_version,
 			description: "SGX server is running!".to_string(),
