@@ -498,7 +498,7 @@ pub async fn sync_keyshares(
 		},
 	};
 
-	debug!(
+	trace!(
 		"SYNC KEYSHARES : Quote Result for url : {} is {:#?}",
 		requester.1.enclave_url, quote_body
 	);
@@ -1042,10 +1042,10 @@ pub async fn fetch_keyshares(
 	let encryption_public_key = hex::encode(encryption_pk);
 
 	let user_data_token = format!("{account_id}_{current_block_number}_{encryption_public_key}");
-	debug!("FETCH KEYSHARES : QUOTE : report_data token = {}", user_data_token);
+	trace!("FETCH KEYSHARES : QUOTE : report_data token = {}", user_data_token);
 
 	let user_data = account_keypair.sign(user_data_token.as_bytes());
-	debug!("FETCH KEYSHARES : QUOTE : report_data signature = {:?}", user_data);
+	trace!("FETCH KEYSHARES : QUOTE : report_data signature = {:?}", user_data);
 
 	match write_user_report_data(None, &user_data.0) {
 		Ok(_) => debug!("FETCH KEYSHARES : QUOTE : Successfully wrote user_data into the quote."),
@@ -1145,7 +1145,7 @@ pub async fn fetch_keyshares(
 
 	let request_body = match serde_json::to_string(&request) {
 		Ok(body) => {
-			debug!("FETCH KEYSHARES : Request Body : {:#?}\n", body);
+			trace!("FETCH KEYSHARES : Request Body : {:#?}\n", body);
 			body
 		},
 		Err(err) => {
@@ -1610,7 +1610,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 // List of api_url of all the enclaves in all clusters with the same slot number as current enclave
 // This is essential for Synchronization and backup
 pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
-	debug!("SLOT-DISCOVERY : start");
+	debug!("SLOT-DISCOVERY : START");
 	let chain_clusters = get_clusters(state).await;
 
 	let mut slot_enclave = Vec::<(u32, Enclave)>::new();
