@@ -672,7 +672,7 @@ pub async fn sync_keyshares(
 
 	// Check attestation report status
 	if report["exit status"] != "0" {
-		let message = format!("SYNC KEYSHARES : Attestation IAS report failed : {}", report);
+		let message = format!("SYNC KEYSHARES : Attestation IAS report failed :: Requester: {} , Report : {report}", requester.1.enclave_url);
 		sentry::with_scope(
 			|scope| {
 				scope.set_tag("sync-keyshare", "attestation");
