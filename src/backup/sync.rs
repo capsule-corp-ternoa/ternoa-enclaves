@@ -570,9 +570,9 @@ pub async fn sync_keyshares(
 		},
 	};
 
-	debug!("SYNC KEYSHARES : Report map : {}", attest_dynamic_json["report"]);
+	trace!("SYNC KEYSHARES : Report map : {}", attest_dynamic_json["report"]);
 	let report_body_string = serde_json::to_string(&attest_dynamic_json["report"]);
-	debug!("SYNC KEYSHARES : Stringified report map : {:?}", report_body_string);
+	trace!("SYNC KEYSHARES : Stringified report map : {:?}", report_body_string);
 
 	let report: String = match report_body_string {
 		Ok(report) => report,
