@@ -833,7 +833,7 @@ pub async fn sync_keyshares(
 
 	// Public-Key Encryption
 	let encryption_key = hex::decode(request.encryption_account).unwrap();
-	debug!("SYNC KEYSHARES : Encryption public key = {:?}", encryption_key);
+	trace!("SYNC KEYSHARES : Encryption public key = {:?}", encryption_key);
 	debug!("SYNC KEYSHARES : Encryption zip data length = {}", zip_data.len());
 	let encrypted_zip_data = match encrypt(&encryption_key, &zip_data) {
 		Ok(encrypted) => encrypted,

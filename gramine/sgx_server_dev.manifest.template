@@ -2,8 +2,7 @@
 
 loader.entrypoint = "file:trusted/gramine/libsysdb.so"
 libos.entrypoint = "{{ self_exe }}"
-loader.log_level = "error"
-#loader.log_level = "{{ log_level }}"
+loader.log_level = "{{ log_level }}"
 
 loader.env.LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 
@@ -12,6 +11,7 @@ loader.env.MALLOC_ARENA_MAX = "1"
 
 # For easier debugging — not strictly required to run this workload
 loader.env.RUST_BACKTRACE = "full"
+loader.env.RUST_LOG = "none,sgx_server=debug"
 
 # MOUNTING FROM "URI" ON HOST, TO "PATH" ON GRAMINE
 # TYPE can be chroot, encrypted, tmpfs(in-memory)

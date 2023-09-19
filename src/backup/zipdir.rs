@@ -3,7 +3,7 @@ use std::{
 	io::{self, prelude::*, Seek, Write},
 	iter::Iterator,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 use zip::{result::ZipError, write::FileOptions};
 
 use std::{fs::File, path::Path};
@@ -90,7 +90,7 @@ where
 				debug!("\t ZIPDIR : WILDCARD : file-name = {:?}", name_ext);
 
 				if file_ext.is_empty() || file_ext != "keyshare" {
-					debug!(
+					trace!(
 						"\t ZIPDIR => improper file-extension for synchronization = {:?}",
 						name_ext
 					);
@@ -114,7 +114,7 @@ where
 					// Capsules waiting to be synced
 					|| name_parts[2].parse::<u32>() == Ok(0)
 				{
-					debug!(
+					trace!(
 						"\t ZIPDIR => Improper file name-parts for synchronization = {:?}",
 						file_name
 					);
