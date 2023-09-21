@@ -1,7 +1,8 @@
 version: "3.7"
 services:
   ternoa-sgx:
-    image: "ternoa-sgx"
+    image: "ternoa-sgx:0.4.4"
+    pull_policy: if_not_present
     ports:
       - "0.0.0.0:8101:8101/tcp"
     volumes:

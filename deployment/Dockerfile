@@ -6,6 +6,7 @@ ARG PORT="8101"
 ARG CODE_VERSION="0.4.4"
 ARG CHAIN="alpha-net"
 ARG VERSION_TAG="v0.4.4-alphanet"
+ARG VERBOSITY="3"
 
 # Support setting various labels on the final image
 FROM rust:latest as builder
@@ -24,6 +25,7 @@ RUN git clone https://github.com/capsule-corp-ternoa/ternoa-enclaves.git /opt/te
 WORKDIR /opt/ternoa-enclaves
 RUN git checkout docker
 RUN cargo build --release --no-default-features --features "alpha-net"
+RUN mkdir -p gramine/bin
 RUN cp target/release/sgx_server gramine/bin/
 
 WORKDIR /opt/ternoa-enclaves/gramine
@@ -69,9 +71,6 @@ COPY --from=builder /opt/ternoa-enclaves/gramine/*.manifest     \
 RUN gramine-sgx-sigstruct-view sgx_server.sig
 
 EXPOSE $PORT
-ENTRYPOINT gramine-sgx gramine/bin/sgx_server \
-		--domain ${DOMAIN} \
-		--port ${PORT} \
-		--verbose ${VERBOSITY} >> gramine/enclave.log 2>&1 &
+ENTRYPOINT gramine-sgx /opt/ternoa-enclaves/gramine/bin/sgx_server --domain $DOMAIN --port $PORT --verbose $VERBOSITY
 
 LABEL version=${VERSION_TAG}
