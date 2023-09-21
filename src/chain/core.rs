@@ -24,19 +24,19 @@ use tracing::{debug, error, info, trace};
 
 #[cfg_attr(
 	feature = "main-net",
-	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_mainnet.scale")
+	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_mainnet.scale")
 )]
 #[cfg_attr(
 	feature = "alpha-net",
-	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale")
+	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_alphanet.scale")
 )]
 #[cfg_attr(
 	feature = "dev1-net",
-	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev1.scale")
+	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev1.scale")
 )]
 #[cfg_attr(
 	feature = "dev0-net",
-	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev0.scale")
+	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev0.scale")
 )]
 
 pub mod ternoa {}

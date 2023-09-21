@@ -50,8 +50,3 @@ fi
 mkdir -p $GRAMINE_PATH/bin/
 rm $GRAMINE_PATH/bin/*
 cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
-
-echo "signing the binary ..."
-COSIGN_PASSWORD="Test123456" cosign sign-blob --key $BASEDIR/credentials/keys/dev/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
-tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
-mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig

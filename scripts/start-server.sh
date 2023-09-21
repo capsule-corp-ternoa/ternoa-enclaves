@@ -64,10 +64,6 @@ while :; do
 		mkdir -p $GRAMINE_PATH/bin/
 		cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
 
-		echo "signing the binary ..."
-	    COSIGN_PASSWORD="Test123456" cosign sign-blob --key $BASEDIR/credentials/keys/dev/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
-		tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
-		mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
 	;;
 	-f|--fetch)
 	# Download the binary from github
@@ -79,9 +75,7 @@ while :; do
 		echo "Downloading binary and signature from Ternoa github repository"
 		$SCRIPTS_PATH/fetch-release.sh
 		mv ./sgx_server $GRAMINE_PATH/bin/
-		mv ./sgx_server.sig $GRAMINE_PATH/bin/
 		chmod 775 $GRAMINE_PATH/bin/sgx_server
-		chmod 775 $GRAMINE_PATH/bin/sgx_server.sig
 	;;
 	-v|--verbose)
 	if [ "$2" ]; then

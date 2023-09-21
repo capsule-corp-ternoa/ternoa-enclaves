@@ -38,9 +38,7 @@ SDK code [Repository](https://github.com/intel/linux-sgx)
 
 ### ● Fetch Metadata
 
-When metadata of the chain is updated, Go to ```credentials/artifacts``` folder and run :
-
-When metadata of the chain is updated, Go to ```credentials/artifacts``` folder and run :
+When metadata of the chain is updated, Go to ```./artifacts``` folder and run :
 
 ```bash
 ./gen_metadata.sh

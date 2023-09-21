@@ -1,7 +1,7 @@
-# UBUNTU
+# ARCH LINUX
 #ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
-# ARCH LINUX
+# UBUNTU
 ARCH_LIBDIR ?= /lib/x86_64-linux-gnu
 
 # NOTE: MUST BE "RELATIVE PATH" TO TEE BINARY

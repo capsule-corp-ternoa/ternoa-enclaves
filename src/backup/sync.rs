@@ -788,7 +788,7 @@ pub async fn sync_keyshares(
 					|| (current_block_number < token_block)
 					|| (current_block_number - token_block > 5)
 				{
-					let message = format!("SYNC KEYSHARES : TOKEN : Incompatible block numbers :\n Current blocknumber: {} >~ Token blocknumber: {} == Request blocknumber: {} ?", current_block_number, token_block, auth_token.block_number);
+					let message = format!("SYNC KEYSHARES : TOKEN : Incompatible/Outdated block numbers :\n Current blocknumber: {current_block_number} >~ Token blocknumber: {token_block} == Request blocknumber: {} ?", auth_token.block_number);
 					sentry::with_scope(
 						|scope| {
 							scope.set_tag("sync-keyshare", "attestation");
