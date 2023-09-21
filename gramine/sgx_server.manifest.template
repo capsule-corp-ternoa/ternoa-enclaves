@@ -27,29 +27,35 @@ fs.mounts = [
   { path = "/nft" , uri = "file:nft", type = "encrypted", key_name = "_sgx_mrenclave"},
 ]
 
-#sgx.allowed_files = []
+sgx.allowed_files = [
+  "file:/etc/nsswitch.conf",
+  "file:/etc/localtime",
+  "file:/etc/hosts",
+  "file:/etc/passwd",
+]
 
 sgx.trusted_files = [
   "file:{{ self_exe }}",
   "file:trusted/",
 ]
 
-# The Tokio runtime requires eventfd, and the Gramine implementation
-# currently relies on the host in an insecure manner. This setting isn't
-# suitable for production deployment, but works well as a stopgap during
-# development while a proper implementation in Gramine is being worked on.
 sys.insecure__allow_eventfd = true
+sys.enable_extra_runtime_domain_names_conf = true
+sys.stack.size = "2M"
+#sys.brk.max_size = "1M"
 
-sgx.enclave_size = "1G"
+sgx.enclave_size = "2G"
 sgx.thread_num = 24
 sgx.max_threads = 24
-#sgx.insecure__rpc_thread_num = 24
 sgx.debug = false
 sgx.nonpie_binary = true
 loader.insecure__use_cmdline_argv = true
 loader.pal_internal_mem_size = "128M"
+sgx.edmm_enable = false
+sgx.preheat_enclave = false
+#sgx.insecure__rpc_thread_num = 24
 
-sgx.require_avx    = true
+#sgx.require_avx    = true
 #sgx.require_avx512 = false
 #sgx.require_mpx    = false
 #sgx.require_pkru   = false
