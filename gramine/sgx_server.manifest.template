@@ -14,7 +14,6 @@ loader.env.RUST_BACKTRACE = "full"
 loader.env.RUST_LOG = "none,sgx_server=debug"
 
 # MOUNTING FROM "URI" ON HOST, TO "PATH" ON GRAMINE
-# TYPE can be chroot, encrypted, tmpfs(in-memory)
 fs.mounts = [
   { path = "/lib", uri = "file:trusted/gramine/runtime/glibc" },
   { path = "/lib/x86_64-linux-gnu", uri = "file:trusted/arch_libdir" },

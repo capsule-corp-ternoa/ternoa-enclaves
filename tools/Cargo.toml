@@ -38,7 +38,7 @@ anyhow = "1.0.70"
 futures = "0.3.27"
 
 # Ternoa/Polkadot
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive", "full", "bit-vec"] }
+parity-scale-codec = { version = "3.6.5", default-features = false, features = ["derive", "full", "bit-vec"] }
 subxt = { version = "0.31.0" , features = ["substrate-compat"]}
 #sp-core = { version = "21.0.0", default-features = false, features = ["full_crypto"] }
 

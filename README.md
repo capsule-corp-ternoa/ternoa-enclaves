@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-All the following installation steps for Ubuntu 22.04 are automated in an [Install Script](./scripts/install.sh) .
+All the following installation steps for Ubuntu 22.04 are automated in an [Install Script](./install.sh) .
 
 ### ● Install build-tools
 
@@ -108,6 +108,34 @@ To clear the Enclave and remove all intermediate sgx files and binaries :
 
 ```shell
 sudo scripts/clear-server.sh
+```
+
+## Docker
+
+To create a new image:
+
+```shell
+docker build --rm --no-cache \
+    -t ternoa-sgx:v0.4.4-alphanet \
+    -t ternoa-sgx:latest \
+    --build-arg UBUNTU_VERSION=22.04 \
+    --build-arg ENCLAVE_CHAIN=alpha-net \
+    --build-arg ENCLAVE_DOMAIN=enclave.domain.me \
+    --build-arg ENCLAVE_PORT=8000 \
+    --build-arg ENCLAVE_VERBOSITY=3 \
+    .
+```
+
+To start a container:
+
+```shell
+ENCLAVE_VERSION=v0.4.4-dev0net \
+ENCLAVE_DNS=xxx.xxx.xxx.xxx \
+ENCLAVE_DOMAIN=enclave.newdomain.me \
+ENCLAVE_PORT=9000 \
+ENCLAVE_VERBOSITY=3 \
+docker-compose up
+
 ```
 
 ## Client
