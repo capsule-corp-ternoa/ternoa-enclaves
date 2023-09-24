@@ -27,6 +27,6 @@ gramine/trusted/arch_libdir/
 gramine/trusted/etc/
 gramine/trusted/gramine/
 
-deployment/ternoa_enclaves/*
+deployment/ternoa_enclaves/
 
 artifacts/*.scale

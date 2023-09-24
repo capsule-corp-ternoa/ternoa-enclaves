@@ -62,9 +62,9 @@ use crate::{
 		},
 	},
 	servers::state::{
-		get_accountid, get_blocknumber, get_identity, get_maintenance, get_nonce,
-		get_processed_block, get_version, reset_nonce, set_blocknumber, set_processed_block,
-		SharedState, StateConfig, get_nft_availability_map_len,
+		get_accountid, get_blocknumber, get_identity, get_maintenance,
+		get_nft_availability_map_len, get_nonce, get_processed_block, get_version, reset_nonce,
+		set_blocknumber, set_processed_block, SharedState, StateConfig,
 	},
 };
 
@@ -775,10 +775,10 @@ async fn evalueate_health_status(
 			return None;
 		},
 	};
-	
+
 	trace!("Healthcheck handler : get availability map");
 	let secrets_number = get_nft_availability_map_len(state).await;
-	
+
 	trace!("Healthcheck handler : get maintenance");
 	let maintenance = get_maintenance(state).await;
 
@@ -814,13 +814,15 @@ async fn evalueate_health_status(
 	let status = match sync_state.as_str() {
 		"" => StatusCode::PARTIAL_CONTENT,
 		"setup" => StatusCode::RESET_CONTENT,
-		_ => if sync_state.parse::<u32>().is_ok() {
-			StatusCode::OK
-		}else{
-			StatusCode::NOT_ACCEPTABLE
-		}
+		_ => {
+			if sync_state.parse::<u32>().is_ok() {
+				StatusCode::OK
+			} else {
+				StatusCode::NOT_ACCEPTABLE
+			}
+		},
 	};
-	
+
 	trace!("Healthcheck handler : state={status:?}");
 
 	Some((
