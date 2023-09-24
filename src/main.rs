@@ -50,16 +50,16 @@ async fn main() {
 		.expect("MAIN : setting default subscriber failed");
 
 	info!("MAIN : Start Sentry");
-	let env = if cfg!(feature = "main-net") {
-		"main-net"
-	} else if cfg!(feature = "alpha-net") {
-		"alpha-net"
-	} else if cfg!(feature = "dev0-net") {
-		"dev0-net"
-	} else if cfg!(feature = "dev1-net") {
-		"dev1-net"
+	let env = if cfg!(feature = "mainnet") {
+		"mainnet"
+	} else if cfg!(feature = "alphanet") {
+		"alphanet"
+	} else if cfg!(feature = "dev0") {
+		"dev0"
+	} else if cfg!(feature = "dev1") {
+		"dev1"
 	} else {
-		"local-net"
+		"localchain"
 	};
 
 	let _guard = sentry::init((

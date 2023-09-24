@@ -1,7 +1,7 @@
-# ARCH LINUX
+# UBUNTU
 #ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
-# UBUNTU
+# ARCH LINUX
 ARCH_LIBDIR ?= /lib/x86_64-linux-gnu
 
 # NOTE: MUST BE "RELATIVE PATH" TO TEE BINARY
@@ -13,7 +13,7 @@ DEBUG ?= 0
 .PHONY: all
 all: sgx_server.manifest
 ifeq ($(SGX),1)
-all: sgx_server.manifest.sgx sgx_server.sig
+all: sgx_server.manifest.sgx sgx_server.sig 
 endif
 
 ifeq ($(DEBUG),1)

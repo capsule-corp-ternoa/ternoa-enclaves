@@ -78,9 +78,9 @@ panic = "abort"
 sequoia-openpgp = "1.13.0"
 
 [features]
-default = ["dev0-net"]
-main-net = []
-alpha-net = []
-dev1-net = []
-dev0-net = []
-local-net = []
+default = ["alphanet"]
+mainnet = []
+alphanet = []
+dev1 = []
+dev0 = []
+localchain = []

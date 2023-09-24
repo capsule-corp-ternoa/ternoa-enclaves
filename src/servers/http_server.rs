@@ -695,16 +695,16 @@ pub struct HealthResponse {
 
 /// Health check endpoint
 async fn get_health_status(State(state): State<SharedState>) -> impl IntoResponse {
-	debug!("\t Healthcheck handler");
+	trace!("\t Healthcheck handler Start");
 
 	match evalueate_health_status(&state).await {
 		Some(response) => {
-			debug!("Healthcheck exit successfully .");
+			debug!("Healthcheck handler exit successfully .");
 			response.into_response()
 		},
 
 		_ => {
-			let message = "Healthcheck handler : exited with None.".to_string();
+			let message = "Healthcheck handler error : exited with None.".to_string();
 			error!(message);
 			sentry::with_scope(
 				|scope| {
@@ -719,22 +719,22 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 			let sync_state = match get_sync_state() {
 				Ok(st) => st,
 				Err(err) => {
-					error!("Healthcheck handler : error : unable to read the sync state");
+					error!("Healthcheck handler error : unable to read the sync state");
 					"Unknown".to_string()
 				},
 			};
 			let secrets_number = get_nft_availability_map_len(&state).await;
 
-			let chain = if cfg!(feature = "main-net") {
-				"main-net".to_string()
-			} else if cfg!(feature = "alpha-net") {
-				"alpha-net".to_string()
-			} else if cfg!(feature = "dev0-net") {
-				"dev0-net".to_string()
-			} else if cfg!(feature = "dev1-net") {
-				"dev1-net".to_string()
+			let chain = if cfg!(feature = "mainnet") {
+				"mainnet".to_string()
+			} else if cfg!(feature = "alphanet") {
+				"alphanet".to_string()
+			} else if cfg!(feature = "dev0") {
+				"dev0".to_string()
+			} else if cfg!(feature = "dev1") {
+				"dev1".to_string()
 			} else {
-				"local-net".to_string()
+				"localchain".to_string()
 			};
 
 			(
@@ -766,7 +766,7 @@ async fn evalueate_health_status(
 	let binary_version = get_version(state).await;
 	let enclave_address = get_accountid(state).await;
 
-	debug!("Healthcheck : get public key.");
+	trace!("Healthcheck : get public key.");
 	// TODO [error handling] : ADD RPC PROBLEM/TIMEOUT
 	let sync_state = match get_sync_state() {
 		Ok(st) => st,
@@ -778,16 +778,16 @@ async fn evalueate_health_status(
 	let secrets_number = get_nft_availability_map_len(state).await;
 	let maintenance = get_maintenance(state).await;
 
-	let chain = if cfg!(feature = "main-net") {
-		"main-net".to_string()
-	} else if cfg!(feature = "alpha-net") {
-		"alpha-net".to_string()
-	} else if cfg!(feature = "dev0-net") {
-		"dev0-net".to_string()
-	} else if cfg!(feature = "dev1-net") {
-		"dev1-net".to_string()
+	let chain = if cfg!(feature = "mainnet") {
+		"mainnet".to_string()
+	} else if cfg!(feature = "alphanet") {
+		"alphanet".to_string()
+	} else if cfg!(feature = "dev0") {
+		"dev0".to_string()
+	} else if cfg!(feature = "dev1") {
+		"dev1".to_string()
 	} else {
-		"local-net".to_string()
+		"localchain".to_string()
 	};
 
 	if !maintenance.is_empty() {

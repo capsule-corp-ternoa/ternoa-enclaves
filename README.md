@@ -65,13 +65,13 @@ You have to specify the chain which you want to use.
 This command will build a binary for dev-0 chain :
 
 ```shell
-sudo CHAIN="dev0-net" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --build --verbose 2
+sudo CHAIN="dev0" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --build --verbose 2
 ```
 
 To use official binary in github :
 
 ```shell
-sudo CHAIN="main-net" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --fetch --verbose 2
+sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --fetch --verbose 2
 ```
 
 ### Start Parameters
@@ -91,7 +91,7 @@ sudo CHAIN="main-net" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.net
 It is similar to Start, but it won't compile the binary :
 
 ```shell
-sudo CHAIN="alpha-net" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8100 --build --verbose 2
+sudo CHAIN="alphanet" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8100 --build --verbose 2
 ```
 
 ## Stop an Enclave
@@ -119,7 +119,7 @@ docker build --rm --no-cache \
     -t ternoa-sgx:v0.4.4-alphanet \
     -t ternoa-sgx:latest \
     --build-arg UBUNTU_VERSION=22.04 \
-    --build-arg ENCLAVE_CHAIN=alpha-net \
+    --build-arg ENCLAVE_CHAIN=alphanet \
     --build-arg ENCLAVE_DOMAIN=enclave.domain.me \
     --build-arg ENCLAVE_PORT=8000 \
     --build-arg ENCLAVE_VERBOSITY=3 \

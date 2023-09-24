@@ -1,4 +1,4 @@
-name: Tertnoa-SGX-Enclave
+name: Ternoa-SGX-Enclave
 
 on:
   push:
@@ -46,13 +46,13 @@ jobs:
         sudo apt install -y clang llvm pkg-config nettle-dev
 
     - name: Run tests
-      run: cargo test --no-default-features --features main-net  --release
+      run: cargo test --no-default-features --features mainnet  --release
     
     - name: Build
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: --no-default-features --features main-net --release
+        args: --no-default-features --features mainnet --release
     
     - name: Create the Deployment ZIP
       run: |

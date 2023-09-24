@@ -6,7 +6,7 @@ SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
 
 # DEFAULT VALUES
-CHAIN=${CHAIN:-alpha-net}
+CHAIN=${CHAIN:-alphanet}
 
 DOMAIN=${DOMIAN:-alphanet-c0n0v3.ternoa.dev}
 PORT=${PORT:-8100}
@@ -94,7 +94,6 @@ while :; do
     shift
 done
 
-cd trusted && ./update-trusted.sh && cd ..
 
 NC='\033[0m'			  # Reset
 IRed='\033[0;91m'         # Red
@@ -108,6 +107,9 @@ BIWhite='\033[1;97m'      # White
 
 echo -e "\nport:\t\t ${IGreen}$PORT${NC}"
 echo -e "domain name:\t ${IGreen}$DOMAIN${NC}"
+
+cd $GRAMINE_PATH/trusted 
+./update-trusted.sh
 
 # Create Enclave using Makefile
 cd $GRAMINE_PATH

@@ -23,19 +23,19 @@ use subxt::{
 use tracing::{debug, error, info, trace};
 
 #[cfg_attr(
-	feature = "main-net",
+	feature = "mainnet",
 	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_mainnet.scale")
 )]
 #[cfg_attr(
-	feature = "alpha-net",
+	feature = "alphanet",
 	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_alphanet.scale")
 )]
 #[cfg_attr(
-	feature = "dev1-net",
+	feature = "dev1",
 	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev1.scale")
 )]
 #[cfg_attr(
-	feature = "dev0-net",
+	feature = "dev0",
 	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev0.scale")
 )]
 
@@ -63,13 +63,13 @@ pub enum ReturnStatus {
 pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	debug!("CHAIN : get chain API");
 
-	let rpc_endoint = if cfg!(feature = "main-net") {
+	let rpc_endoint = if cfg!(feature = "mainnet") {
 		"wss://mainnet.ternoa.network:443".to_string()
-	} else if cfg!(feature = "alpha-net") {
+	} else if cfg!(feature = "alphanet") {
 		"wss://alphanet.ternoa.com:443".to_string()
-	} else if cfg!(feature = "dev1-net") {
+	} else if cfg!(feature = "dev1") {
 		"wss://dev-1.ternoa.network:443".to_string()
-	} else if cfg!(feature = "dev0-net") {
+	} else if cfg!(feature = "dev0") {
 		"wss://dev-0.ternoa.network:443".to_string()
 	} else {
 		"ws://localhost:9944".to_string()

@@ -6,7 +6,7 @@ SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
 
 # DEFAULT VALUES
-CHAIN=${CHAIN:-alpha-net}
+CHAIN=${CHAIN:-alphanet}
 
 DOMAIN=${DOMIAN:-alphanet-c1n1v2.ternoa.dev}
 PORT=${PORT:-8100}

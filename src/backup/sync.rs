@@ -360,10 +360,10 @@ pub async fn sync_keyshares(
 	// Create a client
 	let client = match reqwest::Client::builder()
 		// This is for development, will be removed for production certs
-		.danger_accept_invalid_certs(!cfg!(any(feature = "main-net", feature = "alpha-net")))
+		.danger_accept_invalid_certs(!cfg!(any(feature = "mainnet", feature = "alphanet")))
 		.https_only(true)
 		//.use_rustls_tls()
-		// .min_tls_version(if cfg!(any(feature = "main-net", feature = "alpha-net")) {
+		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
 		// 	tls::Version::TLS_1_0
@@ -1186,12 +1186,12 @@ pub async fn fetch_keyshares(
 
 	let client = reqwest::Client::builder()
 		// This is for development, will be removed for production certs
-		.danger_accept_invalid_certs(!cfg!(any(feature = "main-net", feature = "alpha-net")))
+		.danger_accept_invalid_certs(!cfg!(any(feature = "mainnet", feature = "alphanet")))
 		.https_only(true)
 		// WebPKI
 		//.use_rustls_tls()
 		//.use_native_tls()
-		// .min_tls_version(if cfg!(any(feature = "main-net", feature = "alpha-net")) {
+		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
 		// 	tls::Version::TLS_1_0

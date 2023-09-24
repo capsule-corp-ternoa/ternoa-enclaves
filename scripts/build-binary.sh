@@ -13,7 +13,7 @@ limitations under the License.
 LICENSE
 
 if [ -z $1 ]; then 
-  echo "Error! please provide a 'Chain name' i.e alpha-net, main-net, dev0-net, dev1-net"
+  echo "Error! please provide a 'Chain name' i.e alphanet, mainnet, dev0, dev1"
   exit
 else
   CHAIN=$1

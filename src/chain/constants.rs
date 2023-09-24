@@ -1,8 +1,8 @@
 pub const VERSION: &str = "0.4.4";
-pub const ATTESTATION_SERVER_URL: &str = if cfg!(feature = "alpha-net") {
+pub const ATTESTATION_SERVER_URL: &str = if cfg!(feature = "alphanet") {
 	// PRODUCTION-KEY when binary is built by github
 	"https://alphanet-attestation.ternoa.network/attest"
-} else if cfg!(feature = "main-net") {
+} else if cfg!(feature = "mainnet") {
 	// PRODUCTION-KEY when binary is built by github
 	"https://mainnet-attestation.ternoa.network/attest"
 } else {
