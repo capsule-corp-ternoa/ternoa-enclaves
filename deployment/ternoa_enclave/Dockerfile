@@ -55,6 +55,7 @@ ARG ENCLAVE_VERBOSITY
 ENV ENCLAVE_VERBOSITY=${ENCLAVE_VERBOSITY:-3}
 
 ENV VERSION_TAG="${CODE_VERSION}-${CHAIN}"
+ENV RUST_LOG = "none,sgx_server=debug"
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y curl tzdata apt-utils build-essential ca-certificates \

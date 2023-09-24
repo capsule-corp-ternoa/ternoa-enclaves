@@ -3,6 +3,7 @@
 # --------------------------------
 
 libos.entrypoint = "{{ self_exe }}"
+#libos.check_invalid_pointers = true
 
 # --------------------------------
 #             LOADER

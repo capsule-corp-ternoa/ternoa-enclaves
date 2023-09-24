@@ -699,7 +699,7 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 
 	match evalueate_health_status(&state).await {
 		Some(response) => {
-			debug!("Healthcheck handler exit successfully .");
+			trace!("Healthcheck handler exit successfully .");
 			response.into_response()
 		},
 
@@ -775,7 +775,11 @@ async fn evalueate_health_status(
 			return None;
 		},
 	};
+	
+	trace!("Healthcheck handler : get availability map");
 	let secrets_number = get_nft_availability_map_len(state).await;
+	
+	trace!("Healthcheck handler : get maintenance");
 	let maintenance = get_maintenance(state).await;
 
 	let chain = if cfg!(feature = "mainnet") {
@@ -791,6 +795,7 @@ async fn evalueate_health_status(
 	};
 
 	if !maintenance.is_empty() {
+		trace!("Healthcheck handler : maintenance mode");
 		return Some((
 			StatusCode::PROCESSING,
 			Json(HealthResponse {
@@ -805,15 +810,18 @@ async fn evalueate_health_status(
 		));
 	}
 
+	trace!("Healthcheck handler : get sync status");
 	let status = match sync_state.as_str() {
-		"" => StatusCode::NO_CONTENT,
-		"setup" => StatusCode::NOT_EXTENDED,
+		"" => StatusCode::PARTIAL_CONTENT,
+		"setup" => StatusCode::RESET_CONTENT,
 		_ => if sync_state.parse::<u32>().is_ok() {
 			StatusCode::OK
 		}else{
 			StatusCode::NOT_ACCEPTABLE
 		}
 	};
+	
+	trace!("Healthcheck handler : state={status:?}");
 
 	Some((
 		status,
