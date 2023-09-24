@@ -1,0 +1,28 @@
+version: "3.8"
+services:
+  ternoa-sgx:
+    image: "ternoa-sgx:${ENCLAVE_VERSION}"
+    pull_policy: if_not_present
+    container_name: ternoa_sgx_server
+    command:
+      - "--domain"
+      - "$ENCLAVE_DOMAIN"
+      - "--port" 
+      - "$ENCLAVE_PORT"
+      - "--verbose" 
+      - "${ENCLAVE_VERBOSE:-3}"
+    ports:
+      - "${ENCLAVE_PORT}:${ENCLAVE_PORT}/tcp"
+      - "443:443/tcp"
+    volumes:
+      - /run/aesmd:/run/aesmd
+    devices:
+      - /dev/sgx_enclave
+    networks:
+      - sgx-machine
+    dns: 
+      - ${ENCLAVE_DNS}
+
+networks:
+  sgx-machine:
+    driver: bridge
