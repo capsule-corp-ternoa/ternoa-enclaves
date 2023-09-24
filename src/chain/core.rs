@@ -30,14 +30,8 @@ use tracing::{debug, error, info, trace};
 	feature = "alphanet",
 	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_alphanet.scale")
 )]
-#[cfg_attr(
-	feature = "dev1",
-	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev1.scale")
-)]
-#[cfg_attr(
-	feature = "dev0",
-	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev0.scale")
-)]
+#[cfg_attr(feature = "dev1", subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev1.scale"))]
+#[cfg_attr(feature = "dev0", subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev0.scale"))]
 
 pub mod ternoa {}
 use crate::servers::state::*;

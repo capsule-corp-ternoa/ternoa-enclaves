@@ -1,14 +1,8 @@
 
-#ARG SDK_VERSION
-#ENV SDK_VERSION=${SDK_VERSION:-"2.21.100.1"}
-
-#ARG PSW_VERSION
-#ENV PSW_VERSION=${PSW_VERSION:-"1.18.100.1"}
-
 ARG UBUNTU_VERSION=22.04
 
-# Support setting various labels on the final image
-FROM rust:latest as builder
+
+FROM rust:latest as ternoa-rust
 
 ARG ENCLAVE_CHAIN
 ENV ENCLAVE_CHAIN=${ENCLAVE_CHAIN:-"mainnet"}
@@ -28,7 +22,13 @@ RUN git clone https://github.com/capsule-corp-ternoa/ternoa-enclaves.git /opt/te
 
 WORKDIR /opt/ternoa-enclaves
 RUN git checkout docker
-RUN cd artifacts && ./get_metadata.sh && cd ../
+
+WORKDIR /opt/ternoa-enclaves/artifacts
+RUN cargo install --version 0.29.0 subxt-cli
+RUN ./get_metadata.sh
+RUN ls -lts
+
+WORKDIR /opt/ternoa-enclaves
 RUN cargo build --release --no-default-features --features $ENCLAVE_CHAIN
 RUN mkdir -p gramine/bin
 RUN cp target/release/sgx_server gramine/bin/
@@ -40,7 +40,7 @@ RUN make SGX=1 SGX_DEV_BUILD=0 all
 # ----------------------------------------------------------------
 
 
-FROM ubuntu:${UBUNTU_VERSION}
+FROM ubuntu:${UBUNTU_VERSION} as ternoa-gramine
 SHELL ["/bin/bash", "-c"]
 
 ARG ENCLAVE_DOMAIN
@@ -55,14 +55,10 @@ ARG ENCLAVE_VERBOSITY
 ENV ENCLAVE_VERBOSITY=${ENCLAVE_VERBOSITY:-3}
 
 ENV VERSION_TAG="${CODE_VERSION}-${CHAIN}"
-ENV RUST_LOG = "none,sgx_server=debug"
+ENV RUST_LOG="none,sgx_server=debug"
 
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y curl tzdata apt-utils build-essential ca-certificates \
-    linux-headers-$(uname -r) libssl-dev libcurl4-openssl-dev protobuf-compiler libprotobuf-dev debhelper \
-    reprepro unzip pkgconf protobuf-c-compiler lsb-release libsystemd0
-
-RUN apt-get install -y pkg-config
+    DEBIAN_FRONTEND=noninteractive apt-get install -y curl tzdata apt-utils ca-certificates libssl-dev reprepro lsb-release
 
 RUN curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg && \
     echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ jammy main' > /etc/apt/sources.list.d/gramine.list && \
@@ -76,7 +72,7 @@ RUN apt-get update && \
 RUN gramine-sgx-gen-private-key
 
 WORKDIR /opt/ternoa-enclaves/gramine
-COPY --from=builder /opt/ternoa-enclaves/gramine ./
+COPY --from=ternoa-rust /opt/ternoa-enclaves/gramine ./
 
 EXPOSE $ENCLAVE_PORT
 ENTRYPOINT ["gramine-sgx", "sgx_server"]

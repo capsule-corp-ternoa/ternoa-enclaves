@@ -8,7 +8,7 @@ ARCH_LIBDIR ?= /lib/x86_64-linux-gnu
 SELF_EXE = bin/sgx_server
 
 SGX ?= 1
-DEBUG ?= 1
+DEBUG ?= 0
 
 .PHONY: all
 all: sgx_server.manifest
