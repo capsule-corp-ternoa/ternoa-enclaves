@@ -7,15 +7,14 @@ use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
 use serde::Serialize;
 
-use jsonrpsee_ws_client;
-use jsonrpsee_ws_client::WsClientBuilder;
+//use jsonrpsee_ws_client;
+//use jsonrpsee_ws_client::WsClientBuilder;
 
 use std::fmt;
 use subxt::{
 	ext::sp_core::H256,
 	storage::address::{Address, StaticStorageMapKey, Yes},
-	tx::PairSigner,
-	tx::Signer,
+	tx::{PairSigner, Signer},
 	utils::AccountId32,
 	Error, OnlineClient, PolkadotConfig,
 };
@@ -78,7 +77,7 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 		match DefaultApi::from_url(rpc_endoint.clone()).await {
 			Ok(api) => {
 				info!("CHAIN : Successfully created chain api.");
-				return Ok(api);
+				return Ok(api)
 			},
 			Err(err) => {
 				error!("CHAIN : Error acquiring chain api, retry num.{}, {:?}", retry, err);
@@ -122,7 +121,7 @@ pub async fn get_current_block_number(state: &SharedState) -> Result<u32, Error>
 		Err(err) => {
 			error!("CHAIN : unable to get latest block, retry num.{} : {}", RETRY_COUNT, err);
 			sentry::capture_error(&err);
-			return Err(err);
+			return Err(err)
 		},
 	};
 
@@ -151,12 +150,11 @@ pub async fn get_current_block_number_new_api() -> Result<u32, Error> {
 	debug!("CHAIN : current_block : get block number");
 	let last_block = match api.rpc().block(Some(hash)).await {
 		Ok(Some(last_block)) => last_block,
-		Ok(None) => {
+		Ok(None) =>
 			return Err(subxt::Error::Io(std::io::Error::new(
 				std::io::ErrorKind::Other,
 				"Block not found",
-			)))
-		},
+			))),
 		Err(err) => return Err(err),
 	};
 
@@ -185,7 +183,7 @@ pub async fn get_onchain_nft_data(
 				Err(err) => {
 					error!("CHAIN : Failed to get nft storagem, retry num.{}: {:?}", retry, err);
 					sentry::capture_error(&err);
-					continue;
+					continue
 				},
 			};
 
@@ -207,7 +205,7 @@ pub async fn get_onchain_nft_data(
 			Err(err) => {
 				error!("CHAIN : Failed to get nft storage: {err:?}");
 				sentry::capture_error(&err);
-				return None;
+				return None
 			},
 		};
 
@@ -242,7 +240,7 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 					retry, err
 				);
 				sentry::capture_error(&err);
-				continue;
+				continue
 			},
 		};
 
@@ -265,7 +263,7 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 		Err(err) => {
 			error!("CHAIN : Failed to get storage for delegatee: {err:?}");
 			sentry::capture_error(&err);
-			return None;
+			return None
 		},
 	};
 
@@ -297,7 +295,7 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 			Err(err) => {
 				error!("CHAIN : Failed to get storage for rentee, retry num.{} : {:?}", retry, err);
 				sentry::capture_error(&err);
-				continue;
+				continue
 			},
 		};
 
@@ -333,7 +331,7 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 		Err(err) => {
 			error!("CHAIN : Failed to get storage for rentee: {err:?}");
 			sentry::capture_error(&err);
-			return None;
+			return None
 		},
 	};
 
@@ -361,8 +359,8 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 
 // TODO [code style] : Define macro for nft/capsule
 // TODO [future metric server] : Proof of storage (through heart-beats)
-// TODO [idea - future ZK]: Proof of decryption (i.e This key-share belongs to the key for decrypting the corresponding
-// nft media file on IPFS)
+// TODO [idea - future ZK]: Proof of decryption (i.e This key-share belongs to the key for
+// decrypting the corresponding nft media file on IPFS)
 
 /// Add a secret shard to the NFT/Capsule
 /// # Arguments
@@ -485,7 +483,7 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 			Err(err) => {
 				error!("CHAIN : GET METRIC SERVER : Failed to get storage for metric server, retry num.{} : {:?}", retry, err);
 				sentry::capture_error(&err);
-				continue;
+				continue
 			},
 		};
 
@@ -500,7 +498,7 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 						"CHAIN : GET METRIC SERVER : Failed to parse metric server vector",
 						sentry::Level::Error,
 					);
-					return None;
+					return None
 				},
 			},
 
@@ -618,7 +616,7 @@ mod test {
 			info!("{}: {}", hex::encode(key), account.data.free);
 			counter += 1;
 			if counter > 10 {
-				break;
+				break
 			}
 		}
 	}

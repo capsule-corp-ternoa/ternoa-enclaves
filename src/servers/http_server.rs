@@ -28,8 +28,10 @@ use reqwest;
 use subxt::ext::sp_core::{sr25519, Pair};
 
 use tower::ServiceBuilder;
-use tower_http::cors::{Any, CorsLayer};
-use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::{
+	cors::{Any, CorsLayer},
+	limit::RequestBodyLimitLayer,
+};
 
 use anyhow::{anyhow, Error};
 use serde_json::{json, Value};
@@ -68,9 +70,9 @@ use crate::{
 	},
 };
 
-use crate::{
-	backup::admin_bulk::{admin_backup_fetch_bulk, admin_backup_push_bulk},
-	backup::admin_nftid::admin_backup_fetch_id,
+use crate::backup::{
+	admin_bulk::{admin_backup_fetch_bulk, admin_backup_push_bulk},
+	admin_nftid::admin_backup_fetch_id,
 };
 
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
@@ -91,7 +93,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			Ok(phrase) => phrase,
 			Err(err) => {
 				error!("\tENCLAVE START : ERROR reading enclave account file: {err:?}");
-				return Err(anyhow!(err));
+				return Err(anyhow!(err))
 			},
 		};
 
@@ -99,7 +101,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			Ok((keypair, _seed)) => keypair,
 			Err(err) => {
 				error!("\tENCLAVE START : ERROR creating keypair from phrase: {err:?}");
-				return Err(anyhow!(err));
+				return Err(anyhow!(err))
 			},
 		}
 	} else {
@@ -113,7 +115,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			},
 			Err(err) => {
 				error!("\tENCLAVE START : Failed to creat enclave keypair file, error : {err:?}");
-				return Err(anyhow!(err));
+				return Err(anyhow!(err))
 			},
 		};
 
@@ -123,7 +125,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			},
 			Err(err) => {
 				error!("\tENCLAVE START : Write enclave keypair to file failed, error : {:?}", err);
-				return Err(anyhow!(err));
+				return Err(anyhow!(err))
 			},
 		}
 
@@ -134,7 +136,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		Ok(api) => api,
 		Err(err) => {
 			error!("ENCLAVE START : get online chain api, error : {err:?}");
-			return Err(anyhow!(err));
+			return Err(anyhow!(err))
 		},
 	};
 
@@ -182,7 +184,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			Ok(state) => state,
 			Err(err) => {
 				error!("ENCLAVE START : Error reading enclave's last state file: {err:?}");
-				return Err(anyhow!(err));
+				return Err(anyhow!(err))
 			},
 		};
 
@@ -204,13 +206,14 @@ pub async fn http_server() -> Result<Router, Error> {
 					.await
 					{
 						Ok(_) => {
-							// TODO [Disaster recovery] : What if all clusters are down, What block_number should be set as last_sync_block
+							// TODO [Disaster recovery] : What if all clusters are down, What
+							// block_number should be set as last_sync_block
 							let _ = set_sync_state(current_block_number.to_string());
 							info!(
 								"ENCLAVE START : SETUP-MODE : First Synchronization of Keyshares complete up to block number : {}.",
 								current_block_number
 							);
-							break;
+							break
 						},
 						Err(err) => {
 							// For the primary cluster it should work fine.
@@ -232,7 +235,7 @@ pub async fn http_server() -> Result<Router, Error> {
 							"ENCLAVE START : Error parsing enclave's last state content: {:?}, state = {:?}",
 							err, past_state
 						);
-						return Err(anyhow!(err));
+						return Err(anyhow!(err))
 					},
 				};
 				debug!(
@@ -250,7 +253,7 @@ pub async fn http_server() -> Result<Router, Error> {
 								let message = "ENCLAVE START : CRAWL : Error getting block number"
 									.to_string();
 								error!(message);
-								return Err(anyhow!(message));
+								return Err(anyhow!(message))
 							},
 						};
 
@@ -259,7 +262,8 @@ pub async fn http_server() -> Result<Router, Error> {
 						current_block_number
 					);
 					// Changes may happen in clusters and enclaves while this enclave has been down.
-					// TODO [future] : use Indexer if the difference between current_block >> past_block is large
+					// TODO [future] : use Indexer if the difference between current_block >>
+					// past_block is large
 					match crawl_sync_events(
 						&state_config,
 						synced_block_number,
@@ -278,7 +282,7 @@ pub async fn http_server() -> Result<Router, Error> {
 											let _ =
 												set_sync_state(current_block_number.to_string());
 											info!("ENCLAVE START : SYNC : FETCH : DONE.");
-											break; // FETCH-RETRY
+											break // FETCH-RETRY
 										},
 
 										Err(fetch_err) => {
@@ -295,7 +299,7 @@ pub async fn http_server() -> Result<Router, Error> {
 								} // FETCH RETRY
 							}
 							info!("ENCLAVE START : SYNC : DONE.");
-							break; // SYNC-RETRY
+							break // SYNC-RETRY
 						},
 
 						Err(crawl_err) => {
@@ -326,7 +330,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			},
 			Err(err) => {
 				error!("ENCLAVE START : failed to creat sync.state file, error : {err:?}");
-				return Err(anyhow!(err));
+				return Err(anyhow!(err))
 			},
 		};
 	};
@@ -391,7 +395,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			Ok(sub) => sub,
 			Err(err) => {
 				error!(" > Unable to subscribe to finalized blocks {err:?}");
-				return;
+				return
 			},
 		};
 
@@ -401,7 +405,7 @@ pub async fn http_server() -> Result<Router, Error> {
 				Ok(blk) => blk,
 				Err(err) => {
 					error!(" > Unable to get finalized block {err:?}");
-					continue;
+					continue
 				},
 			};
 
@@ -432,7 +436,7 @@ pub async fn http_server() -> Result<Router, Error> {
 				},
 				Err(err) => {
 					error!(" > Block Number Thread : Unable to get block body : {err:?}");
-					continue;
+					continue
 				},
 			};
 
@@ -446,7 +450,7 @@ pub async fn http_server() -> Result<Router, Error> {
 					},
 					Err(err) => {
 						error!(" > Block Number Thread : Unable to parse the block body : {err:?}");
-						continue;
+						continue
 					},
 				};
 
@@ -461,13 +465,14 @@ pub async fn http_server() -> Result<Router, Error> {
 							Ok(st) => st,
 							Err(err) => {
 								error!(" > Block Number Thread : TEE Event : Cluster Discovery : Can not get sync state : {err:?}");
-								continue;
+								continue
 							},
 						};
 
 						if sync_state == "setup" {
-							// Here is Identity discovery, thus the first synchronization of all files.
-							// An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
+							// Here is Identity discovery, thus the first synchronization of all
+							// files. An empty HashMap is the wildcard signal to fetch all keyshares
+							// from nearby enclave
 							for _retry in 0..RETRY_COUNT {
 								match fetch_keyshares(
 									&state_config.clone(),
@@ -476,10 +481,11 @@ pub async fn http_server() -> Result<Router, Error> {
 								.await
 								{
 									Ok(_) => {
-										// TODO [discussion] : should not Blindly putting current block_number as the last updated keyshare's block_number
+										// TODO [discussion] : should not Blindly putting current
+										// block_number as the last updated keyshare's block_number
 										let _ = set_sync_state(block_number.to_string());
 										info!("\t\t > SETUP Synchronization of Keyshares complete to the block number: {} .",block_number);
-										break; // BREAK THE RETRY
+										break // BREAK THE RETRY
 									},
 
 									Err(err) => {
@@ -499,8 +505,9 @@ pub async fn http_server() -> Result<Router, Error> {
 					// Cluster discovery Error
 					Err(err) => {
 						error!("\t > Error during running-mode cluster discovery {err:?}");
-						// TODO [decision] : Integrity of clusters is corrupted. what to do? Going to maintenace mode and stop serving to API calls? Wipe?
-						continue;
+						// TODO [decision] : Integrity of clusters is corrupted. what to do? Going
+						// to maintenace mode and stop serving to API calls? Wipe?
+						continue
 					},
 				}
 			} // TEE EVENT
@@ -517,7 +524,7 @@ pub async fn http_server() -> Result<Router, Error> {
 						Ok(_) => {
 							let _ = set_sync_state(block_number.to_string());
 							debug!("\t > Runtime mode : NEW-NFT : Synchronization of Keyshares complete.");
-							break;
+							break
 						},
 						Err(err) => {
 							error!("\t > Runtime mode : NEW-NFT : Error during running-mode nft-based syncing : {err:?}");
@@ -535,11 +542,12 @@ pub async fn http_server() -> Result<Router, Error> {
 				Ok(st) => st,
 				Err(err) => {
 					error!(" > Block Number Thread : Can not get sync state : {err:?}");
-					continue;
+					continue
 				},
 			};
 
-			// IMPORTANT : Check for Runtime mode : if integrity of clusters fails, we'll wait and go back to setup-mode
+			// IMPORTANT : Check for Runtime mode : if integrity of clusters fails, we'll wait and
+			// go back to setup-mode
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
 				trace!(" > Runtime mode : SyncStat = {}", sync_state);
 				// If no event has detected in 10 blocks, network disconnections happened, ...
@@ -564,7 +572,7 @@ pub async fn http_server() -> Result<Router, Error> {
 										Ok(_) => {
 											info!("\t > Runtime mode : Crawl check : Success runtime-mode fetching crawled blocks from {} to {} .", last_processed_block, block_number);
 											let _ = set_sync_state(block_number.to_string());
-											break;
+											break
 										},
 
 										Err(err) => {
@@ -598,7 +606,7 @@ pub async fn http_server() -> Result<Router, Error> {
 							// A retry id needed in next block
 							debug!("\t > Runtime mode : Crawl check : wait before retry");
 							std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
-							continue;
+							continue
 						},
 					} // EVENTS CRAWLER
 				} // BLOCK LAG DETECTED
@@ -613,7 +621,7 @@ pub async fn http_server() -> Result<Router, Error> {
 				}
 				// Prevent Crawling after first registration
 				set_processed_block(&state_config, block_number).await;
-				continue;
+				continue
 			}
 
 			// Update runtime block tracking variable
@@ -772,7 +780,7 @@ async fn evalueate_health_status(
 		Ok(st) => st,
 		Err(err) => {
 			error!("Healthcheck : error : unable to get sync state");
-			return None;
+			return None
 		},
 	};
 
@@ -807,20 +815,19 @@ async fn evalueate_health_status(
 				description: maintenance,
 				enclave_address,
 			}),
-		));
+		))
 	}
 
 	trace!("Healthcheck handler : get sync status");
 	let status = match sync_state.as_str() {
 		"" => StatusCode::PARTIAL_CONTENT,
 		"setup" => StatusCode::RESET_CONTENT,
-		_ => {
+		_ =>
 			if sync_state.parse::<u32>().is_ok() {
 				StatusCode::OK
 			} else {
 				StatusCode::NOT_ACCEPTABLE
-			}
-		},
+			},
 	};
 
 	trace!("Healthcheck handler : state={status:?}");

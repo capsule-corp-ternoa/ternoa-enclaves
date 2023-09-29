@@ -7,8 +7,10 @@ use hex::FromHex;
 use serde_json::Value;
 use std::str::FromStr;
 
-use subxt::ext::sp_core::{crypto::Ss58Codec, sr25519, ByteArray, Pair};
-use subxt::utils::AccountId32;
+use subxt::{
+	ext::sp_core::{crypto::Ss58Codec, sr25519, ByteArray, Pair},
+	utils::AccountId32,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -768,7 +770,7 @@ impl AuthenticationToken {
 				"current block number = {} << request block number = {}",
 				current_block_number, self.block_number
 			);
-			return ValidationResult::FutureBlockNumber;
+			return ValidationResult::FutureBlockNumber
 		}
 
 		if self.block_validation > MAX_VALIDATION_PERIOD {
@@ -777,7 +779,7 @@ impl AuthenticationToken {
 				"MAX VALIDATION = {} < block_validation = {}",
 				MAX_VALIDATION_PERIOD, self.block_validation
 			);
-			return ValidationResult::InvalidPeriod;
+			return ValidationResult::InvalidPeriod
 		}
 
 		if self.block_number + self.block_validation < current_block_number {
@@ -787,7 +789,7 @@ impl AuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber;
+			return ValidationResult::ExpiredBlockNumber
 		}
 
 		ValidationResult::Success
@@ -829,11 +831,11 @@ impl StoreKeysharePacket {
 		let parsed_data: Vec<&str> = if signer.contains('_') {
 			signer.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDSIGNER);
+			return Err(VerificationError::MALFORMATEDSIGNER)
 		};
 
 		if parsed_data.len() < 3 {
-			return Err(VerificationError::MALFORMATEDSIGNER);
+			return Err(VerificationError::MALFORMATEDSIGNER)
 		}
 
 		let account = sr25519::Public::from_ss58check(parsed_data[0])
@@ -869,11 +871,11 @@ impl StoreKeysharePacket {
 		let parsed_data: Vec<&str> = if data.contains('_') {
 			data.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDDATA);
+			return Err(VerificationError::MALFORMATEDDATA)
 		};
 
 		if parsed_data.len() != 4 {
-			return Err(VerificationError::MALFORMATEDDATA);
+			return Err(VerificationError::MALFORMATEDDATA)
 		}
 
 		let nft_id = parsed_data[0].parse::<u32>().map_err(|_| VerificationError::INVALIDNFTID)?;
@@ -881,16 +883,16 @@ impl StoreKeysharePacket {
 		let keyshare = if !parsed_data[1].is_empty() {
 			parsed_data[1].as_bytes().to_vec()
 		} else {
-			return Err(VerificationError::INVALIDKEYSHARE);
+			return Err(VerificationError::INVALIDKEYSHARE)
 		};
 
 		let keyshare_size = keyshare.len() as u16;
 		if keyshare_size < MIN_KEYSHARE_SIZE {
-			return Err(VerificationError::KEYSHAREISTOOSHORT);
+			return Err(VerificationError::KEYSHAREISTOOSHORT)
 		}
 
 		if keyshare_size > MAX_KEYSHARE_SIZE {
-			return Err(VerificationError::KEYSHAREISTOOLONG);
+			return Err(VerificationError::KEYSHAREISTOOLONG)
 		}
 
 		let block_number =
@@ -993,23 +995,23 @@ impl StoreKeysharePacket {
 
 					if nft_type == "secret-nft" {
 						if !nft_status.is_secret {
-							return Err(VerificationError::IDISNOTSECRETNFT);
+							return Err(VerificationError::IDISNOTSECRETNFT)
 						}
 
 						debug!("nft syncing status : {}", nft_status.is_syncing_secret);
 						if !nft_status.is_syncing_secret {
-							return Err(VerificationError::NOTSYNCING);
+							return Err(VerificationError::NOTSYNCING)
 						}
 					}
 
 					if nft_type == "capsule" {
 						if !nft_status.is_capsule {
-							return Err(VerificationError::IDISNOTCAPSULE);
+							return Err(VerificationError::IDISNOTCAPSULE)
 						}
 
 						debug!("capsule syncing status : {}", nft_status.is_syncing_capsule);
 						if !nft_status.is_syncing_capsule {
-							return Err(VerificationError::NOTSYNCING);
+							return Err(VerificationError::NOTSYNCING)
 						}
 					}
 
@@ -1108,11 +1110,11 @@ impl RetrieveKeysharePacket {
 		let parsed_data: Vec<&str> = if data.contains('_') {
 			data.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDDATA);
+			return Err(VerificationError::MALFORMATEDDATA)
 		};
 
 		if parsed_data.len() != 3 {
-			return Err(VerificationError::MALFORMATEDDATA);
+			return Err(VerificationError::MALFORMATEDDATA)
 		}
 
 		let nft_id = match parsed_data[0].parse::<u32>() {
@@ -1183,23 +1185,23 @@ impl RetrieveKeysharePacket {
 
 				if nft_type == "secret-nft" {
 					if !nft_status.is_secret {
-						return Err(VerificationError::IDISNOTSECRETNFT);
+						return Err(VerificationError::IDISNOTSECRETNFT)
 					}
 
 					debug!("nft syncing status : {}", nft_status.is_syncing_secret);
 					if nft_status.is_syncing_secret {
-						return Err(VerificationError::NOTSYNCED);
+						return Err(VerificationError::NOTSYNCED)
 					}
 				}
 
 				if nft_type == "capsule" {
 					if !nft_status.is_capsule {
-						return Err(VerificationError::IDISNOTCAPSULE);
+						return Err(VerificationError::IDISNOTCAPSULE)
 					}
 
 					debug!("capsule syncing status : {}", nft_status.is_syncing_capsule);
 					if nft_status.is_syncing_capsule {
-						return Err(VerificationError::NOTSYNCED);
+						return Err(VerificationError::NOTSYNCED)
 					}
 				}
 
@@ -1286,11 +1288,11 @@ impl RemoveKeysharePacket {
 		let parsed_data: Vec<&str> = if data.contains('_') {
 			data.split('_').collect()
 		} else {
-			return Err(VerificationError::MALFORMATEDDATA);
+			return Err(VerificationError::MALFORMATEDDATA)
 		};
 
 		if parsed_data.len() != 3 {
-			return Err(VerificationError::MALFORMATEDDATA);
+			return Err(VerificationError::MALFORMATEDDATA)
 		}
 
 		let nft_id = match parsed_data[0].parse::<u32>() {
@@ -1361,23 +1363,23 @@ impl RemoveKeysharePacket {
 
 				if nft_type == "secret-nft" {
 					if !nft_status.is_secret {
-						return Err(VerificationError::IDISNOTSECRETNFT);
+						return Err(VerificationError::IDISNOTSECRETNFT)
 					}
 
 					debug!("nft syncing status : {}", nft_status.is_syncing_secret);
 					if nft_status.is_syncing_secret {
-						return Err(VerificationError::NOTSYNCED);
+						return Err(VerificationError::NOTSYNCED)
 					}
 				}
 
 				if nft_type == "capsule" {
 					if !nft_status.is_capsule {
-						return Err(VerificationError::IDISNOTCAPSULE);
+						return Err(VerificationError::IDISNOTCAPSULE)
 					}
 
 					debug!("capsule syncing status : {}", nft_status.is_syncing_capsule);
 					if nft_status.is_syncing_capsule {
-						return Err(VerificationError::NOTSYNCED);
+						return Err(VerificationError::NOTSYNCED)
 					}
 				}
 
