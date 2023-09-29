@@ -43,19 +43,12 @@ RUN make SGX=1 SGX_DEV_BUILD=0 all
 FROM ubuntu:${UBUNTU_VERSION} as ternoa-gramine
 SHELL ["/bin/bash", "-c"]
 
-ARG ENCLAVE_DOMAIN
-ENV ENCLAVE_DOMAIN=${ENCLAVE_DOMAIN:-"enclave.your.domain"}
-
-ARG ENCLAVE_PORT
-ENV ENCLAVE_PORT=${ENCLAVE_PORT:-"8000"}
 ARG CODE_VERSION
-ENV CODE_VERSION=${CODE_VERSION:-"v0.4.5"}
+ENV CODE_VERSION=${CODE_VERSION:-"v0.4.4"}
 
 ARG ENCLAVE_VERBOSITY
 ENV ENCLAVE_VERBOSITY=${ENCLAVE_VERBOSITY:-3}
-
 ENV VERSION_TAG="${CODE_VERSION}-${CHAIN}"
-ENV RUST_LOG="none,sgx_server=debug"
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y curl tzdata apt-utils ca-certificates libssl-dev reprepro lsb-release
@@ -74,7 +67,7 @@ RUN gramine-sgx-gen-private-key
 WORKDIR /opt/ternoa-enclaves/gramine
 COPY --from=ternoa-rust /opt/ternoa-enclaves/gramine ./
 
-EXPOSE $ENCLAVE_PORT
+EXPOSE 8100 443
 ENTRYPOINT ["gramine-sgx", "sgx_server"]
 
 LABEL version=$VERSION_TAG

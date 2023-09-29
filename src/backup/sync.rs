@@ -12,8 +12,11 @@ use std::{
 };
 
 use axum::{
-	body::StreamBody, extract::ConnectInfo, extract::State, http::header, http::StatusCode,
-	response::IntoResponse, Json,
+	body::StreamBody,
+	extract::{ConnectInfo, State},
+	http::{header, StatusCode},
+	response::IntoResponse,
+	Json,
 };
 use hex::{FromHex, FromHexError};
 use reqwest::tls;
@@ -146,7 +149,7 @@ impl AuthenticationToken {
 				"current block number = {} < request block number = {}",
 				current_block_number, self.block_number
 			);
-			return ValidationResult::FutureBlockNumber;
+			return ValidationResult::FutureBlockNumber
 		}
 
 		if self.block_validation > MAX_VALIDATION_PERIOD {
@@ -155,7 +158,7 @@ impl AuthenticationToken {
 				"MAX VALIDATION = {} < block_validation = {}",
 				MAX_VALIDATION_PERIOD, self.block_validation
 			);
-			return ValidationResult::InvalidPeriod;
+			return ValidationResult::InvalidPeriod
 		}
 
 		if self.block_number + self.block_validation < current_block_number {
@@ -165,7 +168,7 @@ impl AuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber;
+			return ValidationResult::ExpiredBlockNumber
 		}
 
 		ValidationResult::Success
@@ -256,7 +259,8 @@ pub async fn sync_keyshares(
 ) -> impl IntoResponse {
 	debug!("\n\t----\nSYNC KEYSHARES : START\n\t----\n");
 
-	//update_health_status(&state, "Enclave is Syncing Keyshare, please wait...".to_string()).await;
+	//update_health_status(&state, "Enclave is Syncing Keyshare, please
+	// wait...".to_string()).await;
 
 	let current_block_number = get_blocknumber(&state).await;
 
@@ -272,7 +276,7 @@ pub async fn sync_keyshares(
 				addr
 			);
 
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -287,7 +291,7 @@ pub async fn sync_keyshares(
 					&state,
 				)
 				.await
-				.into_response();
+				.into_response()
 			},
 		};
 
@@ -299,7 +303,7 @@ pub async fn sync_keyshares(
 					&state,
 				)
 				.await
-				.into_response();
+				.into_response()
 			},
 		}
 	}
@@ -309,7 +313,7 @@ pub async fn sync_keyshares(
 		Err(err) => {
 			let message =
 				format!("SYNC KEYSHARES : Error : Authentication token is not parsable : {}", err);
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -321,7 +325,7 @@ pub async fn sync_keyshares(
 	) {
 		return error_handler("SYNC KEYSHARES : Invalid Signature".to_string(), &state)
 			.await
-			.into_response();
+			.into_response()
 	}
 
 	debug!("SYNC KEYSHARES : Validating the authentication token");
@@ -333,7 +337,7 @@ pub async fn sync_keyshares(
 				"SYNC KEYSHARES : Authentication Token is not valid, or expired : {:?}",
 				validity
 			);
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	}
 
@@ -342,14 +346,14 @@ pub async fn sync_keyshares(
 	if auth_token.data_hash != hash {
 		return error_handler("SYNC KEYSHARES : Mismatch Data Hash".to_string(), &state)
 			.await
-			.into_response();
+			.into_response()
 	}
 
 	let nftidv: Vec<String> = match serde_json::from_str(&request.nftid_vec) {
 		Ok(v) => v,
 		Err(err) => {
 			let message = format!("SYNC KEYSHARES : unable to deserialize nftid vector : {err:?}");
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -379,7 +383,7 @@ pub async fn sync_keyshares(
 				},
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -404,7 +408,8 @@ pub async fn sync_keyshares(
 	// 	{
 	// 		Ok(res) => res,
 	// 		Err(err) => {
-	// 			let message = format!("SYNC KEYSHARES : Healthcheck : Error getting health-check response from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
+	// 			let message = format!("SYNC KEYSHARES : Healthcheck : Error getting health-check response
+	// from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
 	// 			error!(message);
 	// 			warn!("SYNC KEYSHARES : Healthcheck : Delay and Retry ");
 	// 			// A delay to prevent conflict
@@ -416,7 +421,8 @@ pub async fn sync_keyshares(
 	// 	// Analyze the Response
 	// 	let health_status = health_response.status();
 
-	// 	// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
+	// 	// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for
+	// Wildcard)
 
 	// 	if health_status != StatusCode::OK {
 	// 		let message = format!(
@@ -478,7 +484,7 @@ pub async fn sync_keyshares(
 			},
 			|| sentry::capture_message(&message, sentry::Level::Error),
 		);
-		return error_handler(message, &state).await.into_response();
+		return error_handler(message, &state).await.into_response()
 	}
 
 	let quote_body: QuoteResponse = match serde_json::from_str(&request.quote) {
@@ -494,7 +500,7 @@ pub async fn sync_keyshares(
 				},
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -532,7 +538,7 @@ pub async fn sync_keyshares(
 				},
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -546,7 +552,7 @@ pub async fn sync_keyshares(
 				},
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -567,7 +573,7 @@ pub async fn sync_keyshares(
 				},
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -587,7 +593,7 @@ pub async fn sync_keyshares(
 				},
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -603,7 +609,7 @@ pub async fn sync_keyshares(
 					},
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
-				return error_handler(message, &state).await.into_response();
+				return error_handler(message, &state).await.into_response()
 			},
 		};
 
@@ -619,7 +625,7 @@ pub async fn sync_keyshares(
 					},
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
-				return error_handler(message, &state).await.into_response();
+				return error_handler(message, &state).await.into_response()
 			},
 		};
 
@@ -637,7 +643,7 @@ pub async fn sync_keyshares(
 			},
 			|| sentry::capture_message(&message, sentry::Level::Error),
 		);
-		return error_handler(message, &state).await.into_response();
+		return error_handler(message, &state).await.into_response()
 	}
 
 	if !crate::backup::metric::verify_account_id(&state, &attestation_server_account).await {
@@ -650,7 +656,7 @@ pub async fn sync_keyshares(
 			},
 			|| sentry::capture_message(&message, sentry::Level::Error),
 		);
-		return error_handler(message, &state).await.into_response();
+		return error_handler(message, &state).await.into_response()
 	}
 
 	// Deserialize again to Json
@@ -665,7 +671,7 @@ pub async fn sync_keyshares(
 				},
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -683,7 +689,7 @@ pub async fn sync_keyshares(
 			},
 			|| sentry::capture_message(&message, sentry::Level::Error),
 		);
-		return error_handler(message, &state).await.into_response();
+		return error_handler(message, &state).await.into_response()
 	} // FAILED ATTESTATION REPORT
 
 	// Deserialize the quote
@@ -700,7 +706,7 @@ pub async fn sync_keyshares(
 					},
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
-				return error_handler(message, &state).await.into_response();
+				return error_handler(message, &state).await.into_response()
 			},
 		},
 
@@ -712,7 +718,7 @@ pub async fn sync_keyshares(
 				},
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
-			return error_handler(message, &state).await.into_response();
+			return error_handler(message, &state).await.into_response()
 		},
 	};
 
@@ -727,7 +733,7 @@ pub async fn sync_keyshares(
 			},
 			|| sentry::capture_message(&message, sentry::Level::Error),
 		);
-		return error_handler(message, &state).await.into_response();
+		return error_handler(message, &state).await.into_response()
 	}
 
 	let report_data: String = quote
@@ -746,7 +752,7 @@ pub async fn sync_keyshares(
 			},
 			|| sentry::capture_message(&message, sentry::Level::Error),
 		);
-		return error_handler(message, &state).await.into_response();
+		return error_handler(message, &state).await.into_response()
 	} // FAILED EXTRACTING REPORT DATA
 
 	// Verify Report_Data
@@ -770,7 +776,7 @@ pub async fn sync_keyshares(
 			},
 			|| sentry::capture_message(&message, sentry::Level::Error),
 		);
-		return error_handler(message, &state).await.into_response();
+		return error_handler(message, &state).await.into_response()
 	}
 
 	let parse_token: Vec<&str> = token.split('_').collect();
@@ -784,13 +790,13 @@ pub async fn sync_keyshares(
 			},
 			|| sentry::capture_message(&message, sentry::Level::Error),
 		);
-		return error_handler(message, &state).await.into_response();
+		return error_handler(message, &state).await.into_response()
 	} else {
 		match parse_token[1].parse::<u32>() {
 			Ok(token_block) => {
-				if (token_block != auth_token.block_number)
-					|| (current_block_number < token_block)
-					|| (current_block_number - token_block > 5)
+				if (token_block != auth_token.block_number) ||
+					(current_block_number < token_block) ||
+					(current_block_number - token_block > 5)
 				{
 					let message = format!("SYNC KEYSHARES : TOKEN : Incompatible/Outdated block numbers :\n Current blocknumber: {current_block_number} >~ Token blocknumber: {token_block} == Request blocknumber: {} ?", auth_token.block_number);
 					sentry::with_scope(
@@ -799,7 +805,7 @@ pub async fn sync_keyshares(
 						},
 						|| sentry::capture_message(&message, sentry::Level::Error),
 					);
-					return error_handler(message, &state).await.into_response();
+					return error_handler(message, &state).await.into_response()
 				}
 			},
 
@@ -814,7 +820,7 @@ pub async fn sync_keyshares(
 					},
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
-				return error_handler(message, &state).await.into_response();
+				return error_handler(message, &state).await.into_response()
 			},
 		} // VALID TOKEN BLOCK
 	} // PARSE TOKEN
@@ -827,12 +833,11 @@ pub async fn sync_keyshares(
 
 	let zip_data = match fs::read(backup_file.clone()) {
 		Ok(data) => data,
-		Err(err) => {
+		Err(err) =>
 			return Json(json!({
 				"error": format!("SYNC KEYSHARES : Backup File not found: {}", err)
 			}))
-			.into_response()
-		},
+			.into_response(),
 	};
 
 	// Public-Key Encryption
@@ -841,12 +846,11 @@ pub async fn sync_keyshares(
 	debug!("SYNC KEYSHARES : Encryption zip data length = {}", zip_data.len());
 	let encrypted_zip_data = match encrypt(&encryption_key, &zip_data) {
 		Ok(encrypted) => encrypted,
-		Err(err) => {
+		Err(err) =>
 			return Json(json!({
 				"error": format!("SYNC KEYSHARES : Failed to encrypt the zip data : {:?}", err)
 			}))
-			.into_response()
-		},
+			.into_response(),
 	};
 
 	// Remove Plain Data
@@ -866,7 +870,7 @@ pub async fn sync_keyshares(
 	let encrypted_backup_file = format!("/temporary/encrypted_backup_{random_number}.zip");
 	match std::fs::write(encrypted_backup_file.clone(), encrypted_zip_data) {
 		Ok(_) => debug!("SYNC KEYSHARES : Successfully write encrypted zip data to streamfile"),
-		Err(err) => {
+		Err(err) =>
 			return Json(json!({
 				"error":
 					format!(
@@ -874,20 +878,18 @@ pub async fn sync_keyshares(
 						err
 					)
 			}))
-			.into_response()
-		},
+			.into_response(),
 	}
 
 	// `File` implements `AsyncRead`
 	debug!("SYNC KEYSHARES : Opening encrypted backup file");
 	let file = match tokio::fs::File::open(encrypted_backup_file).await {
 		Ok(file) => file,
-		Err(err) => {
+		Err(err) =>
 			return Json(json!({
 				"error": format!("SYNC KEYSHARES : Encrypted backup File not found: {}", err)
 			}))
-			.into_response()
-		},
+			.into_response(),
 	};
 
 	// convert the `AsyncRead` into a `Stream`
@@ -932,7 +934,7 @@ pub async fn fetch_keyshares(
 				"FETCH KEYSHARES : Error : No identity : Current enclave is not registered yet"
 					.to_string();
 			error!(message);
-			return Err(anyhow!(message));
+			return Err(anyhow!(message))
 		},
 	};
 
@@ -957,10 +959,11 @@ pub async fn fetch_keyshares(
 	// Encode nftid to String
 	// If HashMap is empty, then it is called by a setup syncronization
 	let nftids_request = if new_nft_map.is_empty() {
-		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard for synchronization
-		// It is the first time running enclave
-		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
-		// TODO : for pagination, a new endpoint needed to report the number of keyshares stored on target enclave.
+		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard for
+		// synchronization It is the first time running enclave
+		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100,
+		// offset 2 TODO : for pagination, a new endpoint needed to report the number of keyshares
+		// stored on target enclave.
 		match serde_json::to_string(&vec!["*".to_string()]) {
 			Ok(strg) => strg,
 			Err(err) => {
@@ -968,7 +971,7 @@ pub async fn fetch_keyshares(
 					"FETCH KEYSHARES : Error : can not convert Wildcard to string! : {err:?}"
 				);
 				error!(message);
-				return Err(anyhow!(message));
+				return Err(anyhow!(message))
 			},
 		}
 	} else if !new_nftid_vec_str.is_empty() {
@@ -979,7 +982,7 @@ pub async fn fetch_keyshares(
 				let message =
 					format!("FETCH KEYSHARES : Error : can not convert NFTIDs to string : {err:?}");
 				error!(message);
-				return Err(anyhow!(message));
+				return Err(anyhow!(message))
 			},
 		}
 	} else {
@@ -1033,7 +1036,7 @@ pub async fn fetch_keyshares(
 			}
 		}
 
-		return Ok(current_block_number);
+		return Ok(current_block_number)
 	};
 
 	let nftid_hash = sha256::digest(nftids_request.as_bytes());
@@ -1067,7 +1070,7 @@ pub async fn fetch_keyshares(
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
 
-			return Err(anyhow!(message));
+			return Err(anyhow!(message))
 		},
 	};
 
@@ -1090,7 +1093,7 @@ pub async fn fetch_keyshares(
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
 
-				return Err(anyhow!(message));
+				return Err(anyhow!(message))
 			},
 		},
 		Err(err) => {
@@ -1104,7 +1107,7 @@ pub async fn fetch_keyshares(
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
 
-			return Err(anyhow!(message));
+			return Err(anyhow!(message))
 		},
 	};
 
@@ -1131,7 +1134,7 @@ pub async fn fetch_keyshares(
 				},
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
-			return Err(anyhow!(message));
+			return Err(anyhow!(message))
 		},
 	};
 
@@ -1162,7 +1165,7 @@ pub async fn fetch_keyshares(
 				},
 				|| sentry::capture_message(&message, sentry::Level::Error),
 			);
-			return Err(anyhow!(message));
+			return Err(anyhow!(message))
 		},
 	};
 
@@ -1170,17 +1173,18 @@ pub async fn fetch_keyshares(
 	debug!("FETCH KEYSHARES : START SLOT DISCOVERY");
 	let slot_enclaves = slot_discovery(state).await;
 	if slot_enclaves.is_empty() {
-		// TODO : What about first cluster? should it continue as the Primary cluster in running-mode?
-		// TODO : otherwise we should have two clusters registered before starting enclaves with sync capability.
+		// TODO : What about first cluster? should it continue as the Primary cluster in
+		// running-mode? TODO : otherwise we should have two clusters registered before starting
+		// enclaves with sync capability.
 		if get_identity(state).await.is_some() {
 			warn!("FETCH KEYSHARES : No other similar slots found in other clusters, is this primary cluster?");
-			return Ok(current_block_number);
+			return Ok(current_block_number)
 		} else {
 			// not registered
 			error!("FETCH KEYSHARES : This enclave is not registered yet.");
 			return Err(anyhow!(
 				"FETCH KEYSHARES : Slot discovery failed because of not-registered enclave"
-			));
+			))
 		}
 	}
 
@@ -1216,7 +1220,7 @@ pub async fn fetch_keyshares(
 				"FETCH KEYSHARES : NFTs does not belong to cluster {}, continue to next cluster",
 				cluster_id
 			);
-			continue; // Next Cluster
+			continue // Next Cluster
 		}
 
 		let mut enclave_url = enclave.enclave_url.clone();
@@ -1236,14 +1240,15 @@ pub async fn fetch_keyshares(
 						request_url, err
 					);
 				debug!("FETCH KEYSHARES : continue with next syncing target enclave");
-				continue; // Next Cluster
+				continue // Next Cluster
 			},
 		};
 		// Analyze the Response
 		let health_status = health_response.status();
 
 		trace!("FETCH KEYSHARES : HEALTH CHECK : health response : {:#?}\n", health_response);
-		//debug!("FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response.text().await?);
+		//debug!("FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n",
+		// health_response.text().await?);
 
 		let response_body: HealthResponse = match health_response.json().await {
 			Ok(body) => body,
@@ -1253,7 +1258,7 @@ pub async fn fetch_keyshares(
 					enclave.enclave_url, err
 				);
 				warn!(message);
-				continue; // Next Cluster
+				continue // Next Cluster
 			},
 		};
 
@@ -1268,7 +1273,7 @@ pub async fn fetch_keyshares(
 				enclave.enclave_url, health_status, response_body.description
 			);
 			error!(message);
-			continue; // Next Cluster
+			continue // Next Cluster
 		} else {
 			last_synced = match response_body.sync_state.parse::<u32>() {
 				Ok(blk) => blk,
@@ -1278,7 +1283,7 @@ pub async fn fetch_keyshares(
 						enclave.enclave_url, health_status, response_body.sync_state
 					);
 					error!(message);
-					continue; // Next Cluster
+					continue // Next Cluster
 				},
 			};
 		}
@@ -1300,7 +1305,7 @@ pub async fn fetch_keyshares(
 			Ok(res) => res,
 			Err(err) => {
 				error!("FETCH KEYSHARES : Fetch response error: {:#?}", err);
-				continue; // Next Cluster
+				continue // Next Cluster
 				 //return Err(anyhow!(err));
 			},
 		};
@@ -1323,11 +1328,12 @@ pub async fn fetch_keyshares(
 					},
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
-				return Err(anyhow!(message));
+				return Err(anyhow!(message))
 			},
 		};
 
-		// TODO [decision - reliability] : What if the "chosen" Enclave is not ready? (low probability for runtime sync)
+		// TODO [decision - reliability] : What if the "chosen" Enclave is not ready? (low
+		// probability for runtime sync)
 		let decrypt_zip_data = match decrypt(&encryption_private_key, &fetch_body_bytes) {
 			Ok(decrypted) => decrypted,
 			Err(err) => {
@@ -1340,7 +1346,7 @@ pub async fn fetch_keyshares(
 					},
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
-				return Err(anyhow!(message));
+				return Err(anyhow!(message))
 			},
 		};
 
@@ -1358,7 +1364,7 @@ pub async fn fetch_keyshares(
 					},
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
-				return Err(anyhow!(message));
+				return Err(anyhow!(message))
 			},
 		}
 
@@ -1416,7 +1422,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 		Ok(storage) => storage,
 		Err(err) => {
 			error!("CLUSTER DISCOVERY : Failed to get storage: {:#?}", err);
-			return Err(err.into());
+			return Err(err.into())
 		},
 	};
 
@@ -1425,7 +1431,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 		Some(cluster) => cluster,
 		None => {
 			error!("CLUSTER DISCOVERY : Failed to fetch next cluster index.");
-			return Err(anyhow!("CLUSTER DISCOVERY : Failed to fetch next cluster index."));
+			return Err(anyhow!("CLUSTER DISCOVERY : Failed to fetch next cluster index."))
 		},
 	};
 
@@ -1437,7 +1443,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 
 		debug!("CLUSTER DISCOVERY : get cluster data of cluster {}", index);
 		let cluster_data = match storage.fetch(&cluster_data_address).await {
-			Ok(data) => {
+			Ok(data) =>
 				match data {
 					Some(clstr) => {
 						debug!("\nCLUSTER DISCOVERY : cluster[{}] : data = {:?}\n", index, clstr);
@@ -1450,13 +1456,12 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 						);
 						debug!("CLUSTER DISCOVERY : cluster[{}] data = {:?}\n", index, data);
 						debug!("CLUSTER DISCOVERY : continue to next cluster (because of previous error)");
-						continue;
+						continue
 					},
-				}
-			},
+				},
 			Err(err) => {
 				error!("CLUSTER DISCOVERY : Failed to 'fetch' Cluster.{} Data : {:?}", index, err);
-				continue;
+				continue
 			},
 		};
 
@@ -1486,7 +1491,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 						error!(message);
 						warn!("The Integrity of cluster-{} is corrupted, Check with Technical-Committee.", index);
 						//continue;
-						return Err(anyhow!(message));
+						return Err(anyhow!(message))
 					},
 				};
 
@@ -1532,7 +1537,8 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 					cluster.id, enclave.slot
 				);
 				// Is this the registeration time?
-				// TODO [decision - development] : Prevent others from accessing enclave during setup mode.
+				// TODO [decision - development] : Prevent others from accessing enclave during
+				// setup mode.
 				match self_identity {
 					None => {
 						info!(
@@ -1541,10 +1547,10 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 						);
 						info!("SELF-IDENTITY : ENTERING SETUP-MODE.");
 						let _ = set_sync_state("setup".to_owned());
-						return Some((cluster.id, enclave.slot));
+						return Some((cluster.id, enclave.slot))
 					},
 
-					Some(identity) => {
+					Some(identity) =>
 						if identity.1 != enclave.slot {
 							error!("\n*****\nERROR! SLOT HAS BEEN CHANGED. IT IS DANGEROUS ACT BY TC. ENCLAVE MUST WIPE EVERYTHING.\n*****\n");
 							warn!("WIPE EVERYTHING ...");
@@ -1556,7 +1562,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 										"SELF-IDENTITY : CAN NOT READ THE SEAL DIRECTORY {:?}",
 										err
 									);
-									return None;
+									return None
 								},
 							};
 
@@ -1565,18 +1571,18 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 									Ok(de) => de.path(),
 									Err(err) => {
 										error!("SELF-IDENTITY : CAN NOT GET A PATH IN THE SEAL DIRECTORY ENTRY {:?}",err);
-										return None;
+										return None
 									},
 								};
 								let extension = match path.extension() {
 									Some(ext) => ext,
 									None => {
 										error!("SELF-IDENTITY : CAN NOT GET EXTENTION OF AN ENTRY PATH OF THE SEAL DIRECTORY {:?}",path);
-										return None;
+										return None
 									},
 								};
-								if extension == OsStr::new("keyshare")
-									|| extension == OsStr::new("log")
+								if extension == OsStr::new("keyshare") ||
+									extension == OsStr::new("log")
 								{
 									warn!("SELF-IDENTITY : REMOVING : {:?}", path);
 									let _ = fs::remove_file(path);
@@ -1585,15 +1591,14 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 
 							debug!("SELF-IDENTITY : back to setup mode with new identity");
 							let _ = set_sync_state("setup".to_owned());
-							return Some((cluster.id, enclave.slot));
+							return Some((cluster.id, enclave.slot))
 						} else if identity.0 != cluster.id {
 							warn!("SELF-IDENTITY : DANGEROUS ACT FROM TECHNICAL COMMITTEE, CHANGING CLUSTER AT RUNTIME.");
-							return Some((cluster.id, enclave.slot));
+							return Some((cluster.id, enclave.slot))
 						} else {
 							debug!("SELF-IDENTITY : Identity did not change.");
-							return Some((cluster.id, enclave.slot));
-						}
-					},
+							return Some((cluster.id, enclave.slot))
+						},
 				}
 			}
 		}
@@ -1624,7 +1629,7 @@ pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
 		None => {
 			error!("SLOT-DISCOVERY : Error finding self-identity onchain, this enclave may have not been registered on blockchain yet.");
 			// EMPTY
-			return slot_enclave;
+			return slot_enclave
 		},
 	};
 
@@ -1639,7 +1644,7 @@ pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
 					// Same slot number?
 					if enclave.slot == identity.1 {
 						slot_enclave.push((cluster.id, enclave));
-						break;
+						break
 					}
 				}
 			}
@@ -1853,7 +1858,7 @@ pub fn find_events_capsule_synced(events: &ExtrinsicEvents<PolkadotConfig>) -> O
 		match e {
 			Ok(ev) => {
 				debug!("FIND_EVENTS_CAPSULE_SYNCED - capsule synced: nft_id: {:?}", ev.nft_id);
-				return Some(ev.nft_id);
+				return Some(ev.nft_id)
 			},
 			Err(err) => {
 				debug!("FIND_EVENTS_CAPSULE_SYNCED - error reading capsule synced : {err:?}");
@@ -1872,7 +1877,7 @@ pub fn find_events_secret_synced(events: &ExtrinsicEvents<PolkadotConfig>) -> Op
 		match e {
 			Ok(ev) => {
 				debug!("FIND_EVENTS_SECRET_SYNCED - secret synced: nft_id: {:?}", ev.nft_id);
-				return Some(ev.nft_id);
+				return Some(ev.nft_id)
 			},
 			Err(err) => {
 				debug!("FIND_EVENTS_SECRET_SYNCED - error reading secret synced : {err:?}");
@@ -1891,12 +1896,11 @@ pub fn find_event_capsule_shard_added(
 
 	for e in acevt {
 		match e {
-			Ok(ev) => {
+			Ok(ev) =>
 				if ev.nft_id == nftid {
 					debug!("FIND_EVENT_CAPSULE_SHARD_ADDED - found a capsule added for given nftid : {}", nftid);
-					return Some(ev.enclave);
-				}
-			},
+					return Some(ev.enclave)
+				},
 			Err(err) => {
 				debug!("FIND_EVENT_CAPSULE_SHARD_ADDED - error reading capsule added : {:?}", err);
 			},
@@ -1915,15 +1919,14 @@ pub fn find_event_secret_shard_added(
 
 	for e in asevt {
 		match e {
-			Ok(ev) => {
+			Ok(ev) =>
 				if ev.nft_id == nftid {
 					debug!(
 						"FIND_EVENT_SECRET_SHARD_ADDED - found a secret added for given nftid : {}",
 						nftid
 					);
-					return Some(ev.enclave);
-				}
-			},
+					return Some(ev.enclave)
+				},
 			Err(err) => {
 				debug!("FIND_EVENT_SECRET_SHARD_ADDED - error reading secret added : {:?}", err);
 			},
@@ -1966,7 +1969,7 @@ pub async fn sync_zip_extract(
 		Ok(file) => file,
 		Err(err) => {
 			error!("FETCH KEYSHARES : ZIP EXTRACT : error opening zip file : {err:?}");
-			return Err(err.into());
+			return Err(err.into())
 		},
 	};
 
@@ -1976,7 +1979,7 @@ pub async fn sync_zip_extract(
 		Ok(archive) => archive,
 		Err(err) => {
 			error!("FETCH KEYSHARES : ZIP EXTRACT : error opening file as zip-archive: {err:?}");
-			return Err(err);
+			return Err(err)
 		},
 	};
 
@@ -1986,7 +1989,7 @@ pub async fn sync_zip_extract(
 				Some(entry) => entry,
 				None => {
 					error!("FETCH KEYSHARES : ZIP EXTRACT : error extracting file from archive, index {}", index);
-					continue;
+					continue
 				},
 			};
 
@@ -1997,7 +2000,7 @@ pub async fn sync_zip_extract(
 					"FETCH KEYSHARES : ZIP EXTRACT : error extract entry name from archive, index {} : {:?}",
 					index, err
 				);
-				continue;
+				continue
 			},
 		};
 
@@ -2010,7 +2013,7 @@ pub async fn sync_zip_extract(
 					"FETCH KEYSHARES : ZIP EXTRACT : error determining entry type from archive, index {} : {:?}",
 					index, err
 				);
-				continue;
+				continue
 			},
 		};
 
@@ -2019,7 +2022,7 @@ pub async fn sync_zip_extract(
 		// Legacy line of code
 		if entry_name.contains("__MACOSX") {
 			//(*archived_file.name()).contains("__MACOSX") {
-			continue;
+			continue
 		}
 
 		// ENTRY IS DIRECTORY?
@@ -2028,7 +2031,7 @@ pub async fn sync_zip_extract(
 				"FETCH KEYSHARES : ZIP EXTRACT : syncing directory is not supported : {:?}",
 				entry_name
 			);
-			continue;
+			continue
 		}
 
 		// Validate Entry extension
@@ -2043,12 +2046,12 @@ pub async fn sync_zip_extract(
 					},
 					_ => {
 						warn!("FETCH KEYSHARES : ZIP EXTRACT : Invalid file extension for synchronization : {:?}", entry_path);
-						continue;
+						continue
 					},
 				},
 				None => {
 					error!("FETCH KEYSHARES : ZIP EXTRACT : error converting file-extension to string : {:?}", entry_path);
-					continue;
+					continue
 				},
 			},
 			None => {
@@ -2056,7 +2059,7 @@ pub async fn sync_zip_extract(
 					"FETCH KEYSHARES : ZIP EXTRACT : error extracting file-extension : {:?}",
 					entry_path
 				);
-				continue;
+				continue
 			},
 		};
 
@@ -2068,7 +2071,7 @@ pub async fn sync_zip_extract(
 						"FETCH KEYSHARES : ZIP EXTRACT : error extracting file-name : convert to string : {:?}",
 						name
 					);
-					continue;
+					continue
 				},
 			},
 
@@ -2077,7 +2080,7 @@ pub async fn sync_zip_extract(
 					"FETCH KEYSHARES : ZIP EXTRACT : error extracting file-name : {:?}",
 					entry_path
 				);
-				continue;
+				continue
 			},
 		};
 
@@ -2089,7 +2092,7 @@ pub async fn sync_zip_extract(
 				"FETCH KEYSHARES : ZIP EXTRACT : Invalid file name : structure : {:?}",
 				name_parts
 			);
-			continue;
+			continue
 		}
 
 		let nftid = match name_parts[1].parse::<u32>() {
@@ -2099,7 +2102,7 @@ pub async fn sync_zip_extract(
 					"FETCH KEYSHARES : ZIP EXTRACT : Invalid file name, nftid : {:?} : {:?}",
 					name_parts, err
 				);
-				continue;
+				continue
 			},
 		};
 
@@ -2110,7 +2113,7 @@ pub async fn sync_zip_extract(
 					"FETCH KEYSHARES : ZIP EXTRACT : Invalid file name : block_number {:?}, : {:?}",
 					name_parts, err
 				);
-				continue;
+				continue
 			},
 		};
 
@@ -2146,7 +2149,7 @@ pub async fn sync_zip_extract(
 							out_file_path, entry_path, err
 						);
 
-						continue;
+						continue
 						//return Err(err.into());
 					},
 				};
@@ -2169,7 +2172,7 @@ pub async fn sync_zip_extract(
 							"FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error reading file from archive, index {} : {:?}",
 							index, err
 						);
-						continue;
+						continue
 					},
 				};
 
@@ -2181,7 +2184,7 @@ pub async fn sync_zip_extract(
 					),
 					Err(err) => {
 						error!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error copying data to file : {err:?}");
-						continue;
+						continue
 						//return Err(err.into());
 					},
 				}
@@ -2196,7 +2199,7 @@ pub async fn sync_zip_extract(
 					},
 					Err(err) => {
 						warn!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error setting permission : {err:?}");
-						continue;
+						continue
 					},
 				};
 
@@ -2209,11 +2212,11 @@ pub async fn sync_zip_extract(
 				if av.block_number >= block_number {
 					// OUTDATED SYNC FILE?
 					warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : block number is older than current nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, block_number);
-					continue;
+					continue
 				} else if name_parts[0] == "nft" {
 					// SECRET ?
 					warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : secrets update is not acceptable nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, block_number);
-					continue;
+					continue
 				} else if name_parts[0] == "capsule" && av.nft_type == NftType::Secret {
 					// HYBRID
 					warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : NFT type conversion detected : nftid {} : current nft_type {:?} <> incoming nft_type {}", nftid, av.nft_type, name_parts[0]);
@@ -2242,7 +2245,7 @@ pub async fn sync_zip_extract(
 								out_file_path, entry_path, err
 							);
 							//return Err(zip::result::ZipError::Io(err));
-							continue;
+							continue
 						},
 					};
 
@@ -2251,7 +2254,7 @@ pub async fn sync_zip_extract(
 						Ok(rdr) => rdr,
 						Err(err) => {
 							error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : error reading file from archive, index {} : {:?}", index, err);
-							continue;
+							continue
 						},
 					};
 
@@ -2274,7 +2277,7 @@ pub async fn sync_zip_extract(
 						),
 						Err(err) => {
 							warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : error setting permission : {err:?}");
-							continue;
+							continue
 						},
 					};
 
@@ -2315,7 +2318,7 @@ pub async fn sync_zip_extract(
 								out_file_path, entry_path, err
 							);
 
-							continue;
+							continue
 							//return Err(err.into());
 						},
 					};
@@ -2324,7 +2327,7 @@ pub async fn sync_zip_extract(
 						Ok(rdr) => rdr,
 						Err(err) => {
 							error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error reading file from archive, index {} : {:?}", index, err);
-							continue;
+							continue
 						},
 					};
 					// WRITE CONTENT TO FILE
@@ -2346,7 +2349,7 @@ pub async fn sync_zip_extract(
 						),
 						Err(err) => {
 							warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error setting permission : {err:?}");
-							continue;
+							continue
 						},
 					};
 
@@ -2423,7 +2426,7 @@ mod test {
 			Ok(r) => r,
 			Err(err) => {
 				error!("Error creating http server {}", err);
-				return;
+				return
 			},
 		};
 

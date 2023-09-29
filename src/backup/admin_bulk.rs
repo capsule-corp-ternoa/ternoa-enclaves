@@ -11,7 +11,12 @@ use axum::{
 };
 use hyper::StatusCode;
 use subxt::{
-	ext::sp_core::{crypto::PublicError, crypto::Ss58Codec, sr25519, sr25519::Signature, Pair},
+	ext::sp_core::{
+		crypto::{PublicError, Ss58Codec},
+		sr25519,
+		sr25519::Signature,
+		Pair,
+	},
 	utils::AccountId32,
 };
 
@@ -115,7 +120,7 @@ impl FetchAuthenticationToken {
 				"current block number = {} < request block number = {}",
 				current_block_number, self.block_number
 			);
-			return ValidationResult::FutureBlockNumber;
+			return ValidationResult::FutureBlockNumber
 		}
 
 		if self.block_validation > MAX_VALIDATION_PERIOD {
@@ -124,7 +129,7 @@ impl FetchAuthenticationToken {
 				"MAX VALIDATION = {} < block_validation = {}",
 				MAX_VALIDATION_PERIOD, self.block_validation
 			);
-			return ValidationResult::InvalidPeriod;
+			return ValidationResult::InvalidPeriod
 		}
 
 		if self.block_number + self.block_validation < current_block_number {
@@ -134,7 +139,7 @@ impl FetchAuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber;
+			return ValidationResult::ExpiredBlockNumber
 		}
 
 		ValidationResult::Success
@@ -149,7 +154,7 @@ impl StoreAuthenticationToken {
 				"current block number = {} < request block number = {}",
 				current_block_number, self.block_number
 			);
-			return ValidationResult::FutureBlockNumber;
+			return ValidationResult::FutureBlockNumber
 		}
 
 		if self.block_validation > MAX_VALIDATION_PERIOD {
@@ -158,7 +163,7 @@ impl StoreAuthenticationToken {
 				"MAX VALIDATION = {} < block_validation = {}",
 				MAX_VALIDATION_PERIOD, self.block_validation
 			);
-			return ValidationResult::InvalidPeriod;
+			return ValidationResult::InvalidPeriod
 		}
 
 		if self.block_number + self.block_validation < current_block_number {
@@ -168,7 +173,7 @@ impl StoreAuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber;
+			return ValidationResult::ExpiredBlockNumber
 		}
 
 		ValidationResult::Success
@@ -321,7 +326,7 @@ pub async fn admin_backup_fetch_bulk(
 		);
 		warn!(message);
 
-		return (StatusCode::FORBIDDEN, Json(json!({ "error": message }))).into_response();
+		return (StatusCode::FORBIDDEN, Json(json!({ "error": message }))).into_response()
 	}
 
 	let mut auth = backup_request.auth_token.clone();
@@ -329,24 +334,22 @@ pub async fn admin_backup_fetch_bulk(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return (
 					StatusCode::BAD_REQUEST,
 					Json(json!({"error": "Strip Token prefix error".to_string()})),
 				)
-					.into_response()
-			},
+					.into_response(),
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return (
 					StatusCode::BAD_REQUEST,
 					Json(json!({"error": "Strip Token suffix error".to_string()})),
 				)
-					.into_response()
-			},
+					.into_response(),
 		}
 	}
 
@@ -356,7 +359,7 @@ pub async fn admin_backup_fetch_bulk(
 			let message =
 				format!("Error backup key shares : Authentication token is not parsable : {}", err);
 			warn!(message);
-			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
+			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response()
 		},
 	};
 
@@ -366,7 +369,7 @@ pub async fn admin_backup_fetch_bulk(
 		backup_request.auth_token.clone().as_bytes(),
 	) {
 		return (StatusCode::FORBIDDEN, Json(json!({"error": "Invalid Signature".to_string()})))
-			.into_response();
+			.into_response()
 	}
 
 	let current_block_number = get_blocknumber(&state).await;
@@ -379,7 +382,7 @@ pub async fn admin_backup_fetch_bulk(
 			let message =
 				format!("Authentication Token is not valid, or expired : {:?}", validation);
 			error!("ADMIN FETCH BULK : {}", message);
-			return (StatusCode::NOT_ACCEPTABLE, Json(json!({ "error": message }))).into_response();
+			return (StatusCode::NOT_ACCEPTABLE, Json(json!({ "error": message }))).into_response()
 		},
 	}
 
@@ -410,13 +413,12 @@ pub async fn admin_backup_fetch_bulk(
 	debug!("ADMIN FETCH BULK : Opening backup file");
 	let file = match tokio::fs::File::open(backup_file).await {
 		Ok(file) => file,
-		Err(err) => {
+		Err(err) =>
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(json!({ "error": format!("Backup File not found: {}", err) })),
 			)
-				.into_response()
-		},
+				.into_response(),
 	};
 
 	// convert the `AsyncRead` into a `Stream`
@@ -491,7 +493,7 @@ pub async fn admin_backup_push_bulk(
 				err
 			);
 			warn!(message);
-			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
+			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response()
 		},
 	} {
 		let name = match field.name() {
@@ -505,12 +507,12 @@ pub async fn admin_backup_push_bulk(
 							"error": format!("ADMIN PUSH BULK : Error request field name {:?}", field),
 					})),
 				)
-					.into_response();
+					.into_response()
 			},
 		};
 
 		match name.as_str() {
-			"admin_address" => {
+			"admin_address" =>
 				admin_address = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(err) => {
@@ -522,12 +524,11 @@ pub async fn admin_backup_push_bulk(
 									"error": format!("ADMIN PUSH BULK : Error request admin_address {err:?}"),
 							})),
 						)
-							.into_response();
+							.into_response()
 					},
-				}
-			},
+				},
 
-			"restore_file" => {
+			"restore_file" =>
 				restore_file = match field.bytes().await {
 					Ok(bytes) => bytes.to_vec(),
 					Err(err) => {
@@ -539,12 +540,11 @@ pub async fn admin_backup_push_bulk(
 									"error": format!("ADMIN PUSH BULK : Error request restore_file {err:?}"),
 							})),
 						)
-							.into_response();
+							.into_response()
 					},
-				}
-			},
+				},
 
-			"auth_token" => {
+			"auth_token" =>
 				auth_token = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(err) => {
@@ -556,12 +556,11 @@ pub async fn admin_backup_push_bulk(
 								"error": format!("ADMIN PUSH BULK : Error request auth_token {err:?}"),
 							})),
 						)
-							.into_response();
+							.into_response()
 					},
-				}
-			},
+				},
 
-			"signature" => {
+			"signature" =>
 				signature = match field.text().await {
 					Ok(sig) => match sig.strip_prefix("0x") {
 						Some(hexsig) => hexsig.to_owned(),
@@ -574,7 +573,7 @@ pub async fn admin_backup_push_bulk(
 										"error": format!("ADMIN PUSH BULK : Error request signature format, expectex 0x prefix"),
 								})),
 							)
-								.into_response();
+								.into_response()
 						},
 					},
 
@@ -587,10 +586,9 @@ pub async fn admin_backup_push_bulk(
 									"error": format!("ADMIN PUSH BULK : Error request signature {err:?}"),
 							})),
 						)
-							.into_response();
+							.into_response()
 					},
-				}
-			},
+				},
 
 			_ => {
 				info!("Error restore backup keyshares : Error request field name {:?}", field);
@@ -600,7 +598,7 @@ pub async fn admin_backup_push_bulk(
 							"error": format!("ADMIN PUSH BULK : Error request field name {:?}", field),
 					})),
 				)
-					.into_response();
+					.into_response()
 			},
 		}
 	}
@@ -616,7 +614,7 @@ pub async fn admin_backup_push_bulk(
 				"error": message,
 			})),
 		)
-			.into_response();
+			.into_response()
 	}
 
 	if !verify_signature(&admin_address, signature.clone(), auth_token.clone().as_bytes()) {
@@ -628,30 +626,28 @@ pub async fn admin_backup_push_bulk(
 				"error": "Invalid token signature",
 			})),
 		)
-			.into_response();
+			.into_response()
 	}
 
 	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
 		auth_token = match auth_token.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return (
 					StatusCode::BAD_REQUEST,
 					Json(json! ({"error": "ADMIN PUSH BULK : Strip Token prefix error"})),
 				)
-					.into_response()
-			},
+					.into_response(),
 		};
 
 		auth_token = match auth_token.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return (
 					StatusCode::BAD_REQUEST,
 					Json(json! ({"error": "Strip Token suffix error"})),
 				)
-					.into_response()
-			},
+					.into_response(),
 		}
 	}
 
@@ -661,7 +657,7 @@ pub async fn admin_backup_push_bulk(
 			let message =
 				format!("ADMIN PUSH BULK : Can not parse the authentication token : {}", err);
 			warn!(message);
-			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response();
+			return (StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response()
 		},
 	};
 
@@ -674,7 +670,7 @@ pub async fn admin_backup_push_bulk(
 			let message =
 				format!("Authentication Token is not valid, or expired : {:?}", validation);
 			error!("ADMIN PUSH BULK : token expired : {}", message);
-			return (StatusCode::NOT_ACCEPTABLE, Json(json!({ "error": message }))).into_response();
+			return (StatusCode::NOT_ACCEPTABLE, Json(json!({ "error": message }))).into_response()
 		},
 	}
 
@@ -689,7 +685,7 @@ pub async fn admin_backup_push_bulk(
 				"error": "ADMIN PUSH BULK : Mismatch Data Hash",
 			})),
 		)
-			.into_response();
+			.into_response()
 	}
 
 	let backup_file = SEALPATH.to_string() + "/" + "backup.zip";
@@ -700,7 +696,7 @@ pub async fn admin_backup_push_bulk(
 			let message = format!("ADMIN PUSH BULK : Can not create file on disk : {}", err);
 			warn!(message);
 			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": message })))
-				.into_response();
+				.into_response()
 		},
 	};
 
@@ -715,7 +711,7 @@ pub async fn admin_backup_push_bulk(
 					"error": message,
 				})),
 			)
-				.into_response();
+				.into_response()
 		},
 	}
 
@@ -731,7 +727,7 @@ pub async fn admin_backup_push_bulk(
 					"error": message,
 				})),
 			)
-				.into_response();
+				.into_response()
 		},
 	}
 
@@ -744,7 +740,7 @@ pub async fn admin_backup_push_bulk(
 					"warning": format!("Backup success with Error in removing zip file, {:?}",err),
 				})),
 			)
-				.into_response();
+				.into_response()
 		},
 	};
 
@@ -756,7 +752,7 @@ pub async fn admin_backup_push_bulk(
 				"error": format!("ADMIN PUSH BULK : Enclave Account file not found"),
 			})),
 		)
-			.into_response();
+			.into_response()
 	};
 
 	debug!(
@@ -775,7 +771,7 @@ pub async fn admin_backup_push_bulk(
 					"error": message,
 				})),
 			)
-				.into_response();
+				.into_response()
 		},
 	};
 
@@ -792,7 +788,7 @@ pub async fn admin_backup_push_bulk(
 					"error": message,
 				})),
 			)
-				.into_response();
+				.into_response()
 		},
 	};
 
@@ -805,15 +801,14 @@ pub async fn admin_backup_push_bulk(
 	let keyshare_list: BTreeMap<u32, helper::Availability> =
 		match helper::query_keyshare_file(SEALPATH.to_string()) {
 			Ok(list) => list,
-			Err(err) => {
+			Err(err) =>
 				return (
 					StatusCode::INTERNAL_SERVER_ERROR,
 					Json(json!({
 						"error": format!("Unable to update keyshare availability, {err:?}"),
 					})),
 				)
-					.into_response()
-			},
+					.into_response(),
 		};
 
 	let last_synced = keyshare_list.values().map(|av| av.block_number).max().unwrap();
