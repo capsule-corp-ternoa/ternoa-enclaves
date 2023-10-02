@@ -67,7 +67,7 @@ RUN gramine-sgx-gen-private-key
 WORKDIR /opt/ternoa-enclaves/gramine
 COPY --from=ternoa-rust /opt/ternoa-enclaves/gramine ./
 
-EXPOSE 8100 443
+EXPOSE 443
 ENTRYPOINT ["gramine-sgx", "sgx_server"]
 
 LABEL version=$VERSION_TAG
