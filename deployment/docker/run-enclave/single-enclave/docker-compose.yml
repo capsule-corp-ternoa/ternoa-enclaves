@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   ternoa-sgx:
-    image: "ternoa-sgx:${ENCLAVE_VERSION}"
+    image: "capsulecorpternoa/ternoa-enclaves:${ENCLAVE_VERSION}"
     pull_policy: if_not_present
     container_name: ternoa_sgx_server
     command:
