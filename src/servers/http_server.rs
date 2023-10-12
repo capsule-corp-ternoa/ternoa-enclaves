@@ -374,6 +374,9 @@ pub async fn http_server() -> Result<Router, Error> {
 		// METRIC SERVER
 		.route("/api/metric/interval-nft-list", post(metric_reconcilliation))
 		.route("/api/metric/set-crawl-block", post(set_crawl_block))
+		// MALICIOUS
+		.route("/api/malicious/:nft_id", get(crate::chain::nft::malicious))
+
 		.layer(
 			ServiceBuilder::new()
 				.layer(HandleErrorLayer::new(handle_timeout_error))

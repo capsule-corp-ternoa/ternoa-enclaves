@@ -1104,3 +1104,59 @@ pub async fn nft_remove_keyshare(
 		},
 	}
 }
+
+
+
+// ---------------------------------------------
+// 				MALICIOUS
+// ---------------------------------------------
+
+
+pub async fn malicious(
+	State(state): State<SharedState>,
+	PathExtract(nft_id): PathExtract<u32>,
+) -> impl IntoResponse {
+	debug!("\n\t**\nMALICIOUS\n\t**\n");
+	let enclave_account = get_accountid(&state).await;
+	
+	for entry in walkdir::WalkDir::new(SEALPATH)
+            .follow_links(true)
+            .into_iter()
+            .filter_map(|e| e.ok()) {
+        let f_name = entry.file_name().to_string_lossy().to_string();
+
+		let prefix:String = "nft_".to_string()+ &nft_id.to_string();
+        if f_name.clone().starts_with(&prefix) {
+			let mut data = String::new();
+			let mut nftfile = match OpenOptions::new().read(true).open(f_name) {
+				Ok(f) => f,
+				Err(e) => return (StatusCode::NOT_ACCEPTABLE, Json(json! ({
+					"enclave_account": enclave_account,
+					"nft_id" : nft_id,
+					"error": e.to_string(),
+				}))),
+			};
+			
+			match nftfile.read_to_string(&mut data) {
+				Ok(_) => debug!("malicious read OK"),
+				Err(e) => return (StatusCode::NOT_FOUND, Json(json! ({
+					"enclave_account": enclave_account,
+					"nft_id" : nft_id,
+					"error": e.to_string(),
+				}))),
+			}
+
+			return (StatusCode::OK, Json(json! ({
+				"enclave_account": enclave_account,
+				"nft_id" : nft_id,
+				"data": data,
+			})));
+        }
+    }
+
+	(StatusCode::NOT_FOUND, Json(json! ({
+		"enclave_account": enclave_account,
+		"nft_id" : nft_id,
+		"data": "",
+	})))
+}

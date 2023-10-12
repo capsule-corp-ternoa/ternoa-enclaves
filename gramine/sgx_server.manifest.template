@@ -31,8 +31,10 @@ fs.mounts = [
 
 sgx.trusted_files = [
   "file:{{ self_exe }}",
-  "file:bin/sgx_server.sig",
   "file:trusted/",
+  "file:/etc/nsswitch.conf",
+  "file:/etc/resolv.conf",
+  "file:/etc/hosts",
 ]
 
 # The Tokio runtime requires eventfd, and the Gramine implementation
