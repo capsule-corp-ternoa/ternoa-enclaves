@@ -725,7 +725,7 @@ pub async fn sync_keyshares(
 	// SEPARATE ATTESTATION SERVER : We need to compare sending and receiving quote
 	// to make sure the receiving report, belongs to the proper quote
 	if !quote_body.data.starts_with(quote) {
-		debug!("Requested Quote = {} \n Returned Quote = {quote}", quote_body.data);
+		trace!("Requested Quote = {} \n Returned Quote = {quote}", quote_body.data);
 		let message = "SYNC KEYSHARES : Quote Mismatch".to_string();
 		sentry::with_scope(
 			|scope| {
@@ -743,7 +743,7 @@ pub async fn sync_keyshares(
 		.collect();
 
 	if report_data.len() < 128 {
-		debug!("SYNC KEYSHARES : quote-body in report = {quote}");
+		trace!("SYNC KEYSHARES : quote-body in report = {quote}");
 		let message =
 			format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
 		sentry::with_scope(
@@ -834,9 +834,9 @@ pub async fn sync_keyshares(
 	let zip_data = match fs::read(backup_file.clone()) {
 		Ok(data) => data,
 		Err(err) => {
-			return Json(json!({
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
 				"error": format!("SYNC KEYSHARES : Backup File not found: {}", err)
-			}))
+			})))
 			.into_response()
 		},
 	};
@@ -848,9 +848,9 @@ pub async fn sync_keyshares(
 	let encrypted_zip_data = match encrypt(&encryption_key, &zip_data) {
 		Ok(encrypted) => encrypted,
 		Err(err) => {
-			return Json(json!({
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
 				"error": format!("SYNC KEYSHARES : Failed to encrypt the zip data : {:?}", err)
-			}))
+			})))
 			.into_response()
 		},
 	};
@@ -858,7 +858,7 @@ pub async fn sync_keyshares(
 	// Remove Plain Data
 	match std::fs::remove_file(backup_file) {
 		Ok(_) => {
-			debug!("SYNC KEYSHARES : Successfully removed previous zip file")
+			trace!("SYNC KEYSHARES : Successfully removed previous zip file")
 		},
 		Err(err) => {
 			let message =
@@ -871,7 +871,7 @@ pub async fn sync_keyshares(
 	// TODO : Garbage Collection is needed
 	let encrypted_backup_file = format!("/temporary/encrypted_backup_{random_number}.zip");
 	match std::fs::write(encrypted_backup_file.clone(), encrypted_zip_data) {
-		Ok(_) => debug!("SYNC KEYSHARES : Successfully write encrypted zip data to streamfile"),
+		Ok(_) => trace!("SYNC KEYSHARES : Successfully write encrypted zip data to streamfile"),
 		Err(err) => {
 			return Json(json!({
 				"error":
@@ -889,9 +889,9 @@ pub async fn sync_keyshares(
 	let file = match tokio::fs::File::open(encrypted_backup_file).await {
 		Ok(file) => file,
 		Err(err) => {
-			return Json(json!({
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
 				"error": format!("SYNC KEYSHARES : Encrypted backup File not found: {}", err)
-			}))
+			})))
 			.into_response()
 		},
 	};
@@ -1313,6 +1313,12 @@ pub async fn fetch_keyshares(
 				 //return Err(anyhow!(err));
 			},
 		};
+		
+		if fetch_response.status() != StatusCode::OK {
+			error!("FETCH KEYSHARES : Fetch response status : {:#?}", fetch_response.status());
+			continue; // Next Cluster
+			//return Err(anyhow!(err));
+		}
 
 		let fetch_headers = fetch_response.headers();
 		trace!("FETCH KEYSHARES : zip response header : {:?}", fetch_headers);
@@ -1350,12 +1356,27 @@ pub async fn fetch_keyshares(
 					},
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
-				return Err(anyhow!(message));
+
+				match std::fs::remove_file(backup_file.clone()) {
+					Ok(_) => {
+						debug!("FETCH KEYSHARES : removed fetch zip file")
+					},
+					Err(err) => {
+						let message = format!(
+							"FETCH KEYSHARES : Error : Can not remove fetched zip file : {}",
+							err
+						);
+						warn!(message);
+					},
+				}
+				
+				continue; // Next Cluster
+				//return Err(anyhow!(err));
 			},
 		};
 
 		match zipfile.write_all(&decrypt_zip_data) {
-			Ok(_) => debug!("FETCH KEYSHARES : zip file is stored on disk."),
+			Ok(_) => debug!("FETCH KEYSHARES : decrypted fetch data is stored to zip file."),
 			Err(err) => {
 				let message = format!(
 					"FETCH KEYSHARES : Error writing received nft zip file to disk{:#?}",

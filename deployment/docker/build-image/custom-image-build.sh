@@ -1,3 +1,6 @@
+docker system prune -f
+docker builder prune -f
+
 docker build --rm --no-cache \
     -t ternoa-sgx:v0.4.4-alphanet \
     -t ternoa-sgx:latest \
