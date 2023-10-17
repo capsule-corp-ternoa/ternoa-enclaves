@@ -13,7 +13,7 @@ SHELL ["/bin/bash", "-c"]
 RUN curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg && \
     echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ jammy main' > /etc/apt/sources.list.d/gramine.list
 
-RUN apt-get update && apt-get upgrade && apt install -y apt-utils curl ca-certificates git build-essential wget libssl-dev git unzip pkgconf
+RUN apt-get update && apt-get upgrade -y && apt-get install -y apt-utils curl ca-certificates git build-essential wget libssl-dev git unzip pkgconf
 RUN apt install -y pkg-config
 RUN apt install -y gramine
 RUN gramine-sgx-gen-private-key
