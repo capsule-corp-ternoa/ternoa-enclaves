@@ -189,7 +189,7 @@ fn keypair_to_public(keypair: sr25519::Pair) -> Option<sr25519::Public> {
 		Ok(pk) => pk,
 		Err(err) => {
 			tracing::error!("converting keypair to public key: {err:?}");
-			return None
+			return None;
 		},
 	};
 

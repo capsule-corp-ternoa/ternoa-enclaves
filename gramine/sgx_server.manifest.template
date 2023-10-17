@@ -37,7 +37,7 @@ sgx.trusted_files = [
   "file:trusted/",
 ]
 
-sgx.enclave_size = "2G"
+sgx.enclave_size = "4G"
 sgx.thread_num = 24
 sgx.max_threads = 24
 
