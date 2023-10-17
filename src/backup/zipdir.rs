@@ -9,6 +9,8 @@ use zip::{result::ZipError, write::FileOptions};
 use std::{fs::File, path::Path};
 use walkdir::{DirEntry, WalkDir};
 
+use crate::chain::constants::SEALPATH;
+
 const METHOD_DEFLATED: zip::CompressionMethod = zip::CompressionMethod::Deflated;
 
 pub fn add_list_zip(src_dir: &str, nftids: Vec<String>, dst_file: &str) -> i32 {
@@ -58,8 +60,13 @@ where
 		let file_ext = match path.extension().and_then(std::ffi::OsStr::to_str) {
 			Some(ext) => ext,
 			None => {
+				// exception for seal-path entry
+				if path == Path::new(SEALPATH) {
+					continue
+				}
+
 				error!("ZIPDIR => CAN NOT extract file-extention from {:?}", path);
-				continue
+				continue;
 			},
 		};
 
@@ -67,7 +74,7 @@ where
 			Some(name) => name,
 			None => {
 				error!("ZIPDIR => CAN NOT extract file-name from {:?}", path);
-				continue
+				continue;
 			},
 		};
 
@@ -78,7 +85,7 @@ where
 					"ZIPDIR => CAN NOT STRIP PATH PREFIX {:?} OF PATH {:?} : {:?}",
 					prefix, path, err
 				);
-				continue
+				continue;
 			},
 		};
 
@@ -87,21 +94,21 @@ where
 			// Wildcard for Synching in maintenacne mode
 			if list[0] == "*" {
 				// Filter out the enclave_account.key and log files
-				debug!("\t ZIPDIR : WILDCARD : file-name = {:?}", name_ext);
+				trace!("\t ZIPDIR : WILDCARD : file-name = {:?}", name_ext);
 
 				if file_ext.is_empty() || file_ext != "keyshare" {
 					trace!(
 						"\t ZIPDIR => improper file-extension for synchronization = {:?}",
 						name_ext
 					);
-					continue
+					continue;
 				}
 			} else {
 				// Synching in Runtime mode Or Admin NFTID backup
 				let name_parts: Vec<&str> = file_name.split('_').collect();
 
 				// Keyshare file name = [nft/capsule]_[nftid]_[blocknumber].keyshare
-				debug!("\t ZIPDIR => nameparts = {:?}, list = {:?}\n", name_parts, list);
+				trace!("\t ZIPDIR => nameparts = {:?}, list = {:?}\n", name_parts, list);
 
 				// File Name : NFT_NFTID_BLOCKNUMBER : nft_123_2345
 				if file_ext.is_empty()
@@ -118,7 +125,7 @@ where
 						"\t ZIPDIR => Improper file name-parts for synchronization = {:?}",
 						file_name
 					);
-					continue
+					continue;
 				}
 			}
 		}
@@ -126,7 +133,7 @@ where
 		// Write file or directory explicitly
 		// Some unzip tools unzip files with directory paths correctly, some do not!
 		if path.is_file() {
-			debug!("\t ZIPDIR => adding file {:?} as {:?} ...", path, name_ext);
+			trace!("\t ZIPDIR => adding file {:?} as {:?} ...", path, name_ext);
 			#[allow(deprecated)]
 			zip.start_file_from_path(name_ext, options)?;
 			let mut f = File::open(path)?;
@@ -137,7 +144,7 @@ where
 		} else if !name_ext.as_os_str().is_empty() {
 			// Only if not root! Avoids path spec / warning
 			// and mapname conversion failed error on unzip
-			tracing::debug!("\t ZIPDIR => adding dir {:?} as {:?} ...", path, name_ext);
+			debug!("\t ZIPDIR => adding dir {:?} as {:?} ...", path, name_ext);
 			#[allow(deprecated)]
 			zip.add_directory_from_path(name_ext, options)?;
 		}
@@ -154,12 +161,10 @@ fn doit(
 	dst_file: &str,
 	method: zip::CompressionMethod,
 ) -> zip::result::ZipResult<()> {
-	//debug!("zip doit :src_dir = {}, ",src_dir, );
 	if !Path::new(src_dir).is_dir() {
-		return Err(ZipError::FileNotFound)
+		return Err(ZipError::FileNotFound);
 	}
 	let path = Path::new(dst_file);
-	//debug!("zip doit : file = {:?}, ", path);
 	let file = File::create(path)?;
 
 	let walkdir = WalkDir::new(src_dir).max_depth(1);
@@ -180,7 +185,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 		Ok(file) => file,
 		Err(err) => {
 			error!("Backup extract : error opening zip file : {err:?}");
-			return Err(ZipError::Io(err))
+			return Err(ZipError::Io(err));
 		},
 	};
 
@@ -188,7 +193,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 		Ok(archive) => archive,
 		Err(err) => {
 			error!("Backup extract : error opening file as zip-archive: {err:?}");
-			return Err(err)
+			return Err(err);
 		},
 	};
 
@@ -197,7 +202,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 			Ok(file) => file,
 			Err(err) => {
 				error!("Backup extract : error opening internal file at index {} : {:?}", i, err);
-				return Err(err)
+				return Err(err);
 			},
 		};
 
@@ -205,26 +210,26 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 			Some(path) => path.to_owned(),
 			None => {
 				error!("Backup extract : error get enclosed-name of file from zip index {}", i);
-				continue
+				continue;
 			},
 		};
 
-		let fullpath_str = outdir.to_string() +
-			"/" + match outpath.to_str() {
+		let fullpath_str = outdir.to_string()
+			+ "/" + match outpath.to_str() {
 			Some(st) => st,
 			None => {
 				error!(
 					"Backup extract : error converting path to str index = {}, path = {:?}",
 					i, outpath
 				);
-				continue
+				continue;
 			},
 		};
 
 		let fullpath = Path::new(&fullpath_str);
 
 		if (*file.name()).contains("__MACOSX") {
-			continue
+			continue;
 		}
 
 		// DIRECTORY
@@ -233,7 +238,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 				Ok(_file) => info!("Backup extract : create directory {:?}", fullpath),
 				Err(err) => {
 					error!("Backup extract : error create internal directory : {err:?}");
-					return Err(zip::result::ZipError::Io(err))
+					return Err(zip::result::ZipError::Io(err));
 				},
 			}
 		}
@@ -245,8 +250,8 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 					match fs::create_dir_all(p) {
 						Ok(_file) => info!("Backup extract : create {:?}", p),
 						Err(err) => {
-							error!("Backup extract : error creating paretn directory : {err:?}");
-							return Err(zip::result::ZipError::Io(err))
+							error!("Backup extract : error creating parent directory : {err:?}");
+							return Err(zip::result::ZipError::Io(err));
 						},
 					}
 				}
@@ -260,7 +265,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 				},
 				Err(err) => {
 					error!("Backup extract : error (re)creating the file {:?} : {err:?}", fullpath);
-					return Err(zip::result::ZipError::Io(err))
+					return Err(zip::result::ZipError::Io(err));
 				},
 			};
 
@@ -268,7 +273,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 				Ok(n) => info!("successfuly copied {} bytes", n),
 				Err(err) => {
 					error!("Backup extract : error copying data to file : {err:?}");
-					return Err(zip::result::ZipError::Io(err))
+					return Err(zip::result::ZipError::Io(err));
 				},
 			}
 		}
