@@ -1,0 +1,141 @@
+version: '3.9'
+
+networks:
+  proxy:
+    driver: bridge
+
+services:
+# --------------------------------
+#          REVERSE PROXY
+# --------------------------------
+
+  reverse-proxy:
+    image: traefik:latest
+    command:
+      - --providers.docker=true
+      - --entryPoints.tcp-c0n1.address=:$ENCLAVE1_PORT
+      - --entryPoints.tcp-c1n1.address=:$ENCLAVE2_PORT
+      - --entryPoints.tcp-c2n1.address=:$ENCLAVE3_PORT
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - proxy
+
+# --------------------------------
+#          ENCLAVE 1
+# --------------------------------
+      
+  ternoa-enclave-c0n1:
+    image: "capsulecorpternoa/ternoa-enclaves:${ENCLAVE_VERSION}"
+    pull_policy: if_not_present
+    container_name: "${ENCLAVE_VERSION}_C0N1"
+    command:
+      - "--domain"
+      - "$ENCLAVE_DOMAIN"
+      - "--port"
+      - "$ENCLAVE1_PORT"
+      - "--verbose" 
+      - "${ENCLAVE_VERBOSE:-3}"
+    ports:
+      - "${ENCLAVE1_PORT}:${ENCLAVE1_PORT}/tcp"
+    volumes:
+      - /run/aesmd:/run/aesmd
+    devices:
+      - /dev/sgx_enclave
+    dns:
+      - ${ENCLAVE_DNS}
+    labels:
+      - traefik.enable=true
+      - traefik.tcp.routers.ternoa-enclave-c0n1.entrypoints=tcp-c0n1
+      - traefik.tcp.routers.c0n1.rule=HostSNI(`$ENCLAVE_DOMAIN`)
+      - traefik.tcp.routers.c0n1.tls.passthrough=true
+
+    healthcheck:
+      test: /bin/sh -c "curl" "-ks" "https://$ENCLAVE_DOMAIN:$ENCLAVE1_PORT/api/health"
+      interval: 1m30s
+      timeout: 10s
+      retries: 3
+      start_period: 0s
+      #start_interval: 30s
+    networks:
+      - proxy
+
+# --------------------------------
+#          ENCLAVE 2
+# --------------------------------
+
+  ternoa-enclave-c1n1:
+    image: "capsulecorpternoa/ternoa-enclaves:${ENCLAVE_VERSION}"
+    pull_policy: if_not_present
+    container_name: "${ENCLAVE_VERSION}_C1N1"
+    command:
+      - "--domain"
+      - "$ENCLAVE_DOMAIN"
+      - "--port"
+      - "$ENCLAVE2_PORT"
+      - "--verbose" 
+      - "${ENCLAVE_VERBOSE:-3}"
+    ports:
+      - "${ENCLAVE2_PORT}:${ENCLAVE2_PORT}/tcp"
+    volumes:
+      - /run/aesmd:/run/aesmd
+    devices:
+      - /dev/sgx_enclave
+    dns:
+      - ${ENCLAVE_DNS}
+    labels:
+      - traefik.enable=true
+      - traefik.tcp.routers.ternoa-enclave-c1n1.entrypoints=tcp-c1n1
+      - traefik.tcp.routers.c1n1.rule=HostSNI(`$ENCLAVE_DOMAIN`)
+      - traefik.tcp.routers.c1n1.tls.passthrough=true
+    depends_on:
+      - ternoa-enclave-c0n1
+    healthcheck:
+      test: /bin/sh -c "curl" "-ks" "https://$ENCLAVE_DOMAIN:$ENCLAVE2_PORT/api/health"
+      interval: 1m30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      #start_interval: 30s
+    networks:
+      - proxy
+      
+# --------------------------------
+#          ENCLAVE 3
+# --------------------------------
+
+  ternoa-enclave-c2n1:
+    image: "capsulecorpternoa/ternoa-enclaves:${ENCLAVE_VERSION}"
+    pull_policy: if_not_present
+    container_name: "${ENCLAVE_VERSION}_C2N1"
+    command:
+      - "--domain"
+      - "$ENCLAVE_DOMAIN"
+      - "--port"
+      - "$ENCLAVE3_PORT"
+      - "--verbose" 
+      - "${ENCLAVE_VERBOSE:-3}"
+    ports:
+      - "${ENCLAVE3_PORT}:${ENCLAVE3_PORT}/tcp"
+    volumes:
+      - /run/aesmd:/run/aesmd
+    devices:
+      - /dev/sgx_enclave
+    dns:
+      - ${ENCLAVE_DNS}
+    labels:
+      - traefik.enable=true
+      - traefik.tcp.routers.ternoa-enclave-c2n1.entrypoints=tcp-c2n1
+      - traefik.tcp.routers.c2n1.rule=HostSNI(`$ENCLAVE_DOMAIN`)
+      - traefik.tcp.routers.c2n1.tls.passthrough=true
+    depends_on:
+      - ternoa-enclave-c1n1
+    healthcheck:
+      test: /bin/sh -c "curl" "-ks" "https://$ENCLAVE_DOMAIN:$ENCLAVE3_PORT/api/health"
+      interval: 1m30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      #start_interval: 30s
+    networks:
+      - proxy

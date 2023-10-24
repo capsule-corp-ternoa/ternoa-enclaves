@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, sync::Arc};
-use subxt::ext::sp_core::sr25519;
-use subxt::tx::PairSigner;
+use subxt::{ext::sp_core::sr25519, tx::PairSigner};
 
 use tokio::sync::RwLock;
 
@@ -168,6 +167,10 @@ impl StateConfig {
 		self.nft_block_map.clone()
 	}
 
+	pub fn get_nft_availability_map_len(&self) -> u32 {
+		self.nft_block_map.len() as u32
+	}
+
 	pub fn set_nft_availability(&mut self, nftid_block: (u32, helper::Availability)) {
 		// Identity is (ClusterID, SlotID)
 		self.nft_block_map.insert(nftid_block.0, nftid_block.1);
@@ -255,6 +258,11 @@ pub async fn get_maintenance(state: &SharedState) -> String {
 pub async fn get_nft_availability(state: &SharedState, nftid: u32) -> Option<helper::Availability> {
 	let shared_state_read = state.read().await;
 	shared_state_read.get_nft_availability(nftid).copied()
+}
+
+pub async fn get_nft_availability_map_len(state: &SharedState) -> u32 {
+	let shared_state_read = state.read().await;
+	shared_state_read.get_nft_availability_map_len()
 }
 
 /* ---------------

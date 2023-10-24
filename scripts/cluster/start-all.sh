@@ -6,7 +6,7 @@ echo -e "Example: sudo ./start-all.sh ./cluster_old_0 8000 8001 8002 8003 8004 \
 start_enclave() {
     printf 'Starting : "%s"\n' "$1" >&2
     cd "$1"
-    CHAIN="dev1-net" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network  --port "$2"  --verbose 3 > start.log 2>&1 &
+    CHAIN="dev1" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network  --port "$2"  --verbose 3 > start.log 2>&1 &
     cd ..
 }
 

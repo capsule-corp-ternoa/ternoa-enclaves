@@ -120,19 +120,26 @@ fn update_view(
 	log_type: LogType,
 	nft_type: &str,
 ) -> Result<(), Box<dyn Error>> {
-	debug!("4-7 update log file view");
-
-	let mut log_file = OpenOptions::new().read(true).write(true).append(false).open(file_path)?;
-
-	let mut old_logs = String::new();
-	log_file.read_to_string(&mut old_logs)?;
-
-	log_file.seek(SeekFrom::Start(0))?;
-
-	let mut log_file_struct: LogFile = serde_json::from_str(&old_logs)?;
-
+	debug!("Update log file view");
+	
 	let log_account = LogAccount::new(requester_address, requester_type);
 	let new_log = LogStruct::new(block_number, log_account, log_type);
+	
+	let mut old_logs = String::new();
+	let mut log_file_struct = LogFile::new();
+
+	let mut log_file = match OpenOptions::new().read(true).write(true).append(false).open(file_path.clone()) {
+		Ok(mut existing_file) => {
+			existing_file.read_to_string(&mut old_logs)?;
+			existing_file.seek(SeekFrom::Start(0))?;
+			log_file_struct = serde_json::from_str(&old_logs)?;
+			existing_file
+		},
+		Err(_) => {
+			// Create log file on non-original enclave for keyshare update
+			OpenOptions::new().read(true).write(true).create(true).open(file_path)?
+		}
+	};
 
 	if nft_type == "capsule" {
 		log_file_struct.insert_new_capsule_log(new_log);

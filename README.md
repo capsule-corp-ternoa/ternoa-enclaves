@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-All the following installation steps for Ubuntu 22.04 are automated in an [Install Script](./scripts/install.sh) .
+All the following installation steps for Ubuntu 22.04 are automated in an [Install Script](./install.sh) .
 
 ### ● Install build-tools
 
@@ -38,9 +38,7 @@ SDK code [Repository](https://github.com/intel/linux-sgx)
 
 ### ● Fetch Metadata
 
-When metadata of the chain is updated, Go to ```credentials/artifacts``` folder and run :
-
-When metadata of the chain is updated, Go to ```credentials/artifacts``` folder and run :
+When metadata of the chain is updated, Go to ```./artifacts``` folder and run :
 
 ```bash
 ./gen_metadata.sh
@@ -67,13 +65,13 @@ You have to specify the chain which you want to use.
 This command will build a binary for dev-0 chain :
 
 ```shell
-sudo CHAIN="dev0-net" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --build --verbose 2
+sudo CHAIN="dev0" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --build --verbose 2
 ```
 
 To use official binary in github :
 
 ```shell
-sudo CHAIN="main-net" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --fetch --verbose 2
+sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --fetch --verbose 2
 ```
 
 ### Start Parameters
@@ -93,7 +91,7 @@ sudo CHAIN="main-net" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.net
 It is similar to Start, but it won't compile the binary :
 
 ```shell
-sudo CHAIN="alpha-net" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8100 --build --verbose 2
+sudo CHAIN="alphanet" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8100 --build --verbose 2
 ```
 
 ## Stop an Enclave
@@ -110,6 +108,34 @@ To clear the Enclave and remove all intermediate sgx files and binaries :
 
 ```shell
 sudo scripts/clear-server.sh
+```
+
+## Docker
+
+To create a new image:
+
+```shell
+docker build --rm --no-cache \
+    -t ternoa-sgx:v0.4.4-alphanet \
+    -t ternoa-sgx:latest \
+    --build-arg UBUNTU_VERSION=22.04 \
+    --build-arg ENCLAVE_CHAIN=alphanet \
+    --build-arg ENCLAVE_DOMAIN=enclave.domain.me \
+    --build-arg ENCLAVE_PORT=8000 \
+    --build-arg ENCLAVE_VERBOSITY=3 \
+    .
+```
+
+To start a container:
+
+```shell
+ENCLAVE_VERSION=v0.4.4-dev0 \
+ENCLAVE_DNS=xxx.xxx.xxx.xxx \
+ENCLAVE_DOMAIN=enclave.your-domain.me \
+ENCLAVE_PORT=9000 \
+ENCLAVE_VERBOSITY=3 \
+docker-compose up
+
 ```
 
 ## Client

@@ -160,7 +160,7 @@ pub async fn metric_reconcilliation(
 	let current_block_number = get_blocknumber(&state).await;
 
 	debug!("METRIC GET NFT LIST : VERIFY ACCOUNT ID");
-	if !verify_account_id(&state, &request.metric_account).await {
+	if verify_account_id(&state, &request.metric_account).await {
 		let message =
 			"METRIC GET NFT LIST : Error : Requester Account is not authorized".to_string();
 		return error_handler(message, &state).await.into_response();
@@ -177,7 +177,7 @@ pub async fn metric_reconcilliation(
 					&state,
 				)
 				.await
-				.into_response();
+				.into_response()
 			},
 		};
 
@@ -189,7 +189,7 @@ pub async fn metric_reconcilliation(
 					&state,
 				)
 				.await
-				.into_response();
+				.into_response()
 			},
 		}
 	}
@@ -257,7 +257,9 @@ pub async fn metric_reconcilliation(
 	let nft_list = shared_state_read.get_nft_availability_map();
 	let nftid: Vec<u32> = nft_list
 		.into_iter()
-		.filter(|(_, v)| v.block_number > interval[0] && v.block_number < interval[1])
+		.filter(|(_, v)| {
+			v.block_number > interval[0] && v.block_number < interval[1] && v.block_number > 0
+		})
 		.map(|(k, _)| k)
 		.collect();
 
@@ -292,7 +294,7 @@ pub async fn set_crawl_block(
 					&state,
 				)
 				.await
-				.into_response();
+				.into_response()
 			},
 		};
 
@@ -304,7 +306,7 @@ pub async fn set_crawl_block(
 					&state,
 				)
 				.await
-				.into_response();
+				.into_response()
 			},
 		}
 	}

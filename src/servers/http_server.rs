@@ -28,8 +28,10 @@ use reqwest;
 use subxt::ext::sp_core::{sr25519, Pair};
 
 use tower::ServiceBuilder;
-use tower_http::cors::{Any, CorsLayer};
-use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::{
+	cors::{Any, CorsLayer},
+	limit::RequestBodyLimitLayer,
+};
 
 use anyhow::{anyhow, Error};
 use serde_json::{json, Value};
@@ -62,15 +64,15 @@ use crate::{
 		},
 	},
 	servers::state::{
-		get_accountid, get_blocknumber, get_identity, get_maintenance, get_nonce,
-		get_processed_block, get_version, reset_nonce, set_blocknumber, set_processed_block,
-		SharedState, StateConfig,
+		get_accountid, get_blocknumber, get_identity, get_maintenance,
+		get_nft_availability_map_len, get_nonce, get_processed_block, get_version, reset_nonce,
+		set_blocknumber, set_processed_block, SharedState, StateConfig,
 	},
 };
 
-use crate::{
-	backup::admin_bulk::{admin_backup_fetch_bulk, admin_backup_push_bulk},
-	backup::admin_nftid::admin_backup_fetch_id,
+use crate::backup::{
+	admin_bulk::{admin_backup_fetch_bulk, admin_backup_push_bulk},
+	admin_nftid::admin_backup_fetch_id,
 };
 
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
@@ -204,7 +206,8 @@ pub async fn http_server() -> Result<Router, Error> {
 					.await
 					{
 						Ok(_) => {
-							// TODO [Disaster recovery] : What if all clusters are down, What block_number should be set as last_sync_block
+							// TODO [Disaster recovery] : What if all clusters are down, What
+							// block_number should be set as last_sync_block
 							let _ = set_sync_state(current_block_number.to_string());
 							info!(
 								"ENCLAVE START : SETUP-MODE : First Synchronization of Keyshares complete up to block number : {}.",
@@ -259,7 +262,8 @@ pub async fn http_server() -> Result<Router, Error> {
 						current_block_number
 					);
 					// Changes may happen in clusters and enclaves while this enclave has been down.
-					// TODO [future] : use Indexer if the difference between current_block >> past_block is large
+					// TODO [future] : use Indexer if the difference between current_block >>
+					// past_block is large
 					match crawl_sync_events(
 						&state_config,
 						synced_block_number,
@@ -466,8 +470,9 @@ pub async fn http_server() -> Result<Router, Error> {
 						};
 
 						if sync_state == "setup" {
-							// Here is Identity discovery, thus the first synchronization of all files.
-							// An empty HashMap is the wildcard signal to fetch all keyshares from nearby enclave
+							// Here is Identity discovery, thus the first synchronization of all
+							// files. An empty HashMap is the wildcard signal to fetch all keyshares
+							// from nearby enclave
 							for _retry in 0..RETRY_COUNT {
 								match fetch_keyshares(
 									&state_config.clone(),
@@ -476,7 +481,8 @@ pub async fn http_server() -> Result<Router, Error> {
 								.await
 								{
 									Ok(_) => {
-										// TODO [discussion] : should not Blindly putting current block_number as the last updated keyshare's block_number
+										// TODO [discussion] : should not Blindly putting current
+										// block_number as the last updated keyshare's block_number
 										let _ = set_sync_state(block_number.to_string());
 										info!("\t\t > SETUP Synchronization of Keyshares complete to the block number: {} .",block_number);
 										break; // BREAK THE RETRY
@@ -499,7 +505,8 @@ pub async fn http_server() -> Result<Router, Error> {
 					// Cluster discovery Error
 					Err(err) => {
 						error!("\t > Error during running-mode cluster discovery {err:?}");
-						// TODO [decision] : Integrity of clusters is corrupted. what to do? Going to maintenace mode and stop serving to API calls? Wipe?
+						// TODO [decision] : Integrity of clusters is corrupted. what to do? Going
+						// to maintenace mode and stop serving to API calls? Wipe?
 						continue;
 					},
 				}
@@ -508,7 +515,7 @@ pub async fn http_server() -> Result<Router, Error> {
 			// New Capsule/Secret are found
 			if !new_nft.is_empty() {
 				debug!(
-					" > Runtime mode : NEW-NFT : New nft/capsul event detected, block number = {}",
+					" > Runtime mode : NEW-NFT : New nft/capsule event detected, block number = {}",
 					block_number
 				);
 
@@ -539,7 +546,8 @@ pub async fn http_server() -> Result<Router, Error> {
 				},
 			};
 
-			// IMPORTANT : Check for Runtime mode : if integrity of clusters fails, we'll wait and go back to setup-mode
+			// IMPORTANT : Check for Runtime mode : if integrity of clusters fails, we'll wait and
+			// go back to setup-mode
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
 				trace!(" > Runtime mode : SyncStat = {}", sync_state);
 				// If no event has detected in 10 blocks, network disconnections happened, ...
@@ -687,6 +695,7 @@ pub struct HealthResponse {
 	pub chain: String,
 	pub block_number: u32,
 	pub sync_state: String,
+	pub secrets_number: Option<u32>,
 	pub version: String,
 	pub description: String,
 	pub enclave_address: String,
@@ -694,16 +703,16 @@ pub struct HealthResponse {
 
 /// Health check endpoint
 async fn get_health_status(State(state): State<SharedState>) -> impl IntoResponse {
-	debug!("\t Healthchek handler");
+	trace!("\t Healthcheck handler Start");
 
 	match evalueate_health_status(&state).await {
 		Some(response) => {
-			debug!("Healthchek exit successfully .");
+			trace!("Healthcheck handler exit successfully .");
 			response.into_response()
 		},
 
 		_ => {
-			let message = "Healthchek handler : exited with None.".to_string();
+			let message = "Healthcheck handler error : exited with None.".to_string();
 			error!(message);
 			sentry::with_scope(
 				|scope| {
@@ -718,21 +727,22 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 			let sync_state = match get_sync_state() {
 				Ok(st) => st,
 				Err(err) => {
-					error!("Healthchek handler : error : unable to read the sync state");
+					error!("Healthcheck handler error : unable to read the sync state");
 					"Unknown".to_string()
 				},
 			};
+			let secrets_number = Some(get_nft_availability_map_len(&state).await);
 
-			let chain = if cfg!(feature = "main-net") {
-				"main-net".to_string()
-			} else if cfg!(feature = "alpha-net") {
-				"alpha-net".to_string()
-			} else if cfg!(feature = "dev0-net") {
-				"dev0-net".to_string()
-			} else if cfg!(feature = "dev1-net") {
-				"dev1-net".to_string()
+			let chain = if cfg!(feature = "mainnet") {
+				"mainnet".to_string()
+			} else if cfg!(feature = "alphanet") {
+				"alphanet".to_string()
+			} else if cfg!(feature = "dev0") {
+				"dev0".to_string()
+			} else if cfg!(feature = "dev1") {
+				"dev1".to_string()
 			} else {
-				"local-net".to_string()
+				"localchain".to_string()
 			};
 
 			(
@@ -740,6 +750,7 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 				Json(HealthResponse {
 					chain,
 					sync_state,
+					secrets_number,
 					description: "Healthcheck returned NONE".to_string(),
 					block_number,
 					version: binary_version,
@@ -763,7 +774,7 @@ async fn evalueate_health_status(
 	let binary_version = get_version(state).await;
 	let enclave_address = get_accountid(state).await;
 
-	debug!("Healthcheck : get public key.");
+	trace!("Healthcheck : get public key.");
 	// TODO [error handling] : ADD RPC PROBLEM/TIMEOUT
 	let sync_state = match get_sync_state() {
 		Ok(st) => st,
@@ -773,26 +784,32 @@ async fn evalueate_health_status(
 		},
 	};
 
+	trace!("Healthcheck handler : get availability map");
+	let secrets_number = Some(get_nft_availability_map_len(state).await);
+
+	trace!("Healthcheck handler : get maintenance");
 	let maintenance = get_maintenance(state).await;
 
-	let chain = if cfg!(feature = "main-net") {
-		"main-net".to_string()
-	} else if cfg!(feature = "alpha-net") {
-		"alpha-net".to_string()
-	} else if cfg!(feature = "dev0-net") {
-		"dev0-net".to_string()
-	} else if cfg!(feature = "dev1-net") {
-		"dev1-net".to_string()
+	let chain = if cfg!(feature = "mainnet") {
+		"mainnet".to_string()
+	} else if cfg!(feature = "alphanet") {
+		"alphanet".to_string()
+	} else if cfg!(feature = "dev0") {
+		"dev0".to_string()
+	} else if cfg!(feature = "dev1") {
+		"dev1".to_string()
 	} else {
-		"local-net".to_string()
+		"localchain".to_string()
 	};
 
 	if !maintenance.is_empty() {
+		trace!("Healthcheck handler : maintenance mode");
 		return Some((
 			StatusCode::PROCESSING,
 			Json(HealthResponse {
 				chain,
 				sync_state,
+				secrets_number,
 				block_number,
 				version: binary_version,
 				description: maintenance,
@@ -801,11 +818,27 @@ async fn evalueate_health_status(
 		));
 	}
 
+	trace!("Healthcheck handler : get sync status");
+	let status = match sync_state.as_str() {
+		"" => StatusCode::PARTIAL_CONTENT,
+		"setup" => StatusCode::RESET_CONTENT,
+		_ => {
+			if sync_state.parse::<u32>().is_ok() {
+				StatusCode::OK
+			} else {
+				StatusCode::NOT_ACCEPTABLE
+			}
+		},
+	};
+
+	trace!("Healthcheck handler : state={status:?}");
+
 	Some((
-		StatusCode::OK,
+		status,
 		Json(HealthResponse {
 			chain,
 			sync_state,
+			secrets_number,
 			block_number,
 			version: binary_version,
 			description: "SGX server is running!".to_string(),
