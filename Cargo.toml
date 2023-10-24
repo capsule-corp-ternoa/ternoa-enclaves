@@ -17,12 +17,11 @@ graphql_client = "0.13.0"
 
 # Server
 axum = {version = "0.6.20", features = ["ws", "headers", "macros", "multipart", "tokio"]}
-#axum-jrpc = {version = "0.5.1", default-features=false}
 axum-server = { version = "0.5", features = ["tls-rustls"] }
 rustls = "0.21.6"
 
 tokio = { version = "1.30", features = ["full"] }
-tokio-util = "0.7.7"
+tokio-util = "0.7.9"
 tokio-stream = { version="0.1.9", features = ["net"] }
 
 tower-http = { version = "0.4.3", features = ["add-extension","cors","fs","trace","timeout", "limit"] }
@@ -30,7 +29,7 @@ tower = {version = "0.4.13", features = ["timeout", "util"]}
 urlencoding = "2.1.3"
 
 # codec
-serde_json = "1.0.91"
+serde_json = "1.0.107"
 serde = { version = "1.0.183", features = ["derive"] }
 hex = "0.4.3"
 base64 = "0.21.0"
@@ -38,15 +37,15 @@ zip = "0.6.4"
 async_zip = {version = "0.0.15", features = ["deflate"]}
 
 # Time and Trace
-chrono = "0.4.23"
+chrono = "0.4.31"
 tokio-cron-scheduler = "0.9.4"
 tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.11", features = ["env-filter", "fmt"] }
-sentry = { version = "0.31.6", features = ["anyhow", "debug-images", "tracing", "tower", "tower-http"] }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter", "fmt"] }
+sentry = { version = "0.31.7", features = ["anyhow", "debug-images", "tracing", "tower", "tower-http"] }
 
 # Tools
 cached = "0.45.1"
-clap = { version = "4.3.21", features = ["derive"] }
+clap = { version = "4.4.4", features = ["derive"] }
 sysinfo = "0.29.10"
 anyhow = "1.0.72"
 walkdir = "2.3.2"
@@ -57,11 +56,11 @@ tokio-test = "0.4.2"
 async-trait = "0.1.61"
 
 # Ternoa/Polkadot
-parity-scale-codec = { version = "3.6.4", default-features = false, features = ["derive", "full", "bit-vec"] }
-jsonrpsee-ws-client = { version = "0.20.0", features = ["webpki-tls"] }
+parity-scale-codec = { version = "3.6.5", default-features = false, features = ["derive", "full", "bit-vec"] }
+#jsonrpsee-ws-client = { version = "0.20.1", features = ["webpki-tls"] }
 subxt = { version = "0.31.0" , features = ["substrate-compat"]}
-sp-keyring = "25.0.0"
-sp-runtime = { version = "25.0.0" }
+#sp-keyring = "25.0.0"
+#sp-runtime = { version = "25.0.0" }
 #sp-core = { version = "22.0.0", default-features = false, features = ["full_crypto"] }
 
 # Crypto / Keys
@@ -79,9 +78,9 @@ panic = "abort"
 sequoia-openpgp = "1.13.0"
 
 [features]
-default = ["dev0-net"]
-main-net = []
-alpha-net = []
-dev1-net = []
-dev0-net = []
-local-net = []
+default = ["alphanet"]
+mainnet = []
+alphanet = []
+dev1 = []
+dev0 = []
+localchain = []

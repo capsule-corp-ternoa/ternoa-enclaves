@@ -4,12 +4,12 @@ A tool to generate signed json body to be used for in Postman/cUrl requests to T
 
 ## Build
 
-Compile the binary for your desired chain, i.e dev-0, alpha-net, main-net
+Compile the binary for your desired chain, i.e dev-0, alphanet, mainnet
 
-default feature is alpha-net.
+default feature is alphanet.
 
 ``` shell
-cargo build --release --no-default-features --features main-net
+cargo build --release --no-default-features --features mainnet
 ```
 
 ## Run

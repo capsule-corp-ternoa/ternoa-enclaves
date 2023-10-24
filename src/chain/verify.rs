@@ -7,8 +7,10 @@ use hex::FromHex;
 use serde_json::Value;
 use std::str::FromStr;
 
-use subxt::ext::sp_core::{crypto::Ss58Codec, sr25519, ByteArray, Pair};
-use subxt::utils::AccountId32;
+use subxt::{
+	ext::sp_core::{crypto::Ss58Codec, sr25519, ByteArray, Pair},
+	utils::AccountId32,
+};
 
 use serde::{Deserialize, Serialize};
 

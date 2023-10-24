@@ -7,15 +7,14 @@ use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
 use serde::Serialize;
 
-use jsonrpsee_ws_client;
-use jsonrpsee_ws_client::WsClientBuilder;
+//use jsonrpsee_ws_client;
+//use jsonrpsee_ws_client::WsClientBuilder;
 
 use std::fmt;
 use subxt::{
 	ext::sp_core::H256,
 	storage::address::{Address, StaticStorageMapKey, Yes},
-	tx::PairSigner,
-	tx::Signer,
+	tx::{PairSigner, Signer},
 	utils::AccountId32,
 	Error, OnlineClient, PolkadotConfig,
 };
@@ -23,21 +22,15 @@ use subxt::{
 use tracing::{debug, error, info, trace};
 
 #[cfg_attr(
-	feature = "main-net",
-	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_mainnet.scale")
+	feature = "mainnet",
+	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_mainnet.scale")
 )]
 #[cfg_attr(
-	feature = "alpha-net",
-	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_alphanet.scale")
+	feature = "alphanet",
+	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_alphanet.scale")
 )]
-#[cfg_attr(
-	feature = "dev1-net",
-	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev1.scale")
-)]
-#[cfg_attr(
-	feature = "dev0-net",
-	subxt::subxt(runtime_metadata_path = "./credentials/artifacts/ternoa_dev0.scale")
-)]
+#[cfg_attr(feature = "dev1", subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev1.scale"))]
+#[cfg_attr(feature = "dev0", subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev0.scale"))]
 
 pub mod ternoa {}
 use crate::servers::state::*;
@@ -63,13 +56,13 @@ pub enum ReturnStatus {
 pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	debug!("CHAIN : get chain API");
 
-	let rpc_endoint = if cfg!(feature = "main-net") {
+	let rpc_endoint = if cfg!(feature = "mainnet") {
 		"wss://mainnet.ternoa.network:443".to_string()
-	} else if cfg!(feature = "alpha-net") {
+	} else if cfg!(feature = "alphanet") {
 		"wss://alphanet.ternoa.com:443".to_string()
-	} else if cfg!(feature = "dev1-net") {
+	} else if cfg!(feature = "dev1") {
 		"wss://dev-1.ternoa.network:443".to_string()
-	} else if cfg!(feature = "dev0-net") {
+	} else if cfg!(feature = "dev0") {
 		"wss://dev-0.ternoa.network:443".to_string()
 	} else {
 		"ws://localhost:9944".to_string()
@@ -367,8 +360,8 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 
 // TODO [code style] : Define macro for nft/capsule
 // TODO [future metric server] : Proof of storage (through heart-beats)
-// TODO [idea - future ZK]: Proof of decryption (i.e This key-share belongs to the key for decrypting the corresponding
-// nft media file on IPFS)
+// TODO [idea - future ZK]: Proof of decryption (i.e This key-share belongs to the key for
+// decrypting the corresponding nft media file on IPFS)
 
 /// Add a secret shard to the NFT/Capsule
 /// # Arguments

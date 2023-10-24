@@ -36,7 +36,6 @@ sgx.allowed_files = [
 
 sgx.trusted_files = [
   "file:{{ self_exe }}",
-  "file:bin/sgx_server.sig",
   "file:trusted/",
 ]
 

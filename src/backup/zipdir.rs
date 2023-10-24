@@ -3,11 +3,13 @@ use std::{
 	io::{self, prelude::*, Seek, Write},
 	iter::Iterator,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 use zip::{result::ZipError, write::FileOptions};
 
 use std::{fs::File, path::Path};
 use walkdir::{DirEntry, WalkDir};
+
+use crate::chain::constants::SEALPATH;
 
 const METHOD_DEFLATED: zip::CompressionMethod = zip::CompressionMethod::Deflated;
 
@@ -58,6 +60,11 @@ where
 		let file_ext = match path.extension().and_then(std::ffi::OsStr::to_str) {
 			Some(ext) => ext,
 			None => {
+				// exception for seal-path entry
+				if path == Path::new(SEALPATH) {
+					continue
+				}
+
 				error!("ZIPDIR => CAN NOT extract file-extention from {:?}", path);
 				continue;
 			},
@@ -87,10 +94,10 @@ where
 			// Wildcard for Synching in maintenacne mode
 			if list[0] == "*" {
 				// Filter out the enclave_account.key and log files
-				debug!("\t ZIPDIR : WILDCARD : file-name = {:?}", name_ext);
+				trace!("\t ZIPDIR : WILDCARD : file-name = {:?}", name_ext);
 
 				if file_ext.is_empty() || file_ext != "keyshare" {
-					debug!(
+					trace!(
 						"\t ZIPDIR => improper file-extension for synchronization = {:?}",
 						name_ext
 					);
@@ -101,7 +108,7 @@ where
 				let name_parts: Vec<&str> = file_name.split('_').collect();
 
 				// Keyshare file name = [nft/capsule]_[nftid]_[blocknumber].keyshare
-				debug!("\t ZIPDIR => nameparts = {:?}, list = {:?}\n", name_parts, list);
+				trace!("\t ZIPDIR => nameparts = {:?}, list = {:?}\n", name_parts, list);
 
 				// File Name : NFT_NFTID_BLOCKNUMBER : nft_123_2345
 				if file_ext.is_empty()
@@ -114,7 +121,7 @@ where
 					// Capsules waiting to be synced
 					|| name_parts[2].parse::<u32>() == Ok(0)
 				{
-					debug!(
+					trace!(
 						"\t ZIPDIR => Improper file name-parts for synchronization = {:?}",
 						file_name
 					);
@@ -126,7 +133,7 @@ where
 		// Write file or directory explicitly
 		// Some unzip tools unzip files with directory paths correctly, some do not!
 		if path.is_file() {
-			debug!("\t ZIPDIR => adding file {:?} as {:?} ...", path, name_ext);
+			trace!("\t ZIPDIR => adding file {:?} as {:?} ...", path, name_ext);
 			#[allow(deprecated)]
 			zip.start_file_from_path(name_ext, options)?;
 			let mut f = File::open(path)?;
@@ -137,7 +144,7 @@ where
 		} else if !name_ext.as_os_str().is_empty() {
 			// Only if not root! Avoids path spec / warning
 			// and mapname conversion failed error on unzip
-			tracing::debug!("\t ZIPDIR => adding dir {:?} as {:?} ...", path, name_ext);
+			debug!("\t ZIPDIR => adding dir {:?} as {:?} ...", path, name_ext);
 			#[allow(deprecated)]
 			zip.add_directory_from_path(name_ext, options)?;
 		}
@@ -154,12 +161,10 @@ fn doit(
 	dst_file: &str,
 	method: zip::CompressionMethod,
 ) -> zip::result::ZipResult<()> {
-	//debug!("zip doit :src_dir = {}, ",src_dir, );
 	if !Path::new(src_dir).is_dir() {
 		return Err(ZipError::FileNotFound);
 	}
 	let path = Path::new(dst_file);
-	//debug!("zip doit : file = {:?}, ", path);
 	let file = File::create(path)?;
 
 	let walkdir = WalkDir::new(src_dir).max_depth(1);
@@ -245,7 +250,7 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 					match fs::create_dir_all(p) {
 						Ok(_file) => info!("Backup extract : create {:?}", p),
 						Err(err) => {
-							error!("Backup extract : error creating paretn directory : {err:?}");
+							error!("Backup extract : error creating parent directory : {err:?}");
 							return Err(zip::result::ZipError::Io(err));
 						},
 					}
