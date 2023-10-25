@@ -160,7 +160,7 @@ pub async fn metric_reconcilliation(
 	let current_block_number = get_blocknumber(&state).await;
 
 	debug!("METRIC GET NFT LIST : VERIFY ACCOUNT ID");
-	if verify_account_id(&state, &request.metric_account).await {
+	if !verify_account_id(&state, &request.metric_account).await {
 		let message =
 			"METRIC GET NFT LIST : Error : Requester Account is not authorized".to_string();
 		return error_handler(message, &state).await.into_response();
