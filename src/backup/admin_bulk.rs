@@ -11,7 +11,12 @@ use axum::{
 };
 use hyper::StatusCode;
 use subxt::{
-	ext::sp_core::{crypto::PublicError, crypto::Ss58Codec, sr25519, sr25519::Signature, Pair},
+	ext::sp_core::{
+		crypto::{PublicError, Ss58Codec},
+		sr25519,
+		sr25519::Signature,
+		Pair,
+	},
 	utils::AccountId32,
 };
 
@@ -179,7 +184,7 @@ impl StoreAuthenticationToken {
 		 VERIFICATION FUNCTIONS
 **************************************** */
 
-//// Verify Account Id if it is Whitelisted
+/// Verify Account Id if it is Whitelisted
 /// # Arguments
 /// * `account_id` - Account ID
 /// # Returns
@@ -744,7 +749,7 @@ pub async fn admin_backup_push_bulk(
 					"warning": format!("Backup success with Error in removing zip file, {:?}",err),
 				})),
 			)
-				.into_response();
+				.into_response()
 		},
 	};
 

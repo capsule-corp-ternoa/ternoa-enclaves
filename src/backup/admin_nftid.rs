@@ -287,7 +287,7 @@ pub async fn admin_backup_fetch_id(
 			_ => {
 				return error_handler("Strip Token prefix error".to_string(), &state)
 					.await
-					.into_response();
+					.into_response()
 			},
 		};
 
@@ -299,7 +299,7 @@ pub async fn admin_backup_fetch_id(
 					&state,
 				)
 				.await
-				.into_response();
+				.into_response()
 			},
 		}
 	}
@@ -441,7 +441,7 @@ pub async fn admin_backup_push_id(
 			_ => {
 				return error_handler("Strip Token prefix error".to_string(), &state)
 					.await
-					.into_response();
+					.into_response()
 			},
 		};
 
@@ -453,7 +453,7 @@ pub async fn admin_backup_push_id(
 					&state,
 				)
 				.await
-				.into_response();
+				.into_response()
 			},
 		}
 	}
@@ -664,10 +664,8 @@ mod test {
 	};
 
 	use serde_json::{json, Value};
-	use std::net::SocketAddr;
-	use std::sync::Arc;
-	use tokio::net::TcpListener;
-	use tokio::sync::RwLock;
+	use std::{net::SocketAddr, sync::Arc};
+	use tokio::{net::TcpListener, sync::RwLock};
 	use tower::Service; // for `call`
 	use tower::ServiceExt;
 	use tracing::Level;
@@ -722,7 +720,8 @@ mod test {
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));
 
-		//let app = Router::new().route("/admin_backup_fetch_id", post(admin_backup_fetch_id)).with_state(state_config);
+		//let app = Router::new().route("/admin_backup_fetch_id",
+		// post(admin_backup_fetch_id)).with_state(state_config);
 		let mut app = match crate::servers::http_server::http_server().await {
 			Ok(r) => r,
 			Err(err) => {

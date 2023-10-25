@@ -6,8 +6,10 @@ use clap::Parser;
 use hex::{FromHex, FromHexError};
 use serde_json::{json, Value};
 use subxt::{
-	ext::sp_core::{crypto::Ss58Codec, sr25519, Pair, crypto::PublicError, sr25519::Signature},
-	tx::PairSigner, utils::AccountId32, Error, OnlineClient, PolkadotConfig, 
+	ext::sp_core::{crypto::PublicError, crypto::Ss58Codec, sr25519, sr25519::Signature, Pair},
+	tx::PairSigner,
+	utils::AccountId32,
+	Error, OnlineClient, PolkadotConfig,
 };
 
 use std::{
@@ -21,20 +23,20 @@ use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(
-	feature = "main-net",
-	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_mainnet.scale")
+	feature = "mainnet",
+	subxt::subxt(runtime_metadata_path = "../artifacts/ternoa_mainnet.scale")
 )]
 #[cfg_attr(
-	feature = "alpha-net",
-	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_alphanet.scale")
+	feature = "alphanet",
+	subxt::subxt(runtime_metadata_path = "../artifacts/ternoa_alphanet.scale")
 )]
 #[cfg_attr(
-	feature = "dev1-net",
-	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev1.scale")
+	feature = "dev1",
+	subxt::subxt(runtime_metadata_path = "../artifacts/ternoa_dev1.scale")
 )]
 #[cfg_attr(
-	feature = "dev0-net",
-	subxt::subxt(runtime_metadata_path = "../credentials/artifacts/ternoa_dev0.scale")
+	feature = "dev0",
+	subxt::subxt(runtime_metadata_path = "../artifacts/ternoa_dev0.scale")
 )]
 
 pub mod ternoa {}
@@ -48,13 +50,13 @@ type DefaultApi = OnlineClient<PolkadotConfig>;
 pub async fn get_chain_api() -> Result<DefaultApi, Error> {
 	debug!("5-1 get chain API");
 
-	let rpc_endoint = if cfg!(feature = "main-net") {
+	let rpc_endoint = if cfg!(feature = "mainnet") {
 		"wss://mainnet.ternoa.network:443".to_string()
-	} else if cfg!(feature = "alpha-net") {
+	} else if cfg!(feature = "alphanet") {
 		"wss://alphanet.ternoa.com:443".to_string()
-	} else if cfg!(feature = "dev1-net") {
+	} else if cfg!(feature = "dev1") {
 		"wss://dev-1.ternoa.network:443".to_string()
-	} else if cfg!(feature = "dev0-net") {
+	} else if cfg!(feature = "dev0") {
 		"wss://dev-0.ternoa.network:443".to_string()
 	} else {
 		return Err(Error::Other("Unknown chain".to_string()));
@@ -168,13 +170,35 @@ pub struct IdPacket {
 }
 
 /* *************************************
+		METRIC DATA STRUCTURES
+**************************************** */
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ReconAuthenticationToken {
+	pub block_number: u32,
+	pub block_validation: u32,
+	pub data_hash: String,
+}
+
+/// Fetch NFTID Data
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ReconPacket {
+	metric_account: String,
+	block_interval: String,
+	auth_token: String,
+	signature: String,
+}
+
+/* *************************************
 			INPUT ARGUMENTS
 **************************************** */
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-	/// Request type : [retrieve, store] for secrets [fetch-bulk, push-bulk, fetch-id, push-id] for backup
+	/// Request type : [retrieve, store] for secrets
+	/// Request type : [fetch-bulk, push-bulk, fetch-id, push-id] for backup
+	/// Request type : [reconcilliation] for metrics
 	#[arg(short, long, default_value_t = String::new())]
 	request: String,
 
@@ -193,6 +217,10 @@ struct Args {
 	/// NFTID Vector of the secret to be fetched or pushed by admin
 	#[arg(short, long, default_value_t = String::new())]
 	id_vec: String,
+
+	/// Block-Number Interval as a Vector to check the nft-ids in that interval
+	#[arg(short, long, default_value_t = String::new())]
+	block_interval: String,
 
 	/// Path to (ZIP-) File, containing sealed NFT key-shares backups
 	#[arg(short, long, default_value_t = String::new())]
@@ -234,27 +262,35 @@ async fn main() {
 			_ => println!("\n Please provide a valid request type \n"),
 		}
 		return;
-	}else if std::path::Path::new(&args.file).exists() {
+	} else if std::path::Path::new(&args.file).exists() {
 		match args.request.to_lowercase().as_str() {
 			"push-bulk" => generate_push_bulk(args.seed.clone(), args.file).await,
 			"fetch-bulk" => generate_fetch_bulk(args.seed.clone()).await,
 			_ => println!("\n Please provide a valid request type \n"),
 		}
 		return;
-	}else if !args.id_vec.is_empty() {
+	} else if !args.id_vec.is_empty() {
 		match args.request.to_lowercase().as_str() {
 			"push-id" => generate_push_id(args.seed.clone(), args.id_vec).await,
 			"fetch-id" => generate_fetch_id(args.seed.clone(), args.id_vec).await,
 			_ => println!("\n Please provide a valid request type \n"),
 		}
 		return;
-	}else if !args.quote.is_empty() {
+	} else if !args.block_interval.is_empty() {
+		match args.request.to_lowercase().as_str() {
+			"reconcilliation" => {
+				generate_reconcilliation(args.seed.clone(), args.block_interval).await
+			},
+			_ => println!("\n Please provide a valid request type \n"),
+		}
+		return;
+	} else if !args.quote.is_empty() {
 		match args.request.to_lowercase().as_str() {
 			"attest" => generate_attestation(args.seed.clone(), args.quote).await,
 			_ => println!("\n Please provide a valid request type \n"),
 		}
 		return;
-	}else {
+	} else {
 		println!("\n Please provide either a valid NFTID, ID_VEC or Custom Data \n");
 		return;
 	}
@@ -270,7 +306,8 @@ async fn generate_fetch_bulk(seed_phrase: String) {
 	let current_block_number = get_current_block_number().await.unwrap();
 
 	let admin_account = admin.public().to_ss58check();
-	let auth = FetchAuthenticationToken { block_number: current_block_number, block_validation: 10 };
+	let auth =
+		FetchAuthenticationToken { block_number: current_block_number, block_validation: 10 };
 	let auth_str = serde_json::to_string(&auth).unwrap();
 	let signature = admin.sign(auth_str.as_bytes());
 
@@ -331,17 +368,16 @@ async fn generate_fetch_id(seed_phrase: String, id_vec: String) {
 
 	let admin_account = admin.public().to_ss58check();
 	let hash = sha256::digest(id_vec.as_bytes());
-	let auth = IdAuthenticationToken { block_number: current_block_number, block_validation: 10, data_hash: hash };
+	let auth = IdAuthenticationToken {
+		block_number: current_block_number,
+		block_validation: 10,
+		data_hash: hash,
+	};
 	let auth_str = serde_json::to_string(&auth).unwrap();
 	let sig = admin.sign(auth_str.as_bytes());
-	let signature = format!("0x{:?}",sig);
+	let signature = format!("0x{:?}", sig);
 
-	let packet = IdPacket {
-		admin_account,
-		id_vec,
-		auth_token: auth_str,
-		signature,
-	};
+	let packet = IdPacket { admin_account, id_vec, auth_token: auth_str, signature };
 
 	println!(
 		"================================== Backup Fetch ID Packet = \n{}\n",
@@ -361,25 +397,44 @@ async fn generate_push_id(seed_phrase: String, id_vec: String) {
 
 	let data_hash = sha256::digest(id_vec.as_bytes());
 
-	let auth = IdAuthenticationToken {
-		block_number,
-		block_validation: 10,
-		data_hash,
-	};
+	let auth = IdAuthenticationToken { block_number, block_validation: 10, data_hash };
 
 	let auth_str = serde_json::to_string(&auth).unwrap();
 	let sig = admin.sign(auth_str.as_bytes());
 	let signature = format!("0x{:?}", sig);
 
-	let packet = IdPacket {
-		admin_account,
-		id_vec,
-		auth_token: auth_str,
-		signature,
-	};
+	let packet = IdPacket { admin_account, id_vec, auth_token: auth_str, signature };
 
 	println!(
 		"================================== Backup Push ID Packet = \n{}\n",
+		serde_json::to_string_pretty(&packet).unwrap()
+	);
+}
+
+/* ************************
+  METRIC RECONCILLIATION
+*************************/
+
+async fn generate_reconcilliation(seed_phrase: String, block_interval: String) {
+	let metric = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
+
+	let current_block_number = get_current_block_number().await.unwrap();
+
+	let metric_account = metric.public().to_ss58check();
+	let hash = sha256::digest(block_interval.as_bytes());
+	let auth = ReconAuthenticationToken {
+		block_number: current_block_number,
+		block_validation: 10,
+		data_hash: hash,
+	};
+	let auth_str = serde_json::to_string(&auth).unwrap();
+	let sig = metric.sign(auth_str.as_bytes());
+	let signature = format!("0x{:?}", sig);
+
+	let packet = ReconPacket { metric_account, block_interval, auth_token: auth_str, signature };
+
+	println!(
+		"================================== Backup Fetch ID Packet = \n{}\n",
 		serde_json::to_string_pretty(&packet).unwrap()
 	);
 }
@@ -423,7 +478,6 @@ pub struct StoreKeysharePacket {
 }
 
 async fn generate_store_request(args: Args) {
-
 	let owner = sr25519::Pair::from_phrase(&args.seed, None).unwrap().0;
 	let signer = sr25519::Pair::generate().0;
 
@@ -439,17 +493,14 @@ async fn generate_store_request(args: Args) {
 
 	let secret_share = if !args.secret_share.is_empty() {
 		args.secret_share
-	}else {
+	} else {
 		"This-is-a-Sample-Secret!@#$%^&*()1234567890".to_string()
 	};
 
 	let data = if !args.custom_data.is_empty() {
 		args.custom_data
 	} else {
-		format!(
-			"{}_{}_{}_{}",
-			args.nftid, secret_share, current_block_number, args.expire
-		)
+		format!("{}_{}_{}_{}", args.nftid, secret_share, current_block_number, args.expire)
 	};
 
 	let signature = signer.sign(data.as_bytes());
