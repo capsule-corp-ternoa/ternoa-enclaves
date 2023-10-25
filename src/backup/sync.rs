@@ -12,8 +12,11 @@ use std::{
 };
 
 use axum::{
-	body::StreamBody, extract::ConnectInfo, extract::State, http::header, http::StatusCode,
-	response::IntoResponse, Json,
+	body::StreamBody,
+	extract::{ConnectInfo, State},
+	http::{header, StatusCode},
+	response::IntoResponse,
+	Json,
 };
 use hex::{FromHex, FromHexError};
 use reqwest::tls;
@@ -256,7 +259,8 @@ pub async fn sync_keyshares(
 ) -> impl IntoResponse {
 	debug!("\n\t----\nSYNC KEYSHARES : START\n\t----\n");
 
-	//update_health_status(&state, "Enclave is Syncing Keyshare, please wait...".to_string()).await;
+	//update_health_status(&state, "Enclave is Syncing Keyshare, please
+	// wait...".to_string()).await;
 
 	let current_block_number = get_blocknumber(&state).await;
 
@@ -287,7 +291,7 @@ pub async fn sync_keyshares(
 					&state,
 				)
 				.await
-				.into_response();
+				.into_response()
 			},
 		};
 
@@ -299,7 +303,7 @@ pub async fn sync_keyshares(
 					&state,
 				)
 				.await
-				.into_response();
+				.into_response()
 			},
 		}
 	}
@@ -360,10 +364,10 @@ pub async fn sync_keyshares(
 	// Create a client
 	let client = match reqwest::Client::builder()
 		// This is for development, will be removed for production certs
-		.danger_accept_invalid_certs(!cfg!(any(feature = "main-net", feature = "alpha-net")))
+		.danger_accept_invalid_certs(!cfg!(any(feature = "mainnet", feature = "alphanet")))
 		.https_only(true)
 		//.use_rustls_tls()
-		// .min_tls_version(if cfg!(any(feature = "main-net", feature = "alpha-net")) {
+		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
 		// 	tls::Version::TLS_1_0
@@ -404,7 +408,8 @@ pub async fn sync_keyshares(
 	// 	{
 	// 		Ok(res) => res,
 	// 		Err(err) => {
-	// 			let message = format!("SYNC KEYSHARES : Healthcheck : Error getting health-check response from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
+	// 			let message = format!("SYNC KEYSHARES : Healthcheck : Error getting health-check response
+	// from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
 	// 			error!(message);
 	// 			warn!("SYNC KEYSHARES : Healthcheck : Delay and Retry ");
 	// 			// A delay to prevent conflict
@@ -416,7 +421,8 @@ pub async fn sync_keyshares(
 	// 	// Analyze the Response
 	// 	let health_status = health_response.status();
 
-	// 	// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
+	// 	// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for
+	// Wildcard)
 
 	// 	if health_status != StatusCode::OK {
 	// 		let message = format!(
@@ -498,9 +504,10 @@ pub async fn sync_keyshares(
 		},
 	};
 
-	debug!(
+	trace!(
 		"SYNC KEYSHARES : Quote Result for url : {} is {:#?}",
-		requester.1.enclave_url, quote_body
+		requester.1.enclave_url,
+		quote_body
 	);
 
 	let account_keypair = get_keypair(&state).await;
@@ -570,9 +577,9 @@ pub async fn sync_keyshares(
 		},
 	};
 
-	debug!("SYNC KEYSHARES : Report map : {}", attest_dynamic_json["report"]);
+	trace!("SYNC KEYSHARES : Report map : {}", attest_dynamic_json["report"]);
 	let report_body_string = serde_json::to_string(&attest_dynamic_json["report"]);
-	debug!("SYNC KEYSHARES : Stringified report map : {:?}", report_body_string);
+	trace!("SYNC KEYSHARES : Stringified report map : {:?}", report_body_string);
 
 	let report: String = match report_body_string {
 		Ok(report) => report,
@@ -672,7 +679,10 @@ pub async fn sync_keyshares(
 
 	// Check attestation report status
 	if report["exit status"] != "0" {
-		let message = format!("SYNC KEYSHARES : Attestation IAS report failed : {}", report);
+		let message = format!(
+			"SYNC KEYSHARES : Attestation IAS report failed :: Requester: {} , Report : {report}",
+			requester.1.enclave_url
+		);
 		sentry::with_scope(
 			|scope| {
 				scope.set_tag("sync-keyshare", "attestation");
@@ -715,7 +725,7 @@ pub async fn sync_keyshares(
 	// SEPARATE ATTESTATION SERVER : We need to compare sending and receiving quote
 	// to make sure the receiving report, belongs to the proper quote
 	if !quote_body.data.starts_with(quote) {
-		debug!("Requested Quote = {} \n Returned Quote = {quote}", quote_body.data);
+		trace!("Requested Quote = {} \n Returned Quote = {quote}", quote_body.data);
 		let message = "SYNC KEYSHARES : Quote Mismatch".to_string();
 		sentry::with_scope(
 			|scope| {
@@ -733,7 +743,7 @@ pub async fn sync_keyshares(
 		.collect();
 
 	if report_data.len() < 128 {
-		debug!("SYNC KEYSHARES : quote-body in report = {quote}");
+		trace!("SYNC KEYSHARES : quote-body in report = {quote}");
 		let message =
 			format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
 		sentry::with_scope(
@@ -788,7 +798,7 @@ pub async fn sync_keyshares(
 					|| (current_block_number < token_block)
 					|| (current_block_number - token_block > 5)
 				{
-					let message = format!("SYNC KEYSHARES : TOKEN : Incompatible block numbers :\n Current blocknumber: {} >~ Token blocknumber: {} == Request blocknumber: {} ?", current_block_number, token_block, auth_token.block_number);
+					let message = format!("SYNC KEYSHARES : TOKEN : Incompatible/Outdated block numbers :\n Current blocknumber: {current_block_number} >~ Token blocknumber: {token_block} == Request blocknumber: {} ?", auth_token.block_number);
 					sentry::with_scope(
 						|scope| {
 							scope.set_tag("sync-keyshare", "attestation");
@@ -824,23 +834,23 @@ pub async fn sync_keyshares(
 	let zip_data = match fs::read(backup_file.clone()) {
 		Ok(data) => data,
 		Err(err) => {
-			return Json(json!({
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
 				"error": format!("SYNC KEYSHARES : Backup File not found: {}", err)
-			}))
+			})))
 			.into_response()
 		},
 	};
 
 	// Public-Key Encryption
 	let encryption_key = hex::decode(request.encryption_account).unwrap();
-	debug!("SYNC KEYSHARES : Encryption public key = {:?}", encryption_key);
+	trace!("SYNC KEYSHARES : Encryption public key = {:?}", encryption_key);
 	debug!("SYNC KEYSHARES : Encryption zip data length = {}", zip_data.len());
 	let encrypted_zip_data = match encrypt(&encryption_key, &zip_data) {
 		Ok(encrypted) => encrypted,
 		Err(err) => {
-			return Json(json!({
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
 				"error": format!("SYNC KEYSHARES : Failed to encrypt the zip data : {:?}", err)
-			}))
+			})))
 			.into_response()
 		},
 	};
@@ -848,7 +858,7 @@ pub async fn sync_keyshares(
 	// Remove Plain Data
 	match std::fs::remove_file(backup_file) {
 		Ok(_) => {
-			debug!("SYNC KEYSHARES : Successfully removed previous zip file")
+			trace!("SYNC KEYSHARES : Successfully removed previous zip file")
 		},
 		Err(err) => {
 			let message =
@@ -861,7 +871,7 @@ pub async fn sync_keyshares(
 	// TODO : Garbage Collection is needed
 	let encrypted_backup_file = format!("/temporary/encrypted_backup_{random_number}.zip");
 	match std::fs::write(encrypted_backup_file.clone(), encrypted_zip_data) {
-		Ok(_) => debug!("SYNC KEYSHARES : Successfully write encrypted zip data to streamfile"),
+		Ok(_) => trace!("SYNC KEYSHARES : Successfully write encrypted zip data to streamfile"),
 		Err(err) => {
 			return Json(json!({
 				"error":
@@ -879,9 +889,9 @@ pub async fn sync_keyshares(
 	let file = match tokio::fs::File::open(encrypted_backup_file).await {
 		Ok(file) => file,
 		Err(err) => {
-			return Json(json!({
+			return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
 				"error": format!("SYNC KEYSHARES : Encrypted backup File not found: {}", err)
-			}))
+			})))
 			.into_response()
 		},
 	};
@@ -953,10 +963,11 @@ pub async fn fetch_keyshares(
 	// Encode nftid to String
 	// If HashMap is empty, then it is called by a setup syncronization
 	let nftids_request = if new_nft_map.is_empty() {
-		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard for synchronization
-		// It is the first time running enclave
-		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
-		// TODO : for pagination, a new endpoint needed to report the number of keyshares stored on target enclave.
+		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard for
+		// synchronization It is the first time running enclave
+		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100,
+		// offset 2 TODO : for pagination, a new endpoint needed to report the number of keyshares
+		// stored on target enclave.
 		match serde_json::to_string(&vec!["*".to_string()]) {
 			Ok(strg) => strg,
 			Err(err) => {
@@ -1042,10 +1053,10 @@ pub async fn fetch_keyshares(
 	let encryption_public_key = hex::encode(encryption_pk);
 
 	let user_data_token = format!("{account_id}_{current_block_number}_{encryption_public_key}");
-	debug!("FETCH KEYSHARES : QUOTE : report_data token = {}", user_data_token);
+	trace!("FETCH KEYSHARES : QUOTE : report_data token = {}", user_data_token);
 
 	let user_data = account_keypair.sign(user_data_token.as_bytes());
-	debug!("FETCH KEYSHARES : QUOTE : report_data signature = {:?}", user_data);
+	trace!("FETCH KEYSHARES : QUOTE : report_data signature = {:?}", user_data);
 
 	match write_user_report_data(None, &user_data.0) {
 		Ok(_) => debug!("FETCH KEYSHARES : QUOTE : Successfully wrote user_data into the quote."),
@@ -1145,7 +1156,7 @@ pub async fn fetch_keyshares(
 
 	let request_body = match serde_json::to_string(&request) {
 		Ok(body) => {
-			debug!("FETCH KEYSHARES : Request Body : {:#?}\n", body);
+			trace!("FETCH KEYSHARES : Request Body : {:#?}\n", body);
 			body
 		},
 		Err(err) => {
@@ -1166,8 +1177,9 @@ pub async fn fetch_keyshares(
 	debug!("FETCH KEYSHARES : START SLOT DISCOVERY");
 	let slot_enclaves = slot_discovery(state).await;
 	if slot_enclaves.is_empty() {
-		// TODO : What about first cluster? should it continue as the Primary cluster in running-mode?
-		// TODO : otherwise we should have two clusters registered before starting enclaves with sync capability.
+		// TODO : What about first cluster? should it continue as the Primary cluster in
+		// running-mode? TODO : otherwise we should have two clusters registered before starting
+		// enclaves with sync capability.
 		if get_identity(state).await.is_some() {
 			warn!("FETCH KEYSHARES : No other similar slots found in other clusters, is this primary cluster?");
 			return Ok(current_block_number);
@@ -1186,12 +1198,12 @@ pub async fn fetch_keyshares(
 
 	let client = reqwest::Client::builder()
 		// This is for development, will be removed for production certs
-		.danger_accept_invalid_certs(!cfg!(any(feature = "main-net", feature = "alpha-net")))
+		.danger_accept_invalid_certs(!cfg!(any(feature = "mainnet", feature = "alphanet")))
 		.https_only(true)
 		// WebPKI
 		//.use_rustls_tls()
 		//.use_native_tls()
-		// .min_tls_version(if cfg!(any(feature = "main-net", feature = "alpha-net")) {
+		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
 		// 	tls::Version::TLS_1_3
 		// } else {
 		// 	tls::Version::TLS_1_0
@@ -1239,7 +1251,8 @@ pub async fn fetch_keyshares(
 		let health_status = health_response.status();
 
 		trace!("FETCH KEYSHARES : HEALTH CHECK : health response : {:#?}\n", health_response);
-		//debug!("FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n", health_response.text().await?);
+		//debug!("FETCH KEYSHARES : HEALTH CHECK : health response : {:?}\n",
+		// health_response.text().await?);
 
 		let response_body: HealthResponse = match health_response.json().await {
 			Ok(body) => body,
@@ -1300,6 +1313,12 @@ pub async fn fetch_keyshares(
 				 //return Err(anyhow!(err));
 			},
 		};
+		
+		if fetch_response.status() != StatusCode::OK {
+			error!("FETCH KEYSHARES : Fetch response status : {:#?}", fetch_response.status());
+			continue; // Next Cluster
+			//return Err(anyhow!(err));
+		}
 
 		let fetch_headers = fetch_response.headers();
 		trace!("FETCH KEYSHARES : zip response header : {:?}", fetch_headers);
@@ -1323,7 +1342,8 @@ pub async fn fetch_keyshares(
 			},
 		};
 
-		// TODO [decision - reliability] : What if the "chosen" Enclave is not ready? (low probability for runtime sync)
+		// TODO [decision - reliability] : What if the "chosen" Enclave is not ready? (low
+		// probability for runtime sync)
 		let decrypt_zip_data = match decrypt(&encryption_private_key, &fetch_body_bytes) {
 			Ok(decrypted) => decrypted,
 			Err(err) => {
@@ -1336,12 +1356,27 @@ pub async fn fetch_keyshares(
 					},
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
-				return Err(anyhow!(message));
+
+				match std::fs::remove_file(backup_file.clone()) {
+					Ok(_) => {
+						debug!("FETCH KEYSHARES : removed fetch zip file")
+					},
+					Err(err) => {
+						let message = format!(
+							"FETCH KEYSHARES : Error : Can not remove fetched zip file : {}",
+							err
+						);
+						warn!(message);
+					},
+				}
+				
+				continue; // Next Cluster
+				//return Err(anyhow!(err));
 			},
 		};
 
 		match zipfile.write_all(&decrypt_zip_data) {
-			Ok(_) => debug!("FETCH KEYSHARES : zip file is stored on disk."),
+			Ok(_) => debug!("FETCH KEYSHARES : decrypted fetch data is stored to zip file."),
 			Err(err) => {
 				let message = format!(
 					"FETCH KEYSHARES : Error writing received nft zip file to disk{:#?}",
@@ -1528,7 +1563,8 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 					cluster.id, enclave.slot
 				);
 				// Is this the registeration time?
-				// TODO [decision - development] : Prevent others from accessing enclave during setup mode.
+				// TODO [decision - development] : Prevent others from accessing enclave during
+				// setup mode.
 				match self_identity {
 					None => {
 						info!(
@@ -1610,7 +1646,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 // List of api_url of all the enclaves in all clusters with the same slot number as current enclave
 // This is essential for Synchronization and backup
 pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
-	debug!("SLOT-DISCOVERY : start");
+	debug!("SLOT-DISCOVERY : START");
 	let chain_clusters = get_clusters(state).await;
 
 	let mut slot_enclave = Vec::<(u32, Enclave)>::new();
@@ -2032,7 +2068,7 @@ pub async fn sync_zip_extract(
 			Some(ext) => match ext.to_str() {
 				Some(exts) => match exts {
 					"keyshare" => {
-						tracing::trace!(
+						trace!(
 							"FETCH KEYSHARES : ZIP EXTRACT : valid extension : {}",
 							exts
 						);
@@ -2099,7 +2135,7 @@ pub async fn sync_zip_extract(
 			},
 		};
 
-		let block_number = match name_parts[2].parse::<u32>() {
+		let keyshare_blocknumber = match name_parts[2].parse::<u32>() {
 			Ok(bn) => bn,
 			Err(err) => {
 				error!(
@@ -2115,11 +2151,11 @@ pub async fn sync_zip_extract(
 			None => {
 				debug!(
 					"FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : a new incoming nftid {} on block_number {}",
-					nftid, block_number
+					nftid, keyshare_blocknumber
 				);
 
 				let out_file_path =
-					format!("{SEALPATH}/{}_{nftid}_{block_number}.keyshare", name_parts[0]);
+					format!("{SEALPATH}/{}_{nftid}_{keyshare_blocknumber}.keyshare", name_parts[0]);
 
 				// CREATE NEW FILE ON DISK
 				let outfile = match OpenOptions::new()
@@ -2149,7 +2185,7 @@ pub async fn sync_zip_extract(
 
 				// DEFINE AVAILABILITY FOR MAP
 				let availability = Availability {
-					block_number,
+					block_number: keyshare_blocknumber,
 					nft_type: if name_parts[0] == "nft" {
 						NftType::Secret
 					} else {
@@ -2188,7 +2224,7 @@ pub async fn sync_zip_extract(
 					fs::Permissions::from_mode(entry_permission.into()),
 				) {
 					Ok(_) => {
-						tracing::trace!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : Permission set.")
+						trace!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : Permission set.")
 					},
 					Err(err) => {
 						warn!("FETCH KEYSHARES : ZIP EXTRACT : NEW NFT : error setting permission : {err:?}");
@@ -2202,21 +2238,17 @@ pub async fn sync_zip_extract(
 
 			// UPDATE CAPSULE/HYBRID KEY
 			Some(av) => {
-				if av.block_number >= block_number {
-					// OUTDATED SYNC FILE?
-					warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : block number is older than current nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, block_number);
+				if name_parts[0] == "nft" && av.nft_type == NftType::Secret {
+					debug!("FETCH KEYSHARES : ZIP EXTRACT : FORBIDDEN UPDATE : Secret nftid.{nftid} already exists, Secret should not be updated");
 					continue;
-				} else if name_parts[0] == "nft" {
-					// SECRET ?
-					warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : secrets update is not acceptable nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, block_number);
-					continue;
-				} else if name_parts[0] == "capsule" && av.nft_type == NftType::Secret {
+				}
+				else if (name_parts[0] == "capsule" && av.nft_type == NftType::Secret) || (name_parts[0] == "nft" && av.nft_type == NftType::Capsule) {
 					// HYBRID
-					warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : NFT type conversion detected : nftid {} : current nft_type {:?} <> incoming nft_type {}", nftid, av.nft_type, name_parts[0]);
+					debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : Joint Secret and Capsule detected : nftid {} : current nft_type {:?} <> incoming nft_type {}", nftid, av.nft_type, name_parts[0]);
 
 					// NEW FILE NAME
 					let out_file_path =
-						format!("{SEALPATH}capsule_{nftid}_{block_number}.keyshare");
+						format!("{SEALPATH}{}_{nftid}_{keyshare_blocknumber}.keyshare", name_parts[0]);
 
 					// CREATE FILE
 					let outfile = match OpenOptions::new()
@@ -2226,7 +2258,7 @@ pub async fn sync_zip_extract(
 						.await
 					{
 						Ok(ofile) => {
-							debug!(
+							trace!(
 								"FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : create {:?} for {:?}",
 								out_file_path, entry_path
 							);
@@ -2265,7 +2297,7 @@ pub async fn sync_zip_extract(
 						out_file_path,
 						fs::Permissions::from_mode(entry_permission.into()),
 					) {
-						Ok(_) => tracing::trace!(
+						Ok(_) => trace!(
 							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : Permission set."
 						),
 						Err(err) => {
@@ -2277,19 +2309,25 @@ pub async fn sync_zip_extract(
 					// UPDATE THE MAP
 					set_nft_availability(
 						state,
-						(nftid, Availability { block_number, nft_type: NftType::Hybrid }),
+						(nftid, Availability { block_number: keyshare_blocknumber, nft_type: NftType::Hybrid }),
 					)
 					.await;
-				// WE DO NOT REMOVE PREVIOUS NFT FILE, IT IS HYBRID NOW
-				} else {
+				
+				} else if name_parts[0] == "capsule" && av.nft_type == NftType::Capsule {
+					if av.block_number >= keyshare_blocknumber {
+						// OUTDATED SYNCING FILE
+						warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : block number is older than current nftid {} : current block_number {}, incoming block_number {}", nftid, av.block_number, keyshare_blocknumber);
+						continue;
+					}
+
 					// UPDATE CAPSULE KEY
 					debug!(
-							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : an incoming capsule update with nftid {} on block_number {}",
-							nftid, block_number
+							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : an incoming capsule update with nftid {} on block_number {}",
+							nftid, keyshare_blocknumber
 						);
 
 					let out_file_path =
-						format!("{SEALPATH}/capsule_{nftid}_{block_number}.keyshare");
+						format!("{SEALPATH}/capsule_{nftid}_{keyshare_blocknumber}.keyshare");
 
 					let outfile = match OpenOptions::new()
 						.write(true)
@@ -2299,7 +2337,7 @@ pub async fn sync_zip_extract(
 					{
 						Ok(ofile) => {
 							debug!(
-								"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : create {:?}",
+								"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : create {:?}",
 								out_file_path
 							);
 							ofile
@@ -2307,7 +2345,7 @@ pub async fn sync_zip_extract(
 
 						Err(err) => {
 							error!(
-								"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error creating the file {:?} for {:?} : {:?}",
+								"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : error creating the file {:?} for {:?} : {:?}",
 								out_file_path, entry_path, err
 							);
 
@@ -2319,15 +2357,15 @@ pub async fn sync_zip_extract(
 					let entry_reader = match reader.reader_without_entry(index).await {
 						Ok(rdr) => rdr,
 						Err(err) => {
-							error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error reading file from archive, index {} : {:?}", index, err);
+							error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : error reading file from archive, index {} : {:?}", index, err);
 							continue;
 						},
 					};
 					// WRITE CONTENT TO FILE
 					match futures_util::io::copy(entry_reader, &mut outfile.compat_write()).await {
-						Ok(n) => debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : successfuly copied {} bytes", n),
+						Ok(n) => debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : successfuly copied {} bytes", n),
 						Err(err) => {
-							error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error copying data to file : {err:?}");
+							error!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : error copying data to file : {err:?}");
 							continue
 							//return Err(err.into());
 						},
@@ -2337,16 +2375,16 @@ pub async fn sync_zip_extract(
 						out_file_path,
 						fs::Permissions::from_mode(entry_permission.into()),
 					) {
-						Ok(_) => tracing::trace!(
-							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : Permission set."
+						Ok(_) => trace!(
+							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : Permission set."
 						),
 						Err(err) => {
-							warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : error setting permission : {err:?}");
+							warn!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : error setting permission : {err:?}");
 							continue;
 						},
 					};
 
-					let availability = Availability { block_number, nft_type: NftType::Capsule };
+					let availability = Availability { block_number: keyshare_blocknumber, nft_type: NftType::Capsule };
 
 					set_nft_availability(state, (nftid, availability)).await;
 
@@ -2354,10 +2392,10 @@ pub async fn sync_zip_extract(
 						format!("{SEALPATH}/capsule_{nftid}_{}.keyshare", av.block_number);
 					match std::fs::remove_file(old_file_path.clone()) {
 						Ok(_) => {
-							debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : removed outdated file {}", old_file_path)
+							debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : removed outdated file {}", old_file_path)
 						},
 						Err(err) => error!(
-							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSUL : Error removing outdated file {} : {:?}",
+							"FETCH KEYSHARES : ZIP EXTRACT : UPDATE CAPSULE : Error removing outdated file {} : {:?}",
 							old_file_path, err
 						),
 					}

@@ -13,11 +13,13 @@ DEBUG ?= 0
 .PHONY: all
 all: sgx_server.manifest
 ifeq ($(SGX),1)
-all: sgx_server.manifest.sgx sgx_server.sig
+all: sgx_server.manifest.sgx sgx_server.sig 
 endif
 
-ifeq ($(DEBUG),1)
+ifeq ($(DEBUG),2)
 GRAMINE_LOG_LEVEL = debug
+else ifeq ($(DEBUG),1)
+GRAMINE_LOG_LEVEL = warning
 else
 GRAMINE_LOG_LEVEL = error
 endif

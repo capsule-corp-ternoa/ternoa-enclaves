@@ -1,8 +1,7 @@
-use clap::Parser;
-use tracing::{error, info, Level};
-use tracing_subscriber::FmtSubscriber;
-
 use crate::chain::constants::{SENTRY_URL, VERSION};
+use clap::Parser;
+use tracing::{error, info};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 mod attestation;
 mod backup;
@@ -37,29 +36,38 @@ async fn main() {
 	let args = Args::parse();
 
 	let verbosity_level = match args.verbose {
-		0 => Level::ERROR,
-		1 => Level::WARN,
-		2 => Level::INFO,
-		3 => Level::DEBUG,
-		4 => Level::TRACE,
-		_ => Level::INFO,
+		0 => "Error", //LevelFilter::ERROR,
+		1 => "Warn",  //LevelFilter::WARN,
+		2 => "Info",  //LevelFilter::INFO,
+		3 => "Debug", //LevelFilter::DEBUG,
+		4 => "Trace", //LevelFilter::TRACE,
+		_ => "Info",  //LevelFilter::INFO,
 	};
 
-	let subscriber = FmtSubscriber::builder().with_max_level(verbosity_level).finish();
-	tracing::subscriber::set_global_default(subscriber)
-		.expect("MAIN : setting default subscriber failed");
+	let fmt_layer = fmt::layer()
+		.with_target(false)
+		.with_level(true)
+		.with_thread_ids(true)
+		.with_thread_names(true)
+		.pretty();
+
+	let filter_layer = EnvFilter::try_from_default_env()
+		.or_else(|_| EnvFilter::try_new::<String>(verbosity_level.into()))
+		.expect("Error tracing subscriber filter layer");
+
+	tracing_subscriber::registry().with(filter_layer).with(fmt_layer).init();
 
 	info!("MAIN : Start Sentry");
-	let env = if cfg!(feature = "main-net") {
-		"main-net"
-	} else if cfg!(feature = "alpha-net") {
-		"alpha-net"
-	} else if cfg!(feature = "dev0-net") {
-		"dev0-net"
-	} else if cfg!(feature = "dev1-net") {
-		"dev1-net"
+	let env = if cfg!(feature = "mainnet") {
+		"mainnet"
+	} else if cfg!(feature = "alphanet") {
+		"alphanet"
+	} else if cfg!(feature = "dev0") {
+		"dev0"
+	} else if cfg!(feature = "dev1") {
+		"dev1"
 	} else {
-		"local-net"
+		"localchain"
 	};
 
 	let _guard = sentry::init((

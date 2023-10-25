@@ -6,15 +6,15 @@ SCRIPTS_PATH=$BASEDIR/scripts
 GRAMINE_PATH=$BASEDIR/gramine
 
 # DEFAULT VALUES
-CHAIN=${CHAIN:-alpha-net}
+CHAIN=${CHAIN:-alphanet}
 
-DOMAIN=${DOMIAN:-alphanet-c1n1v2.ternoa.dev}
+DOMAIN=${DOMIAN:-alphanet-c0n0v3.ternoa.dev}
 PORT=${PORT:-8100}
 
 MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
 
 VERBOSITY_LEVLE=3
-DEV_BUILD=1
+DEV_BUILD=0
 
 # OVERWRITE WITH PRODUCTION VALUES
 ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
@@ -64,24 +64,18 @@ while :; do
 		mkdir -p $GRAMINE_PATH/bin/
 		cp -f $BASEDIR/target/release/sgx_server $GRAMINE_PATH/bin/
 
-		echo "signing the binary ..."
-	    COSIGN_PASSWORD="Test123456" cosign sign-blob --key $BASEDIR/credentials/keys/dev/cosign.key $GRAMINE_PATH/bin/sgx_server --output-file $GRAMINE_PATH/bin/sgx_server.sig
-		tr -d '\n' < $GRAMINE_PATH/bin/sgx_server.sig > sgx_server.sig
-		mv sgx_server.sig $GRAMINE_PATH/bin/sgx_server.sig
 	;;
 	-f|--fetch)
-	# Download the binary from github
+	# Download the release zip from github
 		mkdir -p $GRAMINE_PATH/bin/
 		
 		# Use release-manifest template
 		DEV_BUILD=0
 		
-		echo "Downloading binary and signature from Ternoa github repository"
+		echo "Downloading released zip Ternoa github repository"
 		$SCRIPTS_PATH/fetch-release.sh
-		mv ./sgx_server $GRAMINE_PATH/bin/
-		mv ./sgx_server.sig $GRAMINE_PATH/bin/
-		chmod 775 $GRAMINE_PATH/bin/sgx_server
-		chmod 775 $GRAMINE_PATH/bin/sgx_server.sig
+		unzip ternoa-enclaves.zip
+		cd ternoa_enclaves
 	;;
 	-v|--verbose)
 	if [ "$2" ]; then
@@ -100,6 +94,7 @@ while :; do
     shift
 done
 
+
 NC='\033[0m'			  # Reset
 IRed='\033[0;91m'         # Red
 IGreen='\033[0;92m'       # Green
@@ -112,6 +107,9 @@ BIWhite='\033[1;97m'      # White
 
 echo -e "\nport:\t\t ${IGreen}$PORT${NC}"
 echo -e "domain name:\t ${IGreen}$DOMAIN${NC}"
+
+cd $GRAMINE_PATH/trusted 
+./update-trusted.sh
 
 # Create Enclave using Makefile
 cd $GRAMINE_PATH
