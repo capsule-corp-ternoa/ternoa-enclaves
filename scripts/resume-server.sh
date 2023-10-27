@@ -8,21 +8,21 @@ GRAMINE_PATH=$BASEDIR/gramine
 # DEFAULT VALUES
 CHAIN=${CHAIN:-alphanet}
 
-DOMAIN=${DOMIAN:-alphanet-c1n1v2.ternoa.dev}
-PORT=${PORT:-8100}
+DOMAIN=${DOMIAN:-subdomain.your-domain.com}
+PORT=${PORT:-8000}
 
 MACHINE_DOMAIN=$(awk -e '$2 ~ /.+\..+\..+/ {print $2}' /etc/hosts)
 
-VERBOSITY_LEVLE=2
+VERBOSITY_LEVLE=3
 DEV_BUILD=0
 
 # OVERWRITE WITH PRODUCTION VALUES
-ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
-SGX_SERVER_ENV_FILE=?
+#ENV_FILE=${ENV_FILE:-/etc/default/sgx-server}
+#SGX_SERVER_ENV_FILE=?
 
-if [ -f $SGX_SERVER_ENV_FILE ]; then
-  export $(cat $SGX_SERVER_ENV_FILE | xargs)
-fi
+#if [ -f $SGX_SERVER_ENV_FILE ]; then
+#  export $(cat $SGX_SERVER_ENV_FILE | xargs)
+#fi
 
 # INPUT ARGUMENTS
 
@@ -48,29 +48,6 @@ while :; do
 	    else
 		die 'ERROR: "--port" requires a non-empty option argument.'
 	    fi
-        ;;
-        -n|--secrets)
-	    if [ "$2" ]; then
-		NFT_SERCRETS_PATH=$2
-		shift
-	    else
-		die 'ERROR: "--secrets" requires a non-empty option argument.'
-	    fi
-        ;;
-	-i|--identity)
-	    if [ "$2" ]; then
-		ENCLAVE_IDENTITY=$2
-		shift
-	    else
-		die 'ERROR: "--identity" requires a non-empty option argument.'
-	    fi
-	    ;;
-	-d|--dev)
-		DEV_BUILD=1
-	;;
-	-r|--release)
-		DEV_BUILD=0
-		CERT_PATH=$GRAMINE_PATH/certificates
 	;;
 	-v|--verbose)
 	if [ "$2" ]; then
@@ -99,79 +76,18 @@ ICyan='\033[0;96m'        # Cyan
 IWhite='\033[0;97m'       # White
 BIWhite='\033[1;97m'      # White
 
-# Import Keypair from account
-#echo -e "\n\n${BIWhite}Importing the account${NC}"
-#TERNOA_ACCOUNT_KEY="$(python $SCRIPTS_PATH/import_account.py $TERNOA_ACCOUNT_PATH)"
-#if [ -z "$TERNOA_ACCOUNT_KEY" ]; then
-#    echo -e "${IRed}Can not decode account file${NC}"
-#    exit
-#fi
-
 echo -e "\nport:\t\t ${IGreen}$PORT${NC}"
 echo -e "domain name:\t ${IGreen}$DOMAIN${NC}"
-echo -e "nft secrets:\t ${IGreen}$NFT_SERCRETS_PATH${NC}"
-echo -e "enclave name:\t ${IGreen}$ENCLAVE_IDENTITY${NC}"
-echo -e "account key:\t ${IGreen}$TERNOA_ACCOUNT_PATH${NC}" # WILL BE REPLACED BY GITHUB SCRIPT
 
 # Create Enclave using Makefile
 cd $GRAMINE_PATH
 echo -n -e "\n${BIWhite}Creating Enclave ${NC}"
 make 	SGX=1 \
+	ENCLAVE_DIR=$GRAMINE_PATH \
 	SGX_DOMAIN=$DOMAIN \
 	SGX_PORT=$PORT \
 	SGX_VERBOSITY=$VERBOSITY_LEVLE\
 	SGX_DEV_BUILD=$DEV_BUILD\
-	start-gramine-server >> $GRAMINE_PATH/make.log 2>&1 &
+	start-gramine-server #>> $GRAMINE_PATH/make.log 2>&1 &
 
-cd $BASEDIR
 
-COUNTER=0
-while ! (test -f "$GRAMINE_PATH/make.log") || ! (grep -q "enclave.log" "$GRAMINE_PATH/make.log"); do
-    echo -n "."
-    sleep 1
-    let COUNTER=$COUNTER+1
-    if [ $COUNTER -ge 10 ]; then
-	break
-    fi
-done
-
-if [ $COUNTER -ge 10 ]; then
-	cat $GRAMINE_PATH/make.log
-	exit
-else
-	echo -e "\n${NC}View ${IBlue}$GRAMINE_PATH/make.log${NC} for enclave details."
-fi 
-
-COUNTER=30
-echo -n -e "\n${BIWhite}Initializing Enclave : "
-tput sc
-while ! (test -f "$GRAMINE_PATH/enclave.log") || ! (grep -q "$PORT" "$GRAMINE_PATH/enclave.log"); do
-    tput sc
-	tput rev
-	echo -n "$COUNTER seconds"
-	tput sgr0
-	tput rc
-    sleep 1
-    let COUNTER=$COUNTER-1
-    if [ $COUNTER -le 0 ]; then
-	break
-    fi
-done
-
-if [ $COUNTER -le 0 ]; then
-	cat $GRAMINE_PATH/enclave.log
-	exit
-else
-	echo -e "\n${NC}View ${IBlue}$GRAMINE_PATH/make.log${NC} for enclave details."
-	
-	echo -e "\nTesting the server health with this command : curl -s https://$DOMAIN:$PORT/api/health | jq ."
-	curl -s https://$DOMAIN:$PORT/api/health | jq .
-fi
-
-#echo -e "\n${BIWhite}Getting Report from IAS${NC}"
-
-#$SCRIPTS_PATH/generate-ias-report.sh
-
-#echo "IAS Report is ready."
-
-echo -e "\n"

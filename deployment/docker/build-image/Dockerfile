@@ -21,7 +21,7 @@ RUN gramine-sgx-gen-private-key
 RUN git clone https://github.com/capsule-corp-ternoa/ternoa-enclaves.git /opt/ternoa-enclaves
 
 WORKDIR /opt/ternoa-enclaves
-RUN git checkout docker
+RUN git checkout master
 
 WORKDIR /opt/ternoa-enclaves/artifacts
 RUN cargo install --version 0.29.0 subxt-cli

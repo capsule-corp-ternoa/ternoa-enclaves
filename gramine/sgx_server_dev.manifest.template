@@ -1,9 +1,11 @@
 # Ternoa Rust Dev manifest
 
-loader.entrypoint = "file:trusted/gramine/libsysdb.so"
+loader.entrypoint = "file:{{ enclave_dir }}/trusted/gramine/libsysdb.so"
 libos.entrypoint = "{{ self_exe }}"
-loader.log_level = "error"
+loader.log_level = "warning"
 #loader.log_level = "{{ log_level }}"
+
+loader.env.RUST_LOG = "sgx_server=debug,hyper=warning"
 
 loader.env.LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 
@@ -16,27 +18,27 @@ loader.env.RUST_BACKTRACE = "full"
 # MOUNTING FROM "URI" ON HOST, TO "PATH" ON GRAMINE
 # TYPE can be chroot, encrypted, tmpfs(in-memory)
 fs.mounts = [
-  { path = "/lib", uri = "file:trusted/gramine/runtime/glibc" },
-  { path = "/lib/x86_64-linux-gnu", uri = "file:trusted/arch_libdir" },
-  { path = "/etc", uri = "file:trusted/etc" },
+  { path = "/lib", uri = "file:{{ enclave_dir }}/trusted/gramine/runtime/glibc" },
+  { path = "/lib/x86_64-linux-gnu", uri = "file:{{ enclave_dir }}/trusted/arch_libdir" },
+  { path = "/etc", uri = "file:{{ enclave_dir }}/trusted/etc" },
   
   { path = "/temporary", type = "tmpfs" },
 
   # ------ SEALED!
-  { path = "/certificates", uri = "file:certificates/", type = "chroot" },
-  { path = "/nft" , uri = "file:nft/",  type = "chroot"},
+  { path = "/certificates", uri = "file:{{ enclave_dir }}/certificates/", type = "chroot" },
+  { path = "/nft" , uri = "file:{{ enclave_dir }}/nft/",  type = "chroot"},
 ]
 
 # ONLY for DEV!
 # THEY all be SEALED for production
 sgx.allowed_files = [
-  "file:nft/",
-  "file:certificates/",
+  "file:{{ enclave_dir }}/nft/",
+  "file:{{ enclave_dir }}/certificates/",
 ]
 
 sgx.trusted_files = [
   "file:{{ self_exe }}",
-  "file:trusted/",
+  "file:{{ enclave_dir }}/trusted/",
 ]
 
 # The Tokio runtime requires eventfd, and the Gramine implementation
@@ -67,5 +69,5 @@ sgx.remote_attestation = "epid"
 sgx.ra_client_spid = "15AD86B4CFA46B327A8BFB79AA0D67B7"
 sgx.ra_client_linkable = true
 
-sgx.isvprodid = 11
-sgx.isvsvn    = 102
+sgx.isvprodid = 10
+sgx.isvsvn    = 100

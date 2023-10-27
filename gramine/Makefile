@@ -5,7 +5,8 @@
 ARCH_LIBDIR ?= /lib/x86_64-linux-gnu
 
 # NOTE: MUST BE "RELATIVE PATH" TO TEE BINARY
-SELF_EXE = bin/sgx_server
+ENCLAVEDIR ?= "."
+SELF_EXE = $(ENCLAVEDIR)/bin/sgx_server
 
 SGX ?= 1
 DEBUG ?= 0
@@ -35,10 +36,9 @@ sgx_server.manifest: $(MANIFEST_FILE)
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
 		-Darch_libdir=$(ARCH_LIBDIR) \
 		-Dself_exe=$(SELF_EXE) \
+		-Denclave_dir=$(ENCLAVEDIR) \
 		$< $@
 
-# Make on Ubuntu <= 20.04 doesn't support "Rules with Grouped Targets" (`&:`),
-# see the helloworld example for details on this workaround.
 sgx_server.manifest.sgx sgx_server.sig: sgx_sign
 	@:
 
@@ -59,12 +59,11 @@ start-gramine-server: all
 	$(GRAMINE) sgx_server \
 		--domain $(SGX_DOMAIN) \
 		--port $(SGX_PORT) \
-		--verbose $(SGX_VERBOSITY) \
-		>> enclave.log 2>&1 &
+		--verbose $(SGX_VERBOSITY) #>> $(ENCLAVEDIR)/enclave.log 2>&1 &
 
 .PHONY: clean
 clean:
-	$(RM) -rf *.token *.sig *.manifest.sgx *.manifest result-* *.log
+	$(RM) -rf $(ENCLAVEDIR)/*.token $(ENCLAVEDIR)/*.sig $(ENCLAVEDIR)/*.manifest.sgx $(ENCLAVEDIR/)*.manifest $(ENCLAVEDIR)/result-* $(ENCLAVEDIR)/*.log
 
 .PHONY: distclean
 distclean: clean

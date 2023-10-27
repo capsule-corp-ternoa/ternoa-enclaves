@@ -350,31 +350,34 @@ pub async fn nft_store_keyshare(
 				);
 			};
 
-			// Does NFTID exist?
-			if get_nft_availability(&state, verified_data.nft_id).await.is_some() {
-				let status = ReturnStatus::NFTIDEXISTS;
-				let description = format!(
-					"TEE Key-share {:?}: nft_id.{} already exists",
-					APICALL::NFTSTORE,
-					verified_data.nft_id,
-				);
+			// Does NFTID exist as Secret-NFT ?
+			if let Some(av) = get_nft_availability(&state, verified_data.nft_id).await {
+				// Only Capsule is mutable
+				if av.nft_type != helper::NftType::Capsule {
+					let status = ReturnStatus::NFTIDEXISTS;
+					let description = format!(
+						"TEE Key-share {:?}: nft_id.{} already exists",
+						APICALL::NFTSTORE,
+						verified_data.nft_id,
+					);
 
-				info!("{}, requester : {}", description, request.owner_address);
-				let description =
-					"Error storing NFT key-share to TEE : nft_id already exists".to_string();
+					info!("{}, requester : {}", description, request.owner_address);
+					let description =
+						"Error storing NFT key-share to TEE : nft_id already exists".to_string();
 
-				return (
-					StatusCode::CONFLICT,
-					Json(
-						to_value(ApiErrorResponse {
-							status,
-							nft_id: verified_data.nft_id,
-							enclave_account,
-							description,
-						})
-						.unwrap(),
-					),
-				);
+					return (
+						StatusCode::CONFLICT,
+						Json(
+							to_value(ApiErrorResponse {
+								status,
+								nft_id: verified_data.nft_id,
+								enclave_account,
+								description,
+							})
+							.unwrap(),
+						),
+					);
+				}
 			}
 
 			let new_file_path =
