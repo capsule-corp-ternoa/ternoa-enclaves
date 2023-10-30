@@ -73,7 +73,7 @@ pub async fn is_nft_available(
 						exists: true,
 					}),
 				)
-					.into_response();
+					.into_response()
 			} else {
 				debug!("NFT AVAILABILITY CHECK : NFTID is for a capsule, nft_id : {}", nft_id);
 			}
@@ -135,7 +135,7 @@ pub async fn nft_get_views(
 					log: LogFile::new(),
 					description: "nft_id does not exist.".to_string(),
 				}),
-			);
+			)
 		},
 	};
 
@@ -152,7 +152,7 @@ pub async fn nft_get_views(
 				log: LogFile::new(),
 				description: "nft_id is not a secret-nft".to_string(),
 			}),
-		);
+		)
 	}
 
 	let file_path = format!("{SEALPATH}/{nft_id}.log");
@@ -182,7 +182,7 @@ pub async fn nft_get_views(
 				log: LogFile::new(),
 				description: "log for this nft_id does not exist on this enclave".to_string(),
 			}),
-		);
+		)
 	};
 
 	let mut log_file = match OpenOptions::new().read(true).open(file_path.clone()) {
@@ -210,7 +210,7 @@ pub async fn nft_get_views(
 					log: LogFile::new(),
 					description: "can not retrieve the log of secret-nft views".to_string(),
 				}),
-			);
+			)
 		},
 	};
 
@@ -347,7 +347,7 @@ pub async fn nft_store_keyshare(
 						})
 						.unwrap(),
 					),
-				);
+				)
 			};
 
 			// Does NFTID exist as Secret-NFT ?
@@ -376,7 +376,7 @@ pub async fn nft_store_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				}
 			}
 
@@ -419,7 +419,7 @@ pub async fn nft_store_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				},
 			};
 
@@ -464,7 +464,7 @@ pub async fn nft_store_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				},
 			};
 
@@ -582,14 +582,13 @@ pub async fn nft_store_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_store_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(err) => {
+				Err(err) =>
 					return err.express_verification_error(
 						APICALL::NFTRETRIEVE,
 						request.owner_address.to_string(),
 						0,
 						enclave_account,
-					)
-				},
+					),
 			};
 
 			err.express_verification_error(
@@ -621,7 +620,7 @@ fn nft_keyshare_oracle_results(
 		Ok(file) => file,
 		Err(err) => {
 			error!("Failed to create log file: {}", err);
-			return false;
+			return false
 		},
 	};
 
@@ -634,13 +633,13 @@ fn nft_keyshare_oracle_results(
 		Ok(buf) => buf,
 		Err(err) => {
 			error!("Failed to serialize log file: {}", err);
-			return false;
+			return false
 		},
 	};
 
 	if let Err(err) = file.write_all(&log_buf) {
 		error!("Failed to write to log file: {}", err);
-		return false;
+		return false
 	}
 
 	true
@@ -675,7 +674,7 @@ pub async fn nft_retrieve_keyshare(
 	match request.verify_retrieve_request(&state, "secret-nft").await {
 		Ok(verified_data) => {
 			let av = match get_nft_availability(&state, verified_data.nft_id).await {
-				Some(av) => {
+				Some(av) =>
 					if av.nft_type == helper::NftType::Secret {
 						av
 					} else {
@@ -693,9 +692,8 @@ pub async fn nft_retrieve_keyshare(
 								})
 								.unwrap(),
 							),
-						);
-					}
-				},
+						)
+					},
 				None => {
 					let status = ReturnStatus::KEYNOTEXIST;
 					let description = "NFT Keyshare is not available.".to_string();
@@ -711,7 +709,7 @@ pub async fn nft_retrieve_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				},
 			};
 
@@ -748,7 +746,7 @@ pub async fn nft_retrieve_keyshare(
 						})
 						.unwrap(),
 					),
-				);
+				)
 			}
 
 			let mut file = match File::open(file_path) {
@@ -784,7 +782,7 @@ pub async fn nft_retrieve_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				},
 			};
 
@@ -830,7 +828,7 @@ pub async fn nft_retrieve_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				},
 			};
 
@@ -875,14 +873,13 @@ pub async fn nft_retrieve_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_retrieve_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(err) => {
+				Err(err) =>
 					return err.express_verification_error(
 						APICALL::NFTRETRIEVE,
 						request.requester_address.to_string(),
 						0,
 						enclave_account,
-					)
-				},
+					),
 			};
 
 			err.express_verification_error(
@@ -925,14 +922,13 @@ pub async fn nft_remove_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_retrieve_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(err) => {
+				Err(err) =>
 					return err.express_verification_error(
 						APICALL::NFTREMOVE,
 						request.requester_address.to_string(),
 						0,
 						enclave_account,
-					)
-				},
+					),
 			};
 
 			return err.express_verification_error(
@@ -940,7 +936,7 @@ pub async fn nft_remove_keyshare(
 				request.requester_address.to_string(),
 				parsed_data.nft_id,
 				enclave_account,
-			);
+			)
 		},
 	};
 
@@ -963,7 +959,7 @@ pub async fn nft_remove_keyshare(
 				})
 				.unwrap(),
 			),
-		);
+		)
 	}
 
 	// Is nft burnt?
@@ -1013,11 +1009,11 @@ pub async fn nft_remove_keyshare(
 						})
 						.unwrap(),
 					),
-				);
+				)
 			}
 		},
 
-		None => {
+		None =>
 			return (
 				StatusCode::OK,
 				Json(
@@ -1029,8 +1025,7 @@ pub async fn nft_remove_keyshare(
 					})
 					.unwrap(),
 				),
-			)
-		},
+			),
 	};
 
 	let file_path = format!("{SEALPATH}/nft_{}_{}.keyshare", request_data.nft_id, av.block_number);
@@ -1049,7 +1044,7 @@ pub async fn nft_remove_keyshare(
 				})
 				.unwrap(),
 			),
-		);
+		)
 	}
 
 	match std::fs::remove_file(file_path.clone()) {

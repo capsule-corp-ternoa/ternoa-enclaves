@@ -49,7 +49,6 @@ async fn main() {
 		.with_level(false)
 		.with_thread_ids(false)
 		.with_thread_names(false);
-		
 
 	let filter_layer = EnvFilter::try_from_default_env()
 		.or_else(|_| EnvFilter::try_new::<String>(verbosity_level.into()))
@@ -109,7 +108,7 @@ async fn main() {
 		Err(err) => {
 			error!("MAIN : Error creating http application, exiting : {err:?}");
 			sentry::integrations::anyhow::capture_anyhow(&err);
-			return;
+			return
 		},
 	};
 
