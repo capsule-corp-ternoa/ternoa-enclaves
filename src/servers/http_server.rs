@@ -206,7 +206,7 @@ pub async fn http_server() -> Result<Router, Error> {
 					.await
 					{
 						Ok(_) => {
-							// TODO [Disaster recovery] : What if all clusters are down, What
+							// [Disaster recovery] : What if all clusters are down, What
 							// block_number should be set as last_sync_block
 							let _ = set_sync_state(current_block_number.to_string());
 							info!(
@@ -481,7 +481,7 @@ pub async fn http_server() -> Result<Router, Error> {
 								.await
 								{
 									Ok(_) => {
-										// TODO [discussion] : should not Blindly putting current
+										// [discussion] : should not Blindly put current
 										// block_number as the last updated keyshare's block_number
 										let _ = set_sync_state(block_number.to_string());
 										info!("\t\t > SETUP Synchronization of Keyshares complete to the block number: {} .",block_number);
@@ -670,12 +670,12 @@ async fn handle_timeout_error(method: Method, uri: Uri, err: BoxError) -> impl I
 async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
 	let message = format!("Fallback on uri: {}", uri);
 
-	sentry::with_scope(
-		|scope| {
-			scope.set_tag("fallback", uri.to_string());
-		},
-		|| sentry::capture_message(&message, sentry::Level::Debug),
-	);
+	// sentry::with_scope(
+	// 	|scope| {
+	// 		scope.set_tag("fallback", uri.to_string());
+	// 	},
+	// 	|| sentry::capture_message(&message, sentry::Level::Debug),
+	// );
 
 	debug!("FALLBACK : {uri}");
 	(

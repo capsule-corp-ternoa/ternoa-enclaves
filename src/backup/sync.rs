@@ -357,9 +357,7 @@ pub async fn sync_keyshares(
 		},
 	};
 
-	//let nftids: Vec<String> = nftidv.iter().map(|x| x.to_string()).collect::<Vec<String>>();
-
-	// TODO [future reliability] check nftids , is empty, are they in range, ...
+	// [future reliability] check nftids , is empty, are they in range, ...
 
 	// Create a client
 	let client = match reqwest::Client::builder()
@@ -421,8 +419,7 @@ pub async fn sync_keyshares(
 	// 	// Analyze the Response
 	// 	let health_status = health_response.status();
 
-	// 	// TODO [decision] : Should it be OK or Synching? Solution = (Specific StatusCode for
-	// Wildcard)
+	// 	[decision] : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
 
 	// 	if health_status != StatusCode::OK {
 	// 		let message = format!(
@@ -630,7 +627,6 @@ pub async fn sync_keyshares(
 		};
 
 	// Verify signature of Attestation Server response
-	// TODO : Check the account with a registered value on blockchain
 	if !verify_signature(
 		&attestation_server_account,
 		attestation_server_signature,
@@ -868,7 +864,7 @@ pub async fn sync_keyshares(
 	}
 
 	// Writing to files is necessary to live enough for async stream
-	// TODO : Garbage Collection is needed
+	// ZIP-file Garbage Collection is needed
 	let encrypted_backup_file = format!("/temporary/encrypted_backup_{random_number}.zip");
 	match std::fs::write(encrypted_backup_file.clone(), encrypted_zip_data) {
 		Ok(_) => trace!("SYNC KEYSHARES : Successfully write encrypted zip data to streamfile"),
@@ -1178,7 +1174,7 @@ pub async fn fetch_keyshares(
 	let slot_enclaves = slot_discovery(state).await;
 	if slot_enclaves.is_empty() {
 		// TODO : What about first cluster? should it continue as the Primary cluster in
-		// running-mode? TODO : otherwise we should have two clusters registered before starting
+		// running-mode? otherwise we should have two clusters registered before starting
 		// enclaves with sync capability.
 		if get_identity(state).await.is_some() {
 			warn!("FETCH KEYSHARES : No other similar slots found in other clusters, is this primary cluster?");
@@ -1210,7 +1206,7 @@ pub async fn fetch_keyshares(
 		// })
 		.build()?;
 
-	// TODO [future reliability] : use metric-server ranking instead of simple loop
+	// [future reliability] : use metric-server ranking instead of simple loop
 	for (cluster_id, enclave) in slot_enclaves {
 		debug!("FETCH KEYSHARES : Fetch from enclave : \n Cluster: {} \n Slot: {}\n Operator: {}\n Enclave_Account: {}\n URL: {}\n\n", 
 			cluster_id, enclave.slot,enclave.operator_account,enclave.enclave_account,enclave.enclave_url);
@@ -1342,8 +1338,6 @@ pub async fn fetch_keyshares(
 			},
 		};
 
-		// TODO [decision - reliability] : What if the "chosen" Enclave is not ready? (low
-		// probability for runtime sync)
 		let decrypt_zip_data = match decrypt(&encryption_private_key, &fetch_body_bytes) {
 			Ok(decrypted) => decrypted,
 			Err(err) => {
@@ -1405,7 +1399,6 @@ pub async fn fetch_keyshares(
 					},
 					|| sentry::capture_message(&message, sentry::Level::Error),
 				);
-				// TODO : return the error to sentry or other places.
 				//return Err(anyhow!(message));
 			},
 		}
@@ -1841,7 +1834,7 @@ pub async fn parse_block_body(
 
 					// If the event is TEE
 					if pallet.to_uppercase().as_str() == "TEE" {
-						// TODO [decision] : There may be Metric Server updates that we should exclude
+						// [decision] : There may be Metric Server updates that we should exclude
 						update_cluster_data = true;
 						info!("BLOCK-PARSER : TECHNICALCOMMITTEE : TechnicalCommittee extrinsic for TEE detected");
 					}
@@ -1857,8 +1850,8 @@ pub async fn parse_block_body(
 					let variant = event.variant_name();
 					// If the event is successful
 					if pallet.to_uppercase().as_str() == "SYSTEM" && variant.to_uppercase().as_str() == "EXTRINSICSUCCESS" {
-						// TODO [question] : Check if this condition is meaningful
-						update_cluster_data = true;
+						// [question] : Check if this condition is meaningful
+						update_cluster_data = false;
 						debug!("BLOCK-PARSER : TEE : tee-pallet extrinsic detected, it should wait for TC.");
 					}
 				}
