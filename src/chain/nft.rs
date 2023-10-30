@@ -471,7 +471,7 @@ pub async fn nft_store_keyshare(
 			// Send extrinsic to Secret-NFT Pallet as Storage-Oracle
 			match nft_keyshare_oracle(&state, verified_data.nft_id).await {
 				Ok(txh) => {
-					// TODO : Getting of TXH is not sufficient, It must wait untin next block to see
+					// TODO : Getting of TXH is not sufficient, It must wait until next block to see
 					// if it is submitted.
 					let result =
 						nft_keyshare_oracle_results(block_number, &request, &verified_data, txh);

@@ -23,7 +23,7 @@ pub struct QuoteResponse {
 	pub data: String,
 }
 
-// TODO [performace] : Rate Limit or Cache the Quote API
+// [performace] : Rate Limit or Cache the Quote API
 //#[once(time = 60, sync_writes = false)]
 pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse {
 	// Make a dynamic user data
