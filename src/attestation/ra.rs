@@ -23,7 +23,7 @@ pub struct QuoteResponse {
 	pub data: String,
 }
 
-// TODO [performace] : Rate Limit or Cache the Quote API
+// [performace] : Rate Limit or Cache the Quote API
 //#[once(time = 60, sync_writes = false)]
 pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse {
 	// Make a dynamic user data
@@ -41,18 +41,16 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 	match write_user_report_data(None, &signature.0) {
 		Ok(_) => debug!("QUOTE : Success writing user_data to the quote."),
 
-		Err(err) => {
+		Err(err) =>
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(QuoteResponse { block_number, data: err.to_string() }),
-			)
-		},
+			),
 	};
 
 	match get_quote_content() {
-		Ok(quote) => {
-			(StatusCode::OK, Json(QuoteResponse { block_number, data: hex::encode(quote) }))
-		},
+		Ok(quote) =>
+			(StatusCode::OK, Json(QuoteResponse { block_number, data: hex::encode(quote) })),
 
 		Err(err) => (
 			StatusCode::INTERNAL_SERVER_ERROR,
@@ -117,7 +115,7 @@ pub fn write_user_report_data(
 ) -> Result<(), anyhow::Error> {
 	let default_path = "/dev/attestation/user_report_data";
 	if !is_user_report_data_exist(None) {
-		return Err(anyhow!("QUOTE : user_report_data does not exist!"));
+		return Err(anyhow!("QUOTE : user_report_data does not exist!"))
 	}
 
 	Ok(OpenOptions::new()
@@ -146,5 +144,5 @@ fn is_user_report_data_exist(file_path: Option<String>) -> bool {
 	return match file_path {
 		None => Path::new("/dev/attestation/user_report_data").exists(),
 		Some(f) => Path::new(&f).exists(),
-	};
+	}
 }

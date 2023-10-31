@@ -36,20 +36,19 @@ async fn main() {
 	let args = Args::parse();
 
 	let verbosity_level = match args.verbose {
-		0 => "Error", //LevelFilter::ERROR,
-		1 => "Warn",  //LevelFilter::WARN,
-		2 => "Info",  //LevelFilter::INFO,
-		3 => "Debug", //LevelFilter::DEBUG,
-		4 => "Trace", //LevelFilter::TRACE,
-		_ => "Info",  //LevelFilter::INFO,
+		0 => "Error",
+		1 => "Warn",
+		2 => "Info",
+		3 => "Debug",
+		4 => "Trace",
+		_ => "Info",
 	};
 
 	let fmt_layer = fmt::layer()
 		.with_target(false)
-		.with_level(true)
-		.with_thread_ids(true)
-		.with_thread_names(true)
-		.pretty();
+		.with_level(false)
+		.with_thread_ids(false)
+		.with_thread_names(false);
 
 	let filter_layer = EnvFilter::try_from_default_env()
 		.or_else(|_| EnvFilter::try_new::<String>(verbosity_level.into()))
@@ -109,7 +108,7 @@ async fn main() {
 		Err(err) => {
 			error!("MAIN : Error creating http application, exiting : {err:?}");
 			sentry::integrations::anyhow::capture_anyhow(&err);
-			return;
+			return
 		},
 	};
 

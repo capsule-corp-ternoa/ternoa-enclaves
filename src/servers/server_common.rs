@@ -94,7 +94,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 			info!("SERVER INITIALIZATION : Error in certificate server : {}", err);
 			return Err(anyhow::anyhow!(format!(
 				"SERVER INITIALIZATION : Error in certificate server : {err}"
-			)));
+			)))
 		},
 	}
 

@@ -9,7 +9,7 @@ libos.entrypoint = "{{ self_exe }}"
 #             LOADER
 # --------------------------------
 
-loader.entrypoint = "file:trusted/gramine/libsysdb.so"
+loader.entrypoint = "file:{{ enclave_dir }}/trusted/gramine/libsysdb.so"
 loader.insecure__use_cmdline_argv = true
 loader.pal_internal_mem_size = "128M"
 loader.log_level = "{{ log_level }}"
@@ -34,7 +34,7 @@ sys.enable_extra_runtime_domain_names_conf = true
 
 sgx.trusted_files = [
   "file:{{ self_exe }}",
-  "file:trusted/",
+  "file:{{ enclave_dir }}/trusted/",
 ]
 
 sgx.enclave_size = "4G"
@@ -74,14 +74,14 @@ sgx.allowed_files = [
 # --------------------------------
 
 fs.mounts = [
-  { path = "/lib", uri = "file:trusted/gramine/runtime/glibc" },
-  { path = "/lib/x86_64-linux-gnu", uri = "file:trusted/arch_libdir" },
-  { path = "/etc", uri = "file:trusted/etc" },
+  { path = "/lib", uri = "file:{{ enclave_dir }}/trusted/gramine/runtime/glibc" },
+  { path = "/lib/x86_64-linux-gnu", uri = "file:{{ enclave_dir }}/trusted/arch_libdir" },
+  { path = "/etc", uri = "file:{{ enclave_dir }}/trusted/etc" },
   
   # TMPFS
   { path = "/temporary", type = "tmpfs" },
   
   # SEALED
-  { path = "/certificates", uri = "file:certificates", type = "encrypted", key_name = "_sgx_mrenclave" },
-  { path = "/nft" , uri = "file:nft", type = "encrypted", key_name = "_sgx_mrenclave"},
+  { path = "/certificates", uri = "file:{{ enclave_dir }}/certificates", type = "encrypted", key_name = "_sgx_mrenclave" },
+  { path = "/nft" , uri = "file:{{ enclave_dir }}/nft", type = "encrypted", key_name = "_sgx_mrenclave"},
 ]

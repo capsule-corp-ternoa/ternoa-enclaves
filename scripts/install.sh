@@ -1,4 +1,4 @@
-export SDK_VERSION="2.21.100.1"
+export SDK_VERSION="2.22.100.1"
 export PSW_VERSION="1.18.100.1"
 
 # ----- Driver for old kernels
