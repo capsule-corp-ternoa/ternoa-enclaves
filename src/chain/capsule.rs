@@ -68,7 +68,7 @@ pub async fn is_capsule_available(
 						exists: true,
 					}),
 				)
-					.into_response();
+					.into_response()
 			} else {
 				debug!("CAPSULE AVAILABILITY CHECK : NFTID is NOT a capsule, nft_id : {}", nft_id);
 			}
@@ -136,7 +136,7 @@ pub async fn capsule_get_views(
 					log: LogFile::new(),
 					description: "nft_id does not exist.".to_string(),
 				}),
-			);
+			)
 		},
 	};
 
@@ -151,7 +151,7 @@ pub async fn capsule_get_views(
 				log: LogFile::new(),
 				description: "nft_id is not a capsule".to_string(),
 			}),
-		);
+		)
 	}
 
 	let file_path = format!("{SEALPATH}/{nft_id}.log");
@@ -171,7 +171,7 @@ pub async fn capsule_get_views(
 				log: LogFile::new(),
 				description: "Capsule does not exist on this enclave".to_string(),
 			}),
-		);
+		)
 	};
 
 	// OPEN LOG-FILE
@@ -199,7 +199,7 @@ pub async fn capsule_get_views(
 					log: LogFile::new(),
 					description: "can not retrieve the log of capsule views".to_string(),
 				}),
-			);
+			)
 		},
 	};
 
@@ -338,7 +338,7 @@ pub async fn capsule_set_keyshare(
 						})
 						.unwrap(),
 					),
-				);
+				)
 			};
 
 			// If it is an update keyshare request :
@@ -412,7 +412,7 @@ pub async fn capsule_set_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				},
 			};
 
@@ -453,7 +453,7 @@ pub async fn capsule_set_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				},
 			};
 
@@ -639,14 +639,13 @@ pub async fn capsule_set_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_store_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(err) => {
+				Err(err) =>
 					return err.express_verification_error(
 						APICALL::CAPSULESET,
 						request.owner_address.to_string(),
 						0,
 						enclave_account,
-					)
-				},
+					),
 			};
 
 			err.express_verification_error(
@@ -682,7 +681,7 @@ pub async fn capsule_retrieve_keyshare(
 		Ok(verified_data) => {
 			// DOES KEY-SHARE EXIST?
 			let av = match get_nft_availability(&state, verified_data.nft_id).await {
-				Some(av) => {
+				Some(av) =>
 					if av.nft_type == helper::NftType::Capsule {
 						av
 					} else {
@@ -700,9 +699,8 @@ pub async fn capsule_retrieve_keyshare(
 								})
 								.unwrap(),
 							),
-						);
-					}
-				},
+						)
+					},
 				None => {
 					let status = ReturnStatus::KEYNOTEXIST;
 					let description = "Capsule Keyshare is not available.".to_string();
@@ -718,7 +716,7 @@ pub async fn capsule_retrieve_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				},
 			};
 
@@ -756,7 +754,7 @@ pub async fn capsule_retrieve_keyshare(
 						})
 						.unwrap(),
 					),
-				);
+				)
 			}
 
 			// OPEN CAPSULE KEY-SHARE
@@ -798,7 +796,7 @@ pub async fn capsule_retrieve_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				},
 			};
 
@@ -848,7 +846,7 @@ pub async fn capsule_retrieve_keyshare(
 							})
 							.unwrap(),
 						),
-					);
+					)
 				},
 			};
 
@@ -906,14 +904,13 @@ pub async fn capsule_retrieve_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_retrieve_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(err) => {
+				Err(err) =>
 					return err.express_verification_error(
 						APICALL::CAPSULERETRIEVE,
 						request.requester_address.to_string(),
 						0,
 						enclave_account,
-					)
-				},
+					),
 			};
 
 			err.express_verification_error(
@@ -956,14 +953,13 @@ pub async fn capsule_remove_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_retrieve_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(err) => {
+				Err(err) =>
 					return err.express_verification_error(
 						APICALL::CAPSULEREMOVE,
 						request.requester_address.to_string(),
 						0,
 						enclave_account,
-					)
-				},
+					),
 			};
 
 			return err.express_verification_error(
@@ -971,7 +967,7 @@ pub async fn capsule_remove_keyshare(
 				request.requester_address.to_string(),
 				parsed_data.nft_id,
 				enclave_account,
-			);
+			)
 		},
 	};
 
@@ -994,7 +990,7 @@ pub async fn capsule_remove_keyshare(
 				})
 				.unwrap(),
 			),
-		);
+		)
 	}
 
 	// Is nft burnt?
@@ -1044,11 +1040,11 @@ pub async fn capsule_remove_keyshare(
 						})
 						.unwrap(),
 					),
-				);
+				)
 			}
 		},
 
-		None => {
+		None =>
 			return (
 				StatusCode::OK,
 				Json(
@@ -1060,8 +1056,7 @@ pub async fn capsule_remove_keyshare(
 					})
 					.unwrap(),
 				),
-			)
-		},
+			),
 	};
 
 	let file_path =
@@ -1081,7 +1076,7 @@ pub async fn capsule_remove_keyshare(
 				})
 				.unwrap(),
 			),
-		);
+		)
 	}
 
 	match std::fs::remove_file(file_path.clone()) {
