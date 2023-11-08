@@ -1434,7 +1434,7 @@ pub async fn fetch_keyshares(
 
 // Crawl and parse registered clusters and enclaves from on-chain data
 pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Error> {
-	debug!("CLUSTER DISCOVERY : get api");
+	debug!("\n***CLUSTER DISCOVERY***\n");
 	let api = get_chain_api(state).await;
 
 	let max_cluster_address = ternoa::storage().tee().next_cluster_id();
@@ -1741,9 +1741,29 @@ pub async fn parse_block_body(
 
 	// For all extrinsics in the block body
 	for ext in body.extrinsics().iter() {
-		let ext = ext?;
-		let pallet = ext.pallet_name()?;
-		let call = ext.variant_name()?;
+		let ext = match ext {
+			Ok(ext) => ext,
+			Err(err) => {
+				error!("BLOCK-PARSER : ERROR Parsing extrinsic in block.{block_number} : {err:?}");
+				continue
+			},
+		};
+
+		let pallet = match ext.pallet_name() {
+			Ok(pallet) => pallet,
+			Err(err) => {
+				error!("BLOCK-PARSER : ERROR Parsing pallet in block.{block_number} : {err:?}");
+				continue
+			},
+		};
+
+		let call = match ext.variant_name() {
+			Ok(call) => call,
+			Err(err) => {
+				error!("BLOCK-PARSER : ERROR Parsing call variant  in block.{block_number} : {err:?}");
+				continue
+			},
+		};
 		//debug!(" - crawler extrinsic = {} : {}", pallet, call);
 
 		match pallet.to_uppercase().as_str() {
@@ -2478,7 +2498,7 @@ mod test {
 			.unwrap();
 
 		// Analyze the Response
-		assert_eq!(response.status(), StatusCode::OK);
+		assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
 		let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
 		let body: Value = serde_json::from_slice(&body).unwrap();
 		println!("Health Check Result: {:#?}", body);

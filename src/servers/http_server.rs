@@ -167,13 +167,17 @@ pub async fn http_server() -> Result<Router, Error> {
 	// Get all cluster and registered enclaves from the chain
 	// Also checks if this enclave has been registered.
 	info!("ENCLAVE START : Initialization Cluster Discovery.");
-	while let Err(err) = cluster_discovery(&state_config.clone()).await {
-		error!("ENCLAVE START : cluster discovery error : {err:?}");
-		debug!("ENCLAVE START : Retry Cluster Discovery after a delay...");
-		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
+	//while let Err(err) = cluster_discovery(&state_config.clone()).await {
+	for _retry in 0..RETRY_COUNT {
+		if let Err(err) = cluster_discovery(&state_config.clone()).await {
+			error!("ENCLAVE START : cluster discovery error : {err:?}");
+			debug!("ENCLAVE START : Retry Cluster Discovery after a delay...");
+			std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY.into()));
+		}else{
+			info!("ENCLAVE START : Cluster Discovery Successful.");
+			break
+		}
 	}
-
-	info!("ENCLAVE START : Cluster Discovery successfull.");
 
 	// Check the previous Sync-State
 	info!("ENCLAVE START : check for sync.state file from previous run ...");
@@ -504,7 +508,7 @@ pub async fn http_server() -> Result<Router, Error> {
 
 					// Cluster discovery Error
 					Err(err) => {
-						error!("\t > Error during running-mode cluster discovery {err:?}");
+						error!("\t > Error during running-mode cluster-discovery {err:?}");
 						// TODO [decision] : Integrity of clusters is corrupted. what to do? Going
 						// to maintenace mode and stop serving to API calls? Wipe?
 						continue
@@ -614,9 +618,9 @@ pub async fn http_server() -> Result<Router, Error> {
 				// Non Numeric SyncState file content:
 				if block_number % 10 == 0 {
 					if get_identity(&state_config).await.is_none() {
-						debug!("\t <<< Enclave has is not registered >>>");
+						debug!("\t <<< Enclave is not registered >>>");
 					} else {
-						debug!("\t <<< Enclave has never Synced >>>");
+						debug!("\t <<< Enclave is never Synced >>>");
 					}
 				}
 				// Prevent Crawling after first registration

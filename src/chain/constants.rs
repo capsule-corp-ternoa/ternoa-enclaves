@@ -1,4 +1,4 @@
-pub const VERSION: &str = "0.4.4";
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const ATTESTATION_SERVER_URL: &str = if cfg!(feature = "alphanet") {
 	// PRODUCTION-KEY when binary is built by github
 	"https://alphanet-attestation.ternoa.network/attest"
