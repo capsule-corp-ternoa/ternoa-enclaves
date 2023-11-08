@@ -618,9 +618,9 @@ pub async fn http_server() -> Result<Router, Error> {
 				// Non Numeric SyncState file content:
 				if block_number % 10 == 0 {
 					if get_identity(&state_config).await.is_none() {
-						debug!("\t <<< Enclave has is not registered >>>");
+						debug!("\t <<< Enclave is not registered >>>");
 					} else {
-						debug!("\t <<< Enclave has never Synced >>>");
+						debug!("\t <<< Enclave is never Synced >>>");
 					}
 				}
 				// Prevent Crawling after first registration

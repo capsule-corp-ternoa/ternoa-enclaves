@@ -44,7 +44,7 @@ use crate::{
 	servers::state::{
 		get_blocknumber, get_clusters, reset_nft_availability, set_keypair, SharedState,
 		StateConfig,
-	},
+	}, backup::sync::cluster_discovery,
 };
 
 use super::{
@@ -794,7 +794,12 @@ pub async fn admin_backup_push_bulk(
 	debug!("ADMIN PUSH BULK : Keypair success");
 
 	set_keypair(&state, enclave_keypair).await;
-	debug!("share-state Enclave Account updated");
+	debug!("ADMIN PUSH BULK : share-state Enclave Account updated");
+
+	match cluster_discovery(&state).await {
+		Ok(res) => debug!("ADMIN PUSH BULK : CLUSTER DISCOVERY FOR NEW IDENTITY : {res}"),
+		Err(err) => error!("ADMIN PUSH BULK : CLUSTER DISCOVERY FAILED : {err}"),
+	}
 
 	//update_health_status(&state, String::new()).await;
 	let keyshare_list: BTreeMap<u32, helper::Availability> =
