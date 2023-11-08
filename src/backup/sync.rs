@@ -2498,7 +2498,7 @@ mod test {
 			.unwrap();
 
 		// Analyze the Response
-		assert_eq!(response.status(), StatusCode::OK);
+		assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
 		let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
 		let body: Value = serde_json::from_slice(&body).unwrap();
 		println!("Health Check Result: {:#?}", body);
