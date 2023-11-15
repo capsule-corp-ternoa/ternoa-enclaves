@@ -93,7 +93,7 @@ impl AuthenticationToken {
 				"current block number = {} < request block number = {}",
 				current_block_number, self.block_number
 			);
-			return ValidationResult::FutureBlockNumber
+			return ValidationResult::FutureBlockNumber;
 		}
 
 		if self.block_validation > MAX_VALIDATION_PERIOD {
@@ -102,7 +102,7 @@ impl AuthenticationToken {
 				"MAX VALIDATION = {} < block_validation = {}",
 				MAX_VALIDATION_PERIOD, self.block_validation
 			);
-			return ValidationResult::InvalidPeriod
+			return ValidationResult::InvalidPeriod;
 		}
 
 		if self.block_number + self.block_validation < current_block_number {
@@ -112,7 +112,7 @@ impl AuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber
+			return ValidationResult::ExpiredBlockNumber;
 		}
 
 		ValidationResult::Success
@@ -276,7 +276,7 @@ pub async fn admin_backup_fetch_id(
 			backup_request.admin_account
 		);
 
-		return error_handler(message, &state).await.into_response()
+		return error_handler(message, &state).await.into_response();
 	}
 
 	let mut auth = backup_request.auth_token.clone();
@@ -284,21 +284,23 @@ pub async fn admin_backup_fetch_id(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return error_handler("Strip Token prefix error".to_string(), &state)
 					.await
-					.into_response(),
+					.into_response()
+			},
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return error_handler(
 					"ADMIN FETCH ID : Strip Token suffix error".to_string(),
 					&state,
 				)
 				.await
-				.into_response(),
+				.into_response()
+			},
 		}
 	}
 
@@ -307,7 +309,7 @@ pub async fn admin_backup_fetch_id(
 		Err(err) => {
 			let message =
 				format!("ADMIN FETCH ID :Error backup key shares : Authentication token is not parsable : {}", err);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -318,7 +320,7 @@ pub async fn admin_backup_fetch_id(
 	) {
 		return error_handler("ADMIN FETCH ID : Invalid Signature".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	let current_block_number = get_blocknumber(&state).await;
@@ -332,7 +334,7 @@ pub async fn admin_backup_fetch_id(
 				"ADMIN FETCH ID : Authentication Token is not valid, or expired : {:?}",
 				validity
 			);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	}
 
@@ -341,14 +343,14 @@ pub async fn admin_backup_fetch_id(
 	if auth_token.data_hash != hash {
 		return error_handler("ADMIN FETCH ID : Mismatch Data Hash".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	let nftidv: Vec<u32> = match serde_json::from_str(&backup_request.id_vec) {
 		Ok(v) => v,
 		Err(err) => {
 			let message = format!("ADMIN FETCH ID : unable to deserialize nftid vector : {err:?}");
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -381,9 +383,10 @@ pub async fn admin_backup_fetch_id(
 	debug!("ADMIN FETCH ID : Opening backup file");
 	let file = match tokio::fs::File::open(backup_file).await {
 		Ok(file) => file,
-		Err(err) =>
+		Err(err) => {
 			return Json(json!({ "error": format!("Backup File not found: {}", err) }))
-				.into_response(),
+				.into_response()
+		},
 	};
 
 	// convert the `AsyncRead` into a `Stream`
@@ -427,7 +430,7 @@ pub async fn admin_backup_push_id(
 			backup_request.admin_account
 		);
 
-		return error_handler(message, &state).await.into_response()
+		return error_handler(message, &state).await.into_response();
 	}
 
 	let mut auth = backup_request.auth_token.clone();
@@ -435,18 +438,23 @@ pub async fn admin_backup_push_id(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return error_handler("Strip Token prefix error".to_string(), &state)
 					.await
-					.into_response(),
+					.into_response()
+			},
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
-				return error_handler("ADMIN PUSH ID : Strip Token suffix error".to_string(), &state)
-					.await
-					.into_response(),
+			_ => {
+				return error_handler(
+					"ADMIN PUSH ID : Strip Token suffix error".to_string(),
+					&state,
+				)
+				.await
+				.into_response()
+			},
 		}
 	}
 
@@ -455,7 +463,7 @@ pub async fn admin_backup_push_id(
 		Err(err) => {
 			let message =
 				format!("ADMIN PUSH ID : Error backup key shares : Authentication token is not parsable : {}", err);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -466,7 +474,7 @@ pub async fn admin_backup_push_id(
 	) {
 		return error_handler("ADMIN PUSH ID : Invalid Signature".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	let current_block_number = get_blocknumber(&state).await;
@@ -480,7 +488,7 @@ pub async fn admin_backup_push_id(
 				"ADMIN PUSH ID : Authentication Token is not valid, or expired : {:?}",
 				validity
 			);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	}
 
@@ -489,14 +497,14 @@ pub async fn admin_backup_push_id(
 	if auth_token.data_hash != hash {
 		return error_handler("ADMIN PUSH ID : Mismatch Data Hash".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	let nftidv: Vec<String> = match serde_json::from_str(&backup_request.id_vec) {
 		Ok(v) => v,
 		Err(err) => {
 			let message = format!("ADMIN PUSH ID : unable to deserialize nftid vector : {err:?}");
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -518,7 +526,7 @@ pub async fn admin_backup_push_id(
 						},
 						|| sentry::capture_message(&message, sentry::Level::Error),
 					);
-					continue
+					continue;
 				},
 			};
 
@@ -536,7 +544,7 @@ pub async fn admin_backup_push_id(
 						},
 						|| sentry::capture_message(&message, sentry::Level::Error),
 					);
-					continue
+					continue;
 				},
 			};
 
@@ -555,7 +563,7 @@ pub async fn admin_backup_push_id(
 						},
 						|| sentry::capture_message(&message, sentry::Level::Error),
 					);
-					continue
+					continue;
 				},
 			};
 
@@ -620,7 +628,7 @@ pub async fn admin_backup_push_id(
 			}
 		} else {
 			let message = "ADMIN PUSH ID : unable to destructure one of id_keyshares".to_string();
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		}
 	}
 
@@ -718,7 +726,7 @@ mod test {
 			Ok(r) => r,
 			Err(err) => {
 				error!("Error creating http server {}", err);
-				return
+				return;
 			},
 		};
 

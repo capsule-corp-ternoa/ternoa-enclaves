@@ -108,7 +108,7 @@ async fn main() {
 		Err(err) => {
 			error!("MAIN : Error creating http application, exiting : {err:?}");
 			sentry::integrations::anyhow::capture_anyhow(&err);
-			return
+			return;
 		},
 	};
 
