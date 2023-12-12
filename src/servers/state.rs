@@ -12,19 +12,29 @@ pub type SharedState = Arc<RwLock<StateConfig>>;
 
 /// StateConfig shared by all routes
 pub struct StateConfig {
+	// Enclave confidential keypair generated inside the TEE
 	enclave_key: sr25519::Pair,
+	// Public part of enclave keypair
 	enclave_account: String,
+	// Signer object for Enclave confidential keypair
 	enclave_signer: PairSigner<subxt::PolkadotConfig, sr25519::Pair>,
+	// If enclave is in maintenance mode, this field will contain a proper description
 	maintenance: String,
+	// RPC connection to the blockchain public node
 	rpc_client: DefaultApi,
+	// If the RPC connection is lost, this flag is set to activate reconn
+	rpc_renew: bool,
+	// Update the block number every 6 seconds
 	current_block: u32,
+	// Nonce for Enclave transactions
 	nonce: u64,
+	// Map of registered clusters on chain
 	clusters: Vec<Cluster>,
-	// Identity is (ClusterID, SlotID)
+	// Identity of enclave is a tuple: (ClusterID, SlotID)
 	identity: Option<(u32, u32)>,
 	binary_version: String,
-	// only for dev
 	last_processed_block: u32,
+	// Hashmap of all the NFTs stored on the current enclave, and their kind (Secret/Capsule/Hybrid)
 	nft_block_map: BTreeMap<u32, helper::Availability>,
 }
 
@@ -34,7 +44,6 @@ impl StateConfig {
 		maintenance: String,
 		rpc_client: DefaultApi,
 		binary_version: String,
-		last_processed_block: u32,
 		nft_block_map: BTreeMap<u32, helper::Availability>,
 	) -> StateConfig {
 		let public_key = match keypair_to_public(enclave_key.clone()) {
@@ -51,8 +60,9 @@ impl StateConfig {
 			enclave_signer: PairSigner::new(enclave_key),
 			maintenance,
 			rpc_client,
+			rpc_renew: false,
 			current_block: 0,
-			last_processed_block,
+			last_processed_block: 0,
 			nonce: 0,
 			clusters: Vec::<Cluster>::new(),
 			identity: None,
@@ -100,8 +110,16 @@ impl StateConfig {
 		self.rpc_client.clone()
 	}
 
-	pub fn _set_rpc_client(&mut self, new_client: DefaultApi) {
+	pub fn get_rpc_renew(&self) -> bool {
+		self.rpc_renew
+	}
+
+	pub fn set_rpc_client(&mut self, new_client: DefaultApi) {
 		self.rpc_client = new_client;
+	}
+
+	pub fn set_rpc_renew(&mut self, renew_flag: bool) {
+		self.rpc_renew = renew_flag;
 	}
 
 	pub fn set_current_block(&mut self, block_number: u32) {
@@ -149,12 +167,12 @@ impl StateConfig {
 	}
 
 	pub fn get_identity(&self) -> Option<(u32, u32)> {
-		// Identity is (ClusterID, SlotID)
+		// Enclave Identity is a tuple : (ClusterID, SlotID)
 		self.identity
 	}
 
 	pub fn set_identity(&mut self, identity: Option<(u32, u32)>) {
-		// Identity is (ClusterID, SlotID)
+		// Enclave Identity is a tuple : (ClusterID, SlotID)
 		self.identity = identity;
 	}
 
@@ -172,13 +190,13 @@ impl StateConfig {
 	}
 
 	pub fn set_nft_availability(&mut self, nftid_block: (u32, helper::Availability)) {
-		// Identity is (ClusterID, SlotID)
+		// Availability contains Blocknumber of last change and the Type of NFT (Secret/Capsule/Hybrid)
 		self.nft_block_map.insert(nftid_block.0, nftid_block.1);
 		tracing::trace!("\nAVAILABILITY : LOW LEVEL : SET : MAP : {:#?}", self.nft_block_map);
 	}
 
 	pub fn remove_nft_availability(&mut self, nftid: u32) {
-		// Identity is (ClusterID, SlotID)
+		// Availability contains Blocknumber of last change and the Type of NFT (Secret/Capsule/Hybrid)
 		self.nft_block_map.remove(&nftid);
 		tracing::trace!("\nAVAILABILITY : LOW LEVEL : REMOVE : MAP : {:#?}", self.nft_block_map);
 	}
@@ -204,8 +222,17 @@ fn keypair_to_public(keypair: sr25519::Pair) -> Option<sr25519::Public> {
 pub async fn get_chain_api(state: &SharedState) -> DefaultApi {
 	let shared_state_read = state.read().await;
 
-	// If connection is lost, will be very hard to reconnect: https://github.com/paritytech/subxt/issues/551
-	// a solution to WS reconnection problem : https://github.com/AcalaNetwork/subway/blob/master/src/client/mod.rs
+	// If connection is lost, will be very hard to reconnect: 
+	// Subxt issue : https://github.com/paritytech/subxt/issues/1190
+	
+	// History of issue : 
+		// https://github.com/paritytech/subxt/issues/551
+		// https://github.com/paritytech/jsonrpsee/issues/949
+		// https://github.com/paritytech/jsonrpsee/issues/236
+		// https://github.com/paritytech/jsonrpsee/issues/678
+	
+	// A solution to WS reconnection problem : https://github.com/AcalaNetwork/subway/blob/master/src/extensions/client/mod.rs
+	
 	// All the subscriptions and waiting extrinsics should be done agian.
 	shared_state_read.get_rpc_client()
 }
@@ -223,6 +250,11 @@ pub async fn get_accountid(state: &SharedState) -> String {
 pub async fn get_nonce(state: &SharedState) -> u64 {
 	let shared_state_read = state.read().await;
 	shared_state_read.get_nonce()
+}
+
+pub async fn get_chain_rpc_renew(state: &SharedState) -> bool {
+	let shared_state_read = state.read().await;
+	shared_state_read.get_rpc_renew()
 }
 
 pub async fn get_clusters(state: &SharedState) -> Vec<Cluster> {
@@ -304,16 +336,23 @@ pub async fn set_identity(state: &SharedState, id: Option<(u32, u32)>) {
 	shared_state_write.set_identity(id);
 }
 
-pub async fn _set_chain_api(state: &SharedState, api: DefaultApi) {
+pub async fn set_chain_api(state: &SharedState, api: DefaultApi) {
 	let shared_state_write = &mut state.write().await;
-	shared_state_write._set_rpc_client(api);
+	shared_state_write.set_rpc_client(api);
 }
 
+pub async fn set_chain_api_renew(state: &SharedState, renew: bool) {
+	let shared_state_write = &mut state.write().await;
+	shared_state_write.set_rpc_renew(renew);
+}
+
+// Set Specific NFTID
 pub async fn set_nft_availability(state: &SharedState, nftid_block: (u32, helper::Availability)) {
 	let shared_state_write = &mut state.write().await;
 	shared_state_write.set_nft_availability(nftid_block);
 }
 
+// Update whole the map
 pub async fn reset_nft_availability(
 	state: &SharedState,
 	availability_map: BTreeMap<u32, helper::Availability>,

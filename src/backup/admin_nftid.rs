@@ -715,8 +715,7 @@ mod test {
 			enclave_keypair,
 			String::new(),
 			create_chain_api().await.unwrap(),
-			"0.4.0".to_string(),
-			0,
+			crate::chain::constants::VERSION.to_string(),
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));
 

@@ -65,13 +65,13 @@ You have to specify the chain which you want to use.
 This command will build a binary for dev-0 chain :
 
 ```shell
-sudo CHAIN="dev0" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --build --verbose 2
+sudo CHAIN="dev0" ./scripts/start-server.sh --domain dev-c1n1.ternoa.network --port 8100  --verbose 2
 ```
 
 To use official binary in github :
 
 ```shell
-sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --fetch --verbose 2
+sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.network --port 8100  --verbose 2
 ```
 
 ### Start Parameters
@@ -91,7 +91,7 @@ sudo CHAIN="mainnet" ./scripts/start-server.sh --domain mainnet-c1n1.ternoa.netw
 It is similar to Start, but it won't compile the binary :
 
 ```shell
-sudo CHAIN="alphanet" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8100 --build --verbose 2
+sudo CHAIN="alphanet" ./scripts/resume-server.sh --domain alphanet-c1n1.ternoa.network --port 8100 --verbose 2
 ```
 
 ## Stop an Enclave
@@ -116,11 +116,11 @@ To create a new image:
 
 ```shell
 docker build --rm --no-cache \
-    -t ternoa-sgx:v0.4.4-alphanet \
+    -t ternoa-sgx:v0.4.5-alphanet \
     -t ternoa-sgx:latest \
     --build-arg UBUNTU_VERSION=22.04 \
     --build-arg ENCLAVE_CHAIN=alphanet \
-    --build-arg ENCLAVE_DOMAIN=enclave.domain.me \
+    --build-arg ENCLAVE_DOMAIN=enclave.your-domain.me \
     --build-arg ENCLAVE_PORT=8000 \
     --build-arg ENCLAVE_VERBOSITY=3 \
     .
@@ -129,12 +129,12 @@ docker build --rm --no-cache \
 To start a container:
 
 ```shell
-ENCLAVE_VERSION=v0.4.4-dev0 \
-ENCLAVE_DNS=xxx.xxx.xxx.xxx \
+ENCLAVE_VERSION=v0.4.5-dev0 \
+ENCLAVE_DNS=8.8.8.8 \
 ENCLAVE_DOMAIN=enclave.your-domain.me \
 ENCLAVE_PORT=9000 \
 ENCLAVE_VERBOSITY=3 \
-docker-compose up
+docker-compose up -d
 
 ```
 
@@ -147,3 +147,12 @@ Sample ```curl``` commands are provided on [client.sh](./client/client.sh) file.
 
 A simple tool provide correct request format to enclave API endpoints
 [Readme](./tools/README.md)
+
+## SGX Machine
+
+You need to keep the sgx server updated regarding to the CPU microcode and BIOS version to be able to pass remote attestation process.
+If you are not using docker, the SGX drivers, OS updates and Rust compiler must be at the latest version to have a valid MRENCLAVE measurement.
+These all are necessary to avoid new hardware vulnerabilities that cause secret leakage.
+
+To update CPU Microcode we have provided a script [here](scripts/sgx-microcode-update.sh).
+

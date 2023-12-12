@@ -2480,7 +2480,6 @@ mod test {
 			String::new(),
 			api.clone(),
 			VERSION.to_string(),
-			0,
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));
 

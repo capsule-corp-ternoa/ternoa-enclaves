@@ -182,7 +182,10 @@ pub async fn get_onchain_nft_data(
 			match api.storage().at_latest().await {
 				Ok(storage) => storage,
 				Err(err) => {
-					error!("CHAIN : Failed to get nft storagem, retry num.{}: {:?}", retry, err);
+					// Usually : Rpc ClientError Restart Needed
+					// "Networking or low-level protocol error: WebSocket connection error: connection closed"
+					set_chain_api_renew(state, true).await;
+					error!("CHAIN : Failed to get nft storage, retry num.{}: {:?}", retry, err);
 					sentry::capture_error(&err);
 					continue;
 				},
@@ -204,6 +207,7 @@ pub async fn get_onchain_nft_data(
 		match api.storage().at_latest().await {
 			Ok(storage) => storage,
 			Err(err) => {
+				set_chain_api_renew(state, true).await;
 				error!("CHAIN : Failed to get nft storage: {err:?}");
 				sentry::capture_error(&err);
 				return None;
