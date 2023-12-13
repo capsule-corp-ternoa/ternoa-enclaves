@@ -11,13 +11,14 @@ use std::{
 };
 
 use futures::StreamExt;
+use hyper::Method;
 use serde::{Deserialize, Serialize};
 use tokio::{sync::RwLock, time::timeout};
 
 use axum::{
 	error_handling::HandleErrorLayer,
 	extract::{DefaultBodyLimit, State},
-	http::{Method, StatusCode, Uri},
+	http::{StatusCode, Uri},
 	response::IntoResponse,
 	routing::{get, post},
 	BoxError, Json, Router,
@@ -64,9 +65,10 @@ use crate::{
 		},
 	},
 	servers::state::{
-		get_accountid, get_blocknumber, get_identity, get_maintenance,
+		get_accountid, get_blocknumber, get_chain_rpc_renew, get_identity, get_maintenance,
 		get_nft_availability_map_len, get_nonce, get_processed_block, get_version, reset_nonce,
-		set_blocknumber, set_processed_block, SharedState, StateConfig, set_chain_api, get_chain_rpc_renew, set_chain_api_renew,
+		set_blocknumber, set_chain_api, set_chain_api_renew, set_processed_block, SharedState,
+		StateConfig,
 	},
 };
 
@@ -81,11 +83,10 @@ use super::{server_common, state::get_chain_api};
 
 /// http server app
 pub async fn http_server() -> Result<Router, Error> {
-	
 	let state_config = initialize_enclave_state().await?;
 
 	info!("ENCLAVE START : define the CORS layer.");
-	let _ = CorsLayer::new()
+	let cors_layer = CorsLayer::new()
 		// allow `GET` and `POST` when accessing the resource
 		.allow_methods([Method::GET, Method::POST])
 		// allow requests from any origin
@@ -133,9 +134,8 @@ pub async fn http_server() -> Result<Router, Error> {
 				.timeout(Duration::from_secs(30)),
 		)
 		.layer(monitor_layer)
-		.layer(CorsLayer::permissive())
+		.layer(cors_layer)
 		.with_state(Arc::clone(&state_config.clone()));
-
 
 	info!("ENCLAVE START : New Thread for run-time block subscription.");
 	subscribe_block_events(state_config).await;
@@ -329,13 +329,12 @@ async fn evalueate_health_status(
 	let status = match sync_state.as_str() {
 		"" => StatusCode::PARTIAL_CONTENT,
 		"setup" => StatusCode::RESET_CONTENT,
-		_ => {
+		_ =>
 			if sync_state.parse::<u32>().is_ok() {
 				StatusCode::OK
 			} else {
 				StatusCode::NOT_ACCEPTABLE
-			}
-		},
+			},
 	};
 
 	trace!("Healthcheck handler : state={status:?}");
@@ -354,8 +353,6 @@ async fn evalueate_health_status(
 	))
 }
 
-
-
 /*
 	Initialize the enclave :
 	- Creating/Fetching the confidential keypair
@@ -364,7 +361,6 @@ async fn evalueate_health_status(
 */
 
 async fn initialize_enclave_state() -> Result<SharedState, Error> {
-	
 	// Confidential Keypair of Enclave
 	// The public key part of the keypair is the Identity of enclave i.e for registeration on chain
 	// Also used for signing all communications
@@ -447,7 +443,7 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 		VERSION.to_string(),
 		keyshare_list,
 	)));
-	
+
 	// Update the shared-state with chain block states
 	set_blocknumber(&state_config, current_block_number).await;
 	set_processed_block(&state_config, last_processed_block).await;
@@ -472,7 +468,8 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 	// 1- file does not exists : first time enclave starting
 	// 2- file is empty : enclave is not registered on chain
 	// 3- file contains "setup" string : enclave has been stopped during synchronization
-	// 4- file contains a blocknumber : the enclave is synchronized the data up to the blocknumber that contains NFT
+	// 4- file contains a blocknumber : the enclave is synchronized the data up to the blocknumber
+	// that contains NFT
 	info!("ENCLAVE START : check for sync.state file from previous run ...");
 
 	if std::path::Path::new(&SYNC_STATE_FILE).exists() {
@@ -619,7 +616,7 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 			warn!("ENCLAVE START : sync.state file exists, but it is empty : enclave is not registered yet.");
 		}
 	} else {
-		// First time the enclave is starting 
+		// First time the enclave is starting
 		debug!("ENCLAVE START : sync.state file does not exist.");
 		let _ = match File::create(SYNC_STATE_FILE) {
 			Ok(file_handle) => {
@@ -632,10 +629,9 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 			},
 		};
 	};
-	
+
 	Ok(state_config)
 }
-
 
 /*
 	Subscribe to blockchain events :
@@ -661,33 +657,32 @@ async fn subscribe_block_events(state_config: SharedState) {
 		};
 
 		// For each new finalized block, get block number
-		loop  {
-			
+		loop {
 			// Is there any request to reset rpc connection?
 			if get_chain_rpc_renew(&state_config).await {
-					info!("-- Subscription Task : Renew the RPC ...");
-	
-					// New Websocket RPC connection to the blockchain
-					let chain_api = match create_chain_api().await {
-						Ok(api) => api,
-						Err(err) => {
-							error!("-- Subscription Task : get online chain api, error : {err:?}");
-							continue
-						},
-					};
-					
-					set_chain_api(&state_config, chain_api.clone()).await;
+				info!("-- Subscription Task : Renew the RPC ...");
 
-					// Subscribe to all finalized blocks:
-					blocks_sub = match chain_api.blocks().subscribe_finalized().await {
-						Ok(sub) => sub,
-						Err(err) => {
-							error!("-- Subscription Task : Unable to update subscribe to finalized blocks {err:?}");
-							continue
-						},
-					};
+				// New Websocket RPC connection to the blockchain
+				let chain_api = match create_chain_api().await {
+					Ok(api) => api,
+					Err(err) => {
+						error!("-- Subscription Task : get online chain api, error : {err:?}");
+						continue;
+					},
+				};
 
-					set_chain_api_renew(&state_config, false).await;
+				set_chain_api(&state_config, chain_api.clone()).await;
+
+				// Subscribe to all finalized blocks:
+				blocks_sub = match chain_api.blocks().subscribe_finalized().await {
+					Ok(sub) => sub,
+					Err(err) => {
+						error!("-- Subscription Task : Unable to update subscribe to finalized blocks {err:?}");
+						continue;
+					},
+				};
+
+				set_chain_api_renew(&state_config, false).await;
 			}
 
 			let some_block = match timeout(Duration::from_secs(30), blocks_sub.next()).await {
@@ -695,16 +690,16 @@ async fn subscribe_block_events(state_config: SharedState) {
 				Err(err) => {
 					error!("-- Subscription Task : Block Subscription timeout {err:?}");
 					info!("-- Subscription Task : Reconnecting RPC ...");
-	
+
 					// New Websocket RPC connection to the blockchain
 					let chain_api = match create_chain_api().await {
 						Ok(api) => api,
 						Err(err) => {
 							error!("-- Subscription Task : get online chain api, error : {err:?}");
-							continue
+							continue;
 						},
 					};
-					
+
 					set_chain_api(&state_config, chain_api.clone()).await;
 
 					// Subscribe to all finalized blocks:
@@ -712,18 +707,21 @@ async fn subscribe_block_events(state_config: SharedState) {
 						Ok(sub) => sub,
 						Err(err) => {
 							error!("-- Subscription Task : Unable to update subscribe to finalized blocks {err:?}");
-							
-							continue
+							continue;
 						},
 					};
 
-					continue
-				}
+					continue;
+				},
 			};
 
 			let ok_block = match some_block {
 				Some(ok_block) => ok_block,
-				None => continue,
+				None => {
+					warn!("-- Subscription Task : Unable to get some block");
+					set_chain_api_renew(&state_config, true).await;
+					continue;
+				},
 			};
 
 			// Check if captured finalized block
@@ -731,6 +729,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 				Ok(block) => block,
 				Err(err) => {
 					warn!("-- Subscription Task : Unable to get finalized block {err:?}");
+					set_chain_api_renew(&state_config, true).await;
 					continue;
 				},
 			};
@@ -739,7 +738,6 @@ async fn subscribe_block_events(state_config: SharedState) {
 
 			// Write to ShareState block, necessary to prevent Read SharedState
 			set_blocknumber(&state_config, block_number).await;
-			trace!("-- Subscription Task : New Block : {}", block_number);
 
 			// For block number update, we should reset the nonce as well
 			// It is used as a batch of extrinsics for every block
@@ -749,7 +747,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 			);
 
 			reset_nonce(&state_config).await;
-			
+
 			trace!(
 				"-- Subscription Task : nonce has been reset to {}",
 				get_nonce(&state_config).await
@@ -763,7 +761,8 @@ async fn subscribe_block_events(state_config: SharedState) {
 				},
 				Err(err) => {
 					// Usually : Rpc ClientError Restart Needed
-					// "Networking or low-level protocol error: WebSocket connection error: i/o error: Connection reset by peer"
+					// "Networking or low-level protocol error: WebSocket connection error: i/o
+					// error: Connection reset by peer"
 					set_chain_api_renew(&state_config, true).await;
 					error!("-- Subscription Task : Unable to get block body : {err:?}");
 					continue;
@@ -864,7 +863,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 					} // FETCH
 				} // RETRY FETCH
 			}
-			
+
 			// Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
 
 			// Regular CRAWL Check

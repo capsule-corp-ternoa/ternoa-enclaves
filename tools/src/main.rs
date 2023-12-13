@@ -48,7 +48,7 @@ type DefaultApi = OnlineClient<PolkadotConfig>;
 /// # Returns
 /// * `DefaultApi` - The chain API
 pub async fn get_chain_api() -> Result<DefaultApi, Error> {
-	debug!("5-1 get chain API");
+	debug!("Get chain API");
 
 	let rpc_endoint = if cfg!(feature = "mainnet") {
 		"wss://mainnet.ternoa.network:443".to_string()

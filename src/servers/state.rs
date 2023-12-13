@@ -34,7 +34,8 @@ pub struct StateConfig {
 	identity: Option<(u32, u32)>,
 	binary_version: String,
 	last_processed_block: u32,
-	// Hashmap of all the NFTs stored on the current enclave, and their kind (Secret/Capsule/Hybrid)
+	// Hashmap of all the NFTs stored on the current enclave, and their kind
+	// (Secret/Capsule/Hybrid)
 	nft_block_map: BTreeMap<u32, helper::Availability>,
 }
 
@@ -190,13 +191,15 @@ impl StateConfig {
 	}
 
 	pub fn set_nft_availability(&mut self, nftid_block: (u32, helper::Availability)) {
-		// Availability contains Blocknumber of last change and the Type of NFT (Secret/Capsule/Hybrid)
+		// Availability contains Blocknumber of last change and the Type of NFT
+		// (Secret/Capsule/Hybrid)
 		self.nft_block_map.insert(nftid_block.0, nftid_block.1);
 		tracing::trace!("\nAVAILABILITY : LOW LEVEL : SET : MAP : {:#?}", self.nft_block_map);
 	}
 
 	pub fn remove_nft_availability(&mut self, nftid: u32) {
-		// Availability contains Blocknumber of last change and the Type of NFT (Secret/Capsule/Hybrid)
+		// Availability contains Blocknumber of last change and the Type of NFT
+		// (Secret/Capsule/Hybrid)
 		self.nft_block_map.remove(&nftid);
 		tracing::trace!("\nAVAILABILITY : LOW LEVEL : REMOVE : MAP : {:#?}", self.nft_block_map);
 	}
@@ -222,17 +225,17 @@ fn keypair_to_public(keypair: sr25519::Pair) -> Option<sr25519::Public> {
 pub async fn get_chain_api(state: &SharedState) -> DefaultApi {
 	let shared_state_read = state.read().await;
 
-	// If connection is lost, will be very hard to reconnect: 
+	// If connection is lost, will be very hard to reconnect:
 	// Subxt issue : https://github.com/paritytech/subxt/issues/1190
-	
-	// History of issue : 
-		// https://github.com/paritytech/subxt/issues/551
-		// https://github.com/paritytech/jsonrpsee/issues/949
-		// https://github.com/paritytech/jsonrpsee/issues/236
-		// https://github.com/paritytech/jsonrpsee/issues/678
-	
+
+	// History of issue :
+	// https://github.com/paritytech/subxt/issues/551
+	// https://github.com/paritytech/jsonrpsee/issues/949
+	// https://github.com/paritytech/jsonrpsee/issues/236
+	// https://github.com/paritytech/jsonrpsee/issues/678
+
 	// A solution to WS reconnection problem : https://github.com/AcalaNetwork/subway/blob/master/src/extensions/client/mod.rs
-	
+
 	// All the subscriptions and waiting extrinsics should be done agian.
 	shared_state_read.get_rpc_client()
 }

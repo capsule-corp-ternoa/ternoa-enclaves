@@ -41,18 +41,16 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse
 	match write_user_report_data(None, &signature.0) {
 		Ok(_) => debug!("QUOTE : Success writing user_data to the quote."),
 
-		Err(err) => {
+		Err(err) =>
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(QuoteResponse { block_number, data: err.to_string() }),
-			)
-		},
+			),
 	};
 
 	match get_quote_content() {
-		Ok(quote) => {
-			(StatusCode::OK, Json(QuoteResponse { block_number, data: hex::encode(quote) }))
-		},
+		Ok(quote) =>
+			(StatusCode::OK, Json(QuoteResponse { block_number, data: hex::encode(quote) })),
 
 		Err(err) => (
 			StatusCode::INTERNAL_SERVER_ERROR,

@@ -284,23 +284,21 @@ pub async fn admin_backup_fetch_id(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return error_handler("Strip Token prefix error".to_string(), &state)
 					.await
-					.into_response()
-			},
+					.into_response(),
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return error_handler(
 					"ADMIN FETCH ID : Strip Token suffix error".to_string(),
 					&state,
 				)
 				.await
-				.into_response()
-			},
+				.into_response(),
 		}
 	}
 
@@ -383,10 +381,9 @@ pub async fn admin_backup_fetch_id(
 	debug!("ADMIN FETCH ID : Opening backup file");
 	let file = match tokio::fs::File::open(backup_file).await {
 		Ok(file) => file,
-		Err(err) => {
+		Err(err) =>
 			return Json(json!({ "error": format!("Backup File not found: {}", err) }))
-				.into_response()
-		},
+				.into_response(),
 	};
 
 	// convert the `AsyncRead` into a `Stream`
@@ -438,23 +435,18 @@ pub async fn admin_backup_push_id(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return error_handler("Strip Token prefix error".to_string(), &state)
 					.await
-					.into_response()
-			},
+					.into_response(),
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
-				return error_handler(
-					"ADMIN PUSH ID : Strip Token suffix error".to_string(),
-					&state,
-				)
-				.await
-				.into_response()
-			},
+			_ =>
+				return error_handler("ADMIN PUSH ID : Strip Token suffix error".to_string(), &state)
+					.await
+					.into_response(),
 		}
 	}
 

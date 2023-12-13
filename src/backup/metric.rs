@@ -146,7 +146,7 @@ async fn _update_health_status(state: &SharedState, message: String) {
 pub async fn error_handler(message: String, _state: &SharedState) -> impl IntoResponse {
 	error!(message);
 	//update_health_status(state, String::new()).await;
-	(StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+	(StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response()
 }
 
 /* --------------------
@@ -171,26 +171,24 @@ pub async fn metric_reconcilliation(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return error_handler(
 					"METRIC GET NFT LIST : Strip Token prefix error".to_string(),
 					&state,
 				)
 				.await
-				.into_response()
-			},
+				.into_response(),
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return error_handler(
 					"METRIC GET NFT LIST : Strip Token suffix error".to_string(),
 					&state,
 				)
 				.await
-				.into_response()
-			},
+				.into_response(),
 		}
 	}
 
@@ -288,26 +286,24 @@ pub async fn set_crawl_block(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return error_handler(
 					"METRIC CRAWL API : Strip Token prefix error".to_string(),
 					&state,
 				)
 				.await
-				.into_response()
-			},
+				.into_response(),
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return error_handler(
 					"METRIC CRAWL API : Strip Token suffix error".to_string(),
 					&state,
 				)
 				.await
-				.into_response()
-			},
+				.into_response(),
 		}
 	}
 

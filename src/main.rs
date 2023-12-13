@@ -45,10 +45,10 @@ async fn main() {
 	};
 
 	let fmt_layer = fmt::layer()
-		.with_target(false)
-		.with_level(false)
+		.with_target(true)
+		.with_level(true)
 		.with_thread_ids(false)
-		.with_thread_names(false);
+		.with_thread_names(true);
 
 	let filter_layer = EnvFilter::try_from_default_env()
 		.or_else(|_| EnvFilter::try_new::<String>(verbosity_level.into()))

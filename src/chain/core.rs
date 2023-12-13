@@ -57,7 +57,7 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	debug!("CHAIN : get chain API");
 
 	let rpc_endoint = if cfg!(feature = "mainnet") {
-		"wss://mainnet.ternoa.network:443".to_string()
+		"wss://mainnet.ternoa.io:443".to_string()
 	} else if cfg!(feature = "alphanet") {
 		"wss://alphanet.ternoa.com:443".to_string()
 	} else if cfg!(feature = "dev1") {
@@ -150,12 +150,11 @@ pub async fn get_current_block_number_new_api() -> Result<u32, Error> {
 	debug!("CHAIN : current_block : get block number");
 	let last_block = match api.rpc().block(Some(hash)).await {
 		Ok(Some(last_block)) => last_block,
-		Ok(None) => {
+		Ok(None) =>
 			return Err(subxt::Error::Io(std::io::Error::new(
 				std::io::ErrorKind::Other,
 				"Block not found",
-			)))
-		},
+			))),
 		Err(err) => return Err(err),
 	};
 
@@ -183,7 +182,8 @@ pub async fn get_onchain_nft_data(
 				Ok(storage) => storage,
 				Err(err) => {
 					// Usually : Rpc ClientError Restart Needed
-					// "Networking or low-level protocol error: WebSocket connection error: connection closed"
+					// "Networking or low-level protocol error: WebSocket connection error:
+					// connection closed"
 					set_chain_api_renew(state, true).await;
 					error!("CHAIN : Failed to get nft storage, retry num.{}: {:?}", retry, err);
 					sentry::capture_error(&err);
@@ -256,6 +256,7 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 					"CHAIN : Failed to fetch NFT data for delegatee, retry num.{} : {:?}",
 					retry, err
 				);
+				set_chain_api_renew(state, true).await;
 				sentry::capture_error(&err);
 			},
 		}
@@ -298,8 +299,10 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 		let storage = match api.storage().at_latest().await {
 			Ok(storage) => storage,
 			Err(err) => {
+				set_chain_api_renew(state, true).await;
 				error!("CHAIN : Failed to get storage for rentee, retry num.{} : {:?}", retry, err);
 				sentry::capture_error(&err);
+				std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 				continue;
 			},
 		};
@@ -335,6 +338,7 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 		Ok(storage) => storage,
 		Err(err) => {
 			error!("CHAIN : Failed to get storage for rentee: {err:?}");
+			set_chain_api_renew(state, true).await;
 			sentry::capture_error(&err);
 			return None;
 		},
@@ -488,6 +492,7 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 			Err(err) => {
 				error!("CHAIN : GET METRIC SERVER : Failed to get storage for metric server, retry num.{} : {:?}", retry, err);
 				sentry::capture_error(&err);
+				std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
 				continue;
 			},
 		};

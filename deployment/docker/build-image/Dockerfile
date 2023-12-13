@@ -2,7 +2,7 @@
 ARG UBUNTU_VERSION=22.04
 
 # compiler version is fixed for mrenclave
-FROM rust:1.73 as ternoa-rust
+FROM rust:1.74 as ternoa-rust
 
 ARG ENCLAVE_CHAIN
 ENV ENCLAVE_CHAIN=${ENCLAVE_CHAIN:-"mainnet"}

@@ -146,10 +146,10 @@ pub fn _query_nftid_file(dir_path: String, nft_id: u32) -> Result<u32, anyhow::E
 			None => continue,
 		};
 
-		if file_ext == "keyshare"
-			&& name_parts.len() == 3
-			&& (name_parts[0] == "nft" || name_parts[0] == "capsule")
-			&& name_parts[1].parse::<u32>() == Ok(nft_id)
+		if file_ext == "keyshare" &&
+			name_parts.len() == 3 &&
+			(name_parts[0] == "nft" || name_parts[0] == "capsule") &&
+			name_parts[1].parse::<u32>() == Ok(nft_id)
 		{
 			match name_parts[2].parse::<u32>() {
 				Ok(block_number) => {
