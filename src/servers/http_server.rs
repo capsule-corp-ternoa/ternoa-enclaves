@@ -90,9 +90,9 @@ pub async fn http_server() -> Result<Router, Error> {
 		// allow `GET` and `POST` when accessing the resource
 		.allow_methods([Method::GET, Method::POST])
 		// allow requests from any origin
-		.allow_origin(Any)
 		.allow_headers(Any)
-		.allow_credentials(true);
+        .allow_origin(Any)
+        .expose_headers(Any);
 
 	info!("ENCLAVE START : define the monitor layer : Sentry.");
 	let monitor_layer = ServiceBuilder::new()
