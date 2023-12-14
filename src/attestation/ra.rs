@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use subxt::ext::sp_core::Pair;
 use tracing::{debug, error, info, trace};
 
-use crate::servers::state::{get_accountid, get_blocknumber, get_keypair, SharedState};
+use crate::server::state::{get_accountid, get_blocknumber, get_keypair, SharedState};
 use anyhow::{anyhow, Result};
 
 pub const QUOTE_REPORT_DATA_OFFSET: usize = 368;
@@ -115,7 +115,7 @@ pub fn write_user_report_data(
 ) -> Result<(), anyhow::Error> {
 	let default_path = "/dev/attestation/user_report_data";
 	if !is_user_report_data_exist(None) {
-		return Err(anyhow!("QUOTE : user_report_data does not exist!"))
+		return Err(anyhow!("QUOTE : user_report_data does not exist!"));
 	}
 
 	Ok(OpenOptions::new()
@@ -144,5 +144,5 @@ fn is_user_report_data_exist(file_path: Option<String>) -> bool {
 	return match file_path {
 		None => Path::new("/dev/attestation/user_report_data").exists(),
 		Some(f) => Path::new(&f).exists(),
-	}
+	};
 }

@@ -33,7 +33,7 @@ use tracing::{debug, error, info, trace};
 #[cfg_attr(feature = "dev0", subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev0.scale"))]
 
 pub mod ternoa {}
-use crate::servers::state::*;
+use crate::server::state::*;
 
 use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
 pub type DefaultApi = OnlineClient<PolkadotConfig>;
@@ -57,7 +57,7 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	debug!("CHAIN : get chain API");
 
 	let rpc_endoint = if cfg!(feature = "mainnet") {
-		"wss://mainnet.ternoa.network:443".to_string()
+		"wss://mainnet.ternoa.io:443".to_string()
 	} else if cfg!(feature = "alphanet") {
 		"wss://alphanet.ternoa.com:443".to_string()
 	} else if cfg!(feature = "dev1") {
@@ -72,24 +72,17 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	// let rpc = WsClientBuilder::default().use_webpki_rustls().build(&rpc_endoint).await.unwrap();
 	// let api = DefaultApi::from_rpc_client(std::sync::Arc::new(rpc)).await.unwrap();
 
-	// RE-TRY MECHANISM
-	for retry in 0..RETRY_COUNT {
-		match DefaultApi::from_url(rpc_endoint.clone()).await {
-			Ok(api) => {
-				info!("CHAIN : Successfully created chain api.");
-				return Ok(api)
-			},
-			Err(err) => {
-				error!("CHAIN : Error acquiring chain api, retry num.{}, {:?}", retry, err);
-				sentry::capture_error(&err);
-			},
-		}
-		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+	match DefaultApi::from_url(rpc_endoint.clone()).await {
+		Ok(api) => {
+			info!("CHAIN : Successfully created chain api.");
+			Ok(api)
+		},
+		Err(err) => {
+			error!("CHAIN : Error acquiring chain api, {:?}", err);
+			sentry::capture_error(&err);
+			Err(err)
+		},
 	}
-
-	// LAST NORMAL TRY
-	info!("CHAIN : Successfully created chain api.");
-	DefaultApi::from_url(rpc_endoint).await
 }
 
 // -------------- BLOCK NUMBER --------------
@@ -103,25 +96,13 @@ pub async fn get_current_block_number(state: &SharedState) -> Result<u32, Error>
 
 	debug!("CHAIN : get current block number");
 
-	// RE-TRY MECHANISM
-	for retry in 0..RETRY_COUNT {
-		match api.blocks().at_latest().await {
-			Ok(last_block) => return Ok(last_block.number()),
-			Err(err) => {
-				error!("CHAIN : unable to get latest block, retry num.{}, {:?}", retry, err);
-				sentry::capture_error(&err);
-				std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
-			},
-		}
-	}
-
-	// LAST NORMAL TRY
 	let last_block = match api.blocks().at_latest().await {
 		Ok(last_block) => last_block,
 		Err(err) => {
-			error!("CHAIN : unable to get latest block, retry num.{} : {}", RETRY_COUNT, err);
+			error!("CHAIN : unable to get latest block : {}", err);
+			set_chain_api_renew(state, true).await;
 			sentry::capture_error(&err);
-			return Err(err)
+			return Err(err);
 		},
 	};
 
@@ -175,40 +156,19 @@ pub async fn get_onchain_nft_data(
 
 	let storage_address = ternoa::storage().nft().nfts(nft_id);
 
-	// RETRY
-	for retry in 0..RETRY_COUNT {
-		let storage: subxt::storage::Storage<PolkadotConfig, OnlineClient<PolkadotConfig>> =
-			match api.storage().at_latest().await {
-				Ok(storage) => storage,
-				Err(err) => {
-					error!("CHAIN : Failed to get nft storagem, retry num.{}: {:?}", retry, err);
-					sentry::capture_error(&err);
-					continue
-				},
-			};
-
-		match storage.fetch(&storage_address).await {
-			Ok(nft_data) => return nft_data,
-			Err(err) => {
-				error!("CHAIN : Failed to fetch NFT data, retry num.{} : {:?}", retry, err);
-				sentry::capture_error(&err);
-			},
-		}
-
-		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
-	}
-
-	// LAST NORMAL TRY
+	// Get storage
 	let storage: subxt::storage::Storage<PolkadotConfig, OnlineClient<PolkadotConfig>> =
 		match api.storage().at_latest().await {
 			Ok(storage) => storage,
 			Err(err) => {
+				set_chain_api_renew(state, true).await;
 				error!("CHAIN : Failed to get nft storage: {err:?}");
 				sentry::capture_error(&err);
-				return None
+				return None;
 			},
 		};
 
+	// Fetch data
 	match storage.fetch(&storage_address).await {
 		Ok(nft_data) => nft_data,
 		Err(err) => {
@@ -231,39 +191,13 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 
 	let storage_address = ternoa::storage().nft().delegated_nf_ts(nft_id);
 
-	for retry in 0..RETRY_COUNT {
-		let storage = match api.storage().at_latest().await {
-			Ok(storage) => storage,
-			Err(err) => {
-				error!(
-					"CHAIN : Failed to get storage for delegatee, retry num.{}: {:?}",
-					retry, err
-				);
-				sentry::capture_error(&err);
-				continue
-			},
-		};
-
-		match storage.fetch(&storage_address).await {
-			Ok(delegated) => return delegated,
-			Err(err) => {
-				error!(
-					"CHAIN : Failed to fetch NFT data for delegatee, retry num.{} : {:?}",
-					retry, err
-				);
-				sentry::capture_error(&err);
-			},
-		}
-
-		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
-	}
-
 	let storage = match api.storage().at_latest().await {
 		Ok(storage) => storage,
 		Err(err) => {
 			error!("CHAIN : Failed to get storage for delegatee: {err:?}");
+			set_chain_api_renew(state, true).await;
 			sentry::capture_error(&err);
-			return None
+			return None;
 		},
 	};
 
@@ -271,6 +205,7 @@ pub async fn get_onchain_delegatee(state: &SharedState, nft_id: u32) -> Option<A
 		Ok(delegated) => delegated,
 		Err(err) => {
 			error!("CHAIN : Failed to fetch NFT data for delegatee : {err:?}");
+			set_chain_api_renew(state, true).await;
 			sentry::capture_error(&err);
 			None
 		},
@@ -289,49 +224,13 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 
 	let storage_address = ternoa::storage().rent().contracts(nft_id);
 
-	for retry in 0..RETRY_COUNT {
-		let storage = match api.storage().at_latest().await {
-			Ok(storage) => storage,
-			Err(err) => {
-				error!("CHAIN : Failed to get storage for rentee, retry num.{} : {:?}", retry, err);
-				sentry::capture_error(&err);
-				continue
-			},
-		};
-
-		match storage.fetch(&storage_address).await {
-			Ok(rent_contract) => match rent_contract {
-				Some(data) => return data.rentee,
-				_ => {
-					error!(
-						"CHAIN : Failed to parse NFT data for rentee, retry num.{} : {:?}",
-						retry, rent_contract
-					);
-					sentry::capture_message(
-						"CHAIN : Failed to parse NFT data for rentee",
-						sentry::Level::Error,
-					);
-				},
-			},
-
-			Err(err) => {
-				error!(
-					"CHAIN : Failed to fetch NFT data for rentee, retry num.{} : {:?}",
-					retry, err
-				);
-				sentry::capture_error(&err);
-			},
-		}
-
-		std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
-	}
-
 	let storage = match api.storage().at_latest().await {
 		Ok(storage) => storage,
 		Err(err) => {
 			error!("CHAIN : Failed to get storage for rentee: {err:?}");
+			set_chain_api_renew(state, true).await;
 			sentry::capture_error(&err);
-			return None
+			return None;
 		},
 	};
 
@@ -349,6 +248,7 @@ pub async fn get_onchain_rent_contract(state: &SharedState, nft_id: u32) -> Opti
 		},
 		Err(err) => {
 			error!("CHAIN : Failed to fetch NFT data: {err:?}");
+			set_chain_api_renew(state, true).await;
 			sentry::capture_error(&err);
 			None
 		},
@@ -477,39 +377,43 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 
 	let storage_address = ternoa::storage().tee().metrics_servers();
 
-	for retry in 0..RETRY_COUNT {
-		let storage = match api.storage().at_latest().await {
-			Ok(storage) => storage,
-			Err(err) => {
-				error!("CHAIN : GET METRIC SERVER : Failed to get storage for metric server, retry num.{} : {:?}", retry, err);
-				sentry::capture_error(&err);
-				continue
-			},
-		};
+	// Get storage
+	let storage = match api.storage().at_latest().await {
+		Ok(storage) => storage,
+		Err(err) => {
+			error!(
+				"CHAIN : GET METRIC SERVER : Failed to get storage for metric server : {:?}",
+				err
+			);
+			set_chain_api_renew(state, true).await;
+			sentry::capture_error(&err);
+			return None
+		},
+	};
 
-		match storage.fetch(&storage_address).await {
-			Ok(metric_servers) => match metric_servers {
-				Some(bv) => return Some(bv.0),
-				_ => {
-					error!("CHAIN : GET METRIC SERVER : Failed to parse metric server vector, retry num.{} : {:?}",
-						retry, metric_servers
-						);
-					sentry::capture_message(
-						"CHAIN : GET METRIC SERVER : Failed to parse metric server vector",
-						sentry::Level::Error,
-					);
-					return None
-				},
-			},
-
-			Err(err) => {
-				error!("CHAIN : GET METRIC SERVER : Failed to fetch metric servers, retry num.{} : {:?}",
-					retry, err
+	// Fetch
+	match storage.fetch(&storage_address).await {
+		Ok(metric_servers) => match metric_servers {
+			Some(bv) => return Some(bv.0),
+			_ => {
+				error!(
+					"CHAIN : GET METRIC SERVER : Failed to parse metric server vector : {:?}",
+					metric_servers
 				);
-				sentry::capture_error(&err);
-				std::thread::sleep(std::time::Duration::from_secs(RETRY_DELAY));
+				set_chain_api_renew(state, true).await;
+				sentry::capture_message(
+					"CHAIN : GET METRIC SERVER : Failed to parse metric server vector",
+					sentry::Level::Error,
+				);
+				return None;
 			},
-		}
+		},
+
+		Err(err) => {
+			error!("CHAIN : GET METRIC SERVER : Failed to fetch metric servers : {:?}", err);
+			set_chain_api_renew(state, true).await;
+			sentry::capture_error(&err);
+		},
 	}
 
 	None
@@ -573,17 +477,14 @@ struct JsonNFTData {
 
 impl fmt::Display for NFTData<AccountId32> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(
- f,
- "owner: {:#?},\n creator: {:#?}\n offchain_data: {:#?},\n royalty: {},\n collection_id: {},\n state: {:#?},\n",
- self.owner,
- self.creator,
- //std::str::from_utf8(&self.offchain_data.0).unwrap(),
-	 	self.offchain_data.0,
- self.royalty.0,
- self.collection_id.unwrap_or(0u32),
- self.state
- )
+		write!(f, "owner: {:#?},\n creator: {:#?}\n offchain_data: {:#?},\n royalty: {},\n collection_id: {},\n state: {:#?},\n",
+ 				self.owner,
+ 				self.creator,
+ 				//std::str::from_utf8(&self.offchain_data.0).unwrap(),
+	 			self.offchain_data.0,
+ 				self.royalty.0,
+ 				self.collection_id.unwrap_or(0u32),
+ 				self.state)
 	}
 }
 
@@ -616,7 +517,7 @@ mod test {
 			info!("{}: {}", hex::encode(key), account.data.free);
 			counter += 1;
 			if counter > 10 {
-				break
+				break;
 			}
 		}
 	}

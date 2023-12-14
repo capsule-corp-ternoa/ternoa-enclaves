@@ -27,13 +27,10 @@ use serde::{Deserialize, Serialize};
 use subxt::ext::sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
-	backup::zipdir::add_list_zip,
-	chain::{
-		constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
-		core::get_current_block_number,
-		helper,
-	},
-	servers::state::{
+	constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
+	core::{chain::get_current_block_number, helper},
+	replication::zipdir::add_list_zip,
+	server::state::{
 		get_blocknumber, get_clusters, get_nft_availability, set_nft_availability, SharedState,
 		StateConfig,
 	},
@@ -93,7 +90,7 @@ impl AuthenticationToken {
 				"current block number = {} < request block number = {}",
 				current_block_number, self.block_number
 			);
-			return ValidationResult::FutureBlockNumber
+			return ValidationResult::FutureBlockNumber;
 		}
 
 		if self.block_validation > MAX_VALIDATION_PERIOD {
@@ -102,7 +99,7 @@ impl AuthenticationToken {
 				"MAX VALIDATION = {} < block_validation = {}",
 				MAX_VALIDATION_PERIOD, self.block_validation
 			);
-			return ValidationResult::InvalidPeriod
+			return ValidationResult::InvalidPeriod;
 		}
 
 		if self.block_number + self.block_validation < current_block_number {
@@ -112,7 +109,7 @@ impl AuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber
+			return ValidationResult::ExpiredBlockNumber;
 		}
 
 		ValidationResult::Success
@@ -276,7 +273,7 @@ pub async fn admin_backup_fetch_id(
 			backup_request.admin_account
 		);
 
-		return error_handler(message, &state).await.into_response()
+		return error_handler(message, &state).await.into_response();
 	}
 
 	let mut auth = backup_request.auth_token.clone();
@@ -307,7 +304,7 @@ pub async fn admin_backup_fetch_id(
 		Err(err) => {
 			let message =
 				format!("ADMIN FETCH ID :Error backup key shares : Authentication token is not parsable : {}", err);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -318,7 +315,7 @@ pub async fn admin_backup_fetch_id(
 	) {
 		return error_handler("ADMIN FETCH ID : Invalid Signature".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	let current_block_number = get_blocknumber(&state).await;
@@ -332,7 +329,7 @@ pub async fn admin_backup_fetch_id(
 				"ADMIN FETCH ID : Authentication Token is not valid, or expired : {:?}",
 				validity
 			);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	}
 
@@ -341,14 +338,14 @@ pub async fn admin_backup_fetch_id(
 	if auth_token.data_hash != hash {
 		return error_handler("ADMIN FETCH ID : Mismatch Data Hash".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	let nftidv: Vec<u32> = match serde_json::from_str(&backup_request.id_vec) {
 		Ok(v) => v,
 		Err(err) => {
 			let message = format!("ADMIN FETCH ID : unable to deserialize nftid vector : {err:?}");
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -427,7 +424,7 @@ pub async fn admin_backup_push_id(
 			backup_request.admin_account
 		);
 
-		return error_handler(message, &state).await.into_response()
+		return error_handler(message, &state).await.into_response();
 	}
 
 	let mut auth = backup_request.auth_token.clone();
@@ -455,7 +452,7 @@ pub async fn admin_backup_push_id(
 		Err(err) => {
 			let message =
 				format!("ADMIN PUSH ID : Error backup key shares : Authentication token is not parsable : {}", err);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -466,7 +463,7 @@ pub async fn admin_backup_push_id(
 	) {
 		return error_handler("ADMIN PUSH ID : Invalid Signature".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	let current_block_number = get_blocknumber(&state).await;
@@ -480,7 +477,7 @@ pub async fn admin_backup_push_id(
 				"ADMIN PUSH ID : Authentication Token is not valid, or expired : {:?}",
 				validity
 			);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	}
 
@@ -489,14 +486,14 @@ pub async fn admin_backup_push_id(
 	if auth_token.data_hash != hash {
 		return error_handler("ADMIN PUSH ID : Mismatch Data Hash".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	let nftidv: Vec<String> = match serde_json::from_str(&backup_request.id_vec) {
 		Ok(v) => v,
 		Err(err) => {
 			let message = format!("ADMIN PUSH ID : unable to deserialize nftid vector : {err:?}");
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -518,7 +515,7 @@ pub async fn admin_backup_push_id(
 						},
 						|| sentry::capture_message(&message, sentry::Level::Error),
 					);
-					continue
+					continue;
 				},
 			};
 
@@ -536,7 +533,7 @@ pub async fn admin_backup_push_id(
 						},
 						|| sentry::capture_message(&message, sentry::Level::Error),
 					);
-					continue
+					continue;
 				},
 			};
 
@@ -555,7 +552,7 @@ pub async fn admin_backup_push_id(
 						},
 						|| sentry::capture_message(&message, sentry::Level::Error),
 					);
-					continue
+					continue;
 				},
 			};
 
@@ -620,7 +617,7 @@ pub async fn admin_backup_push_id(
 			}
 		} else {
 			let message = "ADMIN PUSH ID : unable to destructure one of id_keyshares".to_string();
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		}
 	}
 
@@ -639,8 +636,8 @@ pub async fn admin_backup_push_id(
 
 #[cfg(test)]
 mod test {
-	use crate::chain::{
-		core::{create_chain_api, get_current_block_number_new_api},
+	use crate::core::{
+		chain::{create_chain_api, get_current_block_number_new_api},
 		helper,
 	};
 
@@ -707,18 +704,17 @@ mod test {
 			enclave_keypair,
 			String::new(),
 			create_chain_api().await.unwrap(),
-			"0.4.0".to_string(),
-			0,
+			crate::constants::VERSION.to_string(),
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));
 
 		//let app = Router::new().route("/admin_backup_fetch_id",
 		// post(admin_backup_fetch_id)).with_state(state_config);
-		let mut app = match crate::servers::http_server::http_server().await {
+		let mut app = match crate::server::http_server::http_server().await {
 			Ok(r) => r,
 			Err(err) => {
 				error!("Error creating http server {}", err);
-				return
+				return;
 			},
 		};
 

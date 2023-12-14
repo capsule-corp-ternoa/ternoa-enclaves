@@ -1,8 +1,8 @@
 use crate::{
-	chain::helper,
-	servers::state::{
+	core::helper,
+	server::state::{
 		get_accountid, get_blocknumber, get_nft_availability, remove_nft_availability,
-		set_nft_availability, SharedState,
+		set_chain_api_renew, set_nft_availability, SharedState,
 	},
 };
 
@@ -15,14 +15,15 @@ use std::{
 
 use tracing::{debug, error, info, warn};
 
-use axum::extract::Path as PathExtract;
-
-use crate::chain::{
+use crate::{
 	constants::SEALPATH,
-	core::{capsule_keyshare_oracle, get_current_block_number, get_onchain_nft_data},
-	log::*,
-	verify::*,
+	core::{
+		chain::{capsule_keyshare_oracle, get_current_block_number, get_onchain_nft_data},
+		log::*,
+		verify::*,
+	},
 };
+use axum::extract::Path as PathExtract;
 use serde::Serialize;
 use serde_json::to_value;
 
@@ -68,7 +69,7 @@ pub async fn is_capsule_available(
 						exists: true,
 					}),
 				)
-					.into_response()
+					.into_response();
 			} else {
 				debug!("CAPSULE AVAILABILITY CHECK : NFTID is NOT a capsule, nft_id : {}", nft_id);
 			}
@@ -136,7 +137,7 @@ pub async fn capsule_get_views(
 					log: LogFile::new(),
 					description: "nft_id does not exist.".to_string(),
 				}),
-			)
+			);
 		},
 	};
 
@@ -151,7 +152,7 @@ pub async fn capsule_get_views(
 				log: LogFile::new(),
 				description: "nft_id is not a capsule".to_string(),
 			}),
-		)
+		);
 	}
 
 	let file_path = format!("{SEALPATH}/{nft_id}.log");
@@ -171,7 +172,7 @@ pub async fn capsule_get_views(
 				log: LogFile::new(),
 				description: "Capsule does not exist on this enclave".to_string(),
 			}),
-		)
+		);
 	};
 
 	// OPEN LOG-FILE
@@ -199,7 +200,7 @@ pub async fn capsule_get_views(
 					log: LogFile::new(),
 					description: "can not retrieve the log of capsule views".to_string(),
 				}),
-			)
+			);
 		},
 	};
 
@@ -338,7 +339,7 @@ pub async fn capsule_set_keyshare(
 						})
 						.unwrap(),
 					),
-				)
+				);
 			};
 
 			// If it is an update keyshare request :
@@ -412,7 +413,7 @@ pub async fn capsule_set_keyshare(
 							})
 							.unwrap(),
 						),
-					)
+					);
 				},
 			};
 
@@ -453,7 +454,7 @@ pub async fn capsule_set_keyshare(
 							})
 							.unwrap(),
 						),
-					)
+					);
 				},
 			};
 
@@ -533,6 +534,10 @@ pub async fn capsule_set_keyshare(
 									"Error in creating log file for nft_id : {}, path : {} error : {}",
 									verified_data.nft_id, file_path, err
 								);
+
+								if err.to_string().contains("WebSocket") {
+									set_chain_api_renew(&state, true).await;
+								}
 
 								error!(message);
 
@@ -699,7 +704,7 @@ pub async fn capsule_retrieve_keyshare(
 								})
 								.unwrap(),
 							),
-						)
+						);
 					},
 				None => {
 					let status = ReturnStatus::KEYNOTEXIST;
@@ -716,7 +721,7 @@ pub async fn capsule_retrieve_keyshare(
 							})
 							.unwrap(),
 						),
-					)
+					);
 				},
 			};
 
@@ -754,7 +759,7 @@ pub async fn capsule_retrieve_keyshare(
 						})
 						.unwrap(),
 					),
-				)
+				);
 			}
 
 			// OPEN CAPSULE KEY-SHARE
@@ -796,7 +801,7 @@ pub async fn capsule_retrieve_keyshare(
 							})
 							.unwrap(),
 						),
-					)
+					);
 				},
 			};
 
@@ -846,7 +851,7 @@ pub async fn capsule_retrieve_keyshare(
 							})
 							.unwrap(),
 						),
-					)
+					);
 				},
 			};
 
@@ -967,13 +972,16 @@ pub async fn capsule_remove_keyshare(
 				request.requester_address.to_string(),
 				parsed_data.nft_id,
 				enclave_account,
-			)
+			);
 		},
 	};
 
 	// IS IT FROM A METRIC SERVER?
-	if !crate::backup::metric::verify_account_id(&state, &request.requester_address.to_string())
-		.await
+	if !crate::replication::metric::verify_account_id(
+		&state,
+		&request.requester_address.to_string(),
+	)
+	.await
 	{
 		warn!(
 			"CAPSULE REMOVE : Invalid requester, nft-id.{}, requester : {}",
@@ -990,7 +998,7 @@ pub async fn capsule_remove_keyshare(
 				})
 				.unwrap(),
 			),
-		)
+		);
 	}
 
 	// Is nft burnt?
@@ -1040,7 +1048,7 @@ pub async fn capsule_remove_keyshare(
 						})
 						.unwrap(),
 					),
-				)
+				);
 			}
 		},
 
@@ -1076,7 +1084,7 @@ pub async fn capsule_remove_keyshare(
 				})
 				.unwrap(),
 			),
-		)
+		);
 	}
 
 	match std::fs::remove_file(file_path.clone()) {

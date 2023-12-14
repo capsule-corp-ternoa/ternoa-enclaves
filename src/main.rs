@@ -1,12 +1,13 @@
-use crate::chain::constants::{SENTRY_URL, VERSION};
+mod attestation;
+mod constants;
+mod core;
+mod replication;
+mod server;
+
 use clap::Parser;
+use constants::{SENTRY_URL, VERSION};
 use tracing::{error, info};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-
-mod attestation;
-mod backup;
-mod chain;
-mod servers;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -45,10 +46,10 @@ async fn main() {
 	};
 
 	let fmt_layer = fmt::layer()
-		.with_target(false)
-		.with_level(false)
+		.with_target(true)
+		.with_level(true)
 		.with_thread_ids(false)
-		.with_thread_names(false);
+		.with_thread_names(true);
 
 	let filter_layer = EnvFilter::try_from_default_env()
 		.or_else(|_| EnvFilter::try_new::<String>(verbosity_level.into()))
@@ -103,17 +104,17 @@ async fn main() {
 	});
 
 	info!("MAIN : Define http-server");
-	let http_app = match servers::http_server::http_server().await {
+	let http_app = match server::http_server::http_server().await {
 		Ok(app) => app,
 		Err(err) => {
 			error!("MAIN : Error creating http application, exiting : {err:?}");
 			sentry::integrations::anyhow::capture_anyhow(&err);
-			return
+			return;
 		},
 	};
 
 	info!("MAIN : Start Server with routes");
-	match servers::server_common::serve(http_app, &args.domain, &args.port).await {
+	match server::server_common::serve(http_app, &args.domain, &args.port).await {
 		Ok(_) => info!("MAIN : Server exited successfully"),
 		Err(err) => {
 			error!("MAIN : Server exited with error : {err:?}");

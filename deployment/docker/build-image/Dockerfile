@@ -1,8 +1,8 @@
 
 ARG UBUNTU_VERSION=22.04
 
-
-FROM rust:latest as ternoa-rust
+# compiler version is fixed for mrenclave
+FROM rust:1.74 as ternoa-rust
 
 ARG ENCLAVE_CHAIN
 ENV ENCLAVE_CHAIN=${ENCLAVE_CHAIN:-"mainnet"}
@@ -13,7 +13,7 @@ SHELL ["/bin/bash", "-c"]
 RUN curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg && \
     echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ jammy main' > /etc/apt/sources.list.d/gramine.list
 
-RUN apt-get update && apt-get upgrade -y && apt-get install -y apt-utils curl ca-certificates git build-essential wget libssl-dev git unzip pkgconf
+RUN apt-get update && apt-get install -y apt-utils curl ca-certificates git build-essential wget libssl-dev git unzip pkgconf
 RUN apt install -y pkg-config
 RUN apt install -y gramine
 RUN gramine-sgx-gen-private-key
@@ -44,7 +44,7 @@ FROM ubuntu:${UBUNTU_VERSION} as ternoa-gramine
 SHELL ["/bin/bash", "-c"]
 
 ARG CODE_VERSION
-ENV CODE_VERSION=${CODE_VERSION:-"v0.4.4"}
+ENV CODE_VERSION=${CODE_VERSION:-"v0.4.5"}
 
 ARG ENCLAVE_VERBOSITY
 ENV ENCLAVE_VERBOSITY=${ENCLAVE_VERBOSITY:-3}

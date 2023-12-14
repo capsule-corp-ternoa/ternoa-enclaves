@@ -25,7 +25,7 @@ pub fn query_keyshare_file(dir_path: String) -> Result<BTreeMap<u32, Availabilit
 			// It's better to have a error response
 			let message = format!("QUERY KEYSHARE FILE : error reading seales directory {err:?}");
 			error!(message);
-			return Err(anyhow!(message))
+			return Err(anyhow!(message));
 		},
 	};
 
@@ -35,7 +35,7 @@ pub fn query_keyshare_file(dir_path: String) -> Result<BTreeMap<u32, Availabilit
 			// It's better to report Internal Error
 			Err(err) => {
 				error!("QUERY KEYSHARE FILE : error reading directory entry {err:?}");
-				continue
+				continue;
 			},
 		};
 
@@ -50,7 +50,7 @@ pub fn query_keyshare_file(dir_path: String) -> Result<BTreeMap<u32, Availabilit
 
 					available_keys.insert(nftid, hybrid_av);
 
-					continue
+					continue;
 				}
 			}
 
@@ -76,7 +76,7 @@ pub fn parse_keyshare_file(path: &Path) -> Result<(u32, Availability), anyhow::E
 
 	if file_ext != "keyshare" || name_parts.len() != 3 {
 		let message = format!("PARSE KEYSHARE FILE-NAME : invalid file name {:?}", name_parts);
-		return Err(anyhow!(message))
+		return Err(anyhow!(message));
 	}
 
 	let nftid = match name_parts[1].parse::<u32>() {
@@ -86,7 +86,7 @@ pub fn parse_keyshare_file(path: &Path) -> Result<(u32, Availability), anyhow::E
 				"PARSE KEYSHARE FILE-NAME : can not parse nftid {:?} : {:?}",
 				name_parts, err
 			);
-			return Err(anyhow!(message))
+			return Err(anyhow!(message));
 		},
 	};
 
@@ -97,7 +97,7 @@ pub fn parse_keyshare_file(path: &Path) -> Result<(u32, Availability), anyhow::E
 				"PARSE KEYSHARE FILE-NAME : can not parse blocknumber {:?} : {:?}",
 				name_parts, err
 			);
-			return Err(anyhow!(message))
+			return Err(anyhow!(message));
 		},
 	};
 
@@ -106,7 +106,7 @@ pub fn parse_keyshare_file(path: &Path) -> Result<(u32, Availability), anyhow::E
 		"capsule" => NftType::Capsule,
 		_ => {
 			let message = format!("PARSE KEYSHARE FILE-NAME : invalid  nft type {:?}", name_parts);
-			return Err(anyhow!(message))
+			return Err(anyhow!(message));
 		},
 	};
 
@@ -120,7 +120,7 @@ pub fn _query_nftid_file(dir_path: String, nft_id: u32) -> Result<u32, anyhow::E
 			// It's better to have a error response
 			let message = format!("QUERY NFTID FILE : error reading seales directory {err:?}");
 			error!(message);
-			return Err(anyhow!(message))
+			return Err(anyhow!(message));
 		},
 	};
 
@@ -130,7 +130,7 @@ pub fn _query_nftid_file(dir_path: String, nft_id: u32) -> Result<u32, anyhow::E
 			// It's better to report Internal Error
 			Err(err) => {
 				error!("QUERY NFTID FILE : error reading directory entry {err:?}");
-				continue
+				continue;
 			},
 		};
 
@@ -157,12 +157,12 @@ pub fn _query_nftid_file(dir_path: String, nft_id: u32) -> Result<u32, anyhow::E
 						"QUERY NFTID FILE : file exists, nft_id : {}, updated on block {}",
 						nft_id, block_number
 					);
-					return Ok(block_number)
+					return Ok(block_number);
 				},
 				Err(err) => {
 					let message = format!("QUERY NFTID FILE : Key-share exists, nft_id : {}, can not parse block number {:?} : {:?}", nft_id, name_parts, err);
 					warn!(message);
-					return Err(anyhow!(message))
+					return Err(anyhow!(message));
 				},
 			};
 		}

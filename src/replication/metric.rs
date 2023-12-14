@@ -1,10 +1,8 @@
 use crate::{
-	backup::sync::ValidationResult,
-	chain::{
-		constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD},
-		core::{get_metric_server, MetricServer},
-	},
-	servers::state::{get_blocknumber, set_processed_block, SharedState},
+	constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD},
+	core::chain::{get_metric_server, MetricServer},
+	replication::sync::ValidationResult,
+	server::state::{get_blocknumber, set_processed_block, SharedState},
 };
 use axum::{extract::State, response::IntoResponse, Json};
 use hex::{FromHex, FromHexError};
@@ -50,7 +48,7 @@ impl AuthenticationToken {
 				"current block number = {} < request block number = {}",
 				current_block_number, self.block_number
 			);
-			return ValidationResult::FutureBlockNumber
+			return ValidationResult::FutureBlockNumber;
 		}
 
 		if self.block_validation > MAX_VALIDATION_PERIOD {
@@ -59,7 +57,7 @@ impl AuthenticationToken {
 				"MAX VALIDATION = {} < block_validation = {}",
 				MAX_VALIDATION_PERIOD, self.block_validation
 			);
-			return ValidationResult::InvalidPeriod
+			return ValidationResult::InvalidPeriod;
 		}
 
 		if self.block_number + self.block_validation < current_block_number {
@@ -69,7 +67,7 @@ impl AuthenticationToken {
 				current_block_number, self.block_number
 			);
 
-			return ValidationResult::ExpiredBlockNumber
+			return ValidationResult::ExpiredBlockNumber;
 		}
 
 		ValidationResult::Success
@@ -85,7 +83,7 @@ pub async fn verify_account_id(state: &SharedState, account_id: &str) -> bool {
 			.filter(|ms| ms.metrics_server_address.to_string() == account_id)
 			.collect();
 		if contain.len() == 1 {
-			return true
+			return true;
 		}
 	} else {
 		error!("METRIC : No metric server is registered on blockchain.");
@@ -146,7 +144,7 @@ async fn _update_health_status(state: &SharedState, message: String) {
 pub async fn error_handler(message: String, _state: &SharedState) -> impl IntoResponse {
 	error!(message);
 	//update_health_status(state, String::new()).await;
-	(StatusCode::BAD_REQUEST, Json(json!({ "error": message })))
+	(StatusCode::BAD_REQUEST, Json(json!({ "error": message }))).into_response()
 }
 
 /* --------------------
@@ -163,7 +161,7 @@ pub async fn metric_reconcilliation(
 	if !verify_account_id(&state, &request.metric_account).await {
 		let message =
 			"METRIC GET NFT LIST : Error : Requester Account is not authorized".to_string();
-		return error_handler(message, &state).await.into_response()
+		return error_handler(message, &state).await.into_response();
 	};
 
 	let mut auth = request.auth_token.clone();
@@ -199,7 +197,7 @@ pub async fn metric_reconcilliation(
 				"METRIC GET NFT LIST : Error : Authentication token is not parsable : {}",
 				err
 			);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -211,7 +209,7 @@ pub async fn metric_reconcilliation(
 	) {
 		return error_handler("METRIC GET NFT LIST : Invalid Signature".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	debug!("METRIC GET NFT LIST : Validating the authentication token");
@@ -223,7 +221,7 @@ pub async fn metric_reconcilliation(
 				"METRIC GET NFT LIST : Authentication Token is not valid, or expired : {:?}",
 				validity
 			);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	}
 
@@ -232,7 +230,7 @@ pub async fn metric_reconcilliation(
 	if auth_token.data_hash != hash {
 		return error_handler("METRIC GET NFT LIST : Mismatch Data Hash".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	let interval: Vec<u32> = match serde_json::from_str(&request.block_interval) {
@@ -242,13 +240,13 @@ pub async fn metric_reconcilliation(
 				"METRIC GET NFT LIST : Error : Authentication token is not parsable : {}",
 				err
 			);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
 	if interval.len() != 2 || interval[0] >= interval[1] {
 		let message = "METRIC GET NFT LIST : Error : Invalid provided block interval".to_string();
-		return error_handler(message, &state).await.into_response()
+		return error_handler(message, &state).await.into_response();
 	}
 
 	let shared_state_read = state.read().await;
@@ -278,7 +276,7 @@ pub async fn set_crawl_block(
 	debug!("METRIC CRAWL API : VERIFY ACCOUNT ID");
 	if verify_account_id(&state, &request.metric_account).await {
 		let message = "METRIC CRAWL API : Error : Requester Account is not authorized".to_string();
-		return error_handler(message, &state).await.into_response()
+		return error_handler(message, &state).await.into_response();
 	};
 
 	let mut auth = request.auth_token.clone();
@@ -314,7 +312,7 @@ pub async fn set_crawl_block(
 				"METRIC CRAWL API : Error : Authentication token is not parsable : {}",
 				err
 			);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 
@@ -326,7 +324,7 @@ pub async fn set_crawl_block(
 	) {
 		return error_handler("METRIC CRAWL API : Invalid Signature".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	debug!("METRIC CRAWL API : Validating the authentication token");
@@ -338,7 +336,7 @@ pub async fn set_crawl_block(
 				"METRIC CRAWL API : Authentication Token is not valid, or expired : {:?}",
 				validity
 			);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	}
 
@@ -347,7 +345,7 @@ pub async fn set_crawl_block(
 	if auth_token.data_hash != hash {
 		return error_handler("METRIC CRAWL API : Mismatch Data Hash".to_string(), &state)
 			.await
-			.into_response()
+			.into_response();
 	}
 
 	let crawl_start_block: u32 = match serde_json::from_str(&request.block_number) {
@@ -357,7 +355,7 @@ pub async fn set_crawl_block(
 				"METRIC CRAWL API : Error : Authentication token is not parsable : {}",
 				err
 			);
-			return error_handler(message, &state).await.into_response()
+			return error_handler(message, &state).await.into_response();
 		},
 	};
 

@@ -2,7 +2,7 @@ docker system prune -f
 docker builder prune -f
 
 read -p "Building for which chain [mainnet, alphanet, dev0, dev1] : " chain
-read -p "Building which version [>= v0.4.4] : " codever
+read -p "Building which version [>= v0.4.5] : " codever
 
 CHAIN=${chain:-mainnet}
 CODEVER=${codever:-v0.4.4}
