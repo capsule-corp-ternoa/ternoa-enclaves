@@ -27,13 +27,10 @@ use serde::{Deserialize, Serialize};
 use subxt::ext::sp_core::{crypto::PublicError, sr25519::Signature};
 
 use crate::{
-	backup::zipdir::add_list_zip,
-	chain::{
-		constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
-		core::get_current_block_number,
-		helper,
-	},
-	servers::state::{
+	constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
+	core::{chain::get_current_block_number, helper},
+	replication::zipdir::add_list_zip,
+	server::state::{
 		get_blocknumber, get_clusters, get_nft_availability, set_nft_availability, SharedState,
 		StateConfig,
 	},
@@ -639,8 +636,8 @@ pub async fn admin_backup_push_id(
 
 #[cfg(test)]
 mod test {
-	use crate::chain::{
-		core::{create_chain_api, get_current_block_number_new_api},
+	use crate::core::{
+		chain::{create_chain_api, get_current_block_number_new_api},
 		helper,
 	};
 
@@ -707,13 +704,13 @@ mod test {
 			enclave_keypair,
 			String::new(),
 			create_chain_api().await.unwrap(),
-			crate::chain::constants::VERSION.to_string(),
+			crate::constants::VERSION.to_string(),
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));
 
 		//let app = Router::new().route("/admin_backup_fetch_id",
 		// post(admin_backup_fetch_id)).with_state(state_config);
-		let mut app = match crate::servers::http_server::http_server().await {
+		let mut app = match crate::server::http_server::http_server().await {
 			Ok(r) => r,
 			Err(err) => {
 				error!("Error creating http server {}", err);

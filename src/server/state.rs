@@ -4,8 +4,8 @@ use subxt::{ext::sp_core::sr25519, tx::PairSigner};
 use tokio::sync::RwLock;
 
 use crate::{
-	backup::sync::Cluster,
-	chain::{core::DefaultApi, helper},
+	core::{chain::DefaultApi, helper},
+	replication::sync::Cluster,
 };
 
 pub type SharedState = Arc<RwLock<StateConfig>>;

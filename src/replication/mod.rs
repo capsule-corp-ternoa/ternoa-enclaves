@@ -1,8 +1,8 @@
-/// Backup module
+/// Data Replication module
 pub mod admin_bulk;
 pub mod admin_nftid;
 //pub mod graphql;
 pub mod metric;
 pub mod sync;
-pub mod upgrade;
 pub mod zipdir;
+//pub mod upgrade;

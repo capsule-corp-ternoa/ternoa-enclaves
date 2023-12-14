@@ -36,13 +36,10 @@ use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	backup::sync::cluster_discovery,
-	chain::{
-		constants::{ENCLAVE_ACCOUNT_FILE, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
-		core::get_current_block_number,
-		helper,
-	},
-	servers::state::{
+	constants::{ENCLAVE_ACCOUNT_FILE, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH},
+	core::{chain::get_current_block_number, helper},
+	replication::sync::cluster_discovery,
+	server::state::{
 		get_blocknumber, get_clusters, reset_nft_availability, set_keypair, SharedState,
 		StateConfig,
 	},
@@ -835,7 +832,7 @@ pub async fn admin_backup_push_bulk(
 
 #[cfg(test)]
 mod test {
-	use crate::chain::core::get_current_block_number_new_api;
+	use crate::core::chain::get_current_block_number_new_api;
 
 	use super::*;
 

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use subxt::ext::sp_core::Pair;
 use tracing::{debug, error, info, trace};
 
-use crate::servers::state::{get_accountid, get_blocknumber, get_keypair, SharedState};
+use crate::server::state::{get_accountid, get_blocknumber, get_keypair, SharedState};
 use anyhow::{anyhow, Result};
 
 pub const QUOTE_REPORT_DATA_OFFSET: usize = 368;

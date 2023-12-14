@@ -24,17 +24,15 @@ use axum::{
 use tracing::{debug, error, info};
 
 use crate::{
-	chain::{
-		constants::*,
-		core::{
-			get_current_block_number, get_onchain_delegatee, get_onchain_nft_data,
-			get_onchain_rent_contract,
-		},
+	constants::*,
+	core::chain::{
+		get_current_block_number, get_onchain_delegatee, get_onchain_nft_data,
+		get_onchain_rent_contract,
 	},
-	servers::state::{get_blocknumber, SharedState},
+	server::state::{get_blocknumber, SharedState},
 };
 
-use super::core::get_current_block_number_new_api;
+use super::chain::get_current_block_number_new_api;
 
 /* **********************
   DATA STRUCTURES

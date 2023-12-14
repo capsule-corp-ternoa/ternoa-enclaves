@@ -49,19 +49,19 @@ use crate::{
 		get_quote_content, write_user_report_data, QuoteResponse, QUOTE_REPORT_DATA_LENGTH,
 		QUOTE_REPORT_DATA_OFFSET,
 	},
-	backup::zipdir::{add_list_zip, zip_extract},
-	chain::{
-		constants::{
-			ATTESTATION_SERVER_URL, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH,
-			SYNC_STATE_FILE, VERSION,
-		},
-		core::{
+	constants::{
+		ATTESTATION_SERVER_URL, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH,
+		SYNC_STATE_FILE, VERSION,
+	},
+	core::{
+		chain::{
 			ternoa,
 			ternoa::nft::events::{CapsuleSynced, SecretNFTSynced},
 		},
 		helper::{Availability, NftType},
 	},
-	servers::{
+	replication::zipdir::{add_list_zip, zip_extract},
+	server::{
 		http_server::HealthResponse,
 		state::{
 			get_accountid, get_blocknumber, get_chain_api, get_clusters, get_identity, get_keypair,
@@ -641,7 +641,7 @@ pub async fn sync_keyshares(
 		return error_handler(message, &state).await.into_response();
 	}
 
-	if !crate::backup::metric::verify_account_id(&state, &attestation_server_account).await {
+	if !crate::replication::metric::verify_account_id(&state, &attestation_server_account).await {
 		let message = format!(
 			"SYNC KEYSHARES : Invalid Attestation Server, It is not registered on blockchain , account : {attestation_server_account}"
 		);
@@ -2454,8 +2454,8 @@ mod test {
 	use tracing_subscriber::FmtSubscriber; // for `oneshot` and `ready`
 
 	use crate::{
-		chain::{core::create_chain_api, helper},
-		servers::state::StateConfig,
+		core::{chain::create_chain_api, helper},
+		server::state::StateConfig,
 	};
 
 	use super::*;
@@ -2478,7 +2478,7 @@ mod test {
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));
 
-		let mut app = match crate::servers::http_server::http_server().await {
+		let mut app = match crate::server::http_server::http_server().await {
 			Ok(r) => r,
 			Err(err) => {
 				error!("Error creating http server {}", err);

@@ -1,6 +1,6 @@
 use crate::{
-	chain::helper,
-	servers::state::{
+	core::helper,
+	server::state::{
 		get_accountid, get_blocknumber, get_nft_availability, remove_nft_availability,
 		set_chain_api_renew, set_nft_availability, SharedState,
 	},
@@ -15,14 +15,15 @@ use std::{
 
 use tracing::{debug, error, info, warn};
 
-use axum::extract::Path as PathExtract;
-
-use crate::chain::{
+use crate::{
 	constants::SEALPATH,
-	core::{capsule_keyshare_oracle, get_current_block_number, get_onchain_nft_data},
-	log::*,
-	verify::*,
+	core::{
+		chain::{capsule_keyshare_oracle, get_current_block_number, get_onchain_nft_data},
+		log::*,
+		verify::*,
+	},
 };
+use axum::extract::Path as PathExtract;
 use serde::Serialize;
 use serde_json::to_value;
 
@@ -976,8 +977,11 @@ pub async fn capsule_remove_keyshare(
 	};
 
 	// IS IT FROM A METRIC SERVER?
-	if !crate::backup::metric::verify_account_id(&state, &request.requester_address.to_string())
-		.await
+	if !crate::replication::metric::verify_account_id(
+		&state,
+		&request.requester_address.to_string(),
+	)
+	.await
 	{
 		warn!(
 			"CAPSULE REMOVE : Invalid requester, nft-id.{}, requester : {}",

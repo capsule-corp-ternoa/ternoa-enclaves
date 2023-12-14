@@ -40,7 +40,23 @@ use tracing::{debug, error, info, trace, warn};
 
 use crate::{
 	attestation::ra::ra_get_quote,
-	backup::{
+	constants::{
+		CONTENT_LENGTH_LIMIT, ENCLAVE_ACCOUNT_FILE, RETRY_COUNT, RETRY_DELAY, SEALPATH,
+		SYNC_STATE_FILE, VERSION,
+	},
+	core::{
+		capsule::{
+			capsule_get_views, capsule_remove_keyshare, capsule_retrieve_keyshare,
+			capsule_set_keyshare, is_capsule_available,
+		},
+		chain::create_chain_api,
+		helper,
+		nft::{
+			is_nft_available, nft_get_views, nft_remove_keyshare, nft_retrieve_keyshare,
+			nft_store_keyshare,
+		},
+	},
+	replication::{
 		admin_nftid::admin_backup_push_id,
 		metric::{metric_reconcilliation, set_crawl_block},
 		sync::{
@@ -48,23 +64,7 @@ use crate::{
 			parse_block_body, set_sync_state, sync_keyshares, SyncedNFT,
 		},
 	},
-	chain::{
-		capsule::{
-			capsule_get_views, capsule_remove_keyshare, capsule_retrieve_keyshare,
-			capsule_set_keyshare, is_capsule_available,
-		},
-		constants::{
-			CONTENT_LENGTH_LIMIT, ENCLAVE_ACCOUNT_FILE, RETRY_COUNT, RETRY_DELAY, SEALPATH,
-			SYNC_STATE_FILE, VERSION,
-		},
-		core::create_chain_api,
-		helper,
-		nft::{
-			is_nft_available, nft_get_views, nft_remove_keyshare, nft_retrieve_keyshare,
-			nft_store_keyshare,
-		},
-	},
-	servers::state::{
+	server::state::{
 		get_accountid, get_blocknumber, get_chain_rpc_renew, get_identity, get_maintenance,
 		get_nft_availability_map_len, get_nonce, get_processed_block, get_version, reset_nonce,
 		set_blocknumber, set_chain_api, set_chain_api_renew, set_processed_block, SharedState,
@@ -72,7 +72,7 @@ use crate::{
 	},
 };
 
-use crate::backup::{
+use crate::replication::{
 	admin_bulk::{admin_backup_fetch_bulk, admin_backup_push_bulk},
 	admin_nftid::admin_backup_fetch_id,
 };
@@ -91,8 +91,8 @@ pub async fn http_server() -> Result<Router, Error> {
 		.allow_methods([Method::GET, Method::POST])
 		// allow requests from any origin
 		.allow_headers(Any)
-        .allow_origin(Any)
-        .expose_headers(Any);
+		.allow_origin(Any)
+		.expose_headers(Any);
 
 	info!("ENCLAVE START : define the monitor layer : Sentry.");
 	let monitor_layer = ServiceBuilder::new()

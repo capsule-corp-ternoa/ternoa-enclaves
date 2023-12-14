@@ -1,10 +1,8 @@
 use crate::{
-	backup::sync::ValidationResult,
-	chain::{
-		constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD},
-		core::{get_metric_server, MetricServer},
-	},
-	servers::state::{get_blocknumber, set_processed_block, SharedState},
+	constants::{MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD},
+	core::chain::{get_metric_server, MetricServer},
+	replication::sync::ValidationResult,
+	server::state::{get_blocknumber, set_processed_block, SharedState},
 };
 use axum::{extract::State, response::IntoResponse, Json};
 use hex::{FromHex, FromHexError};

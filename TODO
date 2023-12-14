@@ -6,7 +6,6 @@ SECURITY :
   
 RELIABILITY / ERROR-HANDLING / PERFORMANCE:
   - Rate Limit Quote API
-  - ADD RPC PROBLEM/TIMEOUT handler (middleware)
   - Syncing wildcard Pagination request is needed i.e ["*", 100, 2] page size is 100, offset 2
   - use metric-server ranking instead of simple loop as Retry mechanism
   - Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
@@ -21,6 +20,7 @@ IDEAS :
   - Sqlite3 or DB synchronization for backup
   - ZK or how to check if a share belongs to a set?
   - Evolutionary Dynamic Royalties
-  - Executable NFT
+  - Executable NFT (Confidential Computing)
   - NFT Bartering
   - Composable/Functional/Homomorphic NFT
+  - Nested NFT

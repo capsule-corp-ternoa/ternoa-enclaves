@@ -6,7 +6,12 @@ use clap::Parser;
 use hex::{FromHex, FromHexError};
 use serde_json::{json, Value};
 use subxt::{
-	ext::sp_core::{crypto::PublicError, crypto::Ss58Codec, sr25519, sr25519::Signature, Pair},
+	ext::sp_core::{
+		crypto::{PublicError, Ss58Codec},
+		sr25519,
+		sr25519::Signature,
+		Pair,
+	},
 	tx::PairSigner,
 	utils::AccountId32,
 	Error, OnlineClient, PolkadotConfig,
@@ -83,12 +88,11 @@ pub async fn get_current_block_number() -> Result<u32, Error> {
 
 	let last_block = match api.rpc().block(Some(hash)).await {
 		Ok(Some(last_block)) => last_block,
-		Ok(None) => {
+		Ok(None) =>
 			return Err(subxt::Error::Io(std::io::Error::new(
 				std::io::ErrorKind::Other,
 				"Block not found",
-			)))
-		},
+			))),
 		Err(err) => return Err(err),
 	};
 
@@ -210,7 +214,8 @@ struct Args {
 	#[arg(short, long, default_value_t = String::new())]
 	file: String,
 
-	/// NFTID of the secret to be stored or retrived, If 'Custom-Data' option is present, this option will be ignored
+	/// NFTID of the secret to be stored or retrived, If 'Custom-Data' option is present, this
+	/// option will be ignored
 	#[arg(short, long, default_value_t = 0)]
 	nftid: u32,
 
@@ -234,7 +239,8 @@ struct Args {
 	#[arg(short, long, default_value_t = 0)]
 	block_number: u32,
 
-	/// Number of blocks after the current block number which after it, the request is invalid. (Optional)
+	/// Number of blocks after the current block number which after it, the request is invalid.
+	/// (Optional)
 	#[arg(short, long, default_value_t = 15)]
 	expire: u8,
 
@@ -278,9 +284,8 @@ async fn main() {
 		return;
 	} else if !args.block_interval.is_empty() {
 		match args.request.to_lowercase().as_str() {
-			"reconcilliation" => {
-				generate_reconcilliation(args.seed.clone(), args.block_interval).await
-			},
+			"reconcilliation" =>
+				generate_reconcilliation(args.seed.clone(), args.block_interval).await,
 			_ => println!("\n Please provide a valid request type \n"),
 		}
 		return;

@@ -1,6 +1,6 @@
 use crate::{
-	chain::helper,
-	servers::state::{
+	core::helper,
+	server::state::{
 		get_accountid, get_blocknumber, get_nft_availability, remove_nft_availability,
 		set_chain_api_renew, set_nft_availability, SharedState,
 	},
@@ -15,14 +15,15 @@ use std::{
 
 use tracing::{debug, error, info, warn};
 
-use axum::extract::Path as PathExtract;
-
-use crate::chain::{
+use crate::{
 	constants::SEALPATH,
-	core::{get_onchain_nft_data, nft_keyshare_oracle},
-	log::*,
-	verify::*,
+	core::{
+		chain::{get_onchain_nft_data, nft_keyshare_oracle},
+		log::*,
+		verify::*,
+	},
 };
+use axum::extract::Path as PathExtract;
 use serde::Serialize;
 use serde_json::{json, to_value};
 use subxt::ext::sp_core::H256;
@@ -945,8 +946,11 @@ pub async fn nft_remove_keyshare(
 	};
 
 	// IS IT FROM A METRIC SERVER?
-	if !crate::backup::metric::verify_account_id(&state, &request.requester_address.to_string())
-		.await
+	if !crate::replication::metric::verify_account_id(
+		&state,
+		&request.requester_address.to_string(),
+	)
+	.await
 	{
 		warn!(
 			"NFT REMOVE : Invalid requester, nft-id.{}, requester : {}",

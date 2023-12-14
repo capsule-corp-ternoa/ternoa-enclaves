@@ -9,7 +9,7 @@ use zip::{result::ZipError, write::FileOptions};
 use std::{fs::File, path::Path};
 use walkdir::{DirEntry, WalkDir};
 
-use crate::chain::constants::SEALPATH;
+use crate::constants::SEALPATH;
 
 const METHOD_DEFLATED: zip::CompressionMethod = zip::CompressionMethod::Deflated;
 
