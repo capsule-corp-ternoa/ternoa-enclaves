@@ -1719,7 +1719,7 @@ pub async fn crawl_sync_events(
 		// Extract block events
 		//let events = block.events().await?;
 
-		let (parsed, _) = parse_block_body(block_counter, body, &storage_api).await?;
+		let (parsed, _) = parse_block_body(state, block_counter, body, &storage_api).await?;
 		nftid_cluster_map.extend(parsed);
 	}
 
@@ -1736,6 +1736,7 @@ pub struct SyncedNFT {
 }
 
 pub async fn parse_block_body(
+	state: &SharedState,
 	block_number: u32,
 	body: BlockBody<PolkadotConfig, OnlineClient<PolkadotConfig>>,
 	storage: &Storage<PolkadotConfig, OnlineClient<PolkadotConfig>>,
@@ -1750,7 +1751,11 @@ pub async fn parse_block_body(
 			Ok(ext) => ext,
 			Err(err) => {
 				error!("BLOCK-PARSER : ERROR Parsing extrinsic in block.{block_number} : {err:?}");
-				continue;
+				//continue;
+				// Runtime Upgrade will change the metadata
+				// RPC connection reset will be needed
+				set_chain_api_renew(state, true).await;
+				return Err(err.into())
 			},
 		};
 
@@ -1758,7 +1763,11 @@ pub async fn parse_block_body(
 			Ok(pallet) => pallet,
 			Err(err) => {
 				error!("BLOCK-PARSER : ERROR Parsing pallet in block.{block_number} : {err:?}");
-				continue;
+				//continue;
+				// Runtime Upgrade will change the metadata
+				// RPC connection reset will be needed
+				set_chain_api_renew(state, true).await;
+				return Err(err.into())
 			},
 		};
 
@@ -1766,8 +1775,12 @@ pub async fn parse_block_body(
 			match ext.variant_name() {
 				Ok(call) => call,
 				Err(err) => {
-					error!("BLOCK-PARSER : ERROR Parsing call variant  in block.{block_number} : {err:?}");
-					continue;
+					error!("BLOCK-PARSER : ERROR Parsing call variant in block.{block_number} : {err:?}");
+					//continue;
+					// Runtime Upgrade will change the metadata
+					// RPC connection reset will be needed
+					set_chain_api_renew(state, true).await;
+					return Err(err.into())
 				},
 			};
 		//debug!(" - crawler extrinsic = {} : {}", pallet, call);
@@ -2040,7 +2053,7 @@ pub async fn sync_zip_extract(
 				},
 			};
 
-		let entry_name = match entry.entry().filename().as_str() {
+		let entry_name = match entry.filename().as_str() {
 			Ok(name) => name,
 			Err(err) => {
 				error!(
@@ -2053,7 +2066,7 @@ pub async fn sync_zip_extract(
 
 		let entry_path = Path::new(&entry_name);
 
-		let entry_is_dir = match entry.entry().dir() {
+		let entry_is_dir = match entry.dir() {
 			Ok(dir) => dir,
 			Err(err) => {
 				warn!(
@@ -2064,7 +2077,7 @@ pub async fn sync_zip_extract(
 			},
 		};
 
-		let entry_permission = entry.entry().unix_permissions().unwrap_or(0o664);
+		let entry_permission = entry.unix_permissions().unwrap_or(0o664);
 
 		// Legacy line of code
 		if entry_name.contains("__MACOSX") {
@@ -2542,7 +2555,9 @@ mod test {
 		let storage_api = block.storage();
 		//(new_nft, update_cluster_data)
 		let (_, tee_events) =
-			parse_block_body(test_block_number, body, &storage_api).await.unwrap();
+			parse_block_body(&state_config, test_block_number, body, &storage_api)
+				.await
+				.unwrap();
 		println!("\n A tee event has happened, fetch the cluster data? : {}\n", tee_events);
 	}
 }
