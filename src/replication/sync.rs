@@ -2277,7 +2277,7 @@ pub async fn sync_zip_extract(
 
 					// NEW FILE NAME
 					let out_file_path = format!(
-						"{SEALPATH}{}_{nftid}_{keyshare_blocknumber}.keyshare",
+						"{SEALPATH}/{}_{nftid}_{keyshare_blocknumber}.keyshare",
 						name_parts[0]
 					);
 
