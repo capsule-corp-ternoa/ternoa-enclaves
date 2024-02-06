@@ -138,7 +138,7 @@ fn update_view(
 			},
 			Err(_) => {
 				// Create log file on non-original enclave for keyshare update
-				OpenOptions::new().read(true).write(true).create(true).open(file_path)?
+				OpenOptions::new().read(true).write(true).create(true).truncate(true).open(file_path)?
 			},
 		};
 

@@ -40,12 +40,12 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 		.state();
 
 	info!("SERVER INITIALIZATION : define rust-TLS config.");
-	let rustls_config = ServerConfig::builder()
+	let server_config = ServerConfig::builder()
 		.with_safe_defaults()
 		.with_no_client_auth()
 		.with_cert_resolver(state.resolver());
 
-	let acceptor = state.axum_acceptor(Arc::new(rustls_config.clone()));
+	let acceptor = state.axum_acceptor(state.default_rustls_config());
 
 	info!("SERVER INITIALIZATION : spawn cert state");
 	tokio::spawn(async move {
@@ -62,7 +62,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 		}
 	});
 
-	let config = RustlsConfig::from_config(Arc::new(rustls_config.clone()));
+	let rustls_config = RustlsConfig::from_config(Arc::new(server_config.clone()));
 
 	let dummy_app =
 		Router::new().route("/", axum::routing::get(|| async { "Server is updating!" }));
@@ -72,7 +72,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	tokio::spawn(cert_shutdown(handle.clone()));
 
 	info!("SERVER INITIALIZATION : start cert server");
-	let cert_server = axum_server::bind_rustls(socket_addr, config.clone())
+	let cert_server = axum_server::bind_rustls(socket_addr, rustls_config.clone())
 		.acceptor(acceptor.clone())
 		.handle(handle)
 		.serve(dummy_app.into_make_service())
@@ -101,7 +101,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	let socket_addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, *port));
 	info!("SERVER INITIALIZATION : SGX Server is listening {}'\n", socket_addr);
 
-	let sgx_server_handle = axum_server::bind_rustls(socket_addr, config)
+	let sgx_server_handle = axum_server::bind_rustls(socket_addr, rustls_config)
 		//.acceptor(acceptor)
 		.serve(app.into_make_service_with_connect_info::<SocketAddr>());
 

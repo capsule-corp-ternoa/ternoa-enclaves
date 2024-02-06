@@ -77,8 +77,6 @@ use crate::replication::{
 	admin_nftid::admin_backup_fetch_id,
 };
 
-use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
-
 use super::{server_common, state::get_chain_api};
 
 /// http server app
@@ -96,8 +94,8 @@ pub async fn http_server() -> Result<Router, Error> {
 
 	info!("ENCLAVE START : define the monitor layer : Sentry.");
 	let monitor_layer = ServiceBuilder::new()
-		.layer(NewSentryLayer::new_from_top())
-		.layer(SentryHttpLayer::with_transaction());
+		.layer(sentry_tower::NewSentryLayer::new_from_top())
+		.layer(sentry_tower::SentryHttpLayer::with_transaction());
 
 	info!("ENCLAVE START : define the end-points");
 	let http_app = Router::new()
@@ -643,6 +641,7 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 */
 
 async fn subscribe_block_events(state_config: SharedState) {
+	// Get current rpc connection
 	let chain_api = get_chain_api(&state_config).await;
 
 	// New thread to track latest block
@@ -656,7 +655,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 			},
 		};
 
-		// For each new finalized block, get block number
+		// For each new finalized block, get block_number
 		loop {
 			// Is there any request to reset rpc connection?
 			if get_chain_rpc_renew(&state_config).await {
@@ -685,13 +684,14 @@ async fn subscribe_block_events(state_config: SharedState) {
 				set_chain_api_renew(&state_config, false).await;
 			}
 
+			// Wait for new block
 			let some_block = match timeout(Duration::from_secs(30), blocks_sub.next()).await {
 				Ok(block) => block,
 				Err(err) => {
 					error!("-- Subscription Task : Block Subscription timeout {err:?}");
-					info!("-- Subscription Task : Reconnecting RPC ...");
 
 					// New Websocket RPC connection to the blockchain
+					info!("-- Subscription Task : Reconnecting RPC ...");
 					let chain_api = match create_chain_api().await {
 						Ok(api) => api,
 						Err(err) => {
@@ -772,7 +772,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 			let storage_api = block.storage();
 
 			let (new_nft, is_tee_events) =
-				match parse_block_body(block_number, body, &storage_api).await {
+				match parse_block_body(&state_config, block_number, body, &storage_api).await {
 					Ok(tuple) => {
 						trace!("-- Subscription Task : parsed the block body.");
 						tuple
@@ -864,9 +864,9 @@ async fn subscribe_block_events(state_config: SharedState) {
 				} // RETRY FETCH
 			}
 
-			// Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
+			// TODO? : Regular check to use Indexer/Dictionary for missing NFTs?! (with any reason)
 
-			// Regular CRAWL Check
+			// Read from sync file
 			let sync_state = match get_sync_state() {
 				Ok(st) => st,
 				Err(err) => {
@@ -875,8 +875,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 				},
 			};
 
-			// IMPORTANT : Check for Runtime mode : if integrity of clusters fails, we'll wait and
-			// go back to setup-mode
+			// Regular CRAWL Check
 			if let Ok(last_sync_block) = sync_state.parse::<u32>() {
 				trace!("-- Subscription Task : SyncStat = {}", sync_state);
 
