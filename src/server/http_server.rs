@@ -680,7 +680,8 @@ async fn subscribe_block_events(state_config: SharedState) {
 						continue;
 					},
 				};
-
+				
+				// Reset the flag
 				set_chain_api_renew(&state_config, false).await;
 			}
 
