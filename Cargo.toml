@@ -18,7 +18,7 @@ graphql_client = "0.13.0"
 # Server
 axum = {version = "0.6.20", features = ["ws", "headers", "macros", "multipart", "tokio"]}
 axum-server = { version = "0.5", features = ["tls-rustls"] }
-rustls = "0.21.8"
+rustls = "0.21.11"
 rustls-acme = {version = "0.7.7", features = ["axum"]}
 
 tokio = { version = "1.35.1", features = ["full"] }
