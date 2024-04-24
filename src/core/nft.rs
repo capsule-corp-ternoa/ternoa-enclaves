@@ -535,6 +535,11 @@ pub async fn nft_store_keyshare(
 					}
 
 					error!(message);
+					
+					if err_str.contains("Transaction has a bad signature") {
+						info!("RPC connection to be reset because of previous error");
+						set_chain_api_renew(&state, true).await;
+					}
 
 					sentry::with_scope(
 						|scope| {

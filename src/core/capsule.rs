@@ -581,6 +581,7 @@ pub async fn capsule_set_keyshare(
 
 				Err(err) => {
 					let err_str = err.to_string();
+
 					let description = format!(
 						"Error sending proof of storage to chain, Capsule nft_id : {}, Error : {err_str}" , verified_data.nft_id
 					);
@@ -588,6 +589,11 @@ pub async fn capsule_set_keyshare(
 					let message = format!("{}, owner = {}", description, request.owner_address);
 
 					error!(message);
+
+					if err_str.contains("Transaction has a bad signature") {
+						info!("RPC connection to be reset because of previous error");
+						set_chain_api_renew(&state, true).await;
+					}
 
 					sentry::with_scope(
 						|scope| {
