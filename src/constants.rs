@@ -1,5 +1,5 @@
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const ATTESTATION_SERVER_URL: &str = if cfg!(feature = "alphanet") {
+pub const ATTESTATION_SERVER_URL: &str = if cfg!(any(feature = "alphanet", features = "betanet")) {
 	// PRODUCTION-KEY when binary is built by github
 	"https://alphanet-attestation.ternoa.network/attest"
 } else if cfg!(feature = "mainnet") {

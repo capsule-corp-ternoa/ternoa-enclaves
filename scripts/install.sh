@@ -1,5 +1,5 @@
-export SDK_VERSION="2.22.100.1"
-export PSW_VERSION="1.18.100.1"
+export SDK_VERSION="2.23.100.1"
+export PSW_VERSION="1.19.100.3"
 
 # ----- Driver for old kernels
 #wget https://download.01.org/intel-sgx/latest/linux-latest/distro/ubuntu22.04-server/sgx_linux_x64_driver_2.11.054c9c4c.bin
@@ -18,27 +18,29 @@ sudo apt install libssl-dev libcurl4-openssl-dev protobuf-compiler libprotobuf-d
 sudo apt install jq -y
 
 # ----- Node.JS for PCCS
-#sudo apt install dkms -y
-#curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
-#export NVM_DIR="$HOME/.nvm"
-#[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-#[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-#nvm install node
-#sudo apt install cracklib-runtime -y
-#sudo apt --fix-broken install -y
+sudo apt install dkms -y
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+source ~/.bashrc
+nvm install v18.7.0
+nvm use v18.7.0
+sudo apt install cracklib-runtime -y
+sudo apt --fix-broken install -y
 
 # ----- Rust
-sudo apt install clang llvm pkg-config nettle-dev -y
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-source "$HOME/.cargo/env"
-rustup update
+#sudo apt install clang llvm pkg-config nettle-dev -y
+#curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+#source "$HOME/.cargo/env"
+#rustup update
  
 # Rust for sudo
-sudo -- bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source "$HOME/.cargo/env" && rustup update'
+#sudo -- bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source "$HOME/.cargo/env" && rustup update'
 
 
 # ----- Subxt
-cargo install subxt-cli
+#cargo install subxt-cli
 
 # ----- Linux-sgx
 git clone https://github.com/intel/linux-sgx.git

@@ -536,7 +536,7 @@ pub async fn nft_store_keyshare(
 
 					error!(message);
 					
-					if err_str.contains("Transaction has a bad signature") {
+					if err_str.contains("Transaction has a bad signature") || err_str.contains("Invalid") {
 						info!("RPC connection to be reset because of previous error");
 						set_chain_api_renew(&state, true).await;
 					}

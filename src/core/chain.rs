@@ -29,6 +29,10 @@ use tracing::{debug, error, info, trace};
 	feature = "alphanet",
 	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_alphanet.scale")
 )]
+#[cfg_attr(
+	feature = "betanet",
+	subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_betanet.scale")
+)]
 #[cfg_attr(feature = "dev1", subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev1.scale"))]
 #[cfg_attr(feature = "dev0", subxt::subxt(runtime_metadata_path = "./artifacts/ternoa_dev0.scale"))]
 
@@ -60,6 +64,8 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 		"wss://mainnet.ternoa.io:443".to_string()
 	} else if cfg!(feature = "alphanet") {
 		"wss://alphanet.ternoa.com:443".to_string()
+	} else if cfg!(feature = "betanet") {
+		"wss://betanet.ternoa.com:443".to_string()
 	} else if cfg!(feature = "dev1") {
 		"wss://dev-1.ternoa.network:443".to_string()
 	} else if cfg!(feature = "dev0") {
@@ -131,11 +137,12 @@ pub async fn get_current_block_number_new_api() -> Result<u32, Error> {
 	debug!("CHAIN : current_block : get block number");
 	let last_block = match api.rpc().block(Some(hash)).await {
 		Ok(Some(last_block)) => last_block,
-		Ok(None) =>
+		Ok(None) => {
 			return Err(subxt::Error::Io(std::io::Error::new(
 				std::io::ErrorKind::Other,
 				"Block not found",
-			))),
+			)))
+		},
 		Err(err) => return Err(err),
 	};
 
@@ -387,7 +394,7 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 			);
 			set_chain_api_renew(state, true).await;
 			sentry::capture_error(&err);
-			return None
+			return None;
 		},
 	};
 

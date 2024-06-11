@@ -242,6 +242,8 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 				"mainnet".to_string()
 			} else if cfg!(feature = "alphanet") {
 				"alphanet".to_string()
+			} else if cfg!(feature = "betanet") {
+				"betanet".to_string()
 			} else if cfg!(feature = "dev0") {
 				"dev0".to_string()
 			} else if cfg!(feature = "dev1") {
@@ -327,12 +329,13 @@ async fn evalueate_health_status(
 	let status = match sync_state.as_str() {
 		"" => StatusCode::PARTIAL_CONTENT,
 		"setup" => StatusCode::RESET_CONTENT,
-		_ =>
+		_ => {
 			if sync_state.parse::<u32>().is_ok() {
 				StatusCode::OK
 			} else {
 				StatusCode::NOT_ACCEPTABLE
-			},
+			}
+		},
 	};
 
 	trace!("Healthcheck handler : state={status:?}");
@@ -680,7 +683,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 						continue;
 					},
 				};
-				
+
 				// Reset the flag
 				set_chain_api_renew(&state_config, false).await;
 			}

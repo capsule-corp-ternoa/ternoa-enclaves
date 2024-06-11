@@ -76,6 +76,7 @@ panic = "abort"
 default = ["alphanet"]
 mainnet = []
 alphanet = []
+betanet = []
 dev1 = []
 dev0 = []
 localchain = []

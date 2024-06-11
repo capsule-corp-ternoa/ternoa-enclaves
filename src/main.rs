@@ -62,6 +62,8 @@ async fn main() {
 		"mainnet"
 	} else if cfg!(feature = "alphanet") {
 		"alphanet"
+	} else if cfg!(feature = "betanet") {
+		"betanet"
 	} else if cfg!(feature = "dev0") {
 		"dev0"
 	} else if cfg!(feature = "dev1") {
