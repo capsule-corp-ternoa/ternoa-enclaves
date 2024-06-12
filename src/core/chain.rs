@@ -7,19 +7,19 @@ use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
 use serde::Serialize;
 
-use crate::constants::{MAINNET_GENESIS_HASH, ALPHANET_GENESIS_HASH};
+use crate::constants::{ALPHANET_GENESIS_HASH, MAINNET_GENESIS_HASH};
 
 //use jsonrpsee_ws_client;
 //use jsonrpsee_ws_client::WsClientBuilder;
 
 use std::fmt;
 use subxt::{
+	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
 	ext::sp_core::H256,
 	storage::address::{Address, StaticStorageMapKey, Yes},
-	tx::{PairSigner, Signer},
+	tx::{PairSigner, Signer, TxStatus},
 	utils::AccountId32,
 	Error, OnlineClient, PolkadotConfig,
-	backend::{rpc::RpcClient,legacy::LegacyRpcMethods},
 };
 
 use tracing::{debug, error, info, trace};
@@ -91,7 +91,7 @@ pub async fn create_chain_api() -> Result<ApiRpc, Error> {
 		Err(err) => {
 			error!("CHAIN : Error acquiring chain api, {:?}", err);
 			sentry::capture_error(&err);
-			return Err(err)
+			return Err(err);
 		},
 	};
 
@@ -99,19 +99,20 @@ pub async fn create_chain_api() -> Result<ApiRpc, Error> {
 	let genesis_hash = api.genesis_hash().to_string();
 	let genesis_hash_str = genesis_hash.as_str();
 
-	if (cfg!(feature = "mainnet") && genesis_hash_str != MAINNET_GENESIS_HASH) || 
-		(cfg!(feature = "alphanet") && genesis_hash_str != ALPHANET_GENESIS_HASH) {
-			let error_message = "CHAIN : Error : Genesis Hash mismatch";
-			error!(name: "Chain Genesis Mismatch",error_message);
-			sentry::capture_message(error_message, sentry::protocol::Level::Error);
-			return Err(error_message.into())	
+	if (cfg!(feature = "mainnet") && genesis_hash_str != MAINNET_GENESIS_HASH)
+		|| (cfg!(feature = "alphanet") && genesis_hash_str != ALPHANET_GENESIS_HASH)
+	{
+		let error_message = "CHAIN : Error : Genesis Hash mismatch";
+		error!(name: "Chain Genesis Mismatch",error_message);
+		sentry::capture_message(error_message, sentry::protocol::Level::Error);
+		return Err(error_message.into());
 	}
 
 	// Legacy RPC
 	let rpc_client = RpcClient::from_url(rpc_endoint.clone()).await?;
-    let legacy_rpc = LegacyRpcMethods::<PolkadotConfig>::new(rpc_client.clone());
-    //let api = OnlineClient::<PolkadotConfig>::from_rpc_client(rpc_client.clone()).await?;
-	
+	let legacy_rpc = LegacyRpcMethods::<PolkadotConfig>::new(rpc_client.clone());
+	//let api = OnlineClient::<PolkadotConfig>::from_rpc_client(rpc_client.clone()).await?;
+
 	Ok((api, legacy_rpc))
 }
 
@@ -154,7 +155,7 @@ pub async fn get_current_block_number_new_api() -> Result<u32, Error> {
 
 	let mut blocks_sub = api.blocks().subscribe_finalized().await?;
 
-    // TODO: For each block, print details about the `TransferKeepAlive` transactions we are interested in.
+	// TODO: For each block, print details about the `TransferKeepAlive` transactions we are interested in.
 	let block = match blocks_sub.next().await {
 		Some(block) => block?,
 		None => return Err("CHAIN : ERROR : No Block found".into()),
@@ -313,22 +314,36 @@ pub async fn nft_keyshare_oracle(state: &SharedState, nft_id: u32) -> Result<H25
 	let signer = shared_state_read.get_signer();
 
 	// Create the extrinsic
-	let result = api
+	let mut tx_submit_watch = api
 		.tx()
 		.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
 		// It is better to submit and watch, is it compatible with nonce and multiple extrinsics?
 		.submit_and_watch()
-		.await?
-		.wait_for_in_block()
-		.await?
-		.block_hash();
-	//.wait_for_finalized_success().await?.extrinsic_hash()
-	//.submit()
-	//.await;
+		.await?;
 
-	debug!("CHAIN : Secret-nft Oracle : extrinsic sent : {:?}", result);
-
-	Ok(result)
+	// Replacement of wait_for_in_block() in Subxt version 33
+	while let Some(status) = tx_submit_watch.next().await {
+		match status? {
+			TxStatus::InBestBlock(tx_in_block) | TxStatus::InFinalizedBlock(tx_in_block) => {
+				// now, we can attempt to work with the block, eg:
+				let block_hash = tx_in_block.wait_for_success().await?.block_hash();
+				debug!("CHAIN : Secret-nft Oracle : extrinsic sent : {:?}", block_hash);
+				return Ok(block_hash)
+			},
+			TxStatus::Error { message }
+			| TxStatus::Invalid { message }
+			| TxStatus::Dropped { message } => {
+				// Handle any errors:
+				let error_message = format!("Error submitting tx: {message}");
+				error!(error_message);
+				return Err(error_message.into())
+			},
+			// Continue otherwise:
+			_ => continue,
+		}
+	}
+	
+	Err("CHAIN : Error : Secret-nft Oracle failed".into())
 }
 
 // -------------- CAPSULE SYNC (ORACLE) --------------
@@ -366,22 +381,36 @@ pub async fn capsule_keyshare_oracle(
 	let signer = shared_state_read.get_signer();
 
 	// Create the extrinsic
-	let result = api
+	let mut tx_submit_watch = api
 		.tx()
 		.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
 		// It is better to submit and watch, is it compatible with nonce and multiple extrinsics?
 		.submit_and_watch()
-		.await?
-		.wait_for_in_block()
-		.await?
-		.block_hash();
-	//.wait_for_finalized_success().await?.extrinsic_hash()
-	//.submit()
-	//.await;
+		.await?;
 
-	debug!("CHAIN : Capusle Oracle : extrinsic sent : {:?}", result);
-
-	Ok(result)
+	// Replacement of wait_for_in_block() in Subxt version 33
+	while let Some(status) = tx_submit_watch.next().await {
+		match status? {
+			TxStatus::InBestBlock(tx_in_block) | TxStatus::InFinalizedBlock(tx_in_block) => {
+				// now, we can attempt to work with the block, eg:
+				let block_hash = tx_in_block.wait_for_success().await?.block_hash();
+				debug!("CHAIN : Capsule Oracle : extrinsic sent : {:?}", block_hash);
+				return Ok(block_hash)
+			},
+			TxStatus::Error { message }
+			| TxStatus::Invalid { message }
+			| TxStatus::Dropped { message } => {
+				// Handle any errors:
+				let error_message = format!("Error submitting tx: {message}");
+				error!(error_message);
+				return Err(error_message.into())
+			},
+			// Continue otherwise:
+			_ => continue,
+		}
+	}
+	
+	Err("CHAIN : Error : Capsule Oracle failed ".into())
 }
 
 /// Get Metric Server

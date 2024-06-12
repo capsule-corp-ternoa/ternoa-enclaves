@@ -332,22 +332,24 @@ pub async fn admin_backup_fetch_bulk(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return (
 					StatusCode::BAD_REQUEST,
 					Json(json!({"error": "Strip Token prefix error".to_string()})),
 				)
-					.into_response(),
+					.into_response()
+			},
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return (
 					StatusCode::BAD_REQUEST,
 					Json(json!({"error": "Strip Token suffix error".to_string()})),
 				)
-					.into_response(),
+					.into_response()
+			},
 		}
 	}
 
@@ -411,12 +413,13 @@ pub async fn admin_backup_fetch_bulk(
 	debug!("ADMIN FETCH BULK : Opening backup file");
 	let file = match tokio::fs::File::open(backup_file).await {
 		Ok(file) => file,
-		Err(err) =>
+		Err(err) => {
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(json!({ "error": format!("Backup File not found: {}", err) })),
 			)
-				.into_response(),
+				.into_response()
+		},
 	};
 
 	// convert the `AsyncRead` into a `Stream`
@@ -510,7 +513,7 @@ pub async fn admin_backup_push_bulk(
 		};
 
 		match name.as_str() {
-			"admin_address" =>
+			"admin_address" => {
 				admin_address = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(err) => {
@@ -524,9 +527,10 @@ pub async fn admin_backup_push_bulk(
 						)
 							.into_response();
 					},
-				},
+				}
+			},
 
-			"restore_file" =>
+			"restore_file" => {
 				restore_file = match field.bytes().await {
 					Ok(bytes) => bytes.to_vec(),
 					Err(err) => {
@@ -540,9 +544,10 @@ pub async fn admin_backup_push_bulk(
 						)
 							.into_response();
 					},
-				},
+				}
+			},
 
-			"auth_token" =>
+			"auth_token" => {
 				auth_token = match field.text().await {
 					Ok(bytes) => bytes,
 					Err(err) => {
@@ -556,9 +561,10 @@ pub async fn admin_backup_push_bulk(
 						)
 							.into_response();
 					},
-				},
+				}
+			},
 
-			"signature" =>
+			"signature" => {
 				signature = match field.text().await {
 					Ok(sig) => match sig.strip_prefix("0x") {
 						Some(hexsig) => hexsig.to_owned(),
@@ -586,7 +592,8 @@ pub async fn admin_backup_push_bulk(
 						)
 							.into_response();
 					},
-				},
+				}
+			},
 
 			_ => {
 				info!("Error restore backup keyshares : Error request field name {:?}", field);
@@ -630,22 +637,24 @@ pub async fn admin_backup_push_bulk(
 	if auth_token.starts_with("<Bytes>") && auth_token.ends_with("</Bytes>") {
 		auth_token = match auth_token.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return (
 					StatusCode::BAD_REQUEST,
 					Json(json! ({"error": "ADMIN PUSH BULK : Strip Token prefix error"})),
 				)
-					.into_response(),
+					.into_response()
+			},
 		};
 
 		auth_token = match auth_token.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return (
 					StatusCode::BAD_REQUEST,
 					Json(json! ({"error": "Strip Token suffix error"})),
 				)
-					.into_response(),
+					.into_response()
+			},
 		}
 	}
 
@@ -731,14 +740,15 @@ pub async fn admin_backup_push_bulk(
 
 	match remove_file(backup_file) {
 		Ok(_) => debug!("ADMIN PUSH BULK : remove zip file successful"),
-		Err(err) =>
+		Err(err) => {
 			return (
 				StatusCode::OK,
 				Json(json!({
 					"warning": format!("Backup success with Error in removing zip file, {:?}",err),
 				})),
 			)
-				.into_response(),
+				.into_response()
+		},
 	};
 
 	// Update Enclave Account, if it is updated.;
@@ -803,14 +813,15 @@ pub async fn admin_backup_push_bulk(
 	let keyshare_list: BTreeMap<u32, helper::Availability> =
 		match helper::query_keyshare_file(SEALPATH.to_string()) {
 			Ok(list) => list,
-			Err(err) =>
+			Err(err) => {
 				return (
 					StatusCode::INTERNAL_SERVER_ERROR,
 					Json(json!({
 						"error": format!("Unable to update keyshare availability, {err:?}"),
 					})),
 				)
-					.into_response(),
+					.into_response()
+			},
 		};
 
 	let last_synced = keyshare_list.values().map(|av| av.block_number).max().unwrap();

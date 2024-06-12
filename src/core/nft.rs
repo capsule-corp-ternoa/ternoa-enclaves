@@ -381,8 +381,7 @@ pub async fn nft_store_keyshare(
 				}
 			}
 
-			let new_file_path =
-				format!("{SEALPATH}/nft_{}_0.keyshare", verified_data.nft_id);
+			let new_file_path = format!("{SEALPATH}/nft_{}_0.keyshare", verified_data.nft_id);
 
 			let mut f = match File::create(new_file_path.clone()) {
 				Ok(file) => file,
@@ -535,8 +534,10 @@ pub async fn nft_store_keyshare(
 					}
 
 					error!(message);
-					
-					if err_str.contains("Transaction has a bad signature") || err_str.contains("Invalid") {
+
+					if err_str.contains("Transaction has a bad signature")
+						|| err_str.contains("Invalid")
+					{
 						info!("RPC connection to be reset because of previous error");
 						set_chain_api_renew(&state, true).await;
 					}
@@ -592,13 +593,14 @@ pub async fn nft_store_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_store_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(err) =>
+				Err(err) => {
 					return err.express_verification_error(
 						APICALL::NFTRETRIEVE,
 						request.owner_address.to_string(),
 						0,
 						enclave_account,
-					),
+					)
+				},
 			};
 
 			err.express_verification_error(
@@ -684,7 +686,7 @@ pub async fn nft_retrieve_keyshare(
 	match request.verify_retrieve_request(&state, "secret-nft").await {
 		Ok(verified_data) => {
 			let av = match get_nft_availability(&state, verified_data.nft_id).await {
-				Some(av) =>
+				Some(av) => {
 					if av.nft_type == helper::NftType::Secret {
 						av
 					} else {
@@ -703,7 +705,8 @@ pub async fn nft_retrieve_keyshare(
 								.unwrap(),
 							),
 						);
-					},
+					}
+				},
 				None => {
 					let status = ReturnStatus::KEYNOTEXIST;
 					let description = "NFT Keyshare is not available.".to_string();
@@ -883,13 +886,14 @@ pub async fn nft_retrieve_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_retrieve_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(err) =>
+				Err(err) => {
 					return err.express_verification_error(
 						APICALL::NFTRETRIEVE,
 						request.requester_address.to_string(),
 						0,
 						enclave_account,
-					),
+					)
+				},
 			};
 
 			err.express_verification_error(
@@ -932,13 +936,14 @@ pub async fn nft_remove_keyshare(
 		Err(err) => {
 			let parsed_data = match request.parse_retrieve_data() {
 				Ok(parsed_data) => parsed_data,
-				Err(err) =>
+				Err(err) => {
 					return err.express_verification_error(
 						APICALL::NFTREMOVE,
 						request.requester_address.to_string(),
 						0,
 						enclave_account,
-					),
+					)
+				},
 			};
 
 			return err.express_verification_error(
@@ -1026,7 +1031,7 @@ pub async fn nft_remove_keyshare(
 			}
 		},
 
-		None =>
+		None => {
 			return (
 				StatusCode::OK,
 				Json(
@@ -1038,7 +1043,8 @@ pub async fn nft_remove_keyshare(
 					})
 					.unwrap(),
 				),
-			),
+			)
+		},
 	};
 
 	let file_path = format!("{SEALPATH}/nft_{}_{}.keyshare", request_data.nft_id, av.block_number);

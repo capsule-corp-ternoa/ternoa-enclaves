@@ -545,15 +545,15 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 					let current_block = match chain_api.blocks().at_latest().await {
 						Ok(blk) => blk,
 						Err(err) => {
-							let message = "ENCLAVE START : CRAWL : Error getting block number"
-								.to_string();
+							let message =
+								"ENCLAVE START : CRAWL : Error getting block number".to_string();
 							error!(message);
 							return Err(anyhow!(message));
-						}
+						},
 					};
-				
+
 					let current_block_number = current_block.number();
-					
+
 					debug!(
 						"ENCLAVE START : CRAWL : Crawl to current block {}",
 						current_block_number
@@ -759,7 +759,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 				"-- Subscription Task : nonce has been reset to {}",
 				get_nonce(&state_config).await
 			);
-			
+
 			let storage_api = block.storage();
 
 			let (new_nft, is_tee_events) =

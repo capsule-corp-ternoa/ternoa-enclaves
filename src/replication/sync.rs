@@ -27,14 +27,16 @@ use ecies::{decrypt, encrypt, utils::generate_keypair};
 use rand::RngCore;
 
 use subxt::{
-	backend::{rpc::RpcClient,legacy::LegacyRpcMethods,BackendExt},
-	blocks::{Block, ExtrinsicEvents}, 
+	backend::{legacy::LegacyRpcMethods, rpc::RpcClient, BackendExt},
+	blocks::{Block, ExtrinsicEvents},
 	ext::sp_core::{
 		crypto::{PublicError, Ss58Codec},
 		sr25519::{self, Signature},
 		Pair,
-	}, 
-	storage::Storage, utils::AccountId32, OnlineClient, PolkadotConfig
+	},
+	storage::Storage,
+	utils::AccountId32,
+	OnlineClient, PolkadotConfig,
 };
 
 use tokio_util::io::ReaderStream;
@@ -284,24 +286,26 @@ pub async fn sync_keyshares(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return error_handler(
 					"SYNC KEYSHARES : Strip Token prefix error".to_string(),
 					&state,
 				)
 				.await
-				.into_response(),
+				.into_response()
+			},
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ =>
+			_ => {
 				return error_handler(
 					"SYNC KEYSHARES : Strip Token suffix error".to_string(),
 					&state,
 				)
 				.await
-				.into_response(),
+				.into_response()
+			},
 		}
 	}
 
@@ -787,9 +791,9 @@ pub async fn sync_keyshares(
 	} else {
 		match parse_token[1].parse::<u32>() {
 			Ok(token_block) => {
-				if (token_block != auth_token.block_number) ||
-					(current_block_number < token_block) ||
-					(current_block_number - token_block > 5)
+				if (token_block != auth_token.block_number)
+					|| (current_block_number < token_block)
+					|| (current_block_number - token_block > 5)
 				{
 					let message = format!("SYNC KEYSHARES : TOKEN : Incompatible/Outdated block numbers :\n Current blocknumber: {current_block_number} >~ Token blocknumber: {token_block} == Request blocknumber: {} ?", auth_token.block_number);
 					sentry::with_scope(
@@ -826,14 +830,15 @@ pub async fn sync_keyshares(
 
 	let zip_data = match fs::read(backup_file.clone()) {
 		Ok(data) => data,
-		Err(err) =>
+		Err(err) => {
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(json!({
 					"error": format!("SYNC KEYSHARES : Backup File not found: {}", err)
 				})),
 			)
-				.into_response(),
+				.into_response()
+		},
 	};
 
 	// Public-Key Encryption
@@ -842,14 +847,15 @@ pub async fn sync_keyshares(
 	debug!("SYNC KEYSHARES : Encryption zip data length = {}", zip_data.len());
 	let encrypted_zip_data = match encrypt(&encryption_key, &zip_data) {
 		Ok(encrypted) => encrypted,
-		Err(err) =>
+		Err(err) => {
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(json!({
 					"error": format!("SYNC KEYSHARES : Failed to encrypt the zip data : {:?}", err)
 				})),
 			)
-				.into_response(),
+				.into_response()
+		},
 	};
 
 	// Remove Plain Data
@@ -869,7 +875,7 @@ pub async fn sync_keyshares(
 	let encrypted_backup_file = format!("/temporary/encrypted_backup_{random_number}.zip");
 	match std::fs::write(encrypted_backup_file.clone(), encrypted_zip_data) {
 		Ok(_) => trace!("SYNC KEYSHARES : Successfully write encrypted zip data to streamfile"),
-		Err(err) =>
+		Err(err) => {
 			return Json(json!({
 				"error":
 					format!(
@@ -877,21 +883,23 @@ pub async fn sync_keyshares(
 						err
 					)
 			}))
-			.into_response(),
+			.into_response()
+		},
 	}
 
 	// `File` implements `AsyncRead`
 	debug!("SYNC KEYSHARES : Opening encrypted backup file");
 	let file = match tokio::fs::File::open(encrypted_backup_file).await {
 		Ok(file) => file,
-		Err(err) =>
+		Err(err) => {
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(json!({
 					"error": format!("SYNC KEYSHARES : Encrypted backup File not found: {}", err)
 				})),
 			)
-				.into_response(),
+				.into_response()
+		},
 	};
 
 	// convert the `AsyncRead` into a `Stream`
@@ -999,7 +1007,7 @@ pub async fn fetch_keyshares(
 
 			let secret_file = format!("{SEALPATH}/nft_{nftid}_0.keyshare");
 			let secret_path = std::path::Path::new(&secret_file);
-			
+
 			// TODO: Use in-memory map instead of searching the disk
 			if capsule_path.exists() {
 				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced capsule exists : {capsule_file}");
@@ -1037,8 +1045,7 @@ pub async fn fetch_keyshares(
 						);
 					},
 				}
-			} 
-			else if secret_path.exists() {	
+			} else if secret_path.exists() {
 				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced secret-nft exists : {secret_file}");
 
 				let nftid_num = nftid.parse::<u32>().unwrap(); //unwrap is allowed here, we just created the nftid string
@@ -1074,7 +1081,7 @@ pub async fn fetch_keyshares(
 						);
 					},
 				}
-			}else {
+			} else {
 				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced secret does NOT exist : {secret_file}");
 			}
 		}
@@ -1505,7 +1512,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 
 		debug!("CLUSTER DISCOVERY : get cluster data of cluster {}", index);
 		let cluster_data = match storage.fetch(&cluster_data_address).await {
-			Ok(data) =>
+			Ok(data) => {
 				match data {
 					Some(clstr) => {
 						debug!("\nCLUSTER DISCOVERY : cluster[{}] : data = {:?}\n", index, clstr);
@@ -1520,7 +1527,8 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 						debug!("CLUSTER DISCOVERY : continue to next cluster (because of previous error)");
 						continue;
 					},
-				},
+				}
+			},
 			Err(err) => {
 				error!("CLUSTER DISCOVERY : Failed to 'fetch' Cluster.{} Data : {:?}", index, err);
 				continue;
@@ -1612,7 +1620,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 						return Some((cluster.id, enclave.slot));
 					},
 
-					Some(identity) =>
+					Some(identity) => {
 						if identity.1 != enclave.slot {
 							error!("\n*****\nERROR! SLOT HAS BEEN CHANGED. IT IS DANGEROUS ACT BY TC. ENCLAVE MUST WIPE EVERYTHING.\n*****\n");
 							warn!("WIPE EVERYTHING ...");
@@ -1643,8 +1651,8 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 										return None;
 									},
 								};
-								if extension == OsStr::new("keyshare") ||
-									extension == OsStr::new("log")
+								if extension == OsStr::new("keyshare")
+									|| extension == OsStr::new("log")
 								{
 									warn!("SELF-IDENTITY : REMOVING : {:?}", path);
 									let _ = fs::remove_file(path);
@@ -1660,7 +1668,8 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 						} else {
 							debug!("SELF-IDENTITY : Identity did not change.");
 							return Some((cluster.id, enclave.slot));
-						},
+						}
+					},
 				}
 			}
 		}
@@ -1791,7 +1800,7 @@ pub async fn parse_block_body(
 				// Runtime Upgrade will change the metadata
 				// RPC connection reset will be needed
 				set_chain_api_renew(state, true).await;
-				return Err(err.into())
+				return Err(err.into());
 			},
 		};
 
@@ -1803,7 +1812,7 @@ pub async fn parse_block_body(
 				// Runtime Upgrade will change the metadata
 				// RPC connection reset will be needed
 				set_chain_api_renew(state, true).await;
-				return Err(err.into())
+				return Err(err.into());
 			},
 		};
 
@@ -1816,7 +1825,7 @@ pub async fn parse_block_body(
 					// Runtime Upgrade will change the metadata
 					// RPC connection reset will be needed
 					set_chain_api_renew(state, true).await;
-					return Err(err.into())
+					return Err(err.into());
 				},
 			};
 		//debug!(" - crawler extrinsic = {} : {}", pallet, call);
@@ -1992,11 +2001,12 @@ pub fn find_event_capsule_shard_added(
 
 	for e in acevt {
 		match e {
-			Ok(ev) =>
+			Ok(ev) => {
 				if ev.nft_id == nftid {
 					debug!("FIND_EVENT_CAPSULE_SHARD_ADDED - found a capsule added for given nftid : {}", nftid);
 					return Some(ev.enclave);
-				},
+				}
+			},
 			Err(err) => {
 				debug!("FIND_EVENT_CAPSULE_SHARD_ADDED - error reading capsule added : {:?}", err);
 			},
@@ -2015,14 +2025,15 @@ pub fn find_event_secret_shard_added(
 
 	for e in asevt {
 		match e {
-			Ok(ev) =>
+			Ok(ev) => {
 				if ev.nft_id == nftid {
 					debug!(
 						"FIND_EVENT_SECRET_SHARD_ADDED - found a secret added for given nftid : {}",
 						nftid
 					);
 					return Some(ev.enclave);
-				},
+				}
+			},
 			Err(err) => {
 				debug!("FIND_EVENT_SECRET_SHARD_ADDED - error reading secret added : {:?}", err);
 			},
@@ -2305,8 +2316,8 @@ pub async fn sync_zip_extract(
 				if name_parts[0] == "nft" && av.nft_type == NftType::Secret {
 					debug!("FETCH KEYSHARES : ZIP EXTRACT : FORBIDDEN UPDATE : Secret nftid.{nftid} already exists, Secret should not be updated");
 					continue;
-				} else if (name_parts[0] == "capsule" && av.nft_type == NftType::Secret) ||
-					(name_parts[0] == "nft" && av.nft_type == NftType::Capsule)
+				} else if (name_parts[0] == "capsule" && av.nft_type == NftType::Secret)
+					|| (name_parts[0] == "nft" && av.nft_type == NftType::Capsule)
 				{
 					// HYBRID
 					debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : Joint Secret and Capsule detected : nftid {} : current nft_type {:?} <> incoming nft_type {}", nftid, av.nft_type, name_parts[0]);
