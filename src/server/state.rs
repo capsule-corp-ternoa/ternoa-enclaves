@@ -4,7 +4,7 @@ use subxt::{ext::sp_core::sr25519, tx::PairSigner};
 use tokio::sync::RwLock;
 
 use crate::{
-	core::{chain::DefaultApi, helper},
+	core::{chain::ApiRpc, helper},
 	replication::sync::Cluster,
 };
 
@@ -21,7 +21,7 @@ pub struct StateConfig {
 	// If enclave is in maintenance mode, this field will contain a proper description
 	maintenance: String,
 	// RPC connection to the blockchain public node
-	rpc_client: DefaultApi,
+	api_rpc: ApiRpc,
 	// If the RPC connection is lost, this flag is set to activate reconn
 	rpc_renew: bool,
 	// Update the block number every 6 seconds
@@ -43,7 +43,7 @@ impl StateConfig {
 	pub fn new(
 		enclave_key: sr25519::Pair,
 		maintenance: String,
-		rpc_client: DefaultApi,
+		api_rpc: ApiRpc,
 		binary_version: String,
 		nft_block_map: BTreeMap<u32, helper::Availability>,
 	) -> StateConfig {
@@ -60,7 +60,7 @@ impl StateConfig {
 			enclave_account: public_key,
 			enclave_signer: PairSigner::new(enclave_key),
 			maintenance,
-			rpc_client,
+			api_rpc,
 			rpc_renew: false,
 			current_block: 0,
 			last_processed_block: 0,
@@ -107,16 +107,16 @@ impl StateConfig {
 		self.maintenance = message;
 	}
 
-	pub fn get_rpc_client(&self) -> DefaultApi {
-		self.rpc_client.clone()
+	pub fn get_rpc_client(&self) -> ApiRpc {
+		self.api_rpc.clone()
 	}
 
 	pub fn get_rpc_renew(&self) -> bool {
 		self.rpc_renew
 	}
 
-	pub fn set_rpc_client(&mut self, new_client: DefaultApi) {
-		self.rpc_client = new_client;
+	pub fn set_rpc_client(&mut self, new_client: ApiRpc) {
+		self.api_rpc = new_client;
 	}
 
 	pub fn set_rpc_renew(&mut self, renew_flag: bool) {
@@ -149,7 +149,7 @@ impl StateConfig {
 
 	pub async fn reset_nonce(&mut self) {
 		let account_id = self.enclave_signer.account_id();
-		self.nonce = match self.rpc_client.tx().account_nonce(account_id).await {
+		self.nonce = match self.api_rpc.0.tx().account_nonce(account_id).await {
 			Ok(nonce) => nonce,
 			Err(_) => self.nonce + 1, // Does it work?
 		};
@@ -222,7 +222,7 @@ fn keypair_to_public(keypair: sr25519::Pair) -> Option<sr25519::Public> {
  READ HELPERS
 ----------------*/
 
-pub async fn get_chain_api(state: &SharedState) -> DefaultApi {
+pub async fn get_chain_api(state: &SharedState) -> ApiRpc {
 	let shared_state_read = state.read().await;
 
 	// If connection is lost, will be very hard to reconnect:
@@ -339,7 +339,7 @@ pub async fn set_identity(state: &SharedState, id: Option<(u32, u32)>) {
 	shared_state_write.set_identity(id);
 }
 
-pub async fn set_chain_api(state: &SharedState, api: DefaultApi) {
+pub async fn set_chain_api(state: &SharedState, api: ApiRpc) {
 	let shared_state_write = &mut state.write().await;
 	shared_state_write.set_rpc_client(api);
 }

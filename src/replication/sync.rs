@@ -27,16 +27,14 @@ use ecies::{decrypt, encrypt, utils::generate_keypair};
 use rand::RngCore;
 
 use subxt::{
-	blocks::{BlockBody, ExtrinsicEvents},
+	backend::{rpc::RpcClient,legacy::LegacyRpcMethods,BackendExt},
+	blocks::{Block, ExtrinsicEvents}, 
 	ext::sp_core::{
 		crypto::{PublicError, Ss58Codec},
 		sr25519::{self, Signature},
 		Pair,
-	},
-	rpc::types::BlockNumber,
-	storage::Storage,
-	utils::AccountId32,
-	OnlineClient, PolkadotConfig,
+	}, 
+	storage::Storage, utils::AccountId32, OnlineClient, PolkadotConfig
 };
 
 use tokio_util::io::ReaderStream;
@@ -1477,7 +1475,7 @@ pub async fn fetch_keyshares(
 // Crawl and parse registered clusters and enclaves from on-chain data
 pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Error> {
 	debug!("\n***CLUSTER DISCOVERY***\n");
-	let api = get_chain_api(state).await;
+	let (api, _) = get_chain_api(state).await;
 
 	let max_cluster_address = ternoa::storage().tee().next_cluster_id();
 
@@ -1731,7 +1729,7 @@ pub async fn crawl_sync_events(
 ) -> Result<HashMap<u32, SyncedNFT>, anyhow::Error> {
 	debug!("CRAWLING ...");
 
-	let api = get_chain_api(state).await;
+	let (api, rpc) = get_chain_api(state).await;
 
 	// Storage to find the cluster of an enclave which contains specific NFTID
 	let storage_api = api.storage().at_latest().await?;
@@ -1742,8 +1740,8 @@ pub async fn crawl_sync_events(
 	for block_counter in from_block_num..=to_block_num {
 		// Find block hash
 		debug!("CRAWLER : block number = {}", block_counter);
-		let block_number = BlockNumber::from(block_counter);
-		let block_hash = match api.rpc().block_hash(Some(block_number)).await? {
+		let block_number = block_counter.into();
+		let block_hash = match rpc.chain_get_block_hash(Some(block_number)).await? {
 			Some(hash) => hash,
 			None => {
 				set_chain_api_renew(state, true).await;
@@ -1754,13 +1752,10 @@ pub async fn crawl_sync_events(
 		// Read the block from blockchain
 		let block = api.blocks().at(block_hash).await?;
 
-		// Extract block body
-		let body = block.body().await?;
-
 		// Extract block events
 		//let events = block.events().await?;
 
-		let (parsed, _) = parse_block_body(state, block_counter, body, &storage_api).await?;
+		let (parsed, _) = parse_block_body(state, block_counter, &block, &storage_api).await?;
 		nftid_cluster_map.extend(parsed);
 	}
 
@@ -1779,7 +1774,7 @@ pub struct SyncedNFT {
 pub async fn parse_block_body(
 	state: &SharedState,
 	block_number: u32,
-	body: BlockBody<PolkadotConfig, OnlineClient<PolkadotConfig>>,
+	block: &Block<PolkadotConfig, OnlineClient<PolkadotConfig>>,
 	storage: &Storage<PolkadotConfig, OnlineClient<PolkadotConfig>>,
 ) -> Result<(HashMap<u32, SyncedNFT>, bool)> {
 	trace!("BLOCK-PARSER");
@@ -1787,7 +1782,7 @@ pub async fn parse_block_body(
 	let mut update_cluster_data = false;
 
 	// For all extrinsics in the block body
-	for ext in body.extrinsics().iter() {
+	for ext in block.extrinsics().await?.iter() {
 		let ext = match ext {
 			Ok(ext) => ext,
 			Err(err) => {
@@ -2521,13 +2516,13 @@ mod test {
 		);
 
 		// Test environment
-		let api = create_chain_api().await.unwrap();
+		let (api, rpc) = create_chain_api().await.unwrap();
 		let (enclave_keypair, _, _) = sr25519::Pair::generate_with_phrase(None);
 
 		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 			enclave_keypair,
 			String::new(),
-			api.clone(),
+			(api.clone(), rpc.clone()),
 			VERSION.to_string(),
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));
@@ -2579,10 +2574,8 @@ mod test {
 		 Test Finding TEE update ext.
 		--------------------------------*/
 		let test_block_number: u32 = 550;
-		let block_number = BlockNumber::from(test_block_number); // Block contains a failed request
-		let block_hash = api
-			.rpc()
-			.block_hash(Some(block_number))
+		let block_hash = rpc
+			.chain_get_block_hash(Some(test_block_number.into()))
 			.await
 			.unwrap()
 			.expect("Can not find block hash");
@@ -2590,13 +2583,10 @@ mod test {
 		// Read the block from blockchain
 		let block = api.blocks().at(block_hash).await.unwrap();
 
-		// Extract block body
-		let body = block.body().await.unwrap();
-
 		let storage_api = block.storage();
 		//(new_nft, update_cluster_data)
 		let (_, tee_events) =
-			parse_block_body(&state_config, test_block_number, body, &storage_api)
+			parse_block_body(&state_config, test_block_number, &block, &storage_api)
 				.await
 				.unwrap();
 		println!("\n A tee event has happened, fetch the cluster data? : {}\n", tee_events);

@@ -417,21 +417,22 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 	};
 
 	// New Websocket RPC connection to the blockchain
-	let chain_api = match create_chain_api().await {
-		Ok(api) => api,
+	let api_rpc = match create_chain_api().await {
+		Ok(ar) => ar,
 		Err(err) => {
 			error!("ENCLAVE START : get online chain api, error : {err:?}");
 			return Err(anyhow!(err));
 		},
 	};
 
+	let chain_api = api_rpc.0.clone();
 	// Initialize runtime tracking blocks
-	let current_block_hash = chain_api.rpc().finalized_head().await?;
-	let current_block = match chain_api.rpc().block(Some(current_block_hash)).await? {
-		Some(blk) => blk,
-		None => return Err(anyhow!("ENCLAVE START : unable to get current block")),
+	let current_block = match chain_api.blocks().at_latest().await {
+		Ok(blk) => blk,
+		Err(err) => return Err(anyhow!("ENCLAVE START : unable to get current block, {:?}", err)),
 	};
-	let current_block_number = current_block.block.header.number;
+
+	let current_block_number = current_block.number();
 	let last_processed_block = current_block_number;
 
 	let keyshare_list = helper::query_keyshare_file(SEALPATH.to_string())?;
@@ -440,7 +441,7 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 		enclave_keypair,
 		String::new(),
-		chain_api.clone(),
+		api_rpc.clone(),
 		VERSION.to_string(),
 		keyshare_list,
 	)));
@@ -541,18 +542,18 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 
 				// Retry if syncing failed
 				for _sync_retry in 0..RETRY_COUNT {
-					let current_block_hash = chain_api.rpc().finalized_head().await?;
-					let current_block_number =
-						match chain_api.rpc().block(Some(current_block_hash)).await? {
-							Some(blk) => blk.block.header.number,
-							None => {
-								let message = "ENCLAVE START : CRAWL : Error getting block number"
-									.to_string();
-								error!(message);
-								return Err(anyhow!(message));
-							},
-						};
-
+					let current_block = match chain_api.blocks().at_latest().await {
+						Ok(blk) => blk,
+						Err(err) => {
+							let message = "ENCLAVE START : CRAWL : Error getting block number"
+								.to_string();
+							error!(message);
+							return Err(anyhow!(message));
+						}
+					};
+				
+					let current_block_number = current_block.number();
+					
 					debug!(
 						"ENCLAVE START : CRAWL : Crawl to current block {}",
 						current_block_number
@@ -645,7 +646,7 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 
 async fn subscribe_block_events(state_config: SharedState) {
 	// Get current rpc connection
-	let chain_api = get_chain_api(&state_config).await;
+	let (chain_api, _) = get_chain_api(&state_config).await;
 
 	// New thread to track latest block
 	tokio::spawn(async move {
@@ -665,7 +666,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 				info!("-- Subscription Task : Renew the RPC ...");
 
 				// New Websocket RPC connection to the blockchain
-				let chain_api = match create_chain_api().await {
+				let api_rpc = match create_chain_api().await {
 					Ok(api) => api,
 					Err(err) => {
 						error!("-- Subscription Task : get online chain api, error : {err:?}");
@@ -673,7 +674,8 @@ async fn subscribe_block_events(state_config: SharedState) {
 					},
 				};
 
-				set_chain_api(&state_config, chain_api.clone()).await;
+				let chain_api = api_rpc.0.clone();
+				set_chain_api(&state_config, api_rpc.clone()).await;
 
 				// Subscribe to all finalized blocks:
 				blocks_sub = match chain_api.blocks().subscribe_finalized().await {
@@ -696,15 +698,16 @@ async fn subscribe_block_events(state_config: SharedState) {
 
 					// New Websocket RPC connection to the blockchain
 					info!("-- Subscription Task : Reconnecting RPC ...");
-					let chain_api = match create_chain_api().await {
-						Ok(api) => api,
+					let api_rpc = match create_chain_api().await {
+						Ok(ar) => ar,
 						Err(err) => {
 							error!("-- Subscription Task : get online chain api, error : {err:?}");
 							continue;
 						},
 					};
 
-					set_chain_api(&state_config, chain_api.clone()).await;
+					let chain_api = api_rpc.0.clone();
+					set_chain_api(&state_config, api_rpc.clone()).await;
 
 					// Subscribe to all finalized blocks:
 					blocks_sub = match chain_api.blocks().subscribe_finalized().await {
@@ -756,27 +759,11 @@ async fn subscribe_block_events(state_config: SharedState) {
 				"-- Subscription Task : nonce has been reset to {}",
 				get_nonce(&state_config).await
 			);
-
-			// Extract block body
-			let body = match block.body().await {
-				Ok(body) => {
-					trace!("-- Subscription Task : got block body.");
-					body
-				},
-				Err(err) => {
-					// Usually : Rpc ClientError Restart Needed
-					// "Networking or low-level protocol error: WebSocket connection error: i/o
-					// error: Connection reset by peer"
-					set_chain_api_renew(&state_config, true).await;
-					error!("-- Subscription Task : Unable to get block body : {err:?}");
-					continue;
-				},
-			};
-
+			
 			let storage_api = block.storage();
 
 			let (new_nft, is_tee_events) =
-				match parse_block_body(&state_config, block_number, body, &storage_api).await {
+				match parse_block_body(&state_config, block_number, &block, &storage_api).await {
 					Ok(tuple) => {
 						trace!("-- Subscription Task : parsed the block body.");
 						tuple
