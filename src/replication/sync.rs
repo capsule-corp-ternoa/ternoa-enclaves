@@ -999,6 +999,10 @@ pub async fn fetch_keyshares(
 			let capsule_file = format!("{SEALPATH}/capsule_{nftid}_0.keyshare");
 			let capsule_path = std::path::Path::new(&capsule_file);
 
+			let secret_file = format!("{SEALPATH}/nft_{nftid}_0.keyshare");
+			let secret_path = std::path::Path::new(&secret_file);
+			
+			// TODO: Use in-memory map instead of searching the disk
 			if capsule_path.exists() {
 				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced capsule exists : {capsule_file}");
 
@@ -1035,8 +1039,45 @@ pub async fn fetch_keyshares(
 						);
 					},
 				}
-			} else {
-				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced capsule does NOT exist : {capsule_file}");
+			} 
+			else if secret_path.exists() {	
+				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced secret-nft exists : {secret_file}");
+
+				let nftid_num = nftid.parse::<u32>().unwrap(); //unwrap is allowed here, we just created the nftid string
+				let sync_block = new_nft_map.get(&nftid_num).unwrap(); //unwrap is allowed here, we just created the map
+
+				let secret_new_file =
+					format!("{SEALPATH}/nft_{nftid}_{}.keyshare", sync_block.block_number);
+
+				match std::fs::rename(secret_file.clone(), secret_new_file.clone()) {
+					Ok(_) => {
+						debug!("FETCH KEYSHARES : ORIGINALS : RENAME TO NEW BLOCK SUCCESSFULL");
+						set_nft_availability(
+							state,
+							(
+								nftid_num,
+								Availability {
+									block_number: sync_block.block_number,
+									nft_type: NftType::Secret,
+								},
+							),
+						)
+						.await;
+					},
+					Err(err) => {
+						let message = format!("FETCH KEYSHARES : ORIGINALS : ERROR RENAMING : {secret_file} to {secret_new_file} : {err:?}");
+						error!(message);
+
+						sentry::with_scope(
+							|scope| {
+								scope.set_tag("fetch-keyshares", "originals");
+							},
+							|| sentry::capture_message(&message, sentry::Level::Error),
+						);
+					},
+				}
+			}else {
+				debug!("FETCH KEYSHARES : ORIGINALS : nftid.{nftid} : unsynced secret does NOT exist : {secret_file}");
 			}
 		}
 

@@ -1,4 +1,4 @@
-use rustls::ServerConfig;
+use rustls::ServerConfig as RustlsServerConfig;
 use rustls_acme::{caches::DirCache, AcmeConfig};
 use std::{
 	net::{Ipv4Addr, SocketAddr},
@@ -11,7 +11,7 @@ use tokio::time::sleep;
 use tokio_stream::StreamExt;
 
 use axum::Router;
-use axum_server::{tls_rustls::RustlsConfig, Handle};
+use axum_server::{tls_rustls::RustlsConfig as AxumServerRustlsConfig, Handle};
 
 use tracing::{debug, error, info};
 
@@ -29,7 +29,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 
 	info!("SERVER INITIALIZATION : starting certificate server on {}", socket_addr);
 
-	let mut state = AcmeConfig::new([domain])
+	let mut acme_state = AcmeConfig::new([domain])
 		.contact(
 			["amin@capsule-corp.io", "soufiane@capsule-corp.io"]
 				.iter()
@@ -40,17 +40,17 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 		.state();
 
 	info!("SERVER INITIALIZATION : define rust-TLS config.");
-	let server_config = ServerConfig::builder()
+	let rustls_serverconfig = RustlsServerConfig::builder()
 		.with_safe_defaults()
 		.with_no_client_auth()
-		.with_cert_resolver(state.resolver());
+		.with_cert_resolver(acme_state.resolver());
 
-	let acceptor = state.axum_acceptor(state.default_rustls_config());
+	let acme_axum_acceptor = acme_state.axum_acceptor(acme_state.default_rustls_config());
 
 	info!("SERVER INITIALIZATION : spawn cert state");
 	tokio::spawn(async move {
 		loop {
-			match state.next().await {
+			match acme_state.next().await {
 				Some(evt) => match evt {
 					Ok(ok) => info!("SERVER INITIALIZATION : SPAWN CERT EVENT : {:?}", ok),
 					Err(err) => {
@@ -62,20 +62,24 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 		}
 	});
 
-	let rustls_config = RustlsConfig::from_config(Arc::new(server_config.clone()));
+	// From Rustls Config to Axum Server Config
+	let axumserver_rustlsconfig = AxumServerRustlsConfig::from_config(Arc::new(rustls_serverconfig.clone()));
 
-	let dummy_app =
-		Router::new().route("/", axum::routing::get(|| async { "Server is updating!" }));
+	let acme_router =
+		Router::new().route("/", axum::routing::get(|| async { "Server is updating the certificates ..." }));
 
-	// Spawn a task to shutdown server.
-	let handle = Handle::new();
-	tokio::spawn(cert_shutdown(handle.clone()));
+	// Spawn a task to shutdown the temporary certificate server after a sufficient delay to release the 443 port
+	let axum_server_handle = Handle::new();
+	tokio::spawn(cert_shutdown(axum_server_handle.clone()));
 
 	info!("SERVER INITIALIZATION : start cert server");
-	let cert_server = axum_server::bind_rustls(socket_addr, rustls_config.clone())
-		.acceptor(acceptor.clone())
-		.handle(handle)
-		.serve(dummy_app.into_make_service())
+	
+	let acme_acceptor_tls_server = axum_server::bind_rustls(socket_addr, axumserver_rustlsconfig.clone())
+	.acceptor(acme_axum_acceptor.clone())
+	.handle(axum_server_handle);
+	
+	let cert_server = acme_acceptor_tls_server
+		.serve(acme_router.into_make_service())
 		.await;
 	info!(
 		"SERVER INITIALIZATION : Certificate Server is listening {} on Port 443, \nwait a minute please ...'\n",
@@ -101,7 +105,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	let socket_addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, *port));
 	info!("SERVER INITIALIZATION : SGX Server is listening {}'\n", socket_addr);
 
-	let sgx_server_handle = axum_server::bind_rustls(socket_addr, rustls_config)
+	let sgx_server_handle = axum_server::bind_rustls(socket_addr, axumserver_rustlsconfig)
 		//.acceptor(acceptor)
 		.serve(app.into_make_service_with_connect_info::<SocketAddr>());
 

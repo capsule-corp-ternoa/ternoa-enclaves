@@ -382,7 +382,7 @@ pub async fn nft_store_keyshare(
 			}
 
 			let new_file_path =
-				format!("{SEALPATH}/nft_{}_{block_number}.keyshare", verified_data.nft_id);
+				format!("{SEALPATH}/nft_{}_0.keyshare", verified_data.nft_id);
 
 			let mut f = match File::create(new_file_path.clone()) {
 				Ok(file) => file,
@@ -483,7 +483,7 @@ pub async fn nft_store_keyshare(
 							(
 								verified_data.nft_id,
 								helper::Availability {
-									block_number,
+									block_number: 0,
 									nft_type: helper::NftType::Secret,
 								},
 							),
