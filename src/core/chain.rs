@@ -16,10 +16,11 @@ use std::fmt;
 use subxt::{
 	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
 	ext::sp_core::H256,
-	storage::address::{Address, StaticStorageMapKey, Yes},
+	storage::address::{Address, StaticStorageKey, Yes},
 	tx::{PairSigner, Signer, TxStatus},
 	utils::AccountId32,
 	Error, OnlineClient, PolkadotConfig,
+	config::polkadot::PolkadotExtrinsicParamsBuilder,
 };
 
 use tracing::{debug, error, info, trace};
@@ -43,6 +44,8 @@ pub mod ternoa {}
 use crate::server::state::*;
 
 use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
+use self::ternoa::nft::storage::types::nfts::Param0;
+
 pub type DefaultApi = OnlineClient<PolkadotConfig>;
 pub type ApiRpc = (OnlineClient<PolkadotConfig>, LegacyRpcMethods<PolkadotConfig>);
 
@@ -313,12 +316,17 @@ pub async fn nft_keyshare_oracle(state: &SharedState, nft_id: u32) -> Result<H25
 	let shared_state_read = state.read().await;
 	let signer = shared_state_read.get_signer();
 
+	let tx_params = PolkadotExtrinsicParamsBuilder::new()
+    //.tip(1_000)
+	//.mortal(api.blocks().at_latest().await?.header(), 32)
+	.nonce(offchain_nonce)
+    .build();
+
 	// Create the extrinsic
 	let mut tx_submit_watch = api
 		.tx()
-		.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
+		.sign_and_submit_then_watch(&tx, signer, tx_params)
 		// It is better to submit and watch, is it compatible with nonce and multiple extrinsics?
-		.submit_and_watch()
 		.await?;
 
 	// Replacement of wait_for_in_block() in Subxt version 33
@@ -380,12 +388,17 @@ pub async fn capsule_keyshare_oracle(
 	let shared_state_read = state.read().await;
 	let signer = shared_state_read.get_signer();
 
+	let tx_params = PolkadotExtrinsicParamsBuilder::new()
+    //.tip(1_000)
+	//.mortal(api.blocks().at_latest().await?.header(), 32)
+	.nonce(offchain_nonce)
+    .build();
+
 	// Create the extrinsic
 	let mut tx_submit_watch = api
 		.tx()
-		.create_signed_with_nonce(&tx, signer, offchain_nonce, Default::default())?
+		.sign_and_submit_then_watch(&tx, signer, tx_params)
 		// It is better to submit and watch, is it compatible with nonce and multiple extrinsics?
-		.submit_and_watch()
 		.await?;
 
 	// Replacement of wait_for_in_block() in Subxt version 33
@@ -495,7 +508,7 @@ impl IntoFuture for AddressType {
 pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
 	debug!("CHAIN : get nft data batch");
 
-	type AddressType = Address<StaticStorageMapKey, NFTData<AccountId32>, Yes, (), ()>;
+	type AddressType = Address<StaticStorageKey<Param0>, NFTData<AccountId32>, Yes, (), ()>;
 	//StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
 
 	let (api, _) = create_chain_api().await.unwrap();
@@ -563,8 +576,8 @@ mod test {
 
 		let mut iter = api.storage().at_latest().await.unwrap().iter(address).await.unwrap();
 		let mut counter = 0;
-		while let Ok((vect, account)) = iter.next().await.unwrap() {
-			info!("{}: {}", hex::encode(vect), account.data.free);
+		while let Ok(kv) = iter.next().await.unwrap() {
+			info!("{}: {}", hex::encode(kv.key_bytes), kv.value.data.free);
 			counter += 1;
 			if counter > 10 {
 				break;
