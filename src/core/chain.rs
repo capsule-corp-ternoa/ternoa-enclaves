@@ -7,6 +7,8 @@ use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
 use serde::Serialize;
 
+use crate::constants::{MAINNET_GENESIS_HASH, ALPHANET_GENESIS_HASH};
+
 //use jsonrpsee_ws_client;
 //use jsonrpsee_ws_client::WsClientBuilder;
 
@@ -78,17 +80,31 @@ pub async fn create_chain_api() -> Result<DefaultApi, Error> {
 	// let rpc = WsClientBuilder::default().use_webpki_rustls().build(&rpc_endoint).await.unwrap();
 	// let api = DefaultApi::from_rpc_client(std::sync::Arc::new(rpc)).await.unwrap();
 
-	match DefaultApi::from_url(rpc_endoint.clone()).await {
+	let api = match DefaultApi::from_url(rpc_endoint.clone()).await {
 		Ok(api) => {
 			info!("CHAIN : Successfully created chain api.");
-			Ok(api)
+			api
 		},
 		Err(err) => {
 			error!("CHAIN : Error acquiring chain api, {:?}", err);
 			sentry::capture_error(&err);
-			Err(err)
+			return Err(err)
 		},
+	};
+
+	// Check Genesis Hash
+	let genesis_hash = api.genesis_hash().to_string();
+	let genesis_hash_str = genesis_hash.as_str();
+
+	if (cfg!(feature = "mainnet") && genesis_hash_str != MAINNET_GENESIS_HASH) || 
+		(cfg!(feature = "alphanet") && genesis_hash_str != ALPHANET_GENESIS_HASH) {
+			let error_message = "CHAIN : Error : Genesis Hash mismatch";
+			error!(name: "Chain Genesis Mismatch",error_message);
+			sentry::capture_message(error_message, sentry::protocol::Level::Error);
+			return Err(error_message.into())	
 	}
+
+	Ok(api)
 }
 
 // -------------- BLOCK NUMBER --------------

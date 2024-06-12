@@ -28,3 +28,8 @@ pub const MAX_VALIDATION_PERIOD: u32 = 20;
 pub const MAX_BLOCK_VARIATION: u32 = 2;
 pub const MAX_KEYSHARE_SIZE: u16 = 3000;
 pub const MIN_KEYSHARE_SIZE: u16 = 16;
+
+// ----------- CHAIN's GENESIS HASH
+pub const MAINNET_GENESIS_HASH: &str = "6859c81ca95ef624c9dfe4dc6e3381c33e5d6509e35e147092bfbc780f777c4e";
+pub const ALPHANET_GENESIS_HASH: &str = "535f8421af34dfbb87736b3b2231ddb3c598b0b2cd73a4c5e93b13bf6e65f4c0";
+
