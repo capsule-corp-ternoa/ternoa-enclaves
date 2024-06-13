@@ -533,6 +533,7 @@ pub async fn nft_store_keyshare(
 						verified_data.nft_id, err_str
 					);
 
+					// TODO: Remove this logic after subxt 0.36 with reconnect
 					if err.to_string().contains("WebSocket") {
 						set_chain_api_renew(&state, true).await;
 					}

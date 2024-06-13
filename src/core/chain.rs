@@ -14,7 +14,7 @@ use crate::constants::{ALPHANET_GENESIS_HASH, MAINNET_GENESIS_HASH};
 
 use std::fmt;
 use subxt::{
-	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
+	backend::{legacy::LegacyRpcMethods, rpc::{RpcClient, reconnecting_rpc_client::{Client, ExponentialBackoff}}},
 	config::polkadot::PolkadotExtrinsicParamsBuilder,
 	ext::sp_core::H256,
 	storage::{StaticAddress, StaticStorageKey},
@@ -81,15 +81,25 @@ pub async fn create_chain_api() -> Result<ApiRpc, Error> {
 		"ws://localhost:9944".to_string()
 	};
 
-	// Custome client
-	// let rpc = WsClientBuilder::default().use_webpki_rustls().build(&rpc_endoint).await.unwrap();
-	// let api = DefaultApi::from_rpc_client(std::sync::Arc::new(rpc)).await.unwrap();
+	let reconnectable_rpc = Client::builder()
+        // Reconnect with exponential backoff
+        //
+        // This API is "iterator-like" and we use `take` to limit the number of retries.
+        .retry_policy(
+            ExponentialBackoff::from_millis(100)
+                .max_delay(std::time::Duration::from_secs(10))
+                .take(3),
+        )
+        // There are other configurations as well that can be found at [`reconnecting_rpc_client::ClientBuilder`].
+        .build(rpc_endoint.clone())
+        .await?;
 
 	// Chain API
-	let api = match DefaultApi::from_url(rpc_endoint.clone()).await {
-		Ok(api) => {
+	//let api = match DefaultApi::from_url(rpc_endoint.clone()).await {
+	let api: OnlineClient<PolkadotConfig> = match OnlineClient::from_rpc_client(reconnectable_rpc.clone()).await {
+		Ok(reconnectable_api) => {
 			info!("CHAIN : Successfully created chain api.");
-			api
+			reconnectable_api
 		},
 		Err(err) => {
 			error!("CHAIN : Error acquiring chain api, {:?}", err);

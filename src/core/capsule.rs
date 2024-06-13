@@ -537,6 +537,7 @@ pub async fn capsule_set_keyshare(
 									verified_data.nft_id, file_path, err
 								);
 
+								// TODO: Remove this logic after subxt 0.36 with reconnect
 								if err.to_string().contains("WebSocket") {
 									set_chain_api_renew(&state, true).await;
 								}
