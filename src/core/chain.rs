@@ -16,9 +16,9 @@ use std::fmt;
 use subxt::{
 	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
 	ext::sp_core::H256,
-	storage::address::{Address, StaticStorageKey, Yes},
+	storage::{StaticAddress, StaticStorageKey},
 	tx::{PairSigner, Signer, TxStatus},
-	utils::AccountId32,
+	utils::{AccountId32, Yes},
 	Error, OnlineClient, PolkadotConfig,
 	config::polkadot::PolkadotExtrinsicParamsBuilder,
 };
@@ -334,9 +334,9 @@ pub async fn nft_keyshare_oracle(state: &SharedState, nft_id: u32) -> Result<H25
 		match status? {
 			TxStatus::InBestBlock(tx_in_block) | TxStatus::InFinalizedBlock(tx_in_block) => {
 				// now, we can attempt to work with the block, eg:
-				let block_hash = tx_in_block.wait_for_success().await?.block_hash();
-				debug!("CHAIN : Secret-nft Oracle : extrinsic sent : {:?}", block_hash);
-				return Ok(block_hash)
+				let extrinsic_hash = tx_in_block.wait_for_success().await?.extrinsic_hash();
+				debug!("CHAIN : Secret-nft Oracle : extrinsic sent : {:?}", extrinsic_hash);
+				return Ok(extrinsic_hash)
 			},
 			TxStatus::Error { message }
 			| TxStatus::Invalid { message }
@@ -406,9 +406,9 @@ pub async fn capsule_keyshare_oracle(
 		match status? {
 			TxStatus::InBestBlock(tx_in_block) | TxStatus::InFinalizedBlock(tx_in_block) => {
 				// now, we can attempt to work with the block, eg:
-				let block_hash = tx_in_block.wait_for_success().await?.block_hash();
-				debug!("CHAIN : Capsule Oracle : extrinsic sent : {:?}", block_hash);
-				return Ok(block_hash)
+				let extrinsic_hash = tx_in_block.wait_for_success().await?.extrinsic_hash();
+				debug!("CHAIN : Capsule Oracle : extrinsic sent : {:?}", extrinsic_hash);
+				return Ok(extrinsic_hash)
 			},
 			TxStatus::Error { message }
 			| TxStatus::Invalid { message }
@@ -508,7 +508,7 @@ impl IntoFuture for AddressType {
 pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
 	debug!("CHAIN : get nft data batch");
 
-	type AddressType = Address<StaticStorageKey<Param0>, NFTData<AccountId32>, Yes, (), ()>;
+	type AddressType = subxt::storage::StaticAddress<StaticStorageKey<Param0>, NFTData<AccountId32>, Yes, (), ()>;
 	//StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
 
 	let (api, _) = create_chain_api().await.unwrap();
