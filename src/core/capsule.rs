@@ -7,6 +7,7 @@ use crate::{
 };
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use cached::proc_macro::once;
 
 use std::{
 	fs::{File, OpenOptions},
@@ -31,7 +32,7 @@ use serde_json::to_value;
  KEY-SHARE AVAILABLE API
 ********************** */
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct CapsuleExistsResponse {
 	enclave_account: String,
 	block_number: u32,
@@ -47,10 +48,11 @@ pub struct CapsuleExistsResponse {
 /// If successfull, block_number is last blocknumber where keyshare is updated
 /// I Error happens, block_number is 0
 /// If nftid is not available, block_number is the current block_number
+#[once(time = 10, sync_writes = false)]
 pub async fn is_capsule_available(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
-) -> impl IntoResponse {
+) -> (StatusCode, Json<CapsuleExistsResponse>) {
 	info!("CAPSULE AVAILABILITY CHECK for {}", nft_id);
 
 	let enclave_account = get_accountid(&state).await;
@@ -69,7 +71,7 @@ pub async fn is_capsule_available(
 						exists: true,
 					}),
 				)
-					.into_response();
+					;
 			} else {
 				debug!("CAPSULE AVAILABILITY CHECK : NFTID is NOT a capsule, nft_id : {}", nft_id);
 			}
@@ -91,14 +93,14 @@ pub async fn is_capsule_available(
 			exists: false,
 		}),
 	)
-		.into_response()
+		
 }
 
 /* **********************
 	 KEY-SHARE VIEW API
 ********************** */
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct CapsuleViewResponse {
 	enclave_account: String,
 	nft_id: u32,
@@ -116,11 +118,11 @@ pub struct CapsuleViewResponse {
 /// * `impl IntoResponse` - The result of the capsule key-share
 /// # Errors
 /// * `Json(CapsuleViewResponse)` - The capsule key-share is not available
-#[axum::debug_handler]
+#[once(time = 10, sync_writes = false)]
 pub async fn capsule_get_views(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
-) -> impl IntoResponse {
+) -> (StatusCode, Json<CapsuleViewResponse>) {
 	debug!("\n\t**\nGET CAPSULE VIEWS\n\t**\n");
 
 	let enclave_account = get_accountid(&state).await;

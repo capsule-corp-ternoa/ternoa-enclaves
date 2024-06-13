@@ -7,6 +7,7 @@ use crate::{
 };
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use cached::proc_macro::once;
 
 use std::{
 	fs::{File, OpenOptions},
@@ -31,7 +32,7 @@ use subxt::ext::sp_core::H256;
 /* **********************
  KEYSHARE AVAILABLE API
 ********************** */
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct NFTExistsResponse {
 	enclave_account: String,
 	block_number: u32,
@@ -47,11 +48,13 @@ pub struct NFTExistsResponse {
 /// If successfull, block_number is last blocknumber where keyshare is updated
 /// I Error happens, block_number is 0
 /// If nftid is not available, block_number is the current block_number
-#[axum::debug_handler]
+
+#[once(time = 10, sync_writes = false)]
 pub async fn is_nft_available(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
-) -> impl IntoResponse {
+) -> (StatusCode, Json<NFTExistsResponse>) {
+
 	info!("NFT AVAILABILITY CHECK for {}", nft_id);
 
 	let enclave_account = get_accountid(&state).await;
@@ -73,8 +76,8 @@ pub async fn is_nft_available(
 						nft_id,
 						exists: true,
 					}),
-				)
-					.into_response();
+				);
+
 			} else {
 				debug!("NFT AVAILABILITY CHECK : NFTID is for a capsule, nft_id : {}", nft_id);
 			}
@@ -93,13 +96,13 @@ pub async fn is_nft_available(
 			exists: false,
 		}),
 	)
-		.into_response()
+
 }
 
 /* **********************
 	 KEYSHARE VIEW API
 ********************** */
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct NFTViewResponse {
 	enclave_account: String,
 	nft_id: u32,
@@ -113,11 +116,12 @@ pub struct NFTViewResponse {
 /// * `nft_id` - u32
 /// # Returns
 /// * `Json(NFTViewResponse)` - NFTViewResponse
-#[axum::debug_handler]
+
+#[once(time = 10, sync_writes = false)]
 pub async fn nft_get_views(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
-) -> impl IntoResponse {
+) -> (StatusCode, Json<NFTViewResponse>) {
 	debug!("\n\t**\nNFT GET VIEWS\n\t**\n");
 	let enclave_account = get_accountid(&state).await;
 

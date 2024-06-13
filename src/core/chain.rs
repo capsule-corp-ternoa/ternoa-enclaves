@@ -15,12 +15,12 @@ use crate::constants::{ALPHANET_GENESIS_HASH, MAINNET_GENESIS_HASH};
 use std::fmt;
 use subxt::{
 	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
+	config::polkadot::PolkadotExtrinsicParamsBuilder,
 	ext::sp_core::H256,
 	storage::{StaticAddress, StaticStorageKey},
 	tx::{PairSigner, Signer, TxStatus},
 	utils::{AccountId32, Yes},
 	Error, OnlineClient, PolkadotConfig,
-	config::polkadot::PolkadotExtrinsicParamsBuilder,
 };
 
 use tracing::{debug, error, info, trace};
@@ -43,8 +43,8 @@ use tracing::{debug, error, info, trace};
 pub mod ternoa {}
 use crate::server::state::*;
 
-use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
 use self::ternoa::nft::storage::types::nfts::Param0;
+use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
 
 pub type DefaultApi = OnlineClient<PolkadotConfig>;
 pub type ApiRpc = (OnlineClient<PolkadotConfig>, LegacyRpcMethods<PolkadotConfig>);
@@ -317,10 +317,10 @@ pub async fn nft_keyshare_oracle(state: &SharedState, nft_id: u32) -> Result<H25
 	let signer = shared_state_read.get_signer();
 
 	let tx_params = PolkadotExtrinsicParamsBuilder::new()
-    //.tip(1_000)
-	//.mortal(api.blocks().at_latest().await?.header(), 32)
-	.nonce(offchain_nonce)
-    .build();
+		//.tip(1_000)
+		//.mortal(api.blocks().at_latest().await?.header(), 32)
+		.nonce(offchain_nonce)
+		.build();
 
 	// Create the extrinsic
 	let mut tx_submit_watch = api
@@ -336,7 +336,7 @@ pub async fn nft_keyshare_oracle(state: &SharedState, nft_id: u32) -> Result<H25
 				// now, we can attempt to work with the block, eg:
 				let extrinsic_hash = tx_in_block.wait_for_success().await?.extrinsic_hash();
 				debug!("CHAIN : Secret-nft Oracle : extrinsic sent : {:?}", extrinsic_hash);
-				return Ok(extrinsic_hash)
+				return Ok(extrinsic_hash);
 			},
 			TxStatus::Error { message }
 			| TxStatus::Invalid { message }
@@ -344,13 +344,13 @@ pub async fn nft_keyshare_oracle(state: &SharedState, nft_id: u32) -> Result<H25
 				// Handle any errors:
 				let error_message = format!("Error submitting tx: {message}");
 				error!(error_message);
-				return Err(error_message.into())
+				return Err(error_message.into());
 			},
 			// Continue otherwise:
 			_ => continue,
 		}
 	}
-	
+
 	Err("CHAIN : Error : Secret-nft Oracle failed".into())
 }
 
@@ -389,10 +389,10 @@ pub async fn capsule_keyshare_oracle(
 	let signer = shared_state_read.get_signer();
 
 	let tx_params = PolkadotExtrinsicParamsBuilder::new()
-    //.tip(1_000)
-	//.mortal(api.blocks().at_latest().await?.header(), 32)
-	.nonce(offchain_nonce)
-    .build();
+		//.tip(1_000)
+		//.mortal(api.blocks().at_latest().await?.header(), 32)
+		.nonce(offchain_nonce)
+		.build();
 
 	// Create the extrinsic
 	let mut tx_submit_watch = api
@@ -408,7 +408,7 @@ pub async fn capsule_keyshare_oracle(
 				// now, we can attempt to work with the block, eg:
 				let extrinsic_hash = tx_in_block.wait_for_success().await?.extrinsic_hash();
 				debug!("CHAIN : Capsule Oracle : extrinsic sent : {:?}", extrinsic_hash);
-				return Ok(extrinsic_hash)
+				return Ok(extrinsic_hash);
 			},
 			TxStatus::Error { message }
 			| TxStatus::Invalid { message }
@@ -416,13 +416,13 @@ pub async fn capsule_keyshare_oracle(
 				// Handle any errors:
 				let error_message = format!("Error submitting tx: {message}");
 				error!(error_message);
-				return Err(error_message.into())
+				return Err(error_message.into());
 			},
 			// Continue otherwise:
 			_ => continue,
 		}
 	}
-	
+
 	Err("CHAIN : Error : Capsule Oracle failed ".into())
 }
 
@@ -508,7 +508,8 @@ impl IntoFuture for AddressType {
 pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
 	debug!("CHAIN : get nft data batch");
 
-	type AddressType = subxt::storage::StaticAddress<StaticStorageKey<Param0>, NFTData<AccountId32>, Yes, (), ()>;
+	type AddressType =
+		subxt::storage::StaticAddress<StaticStorageKey<Param0>, NFTData<AccountId32>, Yes, (), ()>;
 	//StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
 
 	let (api, _) = create_chain_api().await.unwrap();

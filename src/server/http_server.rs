@@ -10,6 +10,7 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
+use cached::proc_macro::once;
 use futures::StreamExt;
 use hyper::Method;
 use serde::{Deserialize, Serialize};
@@ -195,7 +196,7 @@ async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
 	HEALTH CHECK
 ------------------------------ */
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HealthResponse {
 	pub chain: String,
 	pub block_number: u32,
@@ -207,13 +208,14 @@ pub struct HealthResponse {
 }
 
 /// Health check endpoint
-async fn get_health_status(State(state): State<SharedState>) -> impl IntoResponse {
+#[once(time = 10, sync_writes = false)]
+async fn get_health_status(State(state): State<SharedState>) -> (StatusCode,Json<HealthResponse>) {
 	trace!("\t Healthcheck handler Start");
 
 	match evalueate_health_status(&state).await {
 		Some(response) => {
 			trace!("Healthcheck handler exit successfully .");
-			response.into_response()
+			response
 		},
 
 		_ => {
@@ -264,7 +266,6 @@ async fn get_health_status(State(state): State<SharedState>) -> impl IntoRespons
 					enclave_address,
 				}),
 			)
-				.into_response()
 		},
 	}
 }

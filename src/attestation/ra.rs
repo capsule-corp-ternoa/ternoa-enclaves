@@ -5,9 +5,9 @@ use std::{
 	path::Path,
 };
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, Json};
+use cached::proc_macro::once;
 use serde::{Deserialize, Serialize};
-//use cached::proc_macro::once;
 use subxt::ext::sp_core::Pair;
 use tracing::{debug, error, info, trace};
 
@@ -17,15 +17,15 @@ use anyhow::{anyhow, Result};
 pub const QUOTE_REPORT_DATA_OFFSET: usize = 368;
 pub const QUOTE_REPORT_DATA_LENGTH: usize = 64;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct QuoteResponse {
 	pub block_number: u32,
 	pub data: String,
 }
 
-// [performace] : Rate Limit or Cache the Quote API
-//#[once(time = 60, sync_writes = false)]
-pub async fn ra_get_quote(State(state): State<SharedState>) -> impl IntoResponse {
+// [performace] : Rate Limit or Cache the API
+#[once(time = 10, sync_writes = false)]
+pub async fn ra_get_quote(State(state): State<SharedState>) -> (StatusCode, Json<QuoteResponse>) {
 	// Make a dynamic user data
 	let enclave_id = get_accountid(&state).await;
 	let block_number = get_blocknumber(&state).await;
