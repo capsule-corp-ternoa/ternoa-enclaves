@@ -61,8 +61,8 @@ use crate::{
 		admin_nftid::admin_backup_push_id,
 		metric::{metric_reconcilliation, set_crawl_block},
 		sync::{
-			cluster_discovery, crawl_sync_events, fetch_keyshares, get_sync_state,
-			parse_block_body, set_sync_state, sync_keyshares, SyncedNFT,
+			cluster_discovery, crawl_sync_events, fetch_keyshares_with_ma, get_sync_state,
+			parse_block_body, set_sync_state, sync_keyshares_with_ma, SyncedNFT,
 		},
 	},
 	server::state::{
@@ -123,7 +123,7 @@ pub async fn http_server() -> Result<Router, Error> {
 		.route("/api/capsule-nft/retrieve-keyshare", post(capsule_retrieve_keyshare))
 		.route("/api/capsule-nft/remove-keyshare", post(capsule_remove_keyshare))
 		// SYNCHRONIZATION
-		.route("/api/backup/sync-keyshare", post(sync_keyshares))
+		.route("/api/backup/sync-keyshare", post(sync_keyshares_with_ma))
 		// METRIC SERVER
 		.route("/api/metric/interval-nft-list", post(metric_reconcilliation))
 		.route("/api/metric/set-crawl-block", post(set_crawl_block))
@@ -209,7 +209,7 @@ pub struct HealthResponse {
 
 /// Health check endpoint
 #[once(time = 10, sync_writes = false)]
-async fn get_health_status(State(state): State<SharedState>) -> (StatusCode,Json<HealthResponse>) {
+async fn get_health_status(State(state): State<SharedState>) -> (StatusCode, Json<HealthResponse>) {
 	trace!("\t Healthcheck handler Start");
 
 	match evalueate_health_status(&state).await {
@@ -497,7 +497,7 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 
 				// Retry until successfully fetch keyshares or discover if it is primary
 				for _retry in 0..RETRY_COUNT {
-					match fetch_keyshares(
+					match fetch_keyshares_with_ma(
 						&state_config,
 						&std::collections::HashMap::<u32, SyncedNFT>::new(),
 					)
@@ -573,7 +573,7 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 							// Empty map has another meaning
 							if !cluster_nftid_map.is_empty() {
 								for _fetch_retry in 0..RETRY_COUNT {
-									match fetch_keyshares(&state_config.clone(), &cluster_nftid_map)
+									match fetch_keyshares_with_ma(&state_config.clone(), &cluster_nftid_map)
 										.await
 									{
 										Ok(_) => {
@@ -795,7 +795,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 							// files. An empty HashMap is the wildcard signal to fetch all keyshares
 							// from nearby enclave
 							for _retry in 0..RETRY_COUNT {
-								match fetch_keyshares(
+								match fetch_keyshares_with_ma(
 									&state_config.clone(),
 									&std::collections::HashMap::<u32, SyncedNFT>::new(),
 								)
@@ -841,7 +841,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 				);
 
 				for _retry in 0..RETRY_COUNT {
-					match fetch_keyshares(&state_config.clone(), &new_nft).await {
+					match fetch_keyshares_with_ma(&state_config.clone(), &new_nft).await {
 						Ok(_) => {
 							let _ = set_sync_state(block_number.to_string());
 							debug!("\t-- Subscription Task : NEW-NFT : Synchronization of Keyshares complete.");
@@ -886,7 +886,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 
 							if !cluster_nft_map.is_empty() {
 								for _retry in 0..RETRY_COUNT {
-									match fetch_keyshares(&state_config.clone(), &cluster_nft_map)
+									match fetch_keyshares_with_ma(&state_config.clone(), &cluster_nft_map)
 										.await
 									{
 										Ok(_) => {

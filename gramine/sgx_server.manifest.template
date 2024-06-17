@@ -39,14 +39,14 @@ sgx.trusted_files = [
 
 sgx.enclave_size = "4G"
 sgx.thread_num = 24
-sgx.max_threads = 24
+sgx.max_threads = 32
 
-sgx.isvprodid = 12
-sgx.isvsvn    = 103
+sgx.isvprodid = 13
+sgx.isvsvn    = 104
 
-sgx.remote_attestation = "epid"
-sgx.ra_client_linkable = true
-sgx.ra_client_spid = "B6941ED89BCD7301A08739845B3B865A"
+sgx.remote_attestation = "dcap"
+#sgx.ra_client_linkable = true
+#sgx.ra_client_spid = "B6941ED89BCD7301A08739845B3B865A"
 
 sgx.debug = false
 sgx.nonpie_binary = true

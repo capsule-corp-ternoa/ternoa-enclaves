@@ -36,6 +36,7 @@ hex = "0.4.3"
 base64 = "0.21.7"
 zip = "0.6.4"
 async_zip = {version = "0.0.16", features = ["deflate"]}
+binrw = "0.13.3"
 
 # Time and Trace
 chrono = "0.4.33"

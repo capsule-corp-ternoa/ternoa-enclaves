@@ -5,6 +5,7 @@
 
 use axum::{extract::Path as PathExtract, response::IntoResponse};
 use futures::future::join_all;
+use hex::ToHex;
 use serde::Serialize;
 
 use crate::constants::{ALPHANET_GENESIS_HASH, MAINNET_GENESIS_HASH};
@@ -14,7 +15,13 @@ use crate::constants::{ALPHANET_GENESIS_HASH, MAINNET_GENESIS_HASH};
 
 use std::fmt;
 use subxt::{
-	backend::{legacy::LegacyRpcMethods, rpc::{RpcClient, reconnecting_rpc_client::{Client, ExponentialBackoff}}},
+	backend::{
+		legacy::LegacyRpcMethods,
+		rpc::{
+			reconnecting_rpc_client::{Client, ExponentialBackoff},
+			RpcClient,
+		},
+	},
 	config::polkadot::PolkadotExtrinsicParamsBuilder,
 	ext::sp_core::H256,
 	storage::{StaticAddress, StaticStorageKey},
@@ -82,38 +89,38 @@ pub async fn create_chain_api() -> Result<ApiRpc, Error> {
 	};
 
 	let reconnectable_rpc = Client::builder()
-        // Reconnect with exponential backoff
-        //
-        // This API is "iterator-like" and we use `take` to limit the number of retries.
-        .retry_policy(
-            ExponentialBackoff::from_millis(100)
-                .max_delay(std::time::Duration::from_secs(10))
-                .take(3),
-        )
-        // There are other configurations as well that can be found at [`reconnecting_rpc_client::ClientBuilder`].
-        .build(rpc_endoint.clone())
-        .await?;
+		// Reconnect with exponential backoff
+		//
+		// This API is "iterator-like" and we use `take` to limit the number of retries.
+		.retry_policy(
+			ExponentialBackoff::from_millis(100)
+				.max_delay(std::time::Duration::from_secs(10))
+				.take(3),
+		)
+		// There are other configurations as well that can be found at [`reconnecting_rpc_client::ClientBuilder`].
+		.build(rpc_endoint.clone())
+		.await?;
 
 	// Chain API
 	//let api = match DefaultApi::from_url(rpc_endoint.clone()).await {
-	let api: OnlineClient<PolkadotConfig> = match OnlineClient::from_rpc_client(reconnectable_rpc.clone()).await {
-		Ok(reconnectable_api) => {
-			info!("CHAIN : Successfully created chain api.");
-			reconnectable_api
-		},
-		Err(err) => {
-			error!("CHAIN : Error acquiring chain api, {:?}", err);
-			sentry::capture_error(&err);
-			return Err(err);
-		},
-	};
+	let api: OnlineClient<PolkadotConfig> =
+		match OnlineClient::from_rpc_client(reconnectable_rpc.clone()).await {
+			Ok(reconnectable_api) => {
+				info!("CHAIN : Successfully created chain api.");
+				reconnectable_api
+			},
+			Err(err) => {
+				error!("CHAIN : Error acquiring chain api, {:?}", err);
+				sentry::capture_error(&err);
+				return Err(err);
+			},
+		};
 
 	// Check Genesis Hash
-	let genesis_hash = api.genesis_hash().to_string();
-	let genesis_hash_str = genesis_hash.as_str();
+	let genesis_hash = hex::encode(api.genesis_hash());
 
-	if (cfg!(feature = "mainnet") && genesis_hash_str != MAINNET_GENESIS_HASH)
-		|| (cfg!(feature = "alphanet") && genesis_hash_str != ALPHANET_GENESIS_HASH)
+	if (cfg!(feature = "mainnet") && genesis_hash.as_str() != MAINNET_GENESIS_HASH)
+		|| (cfg!(feature = "alphanet") && genesis_hash.as_str() != ALPHANET_GENESIS_HASH)
 	{
 		let error_message = "CHAIN : Error : Genesis Hash mismatch";
 		error!(name: "Chain Genesis Mismatch",error_message);
@@ -158,7 +165,7 @@ pub async fn get_current_block_number(state: &SharedState) -> Result<u32, Error>
 /// # Returns
 /// * `u32` - The current block number
 
-pub async fn get_current_block_number_new_api() -> Result<u32, Error> {
+pub async fn get_current_block_number_test() -> Result<u32, Error> {
 	debug!("CHAIN : current_block : get api");
 
 	let (api, _) = match create_chain_api().await {
@@ -492,53 +499,6 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 	None
 }
 
-// -------------- BATCH/CONCURRENT --------------
-
-// Concurrent NFT Data
-
-/* TODO [future rust compiler update] : use TAIT (Type Alias Implementation Trait) when rust start supporting it https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html#whats-in-1640-stable
-
-type NFTDataType = Result<Option<<<AddressType as subxt::storage::StorageAddress>::Target as subxt::metadata::DecodeWithMetadata>::Target>, subxt::Error>;
-
-type StorageAddressRequestFuture = Pin<Box<dyn Future<Output = NFTDataType>>>;
-
-impl IntoFuture for AddressType {
-	type IntoFuture = StorageAddressRequestFuture;
-	type Output = <StorageAddressRequestFuture as Future>::Output;
-	fn into_future(self) -> Self::IntoFuture {
-		Box::pin(self.send())
-	}
-}
-*/
-
-/// Get the NFT/Capsule data
-/// # Arguments
-/// * `nft_ids` - The NFT/Capsule IDs
-
-pub async fn get_nft_data_batch(nft_ids: Vec<u32>) -> Vec<Option<NFTData<AccountId32>>> {
-	debug!("CHAIN : get nft data batch");
-
-	type AddressType =
-		subxt::storage::StaticAddress<StaticStorageKey<Param0>, NFTData<AccountId32>, Yes, (), ()>;
-	//StaticStorageAddress<DecodeStaticType<NFTData<AccountId32>>, Yes, (), Yes>;
-
-	let (api, _) = create_chain_api().await.unwrap();
-
-	let nft_address: Vec<AddressType> =
-		nft_ids.iter().map(|id| ternoa::storage().nft().nfts(id)).collect();
-
-	let mut fetches = Vec::new();
-	for nft_addr in nft_address.iter().take(nft_ids.len()) {
-		// Critical line with complex type
-		let nft_data_future = api.storage().at_latest().await.unwrap().fetch(nft_addr);
-		fetches.push(nft_data_future);
-	}
-
-	let join_result: Vec<Result<Option<NFTData<AccountId32>>, subxt::Error>> =
-		join_all(fetches).await;
-
-	join_result.into_iter().map(|jr| jr.unwrap()).collect()
-}
 
 #[derive(Serialize)]
 struct JsonNFTData {
@@ -596,29 +556,4 @@ mod test {
 		}
 	}
 
-	#[tokio::test]
-	async fn concurrent_nft_test() {
-		let mut rng = thread_rng();
-		let min_nft_id = 1;
-		let max_nft_id = 40;
-		let max_concurrent_requests = 220;
-		let nft_ids: Vec<u32> = (1..max_concurrent_requests)
-			.map(|_| rng.gen_range(min_nft_id..max_nft_id))
-			.collect();
-
-		// Concurrent (Avg. 0.3 ms/request on dev-0)
-		let start = Instant::now();
-		let nft_data_vec = get_nft_data_batch(nft_ids.clone()).await;
-		let elapsed_time = start.elapsed().as_micros();
-		let non_empty: Vec<Option<NFTData<AccountId32>>> =
-			nft_data_vec.into_iter().filter(|nd| nd.is_some()).collect();
-		println!("\nConcurrent time is {} microseconds\n", elapsed_time);
-
-		if !non_empty.is_empty() {
-			println!(
-				"State of one NFT : {:?}\n",
-				non_empty[non_empty.len() - 1].as_ref().unwrap().state
-			);
-		}
-	}
 }

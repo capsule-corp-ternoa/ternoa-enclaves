@@ -5,14 +5,15 @@ use std::{
 	path::Path,
 };
 
+use anyhow::{anyhow, Result};
 use axum::{extract::State, http::StatusCode, Json};
+use base64::{engine::general_purpose, prelude::*};
 use cached::proc_macro::once;
 use serde::{Deserialize, Serialize};
 use subxt::ext::sp_core::Pair;
 use tracing::{debug, error, info, trace};
 
 use crate::server::state::{get_accountid, get_blocknumber, get_keypair, SharedState};
-use anyhow::{anyhow, Result};
 
 pub const QUOTE_REPORT_DATA_OFFSET: usize = 368;
 pub const QUOTE_REPORT_DATA_LENGTH: usize = 64;
@@ -50,8 +51,9 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> (StatusCode, Json
 	};
 
 	match get_quote_content() {
-		Ok(quote) => {
-			(StatusCode::OK, Json(QuoteResponse { block_number, data: hex::encode(quote) }))
+		Ok(quote_byte) => {
+			let quote_base64 = general_purpose::STANDARD_NO_PAD.encode(quote_byte);
+			(StatusCode::OK, Json(QuoteResponse { block_number, data: quote_base64 }))
 		},
 
 		Err(err) => (

@@ -645,7 +645,7 @@ pub async fn admin_backup_push_id(
 #[cfg(test)]
 mod test {
 	use crate::core::{
-		chain::{create_chain_api, get_current_block_number_new_api},
+		chain::{create_chain_api, get_current_block_number_test},
 		helper,
 	};
 
@@ -678,7 +678,7 @@ mod test {
 			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
 
 		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
-		let current_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_test().await.unwrap();
 		let nftids: &[u32] = &[10, 200, 3000, 40000, 500000, 6000000];
 
 		let nftids_str = serde_json::to_string(nftids).unwrap();

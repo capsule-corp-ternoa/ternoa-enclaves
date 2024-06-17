@@ -70,8 +70,7 @@ pub async fn is_capsule_available(
 						nft_id,
 						exists: true,
 					}),
-				)
-					;
+				);
 			} else {
 				debug!("CAPSULE AVAILABILITY CHECK : NFTID is NOT a capsule, nft_id : {}", nft_id);
 			}
@@ -93,7 +92,6 @@ pub async fn is_capsule_available(
 			exists: false,
 		}),
 	)
-		
 }
 
 /* **********************

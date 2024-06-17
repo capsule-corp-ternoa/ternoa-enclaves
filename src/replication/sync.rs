@@ -45,19 +45,16 @@ use tracing::{debug, error, info, trace, warn};
 use zip::result::ZipError;
 
 use crate::{
-	attestation::ra::{
+	attestation::{dcap::{self, ParsedQuote, ReportResponse}, ra::{
 		get_quote_content, write_user_report_data, QuoteResponse, QUOTE_REPORT_DATA_LENGTH,
 		QUOTE_REPORT_DATA_OFFSET,
-	},
+	}},
 	constants::{
 		ATTESTATION_SERVER_URL, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH,
 		SYNC_STATE_FILE, VERSION,
 	},
 	core::{
-		chain::{
-			ternoa,
-			ternoa::nft::events::{CapsuleSynced, SecretNFTSynced},
-		},
+		chain::ternoa::{self, nft::events::{CapsuleSynced, SecretNFTSynced}},
 		helper::{Availability, NftType},
 	},
 	replication::zipdir::{add_list_zip, zip_extract},
@@ -253,22 +250,22 @@ pub async fn error_handler(message: String, _state: &SharedState) -> impl IntoRe
 /// * `backup_request` - BackupRequest
 
 #[axum::debug_handler]
-pub async fn sync_keyshares(
+pub async fn sync_keyshares_with_ma(
 	State(state): State<SharedState>,
 	ConnectInfo(addr): ConnectInfo<SocketAddr>,
 	Json(request): Json<FetchIdPacket>,
 ) -> impl IntoResponse {
 	debug!("\n\t----\nSYNC KEYSHARES : START\n\t----\n");
 
-	//update_health_status(&state, "Enclave is Syncing Keyshare, please
-	// wait...".to_string()).await;
+	//update_health_status(&state, 
+	// "Enclave is Syncing Keyshare, please wait...".to_string()).await;
 
 	let current_block_number = get_blocknumber(&state).await;
 
-	debug!("SYNC KEYSHARES : START CLUSTER DISCOVERY");
-	let slot_enclaves = slot_discovery(&state).await;
+	debug!("SYNC KEYSHARES : GET ENCLAVE URLS IN THE SAME SLOT OF CURRENT ENCLAVE");
+	let slot_enclaves = get_slot_enclaves(&state).await;
 
-	debug!("SYNC KEYSHARES : VERIFY ACCOUNT ID");
+	debug!("SYNC KEYSHARES : AUTHENTICATE THE REQUESTER ENCLAVE ACCOUNT ID");
 	let requester = match verify_account_id(slot_enclaves, &request.enclave_account) {
 		Some(enclave) => enclave,
 		None => {
@@ -313,29 +310,29 @@ pub async fn sync_keyshares(
 		Ok(token) => token,
 		Err(err) => {
 			let message =
-				format!("SYNC KEYSHARES : Error : Authentication token is not parsable : {}", err);
+				format!("SYNC KEYSHARES : ERROR : Authentication token is not parsable : {}", err);
 			return error_handler(message, &state).await.into_response();
 		},
 	};
 
-	debug!("SYNC KEYSHARES : VERIFY SIGNATURE");
+	debug!("SYNC KEYSHARES : VERIFY THE REQUESTE SIGNATURE");
 	if !verify_signature(
 		&request.enclave_account.clone(),
 		request.signature.clone(),
 		request.auth_token.as_bytes(),
 	) {
-		return error_handler("SYNC KEYSHARES : Invalid Signature".to_string(), &state)
+		return error_handler("SYNC KEYSHARES : ERROR : INVALID SIGNATURE".to_string(), &state)
 			.await
 			.into_response();
 	}
 
-	debug!("SYNC KEYSHARES : Validating the authentication token");
+	debug!("SYNC KEYSHARES : VALIDATING THE AUTHENTICATION TOKEN");
 	let validity = auth_token.is_valid(current_block_number);
 	match validity {
-		ValidationResult::Success => debug!("SYNC KEYSHARES : Authentication token is valid."),
+		ValidationResult::Success => debug!("SYNC KEYSHARES : AUTHENTICATION TOKEN IS VALID."),
 		_ => {
 			let message = format!(
-				"SYNC KEYSHARES : Authentication Token is not valid, or expired : {:?}",
+				"SYNC KEYSHARES : ERROR : AUTHENTICATION TOKEN IS NOT VALID, OR EXPIRED : {:?}",
 				validity
 			);
 			return error_handler(message, &state).await.into_response();
@@ -345,7 +342,7 @@ pub async fn sync_keyshares(
 	let hash = sha256::digest(request.nftid_vec.as_bytes());
 
 	if auth_token.data_hash != hash {
-		return error_handler("SYNC KEYSHARES : Mismatch Data Hash".to_string(), &state)
+		return error_handler("SYNC KEYSHARES : ERROR : Mismatch Data Hash".to_string(), &state)
 			.await
 			.into_response();
 	}
@@ -353,7 +350,7 @@ pub async fn sync_keyshares(
 	let nftidv: Vec<String> = match serde_json::from_str(&request.nftid_vec) {
 		Ok(v) => v,
 		Err(err) => {
-			let message = format!("SYNC KEYSHARES : unable to deserialize nftid vector : {err:?}");
+			let message = format!("SYNC KEYSHARES : ERROR : unable to deserialize nftid vector : {err:?}");
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -375,7 +372,7 @@ pub async fn sync_keyshares(
 	{
 		Ok(client) => client,
 		Err(err) => {
-			let message = format!("SYNC KEYSHARES : unable to build a Reqwest client : {err:?}");
+			let message = format!("SYNC KEYSHARES : ERROR : unable to build a Reqwest client : {err:?}");
 			sentry::with_scope(
 				|scope| {
 					scope.set_tag("sync-keyshare", "client");
@@ -391,91 +388,10 @@ pub async fn sync_keyshares(
 		enclave_url.pop();
 	}
 
-	// ------------------------ WEBSOCKET START -------------------------
-	// Communication between Enclaves will be in websocket protocol (full-duplex).
-	// This part of code is not possible with HTTP protocl
-
-	// let health_request_url = enclave_url.clone() + "/api/health";
-	// debug!("SYNC KEYSHARES : Healthcheck the requester {}", health_request_url);
-
-	// let mut retry_check = false;
-	// while !retry_check {
-	// 	let health_response = match client
-	// 		.get(health_request_url.clone())
-	// 		.send()
-	// 		.await
-	// 	{
-	// 		Ok(res) => res,
-	// 		Err(err) => {
-	// 			let message = format!("SYNC KEYSHARES : Healthcheck : Error getting health-check response
-	// from the enclave requesting for syncing : {} : {:?}", health_request_url, err);
-	// 			error!(message);
-	// 			warn!("SYNC KEYSHARES : Healthcheck : Delay and Retry ");
-	// 			// A delay to prevent conflict
-	// 			tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-	// 			continue;
-	// 			//return error_handler(message, &state).await.into_response();
-	// 		},
-	// 	};
-	// 	// Analyze the Response
-	// 	let health_status = health_response.status();
-
-	// 	[decision] : Should it be OK or Synching? Solution = (Specific StatusCode for Wildcard)
-
-	// 	if health_status != StatusCode::OK {
-	// 		let message = format!(
-	// 			"SYNC KEYSHARES : Healthcheck : requester enclave {} is not ready for syncing",
-	// 			requester.1.enclave_url
-	// 		);
-	// 		return error_handler(message, &state).await.into_response();
-	// 	}
-
-	// 	let health_body: HealthResponse = match health_response.json().await {
-	// 		Ok(body) => body,
-	// 		Err(err) => {
-	// 			let message = format!(
-	// 				"SYNC KEYSHARES : Healthcheck : can not deserialize the body : {} : {:?}",
-	// 				requester.1.enclave_url, err
-	// 			);
-	// 			error!(message);
-	// 			HealthResponse {
-	// 				block_number: 0,
-	// 				sync_state: "0".to_string(),
-	// 				version: "0.0".to_string(),
-	// 				description: "Error".to_string(),
-	// 				enclave_address: "0000".to_string(),
-	// 			}
-	// 			//return error_handler(message, &state).await.into_response();
-	// 		},
-	// 	};
-
-	// 	debug!(
-	// 		"SYNC KEYSHARES : Health-Check Result for url : {}, Status: {:?}, \n body: {:#?}",
-	// 		requester.1.enclave_url, health_status, health_body
-	// 	);
-
-	// 	retry_check = true;
-	// }
-
-	// debug!("SYNC KEYSHARES : REQUEST QUOTE");
-	// let quote_request_url = enclave_url.clone() + "/api/quote";
-	// debug!("SYNC KEYSHARES : REQUEST QUOTE the requester {}", quote_request_url);
-
-	// let quote_response = match client.get(quote_request_url).send().await {
-	// 	Ok(resp) => resp,
-	// 	Err(err) => {
-	// 		let message =
-	// 			format!("Error reading quote from the enclave requesting for syncing : {err:?}");
-	// 		return error_handler(message, &state).await.into_response();
-	// 	},
-	// };
-
-	// ------------------------ WEBSOCKET END -------------------------
-
 	let quote_hash = sha256::digest(request.quote.as_bytes());
 
 	if auth_token.quote_hash != quote_hash {
-		let message = "SYNC KEYSHARES : Mismatch Quote Hash".to_string();
+		let message = "SYNC KEYSHARES : ERROR : Mismatch Quote Hash".to_string();
 		sentry::with_scope(
 			|scope| {
 				scope.set_tag("sync-keyshare", "quote");
@@ -489,7 +405,7 @@ pub async fn sync_keyshares(
 		Ok(body) => body,
 		Err(err) => {
 			let message = format!(
-				"SYNC KEYSHARES : Quote : can not deserialize the quote : {} : {:?}",
+				"SYNC KEYSHARES : Quote : ERROR : can not deserialize the quote : {} : {:?}",
 				requester.1.enclave_url, err
 			);
 			sentry::with_scope(
@@ -508,6 +424,7 @@ pub async fn sync_keyshares(
 		quote_body
 	);
 
+	
 	let account_keypair = get_keypair(&state).await;
 	let account_id = get_accountid(&state).await;
 	let signature = account_keypair.sign(quote_body.data.as_bytes());
@@ -519,7 +436,8 @@ pub async fn sync_keyshares(
 	})
 	.to_string();
 
-	let attest_response = match client
+	// REQUEST TO ATTESTATION SERVER
+	let attestation_raw_response = match client
 		.post(ATTESTATION_SERVER_URL)
 		.body(attestation_request_body)
 		.header(header::CONTENT_TYPE, "application/json")
@@ -540,7 +458,8 @@ pub async fn sync_keyshares(
 		},
 	};
 
-	let attestation_json = match attest_response.text().await {
+	// PARSE THE ATTESTATION REPORT
+	let attestation_response = match attestation_raw_response.json::<dcap::AttestationResponse>().await {
 		Ok(resp) => resp,
 		Err(err) => {
 			let message = format!("Error getting attestation response {err:?}");
@@ -557,81 +476,14 @@ pub async fn sync_keyshares(
 	trace!(
 		"SYNC KEYSHARES : Attestation Result for url : {} is \n {:#?}\n\n",
 		requester.1.enclave_url,
-		attestation_json,
+		attestation_response,
 	);
-
-	let attest_dynamic_json: Value = match serde_json::from_str::<Value>(&attestation_json) {
-		Ok(dj) => dj,
-		Err(err) => {
-			let message =
-				format!("SYNC KEYSHARES : Error deserializing attestation response {err:?}");
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "attestation");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
-
-	trace!("SYNC KEYSHARES : Report map : {}", attest_dynamic_json["report"]);
-	let report_body_string = serde_json::to_string(&attest_dynamic_json["report"]);
-	trace!("SYNC KEYSHARES : Stringified report map : {:?}", report_body_string);
-
-	let report: String = match report_body_string {
-		Ok(report) => report,
-		Err(err) => {
-			let message = format!(
-				"SYNC KEYSHARES : Error deserializing attestation report as String {err:?}"
-			);
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "attestation");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
-
-	let attestation_server_account: String =
-		match serde_json::from_value(attest_dynamic_json["account"].clone()) {
-			Ok(attest_account) => attest_account,
-			Err(err) => {
-				let message =
-					format!("SYNC KEYSHARES : Error deserializing attestation account {err:?}");
-				sentry::with_scope(
-					|scope| {
-						scope.set_tag("sync-keyshare", "attestation");
-					},
-					|| sentry::capture_message(&message, sentry::Level::Error),
-				);
-				return error_handler(message, &state).await.into_response();
-			},
-		};
-
-	let attestation_server_signature: String =
-		match serde_json::from_value(attest_dynamic_json["signature"].clone()) {
-			Ok(report) => report,
-			Err(err) => {
-				let message =
-					format!("SYNC KEYSHARES : Error deserializing attestation signature {err:?}");
-				sentry::with_scope(
-					|scope| {
-						scope.set_tag("sync-keyshare", "attestation");
-					},
-					|| sentry::capture_message(&message, sentry::Level::Error),
-				);
-				return error_handler(message, &state).await.into_response();
-			},
-		};
 
 	// Verify signature of Attestation Server response
 	if !verify_signature(
-		&attestation_server_account,
-		attestation_server_signature,
-		report.as_bytes(),
+		&attestation_response.account,
+		attestation_response.signature,
+		attestation_response.report.as_bytes(),
 	) {
 		let message = "SYNC KEYSHARES : Invalid Report Signature".to_string();
 		sentry::with_scope(
@@ -643,10 +495,10 @@ pub async fn sync_keyshares(
 		return error_handler(message, &state).await.into_response();
 	}
 
-	if !crate::replication::metric::verify_account_id(&state, &attestation_server_account).await {
+	if !crate::replication::metric::verify_account_id(&state, &attestation_response.account).await {
 		let message = format!(
-			"SYNC KEYSHARES : Invalid Attestation Server, It is not registered on blockchain , account : {attestation_server_account}"
-		);
+		"SYNC KEYSHARES : Invalid Attestation Server, It is not registered on blockchain , account : {}", attestation_response.account
+	);
 		sentry::with_scope(
 			|scope| {
 				scope.set_tag("sync-keyshare", "attestation");
@@ -656,8 +508,10 @@ pub async fn sync_keyshares(
 		return error_handler(message, &state).await.into_response();
 	}
 
-	// Deserialize again to Json
-	let report: Value = match serde_json::from_value(attest_dynamic_json["report"].clone()) {
+	trace!("SYNC KEYSHARES : Stringified report map : {}", attestation_response.report);
+
+	// Deserialize Report
+	let report: ReportResponse = match serde_json::from_str(&attestation_response.report) {
 		Ok(report) => report,
 		Err(err) => {
 			let message =
@@ -672,43 +526,15 @@ pub async fn sync_keyshares(
 		},
 	};
 
-	debug!("SYNC KEYSHARES : report['exit status'] = {}", report["exit status"]);
-
-	// Check attestation report status
-	if report["exit status"] != "0" {
-		let message = format!(
-			"SYNC KEYSHARES : Attestation IAS report failed :: Requester: {} , Report : {report}",
-			requester.1.enclave_url
-		);
-		sentry::with_scope(
-			|scope| {
-				scope.set_tag("sync-keyshare", "attestation");
-			},
-			|| sentry::capture_message(&message, sentry::Level::Error),
-		);
-		return error_handler(message, &state).await.into_response();
-	} // FAILED ATTESTATION REPORT
+	debug!("SYNC KEYSHARES : report = {:#?}", report);
 
 	// Deserialize the quote
-	let quote = match report.get("quote") {
-		Some(qval) => match qval.as_str() {
-			Some(qstr) => qstr,
+	let quote: ParsedQuote = match serde_json::from_str(&report.isvQuoteBody) {
+		Ok(pq) => pq,
 
-			None => {
-				let message = "SYNC KEYSHARES : Error converting attestation quote-body to string"
-					.to_string();
-				sentry::with_scope(
-					|scope| {
-						scope.set_tag("sync-keyshare", "attestation");
-					},
-					|| sentry::capture_message(&message, sentry::Level::Error),
-				);
-				return error_handler(message, &state).await.into_response();
-			},
-		},
-
-		None => {
-			let message = "SYNC KEYSHARES : Error deserializing attestation quote-body".to_string();
+		Err(err) => {
+			let message =
+				format!("SYNC KEYSHARES : Error deserializing Quote from attestation report {err:?}");
 			sentry::with_scope(
 				|scope| {
 					scope.set_tag("sync-keyshare", "attestation");
@@ -721,8 +547,8 @@ pub async fn sync_keyshares(
 
 	// SEPARATE ATTESTATION SERVER : We need to compare sending and receiving quote
 	// to make sure the receiving report, belongs to the proper quote
-	if !quote_body.data.starts_with(quote) {
-		trace!("Requested Quote = {} \n Returned Quote = {quote}", quote_body.data);
+	if !quote_body.data.starts_with(&report.isvQuoteBody) {
+		trace!("Requested Quote = {} \n Returned Quote = {quote:?}", quote_body.data);
 		let message = "SYNC KEYSHARES : Quote Mismatch".to_string();
 		sentry::with_scope(
 			|scope| {
@@ -733,40 +559,20 @@ pub async fn sync_keyshares(
 		return error_handler(message, &state).await.into_response();
 	}
 
-	let report_data: String = quote
-		.chars()
-		.skip(QUOTE_REPORT_DATA_OFFSET * 2)
-		.take(QUOTE_REPORT_DATA_LENGTH * 2)
-		.collect();
-
-	if report_data.len() < 128 {
-		trace!("SYNC KEYSHARES : quote-body in report = {quote}");
-		let message =
-			format!("SYNC KEYSHARES : Failed to get 'report_data; from th quote : {}", quote);
-		sentry::with_scope(
-			|scope| {
-				scope.set_tag("sync-keyshare", "attestation");
-			},
-			|| sentry::capture_message(&message, sentry::Level::Error),
-		);
-		return error_handler(message, &state).await.into_response();
-	} // FAILED EXTRACTING REPORT DATA
-
 	// Verify Report_Data
-
-	let token = format!(
+	let report_data_token = format!(
 		"{}_{}_{}",
 		request.enclave_account, auth_token.block_number, request.encryption_account
 	);
 
-	debug!("SYNC KEYSHARES : report_data token = {token}");
+	debug!("SYNC KEYSHARES : report_data token = {report_data_token}");
 
 	if !verify_signature(
 		&request.enclave_account.clone(),
-		report_data.to_string(),
-		token.as_bytes(),
+		hex::encode(quote.body.report_data),
+		report_data_token.as_bytes(),
 	) {
-		let message = "SYNC KEYSHARES : Invalid Signature".to_string();
+		let message = "SYNC KEYSHARES : Invalid Report-Data Signature".to_string();
 		sentry::with_scope(
 			|scope| {
 				scope.set_tag("sync-keyshare", "quote");
@@ -776,52 +582,7 @@ pub async fn sync_keyshares(
 		return error_handler(message, &state).await.into_response();
 	}
 
-	let parse_token: Vec<&str> = token.split('_').collect();
-	if request.enclave_account != parse_token[0] {
-		let message =
-			"SYNC KEYSHARES : TOKEN : Mismatch between <Requester Account> and <Report Data Token>"
-				.to_string();
-		sentry::with_scope(
-			|scope| {
-				scope.set_tag("sync-keyshare", "attestation");
-			},
-			|| sentry::capture_message(&message, sentry::Level::Error),
-		);
-		return error_handler(message, &state).await.into_response();
-	} else {
-		match parse_token[1].parse::<u32>() {
-			Ok(token_block) => {
-				if (token_block != auth_token.block_number)
-					|| (current_block_number < token_block)
-					|| (current_block_number - token_block > 5)
-				{
-					let message = format!("SYNC KEYSHARES : TOKEN : Incompatible/Outdated block numbers :\n Current blocknumber: {current_block_number} >~ Token blocknumber: {token_block} == Request blocknumber: {} ?", auth_token.block_number);
-					sentry::with_scope(
-						|scope| {
-							scope.set_tag("sync-keyshare", "attestation");
-						},
-						|| sentry::capture_message(&message, sentry::Level::Error),
-					);
-					return error_handler(message, &state).await.into_response();
-				}
-			},
-
-			Err(err) => {
-				let message = format!(
-					"SYNC KEYSHARES : TOKEN : Can not parse Token Block Number {} , error = {:?}",
-					parse_token[1], err
-				);
-				sentry::with_scope(
-					|scope| {
-						scope.set_tag("sync-keyshare", "attestation");
-					},
-					|| sentry::capture_message(&message, sentry::Level::Error),
-				);
-				return error_handler(message, &state).await.into_response();
-			},
-		} // VALID TOKEN BLOCK
-	} // PARSE TOKEN
-
+	// Packing up requested NFTIDs
 	let random_number = rand::rngs::OsRng.next_u32();
 	let backup_file = format!("/temporary/backup_{random_number}.zip");
 
@@ -925,7 +686,7 @@ pub async fn sync_keyshares(
 	FETCH KEYSHARES FROM ENCLAVES
 ----------------------------------- */
 
-pub async fn fetch_keyshares(
+pub async fn fetch_keyshares_with_ma(
 	state: &SharedState,
 	new_nft_map: &HashMap<u32, SyncedNFT>,
 ) -> Result<u32, anyhow::Error> {
@@ -972,8 +733,8 @@ pub async fn fetch_keyshares(
 		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard for
 		// synchronization It is the first time running enclave
 		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100,
-		// offset 2 TODO : for pagination, a new endpoint needed to report the number of keyshares
-		// stored on target enclave.
+		// offset 2 TODO : for pagination, the number of keyshares
+		// stored on target enclave is available on healthcheck reponse.
 		match serde_json::to_string(&vec!["*".to_string()]) {
 			Ok(strg) => strg,
 			Err(err) => {
@@ -1091,6 +852,8 @@ pub async fn fetch_keyshares(
 
 	let nftid_hash = sha256::digest(nftids_request.as_bytes());
 
+	// Temporary Keypair, specific to each communication channel,
+	// exchanged during Mutual Attestation
 	let (sk, pk) = generate_keypair();
 	let encryption_pk = pk.serialize();
 	let encryption_private_key = sk.serialize();
@@ -1123,7 +886,8 @@ pub async fn fetch_keyshares(
 			return Err(anyhow!(message));
 		},
 	};
-
+	
+	// Get the Quote of current enclave to be sent to remote enclave which owns the new nftid.
 	let quote = match get_quote_content() {
 		Ok(quote) => match serde_json::to_string(&QuoteResponse {
 			block_number: current_block_number,
@@ -1221,7 +985,7 @@ pub async fn fetch_keyshares(
 
 	// The available enclaves in the same slot of current enclave, with their clusterid
 	debug!("FETCH KEYSHARES : START SLOT DISCOVERY");
-	let slot_enclaves = slot_discovery(state).await;
+	let slot_enclaves = get_slot_enclaves(state).await;
 	if slot_enclaves.is_empty() {
 		// TODO : What about first cluster? should it continue as the Primary cluster in
 		// running-mode? otherwise we should have two clusters registered before starting
@@ -1282,6 +1046,8 @@ pub async fn fetch_keyshares(
 
 		debug!("FETCH KEYSHARES : HEALTH CHECK");
 		debug!("FETCH KEYSHARES : request url : {}", request_url);
+		// Get health status of remote enclave,
+		// It is also necessary for pagination and sync status
 		let health_response = match client.clone().get(request_url.clone()).send().await {
 			Ok(res) => res,
 			Err(err) => {
@@ -1324,6 +1090,7 @@ pub async fn fetch_keyshares(
 			);
 			error!(message);
 			continue; // Next Cluster
+			// TODO : Retry the healthcheck
 		} else {
 			last_synced = match response_body.sync_state.parse::<u32>() {
 				Ok(blk) => blk,
@@ -1343,6 +1110,7 @@ pub async fn fetch_keyshares(
 		debug!("FETCH KEYSHARES : request for nft-keyshares");
 		debug!("FETCH KEYSHARES : request url : {}", request_url);
 
+		// Send Fetch Request
 		let fetch_response = client
 			.clone()
 			.post(request_url)
@@ -1685,11 +1453,11 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 }
 
 /* ----------------------------
-		SLOT DISCOVERY
+		GET SLOT ENCLAVES
 ------------------------------ */
 // List of api_url of all the enclaves in all clusters with the same slot number as current enclave
 // This is essential for Synchronization and backup
-pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
+pub async fn get_slot_enclaves(state: &SharedState) -> Vec<(u32, Enclave)> {
 	debug!("SLOT-DISCOVERY : START");
 	let chain_clusters = get_clusters(state).await;
 
@@ -1698,7 +1466,7 @@ pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
 	let identity = match get_identity(state).await {
 		Some(id) => id,
 		None => {
-			error!("SLOT-DISCOVERY : Error finding self-identity onchain, this enclave may have not been registered on blockchain yet.");
+			error!("SLOT-ENCLAVES : Error finding self-identity onchain, this enclave may have not been registered on blockchain yet.");
 			// EMPTY
 			return slot_enclave;
 		},
@@ -1721,7 +1489,7 @@ pub async fn slot_discovery(state: &SharedState) -> Vec<(u32, Enclave)> {
 			}
 		}
 	}
-	debug!("SLOT-DISCOVERY : DONE");
+	debug!("SLOT-ENCLAVES : DONE");
 	slot_enclave
 }
 

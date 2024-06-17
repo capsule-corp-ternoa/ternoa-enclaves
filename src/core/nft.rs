@@ -54,7 +54,6 @@ pub async fn is_nft_available(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
 ) -> (StatusCode, Json<NFTExistsResponse>) {
-
 	info!("NFT AVAILABILITY CHECK for {}", nft_id);
 
 	let enclave_account = get_accountid(&state).await;
@@ -77,7 +76,6 @@ pub async fn is_nft_available(
 						exists: true,
 					}),
 				);
-
 			} else {
 				debug!("NFT AVAILABILITY CHECK : NFTID is for a capsule, nft_id : {}", nft_id);
 			}
@@ -96,7 +94,6 @@ pub async fn is_nft_available(
 			exists: false,
 		}),
 	)
-
 }
 
 /* **********************

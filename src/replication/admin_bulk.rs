@@ -843,7 +843,7 @@ pub async fn admin_backup_push_bulk(
 
 #[cfg(test)]
 mod test {
-	use crate::core::chain::get_current_block_number_new_api;
+	use crate::core::chain::get_current_block_number_test;
 
 	use super::*;
 
@@ -853,7 +853,7 @@ mod test {
 			"hockey fine lawn number explain bench twenty blue range cover egg sibling";
 
 		let admin_keypair = sr25519::Pair::from_phrase(seed_phrase, None).unwrap().0;
-		let current_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_test().await.unwrap();
 
 		let auth =
 			FetchAuthenticationToken { block_number: current_block_number, block_validation: 10 };
@@ -879,7 +879,7 @@ mod test {
 		let mut zipfile = std::fs::File::open("./test/test.zip").unwrap();
 		let _ = zipfile.read_to_end(&mut zipdata).unwrap();
 
-		let current_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_test().await.unwrap();
 
 		let hash = sha256::digest(zipdata.as_slice());
 

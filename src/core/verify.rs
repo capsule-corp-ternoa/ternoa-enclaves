@@ -32,7 +32,7 @@ use crate::{
 	server::state::{get_blocknumber, SharedState},
 };
 
-use super::chain::get_current_block_number_new_api;
+use super::chain::get_current_block_number_test;
 
 /* **********************
   DATA STRUCTURES
@@ -1428,7 +1428,7 @@ mod test {
 	---------------------- */
 	/// Generate a random string of a given length
 	async fn generate_store_request(nftid: u32) -> StoreKeysharePacket {
-		let current_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_test().await.unwrap();
 
 		let owner = sr25519::Pair::from_phrase(
 			"theme affair risk blue world review hazard social arrow usage unveil surge",
@@ -1467,7 +1467,7 @@ mod test {
 
 	/// Generate a random string of a given length
 	async fn generate_retrieve_request(nftid: u32) -> RetrieveKeysharePacket {
-		let current_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_test().await.unwrap();
 
 		let owner = sr25519::Pair::from_phrase(
 			"theme affair risk blue world review hazard social arrow usage unveil surge",
@@ -1499,7 +1499,7 @@ mod test {
 		.unwrap()
 		.0;
 
-		let current_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_test().await.unwrap();
 		let data = format!("{}_{}_10", nftid, current_block_number);
 		let requester_address = signer.public();
 
@@ -1610,7 +1610,7 @@ mod test {
 
 	#[tokio::test]
 	async fn verify_data_test() {
-		let current_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_test().await.unwrap();
 		let mut packet = generate_store_request(1300).await;
 
 		// correct
@@ -1642,7 +1642,7 @@ mod test {
 
 	#[tokio::test]
 	async fn verify_polkadotjs_request_test() {
-		let current_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_test().await.unwrap();
 
 		let owner = sr25519::Pair::generate().0;
 		let signer = sr25519::Pair::generate().0;
@@ -1681,7 +1681,7 @@ mod test {
 
 	#[tokio::test]
 	async fn verify_signer_request_test() {
-		let current_block_number = get_current_block_number_new_api().await.unwrap();
+		let current_block_number = get_current_block_number_test().await.unwrap();
 		// Test
 		let owner = sr25519::Pair::generate().0;
 		let signer = sr25519::Pair::generate().0;
