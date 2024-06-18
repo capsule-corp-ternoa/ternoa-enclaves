@@ -1,21 +1,28 @@
-#![allow(dead_code)]
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+#![allow(dead_code)]
+
+use anyhow::anyhow;
+use binrw::{io::Cursor, BinRead, BinReaderExt};
 
 use clap::Parser;
 use hex::{FromHex, FromHexError};
 use serde_json::{json, Value};
 use subxt::{
+	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
+	config::polkadot::PolkadotExtrinsicParamsBuilder,
 	ext::sp_core::{
 		crypto::{PublicError, Ss58Codec},
-		sr25519,
-		sr25519::Signature,
-		Pair,
+		sr25519::{self, Signature},
+		Pair, H256,
 	},
-	tx::PairSigner,
-	utils::AccountId32,
+	storage::{StaticAddress, StaticStorageKey},
+	tx::{PairSigner, Signer as SubxtSigner, TxStatus},
+	utils::{AccountId32, Yes},
 	Error, OnlineClient, PolkadotConfig,
 };
+
+use reqwest::header;
 
 use std::{
 	collections::BTreeMap,
@@ -46,57 +53,98 @@ use serde::{Deserialize, Serialize};
 
 pub mod ternoa {}
 use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
-type DefaultApi = OnlineClient<PolkadotConfig>;
+pub type DefaultApi = OnlineClient<PolkadotConfig>;
+pub type ApiRpc = (OnlineClient<PolkadotConfig>, LegacyRpcMethods<PolkadotConfig>);
 
 // -------------- CHAIN API --------------
 /// Get the chain API
 /// # Returns
 /// * `DefaultApi` - The chain API
-pub async fn get_chain_api() -> Result<DefaultApi, Error> {
-	debug!("Get chain API");
+
+pub async fn get_chain_api() -> Result<ApiRpc, Error> {
+	debug!("CHAIN : get chain API");
 
 	let rpc_endoint = if cfg!(feature = "mainnet") {
-		"wss://mainnet.ternoa.network:443".to_string()
+		"wss://mainnet.ternoa.io:443".to_string()
 	} else if cfg!(feature = "alphanet") {
 		"wss://alphanet.ternoa.com:443".to_string()
+	} else if cfg!(feature = "betanet") {
+		"wss://betanet.ternoa.com:443".to_string()
 	} else if cfg!(feature = "dev1") {
 		"wss://dev-1.ternoa.network:443".to_string()
 	} else if cfg!(feature = "dev0") {
 		"wss://dev-0.ternoa.network:443".to_string()
 	} else {
-		return Err(Error::Other("Unknown chain".to_string()));
+		"ws://localhost:9944".to_string()
 	};
 
-	println!("endpoint = {rpc_endoint}\n");
+	// Chain API
+	let api = DefaultApi::from_url(rpc_endoint.clone()).await?;
 
-	DefaultApi::from_url(rpc_endoint).await
+	// Legacy RPC
+	let rpc_client = RpcClient::from_url(rpc_endoint.clone()).await?;
+	let legacy_rpc = LegacyRpcMethods::<PolkadotConfig>::new(rpc_client.clone());
+	//let api = OnlineClient::<PolkadotConfig>::from_rpc_client(rpc_client.clone()).await?;
+
+	Ok((api, legacy_rpc))
 }
 
 /// Get the current block number
 /// # Returns
 /// * `u32` - The current block number
 pub async fn get_current_block_number() -> Result<u32, Error> {
-	let api = match get_chain_api().await {
-		Ok(api) => api,
+	let (api, _) = match get_chain_api().await {
+		Ok(al) => al,
 		Err(err) => return Err(err),
 	};
 
-	let hash = match api.rpc().finalized_head().await {
-		Ok(hash) => hash,
+	let block = match api.blocks().at_latest().await {
+		Ok(blk) => blk,
 		Err(err) => return Err(err),
 	};
 
-	let last_block = match api.rpc().block(Some(hash)).await {
-		Ok(Some(last_block)) => last_block,
-		Ok(None) =>
-			return Err(subxt::Error::Io(std::io::Error::new(
-				std::io::ErrorKind::Other,
-				"Block not found",
-			))),
-		Err(err) => return Err(err),
+	Ok(block.number())
+}
+
+fn get_public_key(account_id: &str) -> Result<sr25519::Public, PublicError> {
+	let pk: Result<sr25519::Public, PublicError> = sr25519::Public::from_ss58check(account_id)
+		.map_err(|err: PublicError| {
+			debug!("Error constructing public key {err:?}");
+			err
+		});
+
+	pk
+}
+
+fn get_signature(signature: String) -> Result<Signature, FromHexError> {
+	let stripped = match signature.strip_prefix("0x") {
+		Some(sig) => sig,
+		None => signature.as_str(),
 	};
 
-	Ok(last_block.block.header.number)
+	match <[u8; 64]>::from_hex(stripped) {
+		Ok(s) => {
+			let sig = sr25519::Signature::from_raw(s);
+			Ok(sig)
+		},
+		Err(err) => Err(err),
+	}
+}
+
+fn verify_signature(account_id: &str, signature: String, message: &[u8]) -> bool {
+	match get_public_key(account_id) {
+		Ok(pk) => match get_signature(signature) {
+			Ok(val) => sr25519::Pair::verify(&val, message, &pk),
+			Err(err) => {
+				debug!("Error get signature {err:?}");
+				false
+			},
+		},
+		Err(_) => {
+			debug!("Error get public key from account-id");
+			false
+		},
+	}
 }
 
 /* *************************************
@@ -194,6 +242,102 @@ pub struct ReconPacket {
 }
 
 /* *************************************
+		ATTESTATION
+**************************************** */
+
+#[derive(BinRead, Deserialize, Debug)]
+pub struct ParsedQuote {
+	pub header: QuoteHeader,
+	pub body: QuoteBody,
+}
+
+#[derive(BinRead, Deserialize, Debug)]
+pub struct QuoteHeader {
+	pub version: u16,
+	pub attestation_key_type: u16,
+	reserved1: u32,
+	pub qe_svn: u16,
+	pub pce_svn: u16,
+
+	#[br(big, count = 16)]
+	pub qe_vendor_id: Vec<u8>,
+
+	#[br(big, count = 20)]
+	pub user_data: Vec<u8>,
+}
+
+#[derive(BinRead, Deserialize, Debug)]
+pub struct QuoteBody {
+	#[br(big, count = 16)]
+	pub cpu_svn: Vec<u8>,
+
+	pub misc_select: u32,
+
+	#[br(big, count = 28)]
+	reserved1: Vec<u8>,
+
+	#[br(big, count = 16)]
+	pub attributes: Vec<u8>,
+
+	#[br(big, count = 32)]
+	pub mrenclave: Vec<u8>,
+
+	#[br(big, count = 32)]
+	reserved2: Vec<u8>,
+
+	#[br(big, count = 32)]
+	pub mrsigner: Vec<u8>,
+
+	#[br(big, count = 96)]
+	reserved3: Vec<u8>,
+
+	pub isv_prod_id: u16,
+	pub isv_svn: u16,
+
+	#[br(big, count = 60)]
+	reserved4: Vec<u8>,
+
+	#[br(big, count = 64)]
+	pub report_data: Vec<u8>,
+}
+
+fn parse_quote(quote: &[u8]) -> Result<ParsedQuote, anyhow::Error> {
+	if quote.len() != 432 {
+		error!("Quote len  = {}", quote.len());
+		return Err(anyhow!("Report quote body size is wrong"));
+	}
+
+	let mut quote_reader = Cursor::new(quote);
+	let parsed_quote: ParsedQuote = quote_reader.read_ne().unwrap();
+	Ok(parsed_quote)
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[allow(non_snake_case)]
+pub struct ReportResponse {
+	pub id: String,
+	pub timestamp: String,
+	pub version: u8,
+	pub attestationType: String,
+	pub teeType: String,
+	pub isvQuoteStatus: String,
+	pub isvQuoteBody: String,
+	pub tcbEvaluationDataNumber: u8,
+	pub tcbDate: String,
+	pub nonce: String,
+	pub advisoryURL: String,
+	pub advisoryIDs: Vec<String>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[allow(non_snake_case)]
+pub struct AttestationResponse {
+	pub account: String,
+	pub report: String,
+	pub signature: String,
+}
+
+/* *************************************
 			INPUT ARGUMENTS
 **************************************** */
 
@@ -203,6 +347,7 @@ struct Args {
 	/// Request type : [retrieve, store] for secrets
 	/// Request type : [fetch-bulk, push-bulk, fetch-id, push-id] for backup
 	/// Request type : [reconcilliation] for metrics
+	/// Request type : [attest] for remote attestation
 	#[arg(short, long, default_value_t = String::new())]
 	request: String,
 
@@ -247,6 +392,11 @@ struct Args {
 	/// Custom Data, right format is "NFTID_SecretShare_CurrentBlockNumber_Expire"
 	#[arg(short, long, default_value_t = String::new())]
 	custom_data: String,
+
+	/// Enclave URL, right format is "https://enclave.address"
+	#[arg(short, long, default_value_t = String::new())]
+	enclave_url: String,
+
 }
 
 /* *************************************
@@ -284,19 +434,20 @@ async fn main() {
 		return;
 	} else if !args.block_interval.is_empty() {
 		match args.request.to_lowercase().as_str() {
-			"reconcilliation" =>
-				generate_reconcilliation(args.seed.clone(), args.block_interval).await,
+			"reconcilliation" => {
+				generate_reconcilliation(args.seed.clone(), args.block_interval).await
+			},
 			_ => println!("\n Please provide a valid request type \n"),
 		}
 		return;
-	} else if !args.quote.is_empty() {
+	} else if !args.enclave_url.is_empty() {
 		match args.request.to_lowercase().as_str() {
-			"attest" => generate_attestation(args.seed.clone(), args.quote).await,
+			"attest" => attest(args.seed.clone(), args.enclave_url).await.unwrap(),
 			_ => println!("\n Please provide a valid request type \n"),
 		}
 		return;
 	} else {
-		println!("\n Please provide either a valid NFTID, ID_VEC or Custom Data \n");
+		println!("\n Please provide either a valid NFTID, ID_VEC, ENCLAVE_URL or Custom Data \n");
 		return;
 	}
 }
@@ -464,7 +615,7 @@ pub struct StoreKeyshareData {
 
 // Packet-signer and validity of it
 #[derive(Serialize, Clone, PartialEq, Debug)]
-pub struct Signer {
+pub struct PacketSigner {
 	account: sr25519::Public,
 	auth_token: AuthenticationToken,
 }
@@ -580,20 +731,148 @@ pub struct AttestationPacket {
 	pub signature: String,
 }
 
-async fn generate_attestation(seed_phrase: String, quote: String) {
-	let enclave_pair = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct QuoteResponse {
+	pub block_number: u32,
+	pub data: String,
+}
 
-	let enclave_account = enclave_pair.public().to_ss58check();
-	let signature = enclave_pair.sign(quote.as_bytes());
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct HealthResponse {
+	pub chain: String,
+	pub block_number: u32,
+	pub sync_state: String,
+	pub secrets_number: Option<u32>,
+	pub version: String,
+	pub description: String,
+	pub enclave_address: String,
+}
+
+async fn attest(seed_phrase: String, attested_enclave_url: String) -> Result<(), anyhow::Error> {
+	const ATTESTATION_SERVER_URL: &str = if cfg!(any(feature = "alphanet", features = "betanet")) {
+		// PRODUCTION-KEY when binary is built by github
+		"https://alphanet-attestation.ternoa.network/dcap_attest"
+	} else if cfg!(feature = "mainnet") {
+		// PRODUCTION-KEY when binary is built by github
+		"https://mainnet-attestation.ternoa.network/dcap_attest"
+	} else {
+		// DEVELOPMENT-KEY when binary is built locally
+		"https://dev-attestation.ternoa.network/dcap_attest"
+	};
+
+	let mut enclave_url = attested_enclave_url.clone();
+	while enclave_url.ends_with('/') {
+		enclave_url.pop();
+	}
+
+	let current_block_number = get_current_block_number().await?;
+
+	// Create a client
+	let client = reqwest::Client::builder()
+		.danger_accept_invalid_certs(!cfg!(any(feature = "mainnet", feature = "alphanet")))
+		.https_only(true)
+		.build()?;
+
+	// Get Health from the target Enclave
+	let health_response = client.clone().get(enclave_url.clone() + "/api/health").send().await?;
+	let health_response_status = health_response.status();
+	let health_response_body = health_response.text().await?;
+	let health_body: HealthResponse = serde_json::from_str(&health_response_body)?;
+	println!(
+		"Health Result for url {} is \n status: {:#?}\n health: {:#?}",
+		enclave_url, health_response_status, health_body
+	);
+
+	// Get Quote from the target Enclave
+	let quote_response = client.clone().get(enclave_url.clone() + "/api/quote").send().await?;
+
+	let quote_response_status = quote_response.status();
+	let quote_response_body = quote_response.text().await?;
+	let quote_body: QuoteResponse = serde_json::from_str(&quote_response_body)?;
+
+	println!(
+		"Quote Result for url {} is \n status: {:#?}\n quote: {:#?}",
+		enclave_url, quote_response_status, quote_body
+	);
+
+	let signer_pair = sr25519::Pair::from_phrase(&seed_phrase, None).unwrap().0;
+	let signer_public = signer_pair.public().to_ss58check();
+	let signature = signer_pair.sign(quote_body.data.as_bytes());
 
 	let packet = AttestationPacket {
-		account_id: enclave_account,
-		data: quote,
+		account_id: signer_public,
+		data: quote_response_body,
 		signature: format!("{}{:?}", "0x", signature),
 	};
 
-	println!(
-		"================================== Attestation Packet = \n{}\n",
-		serde_json::to_string_pretty(&packet).unwrap()
+	let attestation_request_str = serde_json::to_string(&packet).unwrap();
+
+	// REQUEST TO ATTESTATION SERVER
+	let attestation_raw_response = client
+		.post(ATTESTATION_SERVER_URL)
+		.body(attestation_request_str)
+		.header(header::CONTENT_TYPE, "application/json")
+		.send()
+		.await?;
+
+	let attestation_body = attestation_raw_response.text().await?;
+
+	// PARSE THE ATTESTATION REPORT
+	let attestation_response: AttestationResponse = serde_json::from_str(&attestation_body)?;
+
+	println!("Attestation Result for url : {} is \n {:#?}\n\n", enclave_url, attestation_response,);
+
+	// Verify signature of Attestation Server response
+	if !verify_signature(
+		&attestation_response.account,
+		attestation_response.signature,
+		attestation_response.report.as_bytes(),
+	) {
+		let message = "Invalid Report Signature".to_string();
+		return Err(anyhow::Error::msg(message));
+	}
+
+	println!("Stringified report map : {}", attestation_response.report);
+
+	// Deserialize Report
+	let report: ReportResponse = serde_json::from_str(&attestation_response.report)?;
+
+	println!("report = {:#?}", report);
+
+	// We need to compare sending and receiving quote
+	// to make sure the receiving report, belongs to the proper quote
+	if !quote_body.data.starts_with(&report.isvQuoteBody) {
+		println!("Requested Quote = {} \n Returned Quote = {:?}", quote_body.data, report.isvQuoteBody);
+		let message = "Quote Mismatch".to_string();
+		return Err(anyhow::Error::msg(message));
+	}
+
+	// Deserialize the quote
+	let parsed_quote: ParsedQuote = match serde_json::from_str(&report.isvQuoteBody) {
+		Ok(pq) => pq,
+
+		Err(err) => {
+			let message = format!("Error deserializing Quote from attestation report {err:?}");
+			return Err(anyhow::Error::msg(message));
+		},
+	};
+
+	// Verify Report_Data
+	let report_data_token = format!(
+		"{}_{}",
+		health_body.enclave_address, quote_body.block_number
 	);
+
+	debug!("report_data token = {report_data_token}");
+
+	if !verify_signature(
+		&health_body.enclave_address.clone(),
+		hex::encode(parsed_quote.body.report_data),
+		report_data_token.as_bytes(),
+	) {
+		let message = "Invalid Report-Data Signature".to_string();
+		return Err(anyhow::Error::msg(message));
+	}
+
+	Ok(())
 }

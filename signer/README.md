@@ -16,7 +16,7 @@ cargo build --release --no-default-features --features mainnet
 
 Options:
 
-  --request  &emsp;&emsp;  Can be "retrieve | store" for secrets or "fetch-bulk | push-bulk | fetch-id | push-id" for backup
+  --request  &emsp;&emsp;  Can be "retrieve | store" for secrets or "fetch-bulk | push-bulk | fetch-id | push-id" for backup, "attest" forremote attestation
 
   --seed SEED-PHRASE &emsp;&emsp; Admin Enclave or NFT-Owner Seed Phrase
 

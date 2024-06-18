@@ -26,6 +26,7 @@ serde_json = "1.0.95"
 serde = { version = "1.0.159", features = ["derive"] }
 hex = "0.4.3"
 base64 = "0.21.0"
+binrw = "0.14.0"
 
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter", "fmt"] }
@@ -34,17 +35,14 @@ rand = "0.8.5"
 clap = { version = "4.2.1", features = ["derive"] }
 anyhow = "1.0.70"
 
-# IPFS
 futures = "0.3.27"
 
 # Ternoa/Polkadot
 parity-scale-codec = { version = "3.6.5", default-features = false, features = ["derive", "full", "bit-vec"] }
-subxt = { version = "0.31.0" , features = ["substrate-compat"]}
-#sp-core = { version = "21.0.0", default-features = false, features = ["full_crypto"] }
+subxt = { version = "0.36.0" , features = ["substrate-compat"]}
 
 # Crypto / Keys
 sha256 = "1.1.2"
-
 
 [features]
 default = ["alphanet"]
