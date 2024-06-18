@@ -9,7 +9,7 @@ ENCLAVEDIR ?= "."
 SELF_EXE = $(ENCLAVEDIR)/bin/sgx_server
 
 SGX ?= 1
-DEBUG ?= 0
+DEBUG ?= 1
 
 .PHONY: all
 all: sgx_server.manifest

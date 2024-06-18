@@ -2,7 +2,7 @@
 
 loader.entrypoint = "file:{{ enclave_dir }}/trusted/gramine/libsysdb.so"
 libos.entrypoint = "{{ self_exe }}"
-loader.log_level = "warning"
+loader.log_level = "debug"
 #loader.log_level = "{{ log_level }}"
 
 loader.env.RUST_LOG = "sgx_server=debug,hyper=warning"
@@ -24,13 +24,12 @@ fs.mounts = [
   
   { path = "/temporary", type = "tmpfs" },
 
-  # ------ SEALED!
+  # ------ NOT SEALED!
   { path = "/certificates", uri = "file:{{ enclave_dir }}/certificates/", type = "chroot" },
   { path = "/nft" , uri = "file:{{ enclave_dir }}/nft/",  type = "chroot"},
 ]
 
-# ONLY for DEV!
-# THEY all be SEALED for production
+# ONLY for DEV
 sgx.allowed_files = [
   "file:{{ enclave_dir }}/nft/",
   "file:{{ enclave_dir }}/certificates/",
@@ -47,16 +46,16 @@ sgx.trusted_files = [
 # development while a proper implementation in Gramine is being worked on.
 sys.insecure__allow_eventfd = true
 
-sgx.enclave_size = "1G"
+sgx.enclave_size = "2G"
 sgx.thread_num = 24
-sgx.max_threads = 24
+sgx.max_threads = 32
 #sgx.insecure__rpc_thread_num = 24
 sgx.debug = true
 sgx.nonpie_binary = true
 loader.insecure__use_cmdline_argv = true
 loader.pal_internal_mem_size = "128M"
 
-sgx.require_avx    = true
+#sgx.require_avx    = true
 #sgx.require_avx512 = false
 #sgx.require_mpx    = false
 #sgx.require_pkru   = false
