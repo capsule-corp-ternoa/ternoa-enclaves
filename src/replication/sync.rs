@@ -19,6 +19,7 @@ use axum::{
 	Json,
 };
 use hex::{FromHex, FromHexError};
+use base64::{engine::general_purpose, prelude::*};
 use reqwest::tls;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -45,16 +46,22 @@ use tracing::{debug, error, info, trace, warn};
 use zip::result::ZipError;
 
 use crate::{
-	attestation::{dcap::{self, ParsedQuote, ReportResponse}, ra::{
-		get_quote_content, write_user_report_data, QuoteResponse, QUOTE_REPORT_DATA_LENGTH,
-		QUOTE_REPORT_DATA_OFFSET,
-	}},
+	attestation::{
+		dcap::{self, ParsedQuote, ReportResponse},
+		ra::{
+			get_quote_content, write_user_report_data, QuoteResponse, QUOTE_REPORT_DATA_LENGTH,
+			QUOTE_REPORT_DATA_OFFSET,
+		},
+	},
 	constants::{
 		ATTESTATION_SERVER_URL, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH,
 		SYNC_STATE_FILE, VERSION,
 	},
 	core::{
-		chain::ternoa::{self, nft::events::{CapsuleSynced, SecretNFTSynced}},
+		chain::ternoa::{
+			self,
+			nft::events::{CapsuleSynced, SecretNFTSynced},
+		},
 		helper::{Availability, NftType},
 	},
 	replication::zipdir::{add_list_zip, zip_extract},
@@ -124,6 +131,13 @@ pub struct FetchIdPacket {
 pub struct FetchIdResponse {
 	data: String,
 	signature: String,
+}
+
+#[derive(Serialize, Clone)]
+pub struct AttestationPacket {
+	pub account_id: String,
+	pub data: String,
+	pub signature: String,
 }
 
 /* ----------------------------------
@@ -257,7 +271,7 @@ pub async fn sync_keyshares_with_ma(
 ) -> impl IntoResponse {
 	debug!("\n\t----\nSYNC KEYSHARES : START\n\t----\n");
 
-	//update_health_status(&state, 
+	//update_health_status(&state,
 	// "Enclave is Syncing Keyshare, please wait...".to_string()).await;
 
 	let current_block_number = get_blocknumber(&state).await;
@@ -283,26 +297,24 @@ pub async fn sync_keyshares_with_ma(
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return error_handler(
 					"SYNC KEYSHARES : Strip Token prefix error".to_string(),
 					&state,
 				)
 				.await
-				.into_response()
-			},
+				.into_response(),
 		};
 
 		auth = match auth.strip_suffix("</Bytes>") {
 			Some(stripped) => stripped.to_owned(),
-			_ => {
+			_ =>
 				return error_handler(
 					"SYNC KEYSHARES : Strip Token suffix error".to_string(),
 					&state,
 				)
 				.await
-				.into_response()
-			},
+				.into_response(),
 		}
 	}
 
@@ -350,7 +362,8 @@ pub async fn sync_keyshares_with_ma(
 	let nftidv: Vec<String> = match serde_json::from_str(&request.nftid_vec) {
 		Ok(v) => v,
 		Err(err) => {
-			let message = format!("SYNC KEYSHARES : ERROR : unable to deserialize nftid vector : {err:?}");
+			let message =
+				format!("SYNC KEYSHARES : ERROR : unable to deserialize nftid vector : {err:?}");
 			return error_handler(message, &state).await.into_response();
 		},
 	};
@@ -372,7 +385,8 @@ pub async fn sync_keyshares_with_ma(
 	{
 		Ok(client) => client,
 		Err(err) => {
-			let message = format!("SYNC KEYSHARES : ERROR : unable to build a Reqwest client : {err:?}");
+			let message =
+				format!("SYNC KEYSHARES : ERROR : unable to build a Reqwest client : {err:?}");
 			sentry::with_scope(
 				|scope| {
 					scope.set_tag("sync-keyshare", "client");
@@ -424,22 +438,22 @@ pub async fn sync_keyshares_with_ma(
 		quote_body
 	);
 
-	
 	let account_keypair = get_keypair(&state).await;
 	let account_id = get_accountid(&state).await;
-	let signature = account_keypair.sign(quote_body.data.as_bytes());
+	let signature = account_keypair.sign(quote_body.quote.as_bytes());
 
-	let attestation_request_body = json!({
-		"account_id": account_id,
-		"data": quote_body.data,
-		"signature": format!("0x{:?}", signature),
-	})
-	.to_string();
+	let attestation_request_body = AttestationPacket {
+		account_id,
+		data: quote_body.quote.clone(),
+		signature: format!("{}{:?}", "0x", signature),
+	};
+
+	let attestation_request_str = serde_json::to_string(&attestation_request_body).unwrap();
 
 	// REQUEST TO ATTESTATION SERVER
 	let attestation_raw_response = match client
 		.post(ATTESTATION_SERVER_URL)
-		.body(attestation_request_body)
+		.body(attestation_request_str)
 		.header(header::CONTENT_TYPE, "application/json")
 		.send()
 		.await
@@ -459,19 +473,20 @@ pub async fn sync_keyshares_with_ma(
 	};
 
 	// PARSE THE ATTESTATION REPORT
-	let attestation_response = match attestation_raw_response.json::<dcap::AttestationResponse>().await {
-		Ok(resp) => resp,
-		Err(err) => {
-			let message = format!("Error getting attestation response {err:?}");
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "attestation");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
+	let attestation_response =
+		match attestation_raw_response.json::<dcap::AttestationResponse>().await {
+			Ok(resp) => resp,
+			Err(err) => {
+				let message = format!("Error getting attestation response {err:?}");
+				sentry::with_scope(
+					|scope| {
+						scope.set_tag("sync-keyshare", "attestation");
+					},
+					|| sentry::capture_message(&message, sentry::Level::Error),
+				);
+				return error_handler(message, &state).await.into_response();
+			},
+		};
 
 	trace!(
 		"SYNC KEYSHARES : Attestation Result for url : {} is \n {:#?}\n\n",
@@ -495,6 +510,7 @@ pub async fn sync_keyshares_with_ma(
 		return error_handler(message, &state).await.into_response();
 	}
 
+	// Verify Attestation Server Registered AccountID
 	if !crate::replication::metric::verify_account_id(&state, &attestation_response.account).await {
 		let message = format!(
 		"SYNC KEYSHARES : Invalid Attestation Server, It is not registered on blockchain , account : {}", attestation_response.account
@@ -511,7 +527,7 @@ pub async fn sync_keyshares_with_ma(
 	trace!("SYNC KEYSHARES : Stringified report map : {}", attestation_response.report);
 
 	// Deserialize Report
-	let report: ReportResponse = match serde_json::from_str(&attestation_response.report) {
+	let attestation_report: ReportResponse = match serde_json::from_str(&attestation_response.report) {
 		Ok(report) => report,
 		Err(err) => {
 			let message =
@@ -526,29 +542,12 @@ pub async fn sync_keyshares_with_ma(
 		},
 	};
 
-	debug!("SYNC KEYSHARES : report = {:#?}", report);
-
-	// Deserialize the quote
-	let quote: ParsedQuote = match serde_json::from_str(&report.isvQuoteBody) {
-		Ok(pq) => pq,
-
-		Err(err) => {
-			let message =
-				format!("SYNC KEYSHARES : Error deserializing Quote from attestation report {err:?}");
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "attestation");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
+	debug!("SYNC KEYSHARES : report = {:#?}", attestation_report);
 
 	// SEPARATE ATTESTATION SERVER : We need to compare sending and receiving quote
 	// to make sure the receiving report, belongs to the proper quote
-	if !quote_body.data.starts_with(&report.isvQuoteBody) {
-		trace!("Requested Quote = {} \n Returned Quote = {quote:?}", quote_body.data);
+	if !quote_body.quote.starts_with(&attestation_report.isvQuoteBody) {
+		trace!("Requested Quote = {} \n Returned Quote = {}", quote_body.quote, attestation_report.isvQuoteBody);
 		let message = "SYNC KEYSHARES : Quote Mismatch".to_string();
 		sentry::with_scope(
 			|scope| {
@@ -559,6 +558,39 @@ pub async fn sync_keyshares_with_ma(
 		return error_handler(message, &state).await.into_response();
 	}
 
+	// Deserialize the quote
+	let quote_body_bytes = match general_purpose::STANDARD.decode(&attestation_report.isvQuoteBody) {
+		Ok(qbb) => qbb,
+		Err(err) => {
+			let message = format!("SYNC KEYSHARES : Error decoding isvQuote from base64 to bytes {err:?}");
+			sentry::with_scope(
+				|scope| {
+					scope.set_tag("sync-keyshare", "attestation");
+				},
+				|| sentry::capture_message(&message, sentry::Level::Error),
+			);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+
+	// Deserialize the quote
+	let parsed_quote: ParsedQuote = match dcap::parse_quote(&quote_body_bytes) {
+		Ok(pq) => pq,
+
+		Err(err) => {
+			let message = format!(
+				"SYNC KEYSHARES : Error deserializing Quote from attestation report {err:?}"
+			);
+			sentry::with_scope(
+				|scope| {
+					scope.set_tag("sync-keyshare", "attestation");
+				},
+				|| sentry::capture_message(&message, sentry::Level::Error),
+			);
+			return error_handler(message, &state).await.into_response();
+		},
+	};
+	
 	// Verify Report_Data
 	let report_data_token = format!(
 		"{}_{}_{}",
@@ -569,7 +601,7 @@ pub async fn sync_keyshares_with_ma(
 
 	if !verify_signature(
 		&request.enclave_account.clone(),
-		hex::encode(quote.body.report_data),
+		hex::encode(parsed_quote.body.report_data),
 		report_data_token.as_bytes(),
 	) {
 		let message = "SYNC KEYSHARES : Invalid Report-Data Signature".to_string();
@@ -582,6 +614,8 @@ pub async fn sync_keyshares_with_ma(
 		return error_handler(message, &state).await.into_response();
 	}
 
+	info!("SYNC KEYSHARES : Attestation Success");
+
 	// Packing up requested NFTIDs
 	let random_number = rand::rngs::OsRng.next_u32();
 	let backup_file = format!("/temporary/backup_{random_number}.zip");
@@ -591,15 +625,14 @@ pub async fn sync_keyshares_with_ma(
 
 	let zip_data = match fs::read(backup_file.clone()) {
 		Ok(data) => data,
-		Err(err) => {
+		Err(err) =>
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(json!({
 					"error": format!("SYNC KEYSHARES : Backup File not found: {}", err)
 				})),
 			)
-				.into_response()
-		},
+				.into_response(),
 	};
 
 	// Public-Key Encryption
@@ -608,15 +641,14 @@ pub async fn sync_keyshares_with_ma(
 	debug!("SYNC KEYSHARES : Encryption zip data length = {}", zip_data.len());
 	let encrypted_zip_data = match encrypt(&encryption_key, &zip_data) {
 		Ok(encrypted) => encrypted,
-		Err(err) => {
+		Err(err) =>
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(json!({
 					"error": format!("SYNC KEYSHARES : Failed to encrypt the zip data : {:?}", err)
 				})),
 			)
-				.into_response()
-		},
+				.into_response(),
 	};
 
 	// Remove Plain Data
@@ -636,7 +668,7 @@ pub async fn sync_keyshares_with_ma(
 	let encrypted_backup_file = format!("/temporary/encrypted_backup_{random_number}.zip");
 	match std::fs::write(encrypted_backup_file.clone(), encrypted_zip_data) {
 		Ok(_) => trace!("SYNC KEYSHARES : Successfully write encrypted zip data to streamfile"),
-		Err(err) => {
+		Err(err) =>
 			return Json(json!({
 				"error":
 					format!(
@@ -644,23 +676,21 @@ pub async fn sync_keyshares_with_ma(
 						err
 					)
 			}))
-			.into_response()
-		},
+			.into_response(),
 	}
 
 	// `File` implements `AsyncRead`
 	debug!("SYNC KEYSHARES : Opening encrypted backup file");
 	let file = match tokio::fs::File::open(encrypted_backup_file).await {
 		Ok(file) => file,
-		Err(err) => {
+		Err(err) =>
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
 				Json(json!({
 					"error": format!("SYNC KEYSHARES : Encrypted backup File not found: {}", err)
 				})),
 			)
-				.into_response()
-		},
+				.into_response(),
 	};
 
 	// convert the `AsyncRead` into a `Stream`
@@ -678,7 +708,7 @@ pub async fn sync_keyshares_with_ma(
 
 	//update_health_status(&state, String::new()).await;
 
-	debug!("SYNC KEYSHARES : Sending the backup data to the client ...");
+	info!("SYNC KEYSHARES : Sending the backup data to the client ...");
 	(headers, body).into_response()
 }
 
@@ -732,9 +762,13 @@ pub async fn fetch_keyshares_with_ma(
 	let nftids_request = if new_nft_map.is_empty() {
 		// Empty nftid vector is used with Admin_bulk backup, that's why we use wildcard for
 		// synchronization It is the first time running enclave
+
 		// TODO [reliability] Pagination request is needed i.e ["*", 100, 2] page size is 100,
-		// offset 2 TODO : for pagination, the number of keyshares
+		// offset 2
+
+		// TODO : for pagination, the number of keyshares
 		// stored on target enclave is available on healthcheck reponse.
+
 		match serde_json::to_string(&vec!["*".to_string()]) {
 			Ok(strg) => strg,
 			Err(err) => {
@@ -886,12 +920,12 @@ pub async fn fetch_keyshares_with_ma(
 			return Err(anyhow!(message));
 		},
 	};
-	
+
 	// Get the Quote of current enclave to be sent to remote enclave which owns the new nftid.
 	let quote = match get_quote_content() {
 		Ok(quote) => match serde_json::to_string(&QuoteResponse {
 			block_number: current_block_number,
-			data: hex::encode(quote),
+			quote: hex::encode(quote),
 		}) {
 			Ok(ser_quote) => ser_quote,
 			Err(err) => {
@@ -1090,7 +1124,7 @@ pub async fn fetch_keyshares_with_ma(
 			);
 			error!(message);
 			continue; // Next Cluster
-			// TODO : Retry the healthcheck
+		     // TODO : Retry the healthcheck
 		} else {
 			last_synced = match response_body.sync_state.parse::<u32>() {
 				Ok(blk) => blk,
@@ -1280,7 +1314,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 
 		debug!("CLUSTER DISCOVERY : get cluster data of cluster {}", index);
 		let cluster_data = match storage.fetch(&cluster_data_address).await {
-			Ok(data) => {
+			Ok(data) =>
 				match data {
 					Some(clstr) => {
 						debug!("\nCLUSTER DISCOVERY : cluster[{}] : data = {:?}\n", index, clstr);
@@ -1295,8 +1329,7 @@ pub async fn cluster_discovery(state: &SharedState) -> Result<bool, anyhow::Erro
 						debug!("CLUSTER DISCOVERY : continue to next cluster (because of previous error)");
 						continue;
 					},
-				}
-			},
+				},
 			Err(err) => {
 				error!("CLUSTER DISCOVERY : Failed to 'fetch' Cluster.{} Data : {:?}", index, err);
 				continue;
@@ -1388,7 +1421,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 						return Some((cluster.id, enclave.slot));
 					},
 
-					Some(identity) => {
+					Some(identity) =>
 						if identity.1 != enclave.slot {
 							error!("\n*****\nERROR! SLOT HAS BEEN CHANGED. IT IS DANGEROUS ACT BY TC. ENCLAVE MUST WIPE EVERYTHING.\n*****\n");
 							warn!("WIPE EVERYTHING ...");
@@ -1419,8 +1452,8 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 										return None;
 									},
 								};
-								if extension == OsStr::new("keyshare")
-									|| extension == OsStr::new("log")
+								if extension == OsStr::new("keyshare") ||
+									extension == OsStr::new("log")
 								{
 									warn!("SELF-IDENTITY : REMOVING : {:?}", path);
 									let _ = fs::remove_file(path);
@@ -1436,8 +1469,7 @@ pub async fn self_identity(state: &SharedState) -> Option<(u32, u32)> {
 						} else {
 							debug!("SELF-IDENTITY : Identity did not change.");
 							return Some((cluster.id, enclave.slot));
-						}
-					},
+						},
 				}
 			}
 		}
@@ -1769,12 +1801,11 @@ pub fn find_event_capsule_shard_added(
 
 	for e in acevt {
 		match e {
-			Ok(ev) => {
+			Ok(ev) =>
 				if ev.nft_id == nftid {
 					debug!("FIND_EVENT_CAPSULE_SHARD_ADDED - found a capsule added for given nftid : {}", nftid);
 					return Some(ev.enclave);
-				}
-			},
+				},
 			Err(err) => {
 				debug!("FIND_EVENT_CAPSULE_SHARD_ADDED - error reading capsule added : {:?}", err);
 			},
@@ -1793,15 +1824,14 @@ pub fn find_event_secret_shard_added(
 
 	for e in asevt {
 		match e {
-			Ok(ev) => {
+			Ok(ev) =>
 				if ev.nft_id == nftid {
 					debug!(
 						"FIND_EVENT_SECRET_SHARD_ADDED - found a secret added for given nftid : {}",
 						nftid
 					);
 					return Some(ev.enclave);
-				}
-			},
+				},
 			Err(err) => {
 				debug!("FIND_EVENT_SECRET_SHARD_ADDED - error reading secret added : {:?}", err);
 			},
@@ -2084,8 +2114,8 @@ pub async fn sync_zip_extract(
 				if name_parts[0] == "nft" && av.nft_type == NftType::Secret {
 					debug!("FETCH KEYSHARES : ZIP EXTRACT : FORBIDDEN UPDATE : Secret nftid.{nftid} already exists, Secret should not be updated");
 					continue;
-				} else if (name_parts[0] == "capsule" && av.nft_type == NftType::Secret)
-					|| (name_parts[0] == "nft" && av.nft_type == NftType::Capsule)
+				} else if (name_parts[0] == "capsule" && av.nft_type == NftType::Secret) ||
+					(name_parts[0] == "nft" && av.nft_type == NftType::Capsule)
 				{
 					// HYBRID
 					debug!("FETCH KEYSHARES : ZIP EXTRACT : UPDATE HYBRID : Joint Secret and Capsule detected : nftid {} : current nft_type {:?} <> incoming nft_type {}", nftid, av.nft_type, name_parts[0]);

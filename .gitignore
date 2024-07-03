@@ -30,3 +30,5 @@ gramine/trusted/gramine/
 deployment/ternoa_enclaves/
 
 artifacts/*.scale
+
+signer-tool/target

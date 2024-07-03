@@ -21,7 +21,7 @@ pub const QUOTE_REPORT_DATA_LENGTH: usize = 64;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct QuoteResponse {
 	pub block_number: u32,
-	pub data: String,
+	pub quote: String,
 }
 
 // [performace] : Rate Limit or Cache the API
@@ -42,23 +42,22 @@ pub async fn ra_get_quote(State(state): State<SharedState>) -> (StatusCode, Json
 	match write_user_report_data(None, &signature.0) {
 		Ok(_) => debug!("QUOTE : Success writing user_data to the quote."),
 
-		Err(err) => {
+		Err(err) =>
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
-				Json(QuoteResponse { block_number, data: err.to_string() }),
-			)
-		},
+				Json(QuoteResponse { block_number, quote: err.to_string() }),
+			),
 	};
 
 	match get_quote_content() {
 		Ok(quote_byte) => {
-			let quote_base64 = general_purpose::STANDARD_NO_PAD.encode(quote_byte);
-			(StatusCode::OK, Json(QuoteResponse { block_number, data: quote_base64 }))
+			let quote_base64 = general_purpose::STANDARD.encode(quote_byte);
+			(StatusCode::OK, Json(QuoteResponse { block_number, quote: quote_base64 }))
 		},
 
 		Err(err) => (
 			StatusCode::INTERNAL_SERVER_ERROR,
-			Json(QuoteResponse { block_number, data: err.to_string() }),
+			Json(QuoteResponse { block_number, quote: err.to_string() }),
 		),
 	}
 }

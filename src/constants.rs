@@ -1,13 +1,13 @@
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const ATTESTATION_SERVER_URL: &str = if cfg!(any(feature = "alphanet", features = "betanet")) {
 	// PRODUCTION-KEY when binary is built by github
-	"https://alphanet-attestation.ternoa.network/dcap_attest"
+	"https://alphanet-attestation.ternoa.network/attest_dcap"
 } else if cfg!(feature = "mainnet") {
 	// PRODUCTION-KEY when binary is built by github
-	"https://mainnet-attestation.ternoa.network/dcap_attest"
+	"https://mainnet-attestation.ternoa.network/attest_dcap"
 } else {
 	// DEVELOPMENT-KEY when binary is built locally
-	"https://dev-attestation.ternoa.network/dcap_attest"
+	"https://dev-attestation.ternoa.network/attest_dcap"
 };
 
 pub const SENTRY_URL: &str = "https://089e5c79239442bfb6af6e5d7676644c@error.ternoa.dev/22";

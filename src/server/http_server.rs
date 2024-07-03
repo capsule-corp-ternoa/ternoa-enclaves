@@ -330,13 +330,12 @@ async fn evalueate_health_status(
 	let status = match sync_state.as_str() {
 		"" => StatusCode::PARTIAL_CONTENT,
 		"setup" => StatusCode::RESET_CONTENT,
-		_ => {
+		_ =>
 			if sync_state.parse::<u32>().is_ok() {
 				StatusCode::OK
 			} else {
 				StatusCode::NOT_ACCEPTABLE
-			}
-		},
+			},
 	};
 
 	trace!("Healthcheck handler : state={status:?}");
@@ -573,8 +572,11 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 							// Empty map has another meaning
 							if !cluster_nftid_map.is_empty() {
 								for _fetch_retry in 0..RETRY_COUNT {
-									match fetch_keyshares_with_ma(&state_config.clone(), &cluster_nftid_map)
-										.await
+									match fetch_keyshares_with_ma(
+										&state_config.clone(),
+										&cluster_nftid_map,
+									)
+									.await
 									{
 										Ok(_) => {
 											let _ =
@@ -886,8 +888,11 @@ async fn subscribe_block_events(state_config: SharedState) {
 
 							if !cluster_nft_map.is_empty() {
 								for _retry in 0..RETRY_COUNT {
-									match fetch_keyshares_with_ma(&state_config.clone(), &cluster_nft_map)
-										.await
+									match fetch_keyshares_with_ma(
+										&state_config.clone(),
+										&cluster_nft_map,
+									)
+									.await
 									{
 										Ok(_) => {
 											info!("\t-- Subscription Task : Crawl check : Success runtime-mode fetching crawled blocks from {} to {} .", last_processed_block, block_number);

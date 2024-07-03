@@ -69,7 +69,8 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 	let acme_router = Router::new()
 		.route("/", axum::routing::get(|| async { "Server is updating the certificates ..." }));
 
-	// Spawn a task to shutdown the temporary certificate server after a sufficient delay to release the 443 port
+	// Spawn a task to shutdown the temporary certificate server after a sufficient delay to release
+	// the 443 port
 	let axum_server_handle = Handle::new();
 	tokio::spawn(cert_shutdown(axum_server_handle.clone()));
 

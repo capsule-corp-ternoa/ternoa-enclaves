@@ -61,7 +61,7 @@ pub struct QuoteBody {
 	pub report_data: Vec<u8>,
 }
 
-fn parse_quote(quote: &[u8]) -> Result<ParsedQuote, anyhow::Error> {
+pub fn parse_quote(quote: &[u8]) -> Result<ParsedQuote, anyhow::Error> {
 	if quote.len() != 432 {
 		error!("Quote len  = {}", quote.len());
 		return Err(anyhow!("Report quote body size is wrong"));

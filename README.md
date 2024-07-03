@@ -116,7 +116,7 @@ To create a new image:
 
 ```shell
 docker build --rm --no-cache \
-    -t ternoa-sgx:v0.4.5-alphanet \
+    -t ternoa-sgx:v0.5.0-alphanet \
     -t ternoa-sgx:latest \
     --build-arg UBUNTU_VERSION=22.04 \
     --build-arg ENCLAVE_CHAIN=alphanet \
@@ -129,7 +129,7 @@ docker build --rm --no-cache \
 To start a container:
 
 ```shell
-ENCLAVE_VERSION=v0.4.5-dev0 \
+ENCLAVE_VERSION=v0.5.0-dev0 \
 ENCLAVE_DNS=8.8.8.8 \
 ENCLAVE_DOMAIN=enclave.your-domain.me \
 ENCLAVE_PORT=9000 \
@@ -146,7 +146,7 @@ Sample ```curl``` commands are provided on [client.sh](./client/client.sh) file.
 ## Signing Tool
 
 A simple tool provide correct request format to enclave API endpoints
-[Readme](./tools/README.md)
+[Readme](./signer-tool/README.md)
 
 ## SGX Machine
 
@@ -155,4 +155,3 @@ If you are not using docker, the SGX drivers, OS updates and Rust compiler must 
 These all are necessary to avoid new hardware vulnerabilities that cause secret leakage.
 
 To update CPU Microcode we have provided a script [here](scripts/sgx-microcode-update.sh).
-

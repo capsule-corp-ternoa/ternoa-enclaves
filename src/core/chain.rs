@@ -50,8 +50,9 @@ use tracing::{debug, error, info, trace};
 pub mod ternoa {}
 use crate::server::state::*;
 
-use self::ternoa::nft::storage::types::nfts::Param0;
-use self::ternoa::runtime_types::ternoa_pallets_primitives::nfts::NFTData;
+use self::ternoa::{
+	nft::storage::types::nfts::Param0, runtime_types::ternoa_pallets_primitives::nfts::NFTData,
+};
 
 pub type DefaultApi = OnlineClient<PolkadotConfig>;
 pub type ApiRpc = (OnlineClient<PolkadotConfig>, LegacyRpcMethods<PolkadotConfig>);
@@ -97,7 +98,8 @@ pub async fn create_chain_api() -> Result<ApiRpc, Error> {
 				.max_delay(std::time::Duration::from_secs(10))
 				.take(3),
 		)
-		// There are other configurations as well that can be found at [`reconnecting_rpc_client::ClientBuilder`].
+		// There are other configurations as well that can be found at
+		// [`reconnecting_rpc_client::ClientBuilder`].
 		.build(rpc_endoint.clone())
 		.await?;
 
@@ -119,8 +121,8 @@ pub async fn create_chain_api() -> Result<ApiRpc, Error> {
 	// Check Genesis Hash
 	let genesis_hash = hex::encode(api.genesis_hash());
 
-	if (cfg!(feature = "mainnet") && genesis_hash.as_str() != MAINNET_GENESIS_HASH)
-		|| (cfg!(feature = "alphanet") && genesis_hash.as_str() != ALPHANET_GENESIS_HASH)
+	if (cfg!(feature = "mainnet") && genesis_hash.as_str() != MAINNET_GENESIS_HASH) ||
+		(cfg!(feature = "alphanet") && genesis_hash.as_str() != ALPHANET_GENESIS_HASH)
 	{
 		let error_message = "CHAIN : Error : Genesis Hash mismatch";
 		error!(name: "Chain Genesis Mismatch",error_message);
@@ -175,7 +177,8 @@ pub async fn get_current_block_number_test() -> Result<u32, Error> {
 
 	let mut blocks_sub = api.blocks().subscribe_finalized().await?;
 
-	// TODO: For each block, print details about the `TransferKeepAlive` transactions we are interested in.
+	// TODO: For each block, print details about the `TransferKeepAlive` transactions we are
+	// interested in.
 	let block = match blocks_sub.next().await {
 		Some(block) => block?,
 		None => return Err("CHAIN : ERROR : No Block found".into()),
@@ -355,9 +358,9 @@ pub async fn nft_keyshare_oracle(state: &SharedState, nft_id: u32) -> Result<H25
 				debug!("CHAIN : Secret-nft Oracle : extrinsic sent : {:?}", extrinsic_hash);
 				return Ok(extrinsic_hash);
 			},
-			TxStatus::Error { message }
-			| TxStatus::Invalid { message }
-			| TxStatus::Dropped { message } => {
+			TxStatus::Error { message } |
+			TxStatus::Invalid { message } |
+			TxStatus::Dropped { message } => {
 				// Handle any errors:
 				let error_message = format!("Error submitting tx: {message}");
 				error!(error_message);
@@ -427,9 +430,9 @@ pub async fn capsule_keyshare_oracle(
 				debug!("CHAIN : Capsule Oracle : extrinsic sent : {:?}", extrinsic_hash);
 				return Ok(extrinsic_hash);
 			},
-			TxStatus::Error { message }
-			| TxStatus::Invalid { message }
-			| TxStatus::Dropped { message } => {
+			TxStatus::Error { message } |
+			TxStatus::Invalid { message } |
+			TxStatus::Dropped { message } => {
 				// Handle any errors:
 				let error_message = format!("Error submitting tx: {message}");
 				error!(error_message);
@@ -499,7 +502,6 @@ pub async fn get_metric_server(state: &SharedState) -> Option<Vec<MetricServer>>
 	None
 }
 
-
 #[derive(Serialize)]
 struct JsonNFTData {
 	status: ReturnStatus,
@@ -555,5 +557,4 @@ mod test {
 			}
 		}
 	}
-
 }

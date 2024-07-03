@@ -214,8 +214,8 @@ pub fn zip_extract(filename: &str, outdir: &str) -> Result<(), ZipError> {
 			},
 		};
 
-		let fullpath_str = outdir.to_string()
-			+ "/" + match outpath.to_str() {
+		let fullpath_str = outdir.to_string() +
+			"/" + match outpath.to_str() {
 			Some(st) => st,
 			None => {
 				error!(
