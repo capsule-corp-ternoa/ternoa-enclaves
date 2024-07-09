@@ -29,7 +29,7 @@ use reqwest;
 
 use subxt::ext::sp_core::{sr25519, Pair};
 
-use tower::ServiceBuilder;
+use tower::{buffer::BufferLayer, limit::RateLimitLayer, ServiceBuilder};
 use tower_http::{
 	cors::{Any, CorsLayer},
 	limit::RequestBodyLimitLayer,
@@ -127,10 +127,18 @@ pub async fn http_server() -> Result<Router, Error> {
 		// METRIC SERVER
 		.route("/api/metric/interval-nft-list", post(metric_reconcilliation))
 		.route("/api/metric/set-crawl-block", post(set_crawl_block))
+		// Timeout
 		.layer(
 			ServiceBuilder::new()
 				.layer(HandleErrorLayer::new(handle_timeout_error))
-				.timeout(Duration::from_secs(30)),
+				.timeout(Duration::from_secs(30))
+				// Rate Limit
+				.layer(
+					ServiceBuilder::new()
+						.layer(BufferLayer::new(1024)) // to make the service cloneable by running it on a background task and
+						// sending requests to it via channel.
+						.layer(RateLimitLayer::new(5, Duration::from_secs(1))),
+				),
 		)
 		.layer(monitor_layer)
 		.layer(cors_layer)

@@ -18,8 +18,8 @@ use axum::{
 	response::IntoResponse,
 	Json,
 };
-use hex::{FromHex, FromHexError};
 use base64::{engine::general_purpose, prelude::*};
+use hex::{FromHex, FromHexError};
 use reqwest::tls;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -527,27 +527,33 @@ pub async fn sync_keyshares_with_ma(
 	trace!("SYNC KEYSHARES : Stringified report map : {}", attestation_response.report);
 
 	// Deserialize Report
-	let attestation_report: ReportResponse = match serde_json::from_str(&attestation_response.report) {
-		Ok(report) => report,
-		Err(err) => {
-			let message =
-				format!("SYNC KEYSHARES : Error deserializing attestation report as Value {err:?}");
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "attestation");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
+	let attestation_report: ReportResponse =
+		match serde_json::from_str(&attestation_response.report) {
+			Ok(report) => report,
+			Err(err) => {
+				let message = format!(
+					"SYNC KEYSHARES : Error deserializing attestation report as Value {err:?}"
+				);
+				sentry::with_scope(
+					|scope| {
+						scope.set_tag("sync-keyshare", "attestation");
+					},
+					|| sentry::capture_message(&message, sentry::Level::Error),
+				);
+				return error_handler(message, &state).await.into_response();
+			},
+		};
 
 	debug!("SYNC KEYSHARES : report = {:#?}", attestation_report);
 
 	// SEPARATE ATTESTATION SERVER : We need to compare sending and receiving quote
 	// to make sure the receiving report, belongs to the proper quote
 	if !quote_body.quote.starts_with(&attestation_report.isvQuoteBody) {
-		trace!("Requested Quote = {} \n Returned Quote = {}", quote_body.quote, attestation_report.isvQuoteBody);
+		trace!(
+			"Requested Quote = {} \n Returned Quote = {}",
+			quote_body.quote,
+			attestation_report.isvQuoteBody
+		);
 		let message = "SYNC KEYSHARES : Quote Mismatch".to_string();
 		sentry::with_scope(
 			|scope| {
@@ -559,10 +565,12 @@ pub async fn sync_keyshares_with_ma(
 	}
 
 	// Deserialize the quote
-	let quote_body_bytes = match general_purpose::STANDARD.decode(&attestation_report.isvQuoteBody) {
+	let quote_body_bytes = match general_purpose::STANDARD.decode(&attestation_report.isvQuoteBody)
+	{
 		Ok(qbb) => qbb,
 		Err(err) => {
-			let message = format!("SYNC KEYSHARES : Error decoding isvQuote from base64 to bytes {err:?}");
+			let message =
+				format!("SYNC KEYSHARES : Error decoding isvQuote from base64 to bytes {err:?}");
 			sentry::with_scope(
 				|scope| {
 					scope.set_tag("sync-keyshare", "attestation");
@@ -590,7 +598,7 @@ pub async fn sync_keyshares_with_ma(
 			return error_handler(message, &state).await.into_response();
 		},
 	};
-	
+
 	// Verify Report_Data
 	let report_data_token = format!(
 		"{}_{}_{}",
