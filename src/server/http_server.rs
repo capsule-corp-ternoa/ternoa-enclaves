@@ -29,7 +29,7 @@ use reqwest;
 
 use subxt::ext::sp_core::{sr25519, Pair};
 
-use tower::{buffer::BufferLayer, limit::RateLimitLayer, ServiceBuilder};
+use tower::{buffer::BufferLayer, limit::{RateLimitLayer, concurrency::GlobalConcurrencyLimitLayer} ,ServiceBuilder};
 use tower_http::{
 	cors::{Any, CorsLayer},
 	limit::RequestBodyLimitLayer,
@@ -42,8 +42,7 @@ use tracing::{debug, error, info, trace, warn};
 use crate::{
 	attestation::ra::ra_get_quote,
 	constants::{
-		CONTENT_LENGTH_LIMIT, ENCLAVE_ACCOUNT_FILE, RETRY_COUNT, RETRY_DELAY, SEALPATH,
-		SYNC_STATE_FILE, VERSION,
+		CONCURRENT_LIMIT, CONTENT_LENGTH_LIMIT, ENCLAVE_ACCOUNT_FILE, RATE_LIMIT, RETRY_COUNT, RETRY_DELAY, SEALPATH, SYNC_STATE_FILE, VERSION
 	},
 	core::{
 		capsule::{
@@ -132,14 +131,15 @@ pub async fn http_server() -> Result<Router, Error> {
 			ServiceBuilder::new()
 				.layer(HandleErrorLayer::new(handle_timeout_error))
 				.timeout(Duration::from_secs(30))
-				// Rate Limit
-				.layer(
-					ServiceBuilder::new()
-						.layer(BufferLayer::new(1024)) // to make the service cloneable by running it on a background task and
-						// sending requests to it via channel.
-						.layer(RateLimitLayer::new(5, Duration::from_secs(1))),
-				),
 		)
+		// Rate Limit
+		.layer(
+			ServiceBuilder::new()
+				.layer(HandleErrorLayer::new(handle_too_many_requests))
+				.layer(BufferLayer::new(1024))
+				.layer(RateLimitLayer::new(RATE_LIMIT, Duration::from_secs(1)))
+		)
+		.layer(GlobalConcurrencyLimitLayer::new(CONCURRENT_LIMIT))
 		.layer(monitor_layer)
 		.layer(cors_layer)
 		.with_state(Arc::clone(&state_config.clone()));
@@ -200,6 +200,21 @@ async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
 		.into_response()
 }
 
+
+async fn handle_too_many_requests(err: BoxError) -> impl IntoResponse {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        format!("To many requests: {}", err)
+	).into_response()
+}
+
+async fn handle_too_many_concurrent_requests(err: BoxError) -> impl IntoResponse {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        format!("To many concurrent requests: {}", err)
+	).into_response()
+}
+
 /* ------------------------------
 	HEALTH CHECK
 ------------------------------ */
@@ -216,7 +231,7 @@ pub struct HealthResponse {
 }
 
 /// Health check endpoint
-#[once(time = 10, sync_writes = false)]
+#[once(time = 6, sync_writes = false)]
 async fn get_health_status(State(state): State<SharedState>) -> (StatusCode, Json<HealthResponse>) {
 	trace!("\t Healthcheck handler Start");
 

@@ -48,7 +48,7 @@ pub struct CapsuleExistsResponse {
 /// If successfull, block_number is last blocknumber where keyshare is updated
 /// I Error happens, block_number is 0
 /// If nftid is not available, block_number is the current block_number
-#[once(time = 10, sync_writes = false)]
+#[once(time = 6, sync_writes = false)]
 pub async fn is_capsule_available(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
@@ -116,7 +116,7 @@ pub struct CapsuleViewResponse {
 /// * `impl IntoResponse` - The result of the capsule key-share
 /// # Errors
 /// * `Json(CapsuleViewResponse)` - The capsule key-share is not available
-#[once(time = 10, sync_writes = false)]
+#[once(time = 6, sync_writes = false)]
 pub async fn capsule_get_views(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,

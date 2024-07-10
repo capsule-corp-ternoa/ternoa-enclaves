@@ -25,7 +25,7 @@ pub struct QuoteResponse {
 }
 
 // [performace] : Rate Limit or Cache the API
-#[once(time = 10, sync_writes = false)]
+#[once(time = 6, sync_writes = false)]
 pub async fn ra_get_quote(State(state): State<SharedState>) -> (StatusCode, Json<QuoteResponse>) {
 	// Make a dynamic user data
 	let enclave_id = get_accountid(&state).await;

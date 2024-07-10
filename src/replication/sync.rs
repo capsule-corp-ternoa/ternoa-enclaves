@@ -2,13 +2,7 @@
 #![allow(unused_imports)]
 
 use std::{
-	collections::HashMap,
-	ffi::OsStr,
-	fs::{self, remove_file},
-	io::{self, Write},
-	net::SocketAddr,
-	os::unix::prelude::PermissionsExt,
-	path::Path,
+	collections::HashMap, ffi::OsStr, fmt::Debug, fs::{self, remove_file}, io::{self, Write}, net::SocketAddr, os::unix::prelude::PermissionsExt, path::Path
 };
 
 use axum::{
@@ -267,7 +261,7 @@ pub async fn error_handler(message: String, _state: &SharedState) -> impl IntoRe
 pub async fn sync_keyshares_with_ma(
 	State(state): State<SharedState>,
 	ConnectInfo(addr): ConnectInfo<SocketAddr>,
-	Json(request): Json<FetchIdPacket>,
+	Json(sync_request): Json<FetchIdPacket>,
 ) -> impl IntoResponse {
 	debug!("\n\t----\nSYNC KEYSHARES : START\n\t----\n");
 
@@ -280,7 +274,7 @@ pub async fn sync_keyshares_with_ma(
 	let slot_enclaves = get_slot_enclaves(&state).await;
 
 	debug!("SYNC KEYSHARES : AUTHENTICATE THE REQUESTER ENCLAVE ACCOUNT ID");
-	let requester = match verify_account_id(slot_enclaves, &request.enclave_account) {
+	let requester = match verify_account_id(slot_enclaves, &sync_request.enclave_account) {
 		Some(enclave) => enclave,
 		None => {
 			let message = format!(
@@ -292,7 +286,7 @@ pub async fn sync_keyshares_with_ma(
 		},
 	};
 
-	let mut auth = request.auth_token.clone();
+	let mut auth = sync_request.auth_token.clone();
 
 	if auth.starts_with("<Bytes>") && auth.ends_with("</Bytes>") {
 		auth = match auth.strip_prefix("<Bytes>") {
@@ -329,9 +323,9 @@ pub async fn sync_keyshares_with_ma(
 
 	debug!("SYNC KEYSHARES : VERIFY THE REQUESTE SIGNATURE");
 	if !verify_signature(
-		&request.enclave_account.clone(),
-		request.signature.clone(),
-		request.auth_token.as_bytes(),
+		&sync_request.enclave_account.clone(),
+		sync_request.signature.clone(),
+		sync_request.auth_token.as_bytes(),
 	) {
 		return error_handler("SYNC KEYSHARES : ERROR : INVALID SIGNATURE".to_string(), &state)
 			.await
@@ -351,7 +345,7 @@ pub async fn sync_keyshares_with_ma(
 		},
 	}
 
-	let hash = sha256::digest(request.nftid_vec.as_bytes());
+	let hash = sha256::digest(sync_request.nftid_vec.as_bytes());
 
 	if auth_token.data_hash != hash {
 		return error_handler("SYNC KEYSHARES : ERROR : Mismatch Data Hash".to_string(), &state)
@@ -359,7 +353,7 @@ pub async fn sync_keyshares_with_ma(
 			.into_response();
 	}
 
-	let nftidv: Vec<String> = match serde_json::from_str(&request.nftid_vec) {
+	let nftidv: Vec<String> = match serde_json::from_str(&sync_request.nftid_vec) {
 		Ok(v) => v,
 		Err(err) => {
 			let message =
@@ -402,7 +396,7 @@ pub async fn sync_keyshares_with_ma(
 		enclave_url.pop();
 	}
 
-	let quote_hash = sha256::digest(request.quote.as_bytes());
+	let quote_hash = sha256::digest(sync_request.quote.as_bytes());
 
 	if auth_token.quote_hash != quote_hash {
 		let message = "SYNC KEYSHARES : ERROR : Mismatch Quote Hash".to_string();
@@ -415,11 +409,13 @@ pub async fn sync_keyshares_with_ma(
 		return error_handler(message, &state).await.into_response();
 	}
 
-	let quote_body: QuoteResponse = match serde_json::from_str(&request.quote) {
+	// To be used as a reference of comparison to Report isvQuote
+	// TODO: Consider different versions of Quote data structure, i.e v3 v4 v5
+	let quote_body: QuoteResponse = match serde_json::from_str(&sync_request.quote) {
 		Ok(body) => body,
 		Err(err) => {
 			let message = format!(
-				"SYNC KEYSHARES : Quote : ERROR : can not deserialize the quote : {} : {:?}",
+				"SYNC KEYSHARES : ERROR : can not deserialize the fetch-request quote-field : {} : {:?}",
 				requester.1.enclave_url, err
 			);
 			sentry::with_scope(
@@ -437,20 +433,23 @@ pub async fn sync_keyshares_with_ma(
 		requester.1.enclave_url,
 		quote_body
 	);
-
+	
+	// Creating request packet to the Attestation Server
 	let account_keypair = get_keypair(&state).await;
 	let account_id = get_accountid(&state).await;
-	let signature = account_keypair.sign(quote_body.quote.as_bytes());
+	let signature = account_keypair.sign(sync_request.quote.as_bytes());
 
 	let attestation_request_body = AttestationPacket {
 		account_id,
-		data: quote_body.quote.clone(),
+		data: sync_request.quote,
 		signature: format!("{}{:?}", "0x", signature),
 	};
 
 	let attestation_request_str = serde_json::to_string(&attestation_request_body).unwrap();
+	debug!("SYNC KEYSHARES : Attestation Request Body : {attestation_request_str}");
 
 	// REQUEST TO ATTESTATION SERVER
+	debug!("SYNC KEYSHARES : SEND THE QUOTE TO ATTESTATION SERVER");
 	let attestation_raw_response = match client
 		.post(ATTESTATION_SERVER_URL)
 		.body(attestation_request_str)
@@ -477,7 +476,7 @@ pub async fn sync_keyshares_with_ma(
 		match attestation_raw_response.json::<dcap::AttestationResponse>().await {
 			Ok(resp) => resp,
 			Err(err) => {
-				let message = format!("Error getting attestation response {err:?}");
+				let message = format!("Error deserializing attestation response {err:?}");
 				sentry::with_scope(
 					|scope| {
 						scope.set_tag("sync-keyshare", "attestation");
@@ -488,13 +487,14 @@ pub async fn sync_keyshares_with_ma(
 			},
 		};
 
-	trace!(
+	debug!(
 		"SYNC KEYSHARES : Attestation Result for url : {} is \n {:#?}\n\n",
 		requester.1.enclave_url,
 		attestation_response,
 	);
 
 	// Verify signature of Attestation Server response
+	debug!("SYNC KEYSHARES : VERIFY ATTESTATION SERVER RESPONSE SIGNATURE");
 	if !verify_signature(
 		&attestation_response.account,
 		attestation_response.signature,
@@ -511,6 +511,7 @@ pub async fn sync_keyshares_with_ma(
 	}
 
 	// Verify Attestation Server Registered AccountID
+	debug!("SYNC KEYSHARES : VERIFY ATTESTATION SERVER ACCOUNT-ID");
 	if !crate::replication::metric::verify_account_id(&state, &attestation_response.account).await {
 		let message = format!(
 		"SYNC KEYSHARES : Invalid Attestation Server, It is not registered on blockchain , account : {}", attestation_response.account
@@ -524,9 +525,10 @@ pub async fn sync_keyshares_with_ma(
 		return error_handler(message, &state).await.into_response();
 	}
 
-	trace!("SYNC KEYSHARES : Stringified report map : {}", attestation_response.report);
+	debug!("SYNC KEYSHARES : Stringified report map : {}", attestation_response.report);
 
 	// Deserialize Report
+	debug!("SYNC KEYSHARES : DESERIALIZE ATTESTATION REPORT");
 	let attestation_report: ReportResponse =
 		match serde_json::from_str(&attestation_response.report) {
 			Ok(report) => report,
@@ -548,6 +550,7 @@ pub async fn sync_keyshares_with_ma(
 
 	// SEPARATE ATTESTATION SERVER : We need to compare sending and receiving quote
 	// to make sure the receiving report, belongs to the proper quote
+	debug!("SYNC KEYSHARES : MATCHING ATTESTATION REPORT QUOTE");
 	if !quote_body.quote.starts_with(&attestation_report.isvQuoteBody) {
 		trace!(
 			"Requested Quote = {} \n Returned Quote = {}",
@@ -582,6 +585,7 @@ pub async fn sync_keyshares_with_ma(
 	};
 
 	// Deserialize the quote
+	debug!("SYNC KEYSHARES : DESERIALIZE ATTESTATION REPORT QUOTE");
 	let parsed_quote: ParsedQuote = match dcap::parse_quote(&quote_body_bytes) {
 		Ok(pq) => pq,
 
@@ -602,13 +606,14 @@ pub async fn sync_keyshares_with_ma(
 	// Verify Report_Data
 	let report_data_token = format!(
 		"{}_{}_{}",
-		request.enclave_account, auth_token.block_number, request.encryption_account
+		sync_request.enclave_account, auth_token.block_number, sync_request.encryption_account
 	);
 
 	debug!("SYNC KEYSHARES : report_data token = {report_data_token}");
 
+	debug!("SYNC KEYSHARES : VERIFY REPORT-DATA SIGNATURE");
 	if !verify_signature(
-		&request.enclave_account.clone(),
+		&sync_request.enclave_account.clone(),
 		hex::encode(parsed_quote.body.report_data),
 		report_data_token.as_bytes(),
 	) {
@@ -644,7 +649,7 @@ pub async fn sync_keyshares_with_ma(
 	};
 
 	// Public-Key Encryption
-	let encryption_key = hex::decode(request.encryption_account).unwrap();
+	let encryption_key = hex::decode(sync_request.encryption_account).unwrap();
 	trace!("SYNC KEYSHARES : Encryption public key = {:?}", encryption_key);
 	debug!("SYNC KEYSHARES : Encryption zip data length = {}", zip_data.len());
 	let encrypted_zip_data = match encrypt(&encryption_key, &zip_data) {

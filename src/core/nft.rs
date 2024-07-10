@@ -49,7 +49,7 @@ pub struct NFTExistsResponse {
 /// I Error happens, block_number is 0
 /// If nftid is not available, block_number is the current block_number
 
-#[once(time = 10, sync_writes = false)]
+#[once(time = 6, sync_writes = false)]
 pub async fn is_nft_available(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,
@@ -114,7 +114,7 @@ pub struct NFTViewResponse {
 /// # Returns
 /// * `Json(NFTViewResponse)` - NFTViewResponse
 
-#[once(time = 10, sync_writes = false)]
+#[once(time = 6, sync_writes = false)]
 pub async fn nft_get_views(
 	State(state): State<SharedState>,
 	PathExtract(nft_id): PathExtract<u32>,

@@ -135,8 +135,8 @@ pub async fn attest(
 ) -> Result<(), anyhow::Error> {
 	const ATTESTATION_SERVER_URL: &str = if cfg!(any(feature = "alphanet", features = "betanet")) {
 		// PRODUCTION-KEY when binary is built by github
-		//"https://alphanet-attestation.ternoa.network/attest_dcap"
-		"http://dev-c1n1.ternoa.network:3000/attest_dcap"
+		"https://alphanet-attestation.ternoa.network/attest_dcap"
+		//"http://dev-c1n1.ternoa.network:3000/attest_dcap"
 	} else if cfg!(feature = "mainnet") {
 		// PRODUCTION-KEY when binary is built by github
 		"https://mainnet-attestation.ternoa.network/attest_dcap"
