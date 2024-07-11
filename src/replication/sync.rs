@@ -936,9 +936,9 @@ pub async fn fetch_keyshares_with_ma(
 
 	// Get the Quote of current enclave to be sent to remote enclave which owns the new nftid.
 	let quote = match get_quote_content() {
-		Ok(quote) => match serde_json::to_string(&QuoteResponse {
+		Ok(quote_bytes) => match serde_json::to_string(&QuoteResponse {
 			block_number: current_block_number,
-			quote: hex::encode(quote),
+			quote: general_purpose::STANDARD.encode(quote_bytes),
 		}) {
 			Ok(ser_quote) => ser_quote,
 			Err(err) => {
