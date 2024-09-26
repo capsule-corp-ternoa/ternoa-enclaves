@@ -24,8 +24,8 @@ pub const ENCLAVE_ACCOUNT_FILE: &str = "/nft/enclave_account.key";
 pub const CONTENT_LENGTH_LIMIT: usize = 400 * 1024 * 1024; // 400MB for 6 millions of keyshares
 
 // ---------- RATE LIMIT
-pub const RATE_LIMIT: u64 = 5;
-pub const CONCURRENT_LIMIT: usize = 20;
+pub const RATE_LIMIT: u64 = 20;
+pub const CONCURRENT_LIMIT: usize = 10;
 
 // ----------- VERIFY
 pub const MAX_VALIDATION_PERIOD: u32 = 20;
