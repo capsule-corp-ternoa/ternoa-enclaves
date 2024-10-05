@@ -57,6 +57,7 @@ endif
 .PHONY: start-gramine-server
 start-gramine-server: all
 	$(GRAMINE) sgx_server \
+		--rpcnode $(SGX_RPC) \
 		--domain $(SGX_DOMAIN) \
 		--port $(SGX_PORT) \
 		--verbose $(SGX_VERBOSITY) #>> $(ENCLAVEDIR)/enclave.log 2>&1 &

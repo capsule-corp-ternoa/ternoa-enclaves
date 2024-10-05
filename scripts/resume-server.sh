@@ -7,7 +7,7 @@ GRAMINE_PATH=$BASEDIR/gramine
 
 # DEFAULT VALUES
 CHAIN=${CHAIN:-alphanet}
-
+RPC=${RPC:-wss://alphanet.ternoa.com:443}
 DOMAIN=${DOMIAN:-subdomain.your-domain.com}
 PORT=${PORT:-8000}
 
@@ -33,37 +33,45 @@ die() {
 
 while :; do
     case $1 in
-        -d|--domain)
-	    if [ "$2" ]; then
-		DOMAIN=$2
-		shift
-	    else
-		die 'ERROR: "--domian" requires a non-empty option argument.'
-	    fi
+    	-d|--domain)
+			if [ "$2" ]; then
+				DOMAIN=$2
+				shift
+			else
+				die 'ERROR: "--domian" requires a non-empty option argument.'
+			fi
         ;;
 		-p|--port)
-	    if [ "$2" ]; then
-		PORT=$2
-		shift
-	    else
-		die 'ERROR: "--port" requires a non-empty option argument.'
-	    fi
-	;;
-	-v|--verbose)
-	if [ "$2" ]; then
-		VERBOSITY_LEVLE=$2
-		shift
-	    else
-		die 'ERROR: "--verbosity" requires a non-empty option argument.'
-	    fi
-	;;
-	-h|--help)
-	    echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n [-d | --dev] [-r | --release] \n -d | --domain <server domain name> \n -p | --port <port-number> \n"
-	    exit 0
+			if [ "$2" ]; then
+				PORT=$2
+				shift
+			else
+				die 'ERROR: "--port" requires a non-empty option argument.'
+			fi
+		;;
+		-r|--rpc)
+			if [ "$2" ]; then
+				RPC=$2
+				shift
+			else
+				die 'ERROR: "--rpc" requires a non-empty option argument.'
+			fi
+		;;
+		-v|--verbose)
+			if [ "$2" ]; then
+				VERBOSITY_LEVLE=$2
+				shift
+			else
+				die 'ERROR: "--verbosity" requires a non-empty option argument.'
+			fi
+		;;
+		-h|--help)
+			echo -e "usage: start-server.h <OPTIONS> \n\n OPTIONS: \n [-d | --dev] [-r | --release] \n -d | --domain <server domain name> \n -p | --port <port-number> \n"
+			exit 0
 	    ;;
-        *) break
-    esac
-    shift
+    	*) break
+    		esac
+    		shift
 done
 
 NC='\033[0m'			  # Reset
@@ -84,6 +92,7 @@ cd $GRAMINE_PATH
 echo -n -e "\n${BIWhite}Creating Enclave ${NC}"
 make 	SGX=1 \
 	ENCLAVE_DIR=$GRAMINE_PATH \
+	SGX_RPC=$RPC \
 	SGX_DOMAIN=$DOMAIN \
 	SGX_PORT=$PORT \
 	SGX_VERBOSITY=$VERBOSITY_LEVLE\

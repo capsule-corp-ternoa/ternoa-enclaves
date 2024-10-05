@@ -662,6 +662,20 @@ mod test {
 
 	#[tokio::test]
 	async fn id_fetch_test() {
+		let rpcnode = if cfg!(feature = "mainnet") {
+			"wss://mainnet.ternoa.io:443".to_string()
+		} else if cfg!(feature = "alphanet") {
+			"wss://alphanet.ternoa.com:443".to_string()
+		} else if cfg!(feature = "betanet") {
+			"wss://betanet.ternoa.com:443".to_string()
+		} else if cfg!(feature = "dev1") {
+			"wss://dev-1.ternoa.network:443".to_string()
+		} else if cfg!(feature = "dev0") {
+			"wss://dev-0.ternoa.network:443".to_string()
+		} else {
+			"ws://localhost:9944".to_string()
+		};
+
 		let _ = tracing::subscriber::set_default(
 			FmtSubscriber::builder().with_max_level(Level::ERROR).finish(),
 		);
@@ -703,14 +717,15 @@ mod test {
 		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 			enclave_keypair,
 			String::new(),
-			create_chain_api().await.unwrap(),
+			rpcnode.clone(),
+			create_chain_api(rpcnode.clone()).await.unwrap(),
 			crate::constants::VERSION.to_string(),
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));
 
 		//let app = Router::new().route("/admin_backup_fetch_id",
 		// post(admin_backup_fetch_id)).with_state(state_config);
-		let mut app = match crate::server::http_server::http_server().await {
+		let mut app = match crate::server::http_server::http_server(rpcnode).await {
 			Ok(r) => r,
 			Err(err) => {
 				error!("Error creating http server {}", err);

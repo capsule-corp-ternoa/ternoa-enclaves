@@ -531,14 +531,13 @@ pub async fn nft_store_keyshare(
 					);
 
 					// TODO: Remove this logic after subxt 0.36 with reconnect
-					if err.to_string().contains("WebSocket") {
-						set_chain_api_renew(&state, true).await;
-					}
+					// if err.to_string().contains("WebSocket") {
+					// 	set_chain_api_renew(&state, true).await;
+					// }
 
 					error!(message);
 
-					if err_str.contains("Transaction has a bad signature") ||
-						err_str.contains("Invalid")
+					if err_str.contains("Transaction has a bad signature") //|| err_str.contains("Invalid")
 					{
 						info!("RPC connection to be reset because of previous error");
 						set_chain_api_renew(&state, true).await;

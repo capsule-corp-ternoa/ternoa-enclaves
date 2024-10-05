@@ -65,10 +65,7 @@ use crate::{
 		},
 	},
 	server::state::{
-		get_accountid, get_blocknumber, get_chain_rpc_renew, get_identity, get_maintenance,
-		get_nft_availability_map_len, get_nonce, get_processed_block, get_version, reset_nonce,
-		set_blocknumber, set_chain_api, set_chain_api_renew, set_processed_block, SharedState,
-		StateConfig,
+		get_accountid, get_blocknumber, get_chain_rpc_renew, get_identity, get_maintenance, get_nft_availability_map_len, get_nonce, get_processed_block, get_rpc_endpoint, get_version, reset_nonce, set_blocknumber, set_chain_api, set_chain_api_renew, set_processed_block, SharedState, StateConfig
 	},
 };
 
@@ -80,8 +77,8 @@ use crate::replication::{
 use super::{server_common, state::get_chain_api};
 
 /// http server app
-pub async fn http_server() -> Result<Router, Error> {
-	let state_config = initialize_enclave_state().await?;
+pub async fn http_server(rpcnode: String) -> Result<Router, Error> {
+	let state_config = initialize_enclave_state(rpcnode).await?;
 
 	info!("ENCLAVE START : define the CORS layer.");
 	let cors_layer = CorsLayer::new()
@@ -234,92 +231,18 @@ pub struct HealthResponse {
 #[once(time = 6, sync_writes = false)]
 async fn get_health_status(State(state): State<SharedState>) -> (StatusCode, Json<HealthResponse>) {
 	trace!("\t Healthcheck handler Start");
+	
+	let block_number = get_blocknumber(&state).await;
+	let binary_version = get_version(&state).await;
+	let enclave_address = get_accountid(&state).await;
 
-	match evalueate_health_status(&state).await {
-		Some(response) => {
-			trace!("Healthcheck handler exit successfully .");
-			response
-		},
-
-		_ => {
-			let message = "Healthcheck handler error : exited with None.".to_string();
-			error!(message);
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("health-check", "None");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-
-			let block_number = get_blocknumber(&state).await;
-			let binary_version = get_version(&state).await;
-			let enclave_address = get_accountid(&state).await;
-			let sync_state = match get_sync_state() {
-				Ok(st) => st,
-				Err(err) => {
-					error!("Healthcheck handler error : unable to read the sync state");
-					"Unknown".to_string()
-				},
-			};
-			let secrets_number = Some(get_nft_availability_map_len(&state).await);
-
-			let chain = if cfg!(feature = "mainnet") {
-				"mainnet".to_string()
-			} else if cfg!(feature = "alphanet") {
-				"alphanet".to_string()
-			} else if cfg!(feature = "betanet") {
-				"betanet".to_string()
-			} else if cfg!(feature = "dev0") {
-				"dev0".to_string()
-			} else if cfg!(feature = "dev1") {
-				"dev1".to_string()
-			} else {
-				"localchain".to_string()
-			};
-
-			(
-				StatusCode::INTERNAL_SERVER_ERROR,
-				Json(HealthResponse {
-					chain,
-					sync_state,
-					secrets_number,
-					description: "Healthcheck returned NONE".to_string(),
-					block_number,
-					version: binary_version,
-					enclave_address,
-				}),
-			)
-		},
-	}
-}
-
-/// Health check endpoint
-/// This function is called by the health check endpoint
-/// It returns a JSON object with the following fields :
-async fn evalueate_health_status(
-	state: &SharedState,
-) -> Option<(StatusCode, Json<HealthResponse>)> {
-	//let time: chrono::DateTime<chrono::offset::Utc> = SystemTime::now().into();
-
-	let block_number = get_blocknumber(state).await;
-	let binary_version = get_version(state).await;
-	let enclave_address = get_accountid(state).await;
-
-	trace!("Healthcheck : get public key.");
 	// TODO [error handling] : ADD RPC PROBLEM/TIMEOUT
-	let sync_state = match get_sync_state() {
-		Ok(st) => st,
-		Err(err) => {
-			error!("Healthcheck : error : unable to get sync state");
-			return None;
-		},
-	};
-
+	
 	trace!("Healthcheck handler : get availability map");
-	let secrets_number = Some(get_nft_availability_map_len(state).await);
+	let secrets_number = Some(get_nft_availability_map_len(&state).await);
 
 	trace!("Healthcheck handler : get maintenance");
-	let maintenance = get_maintenance(state).await;
+	let maintenance = get_maintenance(&state).await;
 
 	let chain = if cfg!(feature = "mainnet") {
 		"mainnet".to_string()
@@ -333,9 +256,30 @@ async fn evalueate_health_status(
 		"localchain".to_string()
 	};
 
+	trace!("Healthcheck handler : get sync state");
+	let sync_state = match get_sync_state() {
+		Ok(st) => st,
+		Err(err) => {
+			error!("Healthcheck : error : unable to get sync state");
+			"Sync State Unknown".to_string()
+		},
+	};
+
+	trace!("Healthcheck handler : get sync status");
+	let status = match sync_state.as_str() {
+		"" => StatusCode::PARTIAL_CONTENT,
+		"setup" => StatusCode::RESET_CONTENT,
+		_ =>
+			if sync_state.parse::<u32>().is_ok() {
+				StatusCode::OK
+			} else {
+				StatusCode::INTERNAL_SERVER_ERROR
+			},
+	};
+
 	if !maintenance.is_empty() {
 		trace!("Healthcheck handler : maintenance mode");
-		return Some((
+		return (
 			StatusCode::PROCESSING,
 			Json(HealthResponse {
 				chain,
@@ -346,24 +290,11 @@ async fn evalueate_health_status(
 				description: maintenance,
 				enclave_address,
 			}),
-		));
+		);
 	}
-
-	trace!("Healthcheck handler : get sync status");
-	let status = match sync_state.as_str() {
-		"" => StatusCode::PARTIAL_CONTENT,
-		"setup" => StatusCode::RESET_CONTENT,
-		_ =>
-			if sync_state.parse::<u32>().is_ok() {
-				StatusCode::OK
-			} else {
-				StatusCode::NOT_ACCEPTABLE
-			},
-	};
-
+	
 	trace!("Healthcheck handler : state={status:?}");
-
-	Some((
+	(
 		status,
 		Json(HealthResponse {
 			chain,
@@ -374,8 +305,9 @@ async fn evalueate_health_status(
 			description: "SGX server is running!".to_string(),
 			enclave_address,
 		}),
-	))
+	)
 }
+
 
 /*
 	Initialize the enclave :
@@ -384,7 +316,7 @@ async fn evalueate_health_status(
 	- Check the synchronization state of secrets from the last start
 */
 
-async fn initialize_enclave_state() -> Result<SharedState, Error> {
+async fn initialize_enclave_state(rpcnode: String) -> Result<SharedState, Error> {
 	// Confidential Keypair of Enclave
 	// The public key part of the keypair is the Identity of enclave i.e for registeration on chain
 	// Also used for signing all communications
@@ -440,7 +372,7 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 	};
 
 	// New Websocket RPC connection to the blockchain
-	let api_rpc = match create_chain_api().await {
+	let api_rpc = match create_chain_api(rpcnode.clone()).await {
 		Ok(ar) => ar,
 		Err(err) => {
 			error!("ENCLAVE START : get online chain api, error : {err:?}");
@@ -464,6 +396,7 @@ async fn initialize_enclave_state() -> Result<SharedState, Error> {
 	let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 		enclave_keypair,
 		String::new(),
+		rpcnode,
 		api_rpc.clone(),
 		VERSION.to_string(),
 		keyshare_list,
@@ -692,7 +625,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 				info!("-- Subscription Task : Renew the RPC ...");
 
 				// New Websocket RPC connection to the blockchain
-				let api_rpc = match create_chain_api().await {
+				let api_rpc = match create_chain_api(get_rpc_endpoint(&state_config).await).await {
 					Ok(api) => api,
 					Err(err) => {
 						error!("-- Subscription Task : get online chain api, error : {err:?}");
@@ -724,7 +657,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 
 					// New Websocket RPC connection to the blockchain
 					info!("-- Subscription Task : Reconnecting RPC ...");
-					let api_rpc = match create_chain_api().await {
+					let api_rpc = match create_chain_api(get_rpc_endpoint(&state_config).await).await {
 						Ok(ar) => ar,
 						Err(err) => {
 							error!("-- Subscription Task : get online chain api, error : {err:?}");

@@ -2333,23 +2333,38 @@ mod test {
 
 	#[tokio::test]
 	async fn test_cluster_discovery() {
+		let rpcnode = if cfg!(feature = "mainnet") {
+			"wss://mainnet.ternoa.io:443".to_string()
+		} else if cfg!(feature = "alphanet") {
+			"wss://alphanet.ternoa.com:443".to_string()
+		} else if cfg!(feature = "betanet") {
+			"wss://betanet.ternoa.com:443".to_string()
+		} else if cfg!(feature = "dev1") {
+			"wss://dev-1.ternoa.network:443".to_string()
+		} else if cfg!(feature = "dev0") {
+			"wss://dev-0.ternoa.network:443".to_string()
+		} else {
+			"ws://localhost:9944".to_string()
+		};
+
 		let _ = tracing::subscriber::set_default(
 			FmtSubscriber::builder().with_max_level(Level::ERROR).finish(),
 		);
 
 		// Test environment
-		let (api, rpc) = create_chain_api().await.unwrap();
+		let (api, rpc) = create_chain_api(rpcnode.clone()).await.unwrap();
 		let (enclave_keypair, _, _) = sr25519::Pair::generate_with_phrase(None);
 
 		let state_config: SharedState = Arc::new(RwLock::new(StateConfig::new(
 			enclave_keypair,
 			String::new(),
+			rpcnode.clone(),
 			(api.clone(), rpc.clone()),
 			VERSION.to_string(),
 			BTreeMap::<u32, helper::Availability>::new(),
 		)));
 
-		let mut app = match crate::server::http_server::http_server().await {
+		let mut app = match crate::server::http_server::http_server(rpcnode).await {
 			Ok(r) => r,
 			Err(err) => {
 				error!("Error creating http server {}", err);

@@ -37,20 +37,20 @@ sgx.trusted_files = [
   "file:{{ enclave_dir }}/trusted/",
 ]
 
+sgx.edmm_enable = {{ 'true' if env.get('EDMM', '0') == '1' else 'false' }}
+sgx.use_exinfo = {{ 'true' if env.get('EDMM', '0') == '1' else 'false' }}
+
 sgx.enclave_size = "4G"
 sgx.thread_num = 24
-sgx.max_threads = 32
+sgx.max_threads = {{ '1' if env.get('EDMM', '0') == '1' else '32' }}
 
 sgx.isvprodid = 13
 sgx.isvsvn    = 104
 
 sgx.remote_attestation = "dcap"
-#sgx.ra_client_linkable = true
-#sgx.ra_client_spid = "B6941ED89BCD7301A08739845B3B865A"
 
 sgx.debug = false
 sgx.nonpie_binary = true
-sgx.edmm_enable = false
 sgx.preheat_enclave = false
 sgx.file_check_policy = "strict"
 

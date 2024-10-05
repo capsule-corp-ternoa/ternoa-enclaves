@@ -72,22 +72,8 @@ pub enum ReturnStatus {
 /// Creates a new chain API
 /// # Returns
 /// * `DefaultApi` - The chain API
-pub async fn create_chain_api() -> Result<ApiRpc, Error> {
+pub async fn create_chain_api(rpc_endoint: String) -> Result<ApiRpc, Error> {
 	debug!("CHAIN : get chain API");
-
-	let rpc_endoint = if cfg!(feature = "mainnet") {
-		"wss://mainnet.ternoa.io:443".to_string()
-	} else if cfg!(feature = "alphanet") {
-		"wss://alphanet.ternoa.com:443".to_string()
-	} else if cfg!(feature = "betanet") {
-		"wss://betanet.ternoa.com:443".to_string()
-	} else if cfg!(feature = "dev1") {
-		"wss://dev-1.ternoa.network:443".to_string()
-	} else if cfg!(feature = "dev0") {
-		"wss://dev-0.ternoa.network:443".to_string()
-	} else {
-		"ws://localhost:9944".to_string()
-	};
 
 	let reconnectable_rpc = Client::builder()
 		// Reconnect with exponential backoff
@@ -121,9 +107,13 @@ pub async fn create_chain_api() -> Result<ApiRpc, Error> {
 	// Check Genesis Hash
 	let genesis_hash = hex::encode(api.genesis_hash());
 
-	if (cfg!(feature = "mainnet") && genesis_hash.as_str() != MAINNET_GENESIS_HASH) ||
-		(cfg!(feature = "alphanet") && genesis_hash.as_str() != ALPHANET_GENESIS_HASH)
-	{
+	if cfg!(feature = "mainnet") && genesis_hash.as_str() == MAINNET_GENESIS_HASH {
+		info!("CHAIN : API : Valid mainnet endpoint");
+	}
+	else if cfg!(feature = "alphanet") && genesis_hash.as_str() == ALPHANET_GENESIS_HASH {
+		info!("CHAIN : API : Valid alphanet endpoint");
+	}
+	else if cfg!(feature = "alphanet") || cfg!(feature = "mainnet") {
 		let error_message = "CHAIN : Error : Genesis Hash mismatch";
 		error!(name: "Chain Genesis Mismatch",error_message);
 		sentry::capture_message(error_message, sentry::protocol::Level::Error);
@@ -169,8 +159,22 @@ pub async fn get_current_block_number(state: &SharedState) -> Result<u32, Error>
 
 pub async fn get_current_block_number_test() -> Result<u32, Error> {
 	debug!("CHAIN : current_block : get api");
+	
+	let rpcnode = if cfg!(feature = "mainnet") {
+		"wss://mainnet.ternoa.io:443".to_string()
+	} else if cfg!(feature = "alphanet") {
+		"wss://alphanet.ternoa.com:443".to_string()
+	} else if cfg!(feature = "betanet") {
+		"wss://betanet.ternoa.com:443".to_string()
+	} else if cfg!(feature = "dev1") {
+		"wss://dev-1.ternoa.network:443".to_string()
+	} else if cfg!(feature = "dev0") {
+		"wss://dev-0.ternoa.network:443".to_string()
+	} else {
+		"ws://localhost:9944".to_string()
+	};
 
-	let (api, _) = match create_chain_api().await {
+	let (api, _) = match create_chain_api(rpcnode).await {
 		Ok(api) => api,
 		Err(err) => return Err(err),
 	};
@@ -535,7 +539,21 @@ mod test {
 	use std::time::Instant;
 
 	pub async fn get_constant() -> impl IntoResponse {
-		let (api, _) = create_chain_api().await.unwrap();
+		let rpcnode = if cfg!(feature = "mainnet") {
+			"wss://mainnet.ternoa.io:443".to_string()
+		} else if cfg!(feature = "alphanet") {
+			"wss://alphanet.ternoa.com:443".to_string()
+		} else if cfg!(feature = "betanet") {
+			"wss://betanet.ternoa.com:443".to_string()
+		} else if cfg!(feature = "dev1") {
+			"wss://dev-1.ternoa.network:443".to_string()
+		} else if cfg!(feature = "dev0") {
+			"wss://dev-0.ternoa.network:443".to_string()
+		} else {
+			"ws://localhost:9944".to_string()
+		};
+
+		let (api, _) = create_chain_api(rpcnode).await.unwrap();
 		// Build a constant address to query:
 		let address = ternoa::constants().balances().existential_deposit();
 		// Look it up:
@@ -544,7 +562,21 @@ mod test {
 	}
 
 	pub async fn storage_query() -> impl IntoResponse {
-		let (api, _) = create_chain_api().await.unwrap();
+		let rpcnode = if cfg!(feature = "mainnet") {
+			"wss://mainnet.ternoa.io:443".to_string()
+		} else if cfg!(feature = "alphanet") {
+			"wss://alphanet.ternoa.com:443".to_string()
+		} else if cfg!(feature = "betanet") {
+			"wss://betanet.ternoa.com:443".to_string()
+		} else if cfg!(feature = "dev1") {
+			"wss://dev-1.ternoa.network:443".to_string()
+		} else if cfg!(feature = "dev0") {
+			"wss://dev-0.ternoa.network:443".to_string()
+		} else {
+			"ws://localhost:9944".to_string()
+		};
+
+		let (api, _) = create_chain_api(rpcnode).await.unwrap();
 		let address = ternoa::storage().system().account_iter();
 
 		let mut iter = api.storage().at_latest().await.unwrap().iter(address).await.unwrap();

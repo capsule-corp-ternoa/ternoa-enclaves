@@ -12,7 +12,7 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-	/// Server Port
+	/// Server Domain
 	#[arg(short, long)]
 	domain: String,
 
@@ -20,7 +20,11 @@ struct Args {
 	#[arg(short, long)]
 	port: u16,
 
-	/// Server Port
+	/// RPC Node
+	#[arg(short, long)]
+	rpcnode: String,
+
+	/// Log verbosity
 	#[arg(short, long, default_value_t = 2)]
 	verbose: u8,
 }
@@ -57,28 +61,13 @@ async fn main() {
 
 	tracing_subscriber::registry().with(filter_layer).with(fmt_layer).init();
 
-	info!("MAIN : Start Sentry");
-	let env = if cfg!(feature = "mainnet") {
-		"mainnet"
-	} else if cfg!(feature = "alphanet") {
-		"alphanet"
-	} else if cfg!(feature = "betanet") {
-		"betanet"
-	} else if cfg!(feature = "dev0") {
-		"dev0"
-	} else if cfg!(feature = "dev1") {
-		"dev1"
-	} else {
-		"localchain"
-	};
-
 	let _guard = sentry::init((
 		SENTRY_URL,
 		sentry::ClientOptions {
 			release: Some(format!("Ternoa Enclave Version v{}", VERSION).into()),
 			traces_sample_rate: 1.0,
 			debug: false,
-			environment: Some(env.into()),
+			environment: Some(args.rpcnode.clone().into()),
 			before_send: Some(std::sync::Arc::new(|mut event| {
 				// Modify event here
 				event.server_name = Some("TERNOA SGX ENCLAVE SERVER".into());
@@ -99,14 +88,14 @@ async fn main() {
 		scope.set_context("ENCLAVE", sentry::protocol::Context::Other(map));
 
 		scope.set_user(Some(sentry::User {
-			id: Some("Ternoa Operator".into()),
-			email: Some("john.doe@ternoa.com".into()),
+			id: Some("Ternoa DevOps".into()),
+			email: Some("admin@ternoa.com".into()),
 			..Default::default()
 		}));
 	});
 
 	info!("MAIN : Define http-server");
-	let http_app = match server::http_server::http_server().await {
+	let http_app = match server::http_server::http_server(args.rpcnode).await {
 		Ok(app) => app,
 		Err(err) => {
 			error!("MAIN : Error creating http application, exiting : {err:?}");

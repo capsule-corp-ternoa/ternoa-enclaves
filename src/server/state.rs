@@ -20,6 +20,8 @@ pub struct StateConfig {
 	enclave_signer: PairSigner<subxt::PolkadotConfig, sr25519::Pair>,
 	// If enclave is in maintenance mode, this field will contain a proper description
 	maintenance: String,
+	// RPC endpoint
+	rpc_node: String,
 	// RPC connection to the blockchain public node
 	api_rpc: ApiRpc,
 	// If the RPC connection is lost, this flag is set to activate reconn
@@ -43,6 +45,7 @@ impl StateConfig {
 	pub fn new(
 		enclave_key: sr25519::Pair,
 		maintenance: String,
+		rpc_node: String,
 		api_rpc: ApiRpc,
 		binary_version: String,
 		nft_block_map: BTreeMap<u32, helper::Availability>,
@@ -50,7 +53,7 @@ impl StateConfig {
 		let public_key = match keypair_to_public(enclave_key.clone()) {
 			Some(pk) => pk.to_string(),
 			None => {
-				tracing::error!("State-Config : error converting keypair to account_id");
+				tracing::error!("STATE : State-Config : error converting keypair to account_id");
 				String::new()
 			},
 		};
@@ -60,6 +63,7 @@ impl StateConfig {
 			enclave_account: public_key,
 			enclave_signer: PairSigner::new(enclave_key),
 			maintenance,
+			rpc_node,
 			api_rpc,
 			rpc_renew: false,
 			current_block: 0,
@@ -90,7 +94,7 @@ impl StateConfig {
 		let public_key = match keypair_to_public(keypair.clone()) {
 			Some(pk) => pk.to_string(),
 			None => {
-				tracing::error!("SET-KEY : ERROR : converting keypair to account_id");
+				tracing::error!("STATE : SET-KEY : ERROR : converting keypair to account_id");
 				String::new()
 			},
 		};
@@ -105,6 +109,10 @@ impl StateConfig {
 
 	pub fn set_maintenance(&mut self, message: String) {
 		self.maintenance = message;
+	}
+
+	pub fn get_rpc_node(&self) -> String {
+		self.rpc_node.clone()
 	}
 
 	pub fn get_rpc_client(&self) -> ApiRpc {
@@ -151,7 +159,10 @@ impl StateConfig {
 		let account_id = self.enclave_signer.account_id();
 		self.nonce = match self.api_rpc.0.tx().account_nonce(account_id).await {
 			Ok(nonce) => nonce,
-			Err(_) => self.nonce + 1, // Does it work?
+			Err(_) => {
+				tracing::error!("STATE : can not retrieve account nonce, will increment local nonce : {}", self.nonce);
+				self.nonce + 1
+			}, // Does it work?
 		};
 	}
 
@@ -178,7 +189,7 @@ impl StateConfig {
 	}
 
 	pub fn get_nft_availability(&self, nftid: u32) -> Option<&helper::Availability> {
-		tracing::trace!("\nAVAILABILITY : LOW LEVEL : GET : MAP : {:#?}", self.nft_block_map);
+		tracing::trace!("\nSTATE : AVAILABILITY : LOW LEVEL : GET : MAP : {:#?}", self.nft_block_map);
 		self.nft_block_map.get(&nftid)
 	}
 
@@ -194,14 +205,14 @@ impl StateConfig {
 		// Availability contains Blocknumber of last change and the Type of NFT
 		// (Secret/Capsule/Hybrid)
 		self.nft_block_map.insert(nftid_block.0, nftid_block.1);
-		tracing::trace!("\nAVAILABILITY : LOW LEVEL : SET : MAP : {:#?}", self.nft_block_map);
+		tracing::trace!("\nSTATE : AVAILABILITY : LOW LEVEL : SET : MAP : {:#?}", self.nft_block_map);
 	}
 
 	pub fn remove_nft_availability(&mut self, nftid: u32) {
 		// Availability contains Blocknumber of last change and the Type of NFT
 		// (Secret/Capsule/Hybrid)
 		self.nft_block_map.remove(&nftid);
-		tracing::trace!("\nAVAILABILITY : LOW LEVEL : REMOVE : MAP : {:#?}", self.nft_block_map);
+		tracing::trace!("\nSTATE : AVAILABILITY : LOW LEVEL : REMOVE : MAP : {:#?}", self.nft_block_map);
 	}
 }
 
@@ -209,7 +220,7 @@ fn keypair_to_public(keypair: sr25519::Pair) -> Option<sr25519::Public> {
 	let pubkey: [u8; 32] = match keypair.as_ref().to_bytes()[64..].try_into() {
 		Ok(pk) => pk,
 		Err(err) => {
-			tracing::error!("converting keypair to public key: {err:?}");
+			tracing::error!("STATE : converting keypair to public key: {err:?}");
 			return None;
 		},
 	};
@@ -253,6 +264,11 @@ pub async fn get_accountid(state: &SharedState) -> String {
 pub async fn get_nonce(state: &SharedState) -> u64 {
 	let shared_state_read = state.read().await;
 	shared_state_read.get_nonce()
+}
+
+pub async fn get_rpc_endpoint(state: &SharedState) -> String {
+	let shared_state_read = state.read().await;
+	shared_state_read.get_rpc_node()
 }
 
 pub async fn get_chain_rpc_renew(state: &SharedState) -> bool {
