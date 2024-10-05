@@ -7,9 +7,9 @@ services:
     command:
       - "--domain"
       - "$ENCLAVE_DOMAIN"
-      - "--port" 
+      - "--port"
       - "$ENCLAVE_PORT"
-      - "--verbose" 
+      - "--verbose"
       - "${ENCLAVE_VERBOSE:-3}"
     ports:
       - "${ENCLAVE_PORT}:${ENCLAVE_PORT}/tcp"
@@ -20,7 +20,7 @@ services:
       - /dev/sgx_enclave
     networks:
       - sgx-machine
-    dns: 
+    dns:
       - ${ENCLAVE_DNS}
 
 networks:
