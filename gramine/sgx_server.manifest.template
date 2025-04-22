@@ -11,7 +11,7 @@ libos.entrypoint = "{{ self_exe }}"
 
 loader.entrypoint = "file:{{ enclave_dir }}/trusted/gramine/libsysdb.so"
 loader.insecure__use_cmdline_argv = true
-loader.pal_internal_mem_size = "128M"
+#loader.pal_internal_mem_size = "128M"
 loader.log_level = "{{ log_level }}"
 
 loader.env.LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
@@ -41,7 +41,7 @@ sgx.edmm_enable = {{ 'true' if env.get('EDMM', '0') == '1' else 'false' }}
 sgx.use_exinfo = {{ 'true' if env.get('EDMM', '0') == '1' else 'false' }}
 
 sgx.enclave_size = "4G"
-sgx.thread_num = 24
+#sgx.thread_num = 24
 sgx.max_threads = {{ '1' if env.get('EDMM', '0') == '1' else '32' }}
 
 sgx.isvprodid = 13
@@ -50,7 +50,7 @@ sgx.isvsvn    = 104
 sgx.remote_attestation = "dcap"
 
 sgx.debug = false
-sgx.nonpie_binary = true
+#sgx.nonpie_binary = true
 sgx.preheat_enclave = false
 sgx.file_check_policy = "strict"
 
