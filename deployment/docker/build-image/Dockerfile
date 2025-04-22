@@ -25,7 +25,7 @@ WORKDIR /opt/ternoa-enclaves
 RUN git checkout v0.5.1
 
 WORKDIR /opt/ternoa-enclaves/artifacts
-RUN cargo install --version 0.36.0 subxt-cli
+RUN cargo install --version 0.36.0 subxt-cli --locked
 RUN ./get_metadata.sh
 RUN ls -lts
 
