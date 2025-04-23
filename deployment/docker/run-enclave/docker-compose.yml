@@ -11,6 +11,8 @@ services:
       - "$ENCLAVE_PORT"
       - "--verbose"
       - "${ENCLAVE_VERBOSE:-3}"
+      - "--rpcnode"
+      - "${RPCNODE:-wss://mainnet.ternoa.network}"
     ports:
       - "${ENCLAVE_PORT}:${ENCLAVE_PORT}/tcp"
       - "443:443/tcp"
