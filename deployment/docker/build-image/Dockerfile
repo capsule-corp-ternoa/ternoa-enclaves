@@ -10,9 +10,8 @@ ENV ENCLAVE_CHAIN=${ENCLAVE_CHAIN:-"mainnet"}
 RUN rustup update
 SHELL ["/bin/bash", "-c"]
 
-RUN curl -fsSLo /usr/share/keyrings/gramine-1.8.gpg https://packages.gramineproject.io/gramine-2021.gpg && \
-    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-1.8.gpg] https://packages.gramineproject.io/ 1.8 main' \
-      > /etc/apt/sources.list.d/gramine.list
+RUN curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg && \
+    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ focal main' > /etc/apt/sources.list.d/gramine.list
 
 RUN apt-get update && apt-get install -y apt-utils curl ca-certificates git build-essential wget libssl-dev git unzip pkgconf
 RUN apt install -y pkg-config
@@ -55,12 +54,10 @@ ENV VERSION_TAG="${CODE_VERSION}-${CHAIN}"
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y curl tzdata apt-utils ca-certificates libssl-dev reprepro lsb-release
 
-RUN curl -fsSLo /usr/share/keyrings/gramine-1.8.gpg https://packages.gramineproject.io/gramine-2021.gpg && \
-    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-1.8.gpg] https://packages.gramineproject.io/ 1.8 main' \
-      > /etc/apt/sources.list.d/gramine.list && \
+RUN curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg && \
+    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ focal main' > /etc/apt/sources.list.d/gramine.list && \
     curl -fsSLo /usr/share/keyrings/intel-sgx-deb.key https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key && \
-    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-sgx-deb.key] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' \
-      > /etc/apt/sources.list.d/intel-sgx.list
+    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-sgx-deb.key] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' > /etc/apt/sources.list.d/intel-sgx.list
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends tzdata libsgx-epid libsgx-quote-ex libsgx-launch libsgx-urts && \
