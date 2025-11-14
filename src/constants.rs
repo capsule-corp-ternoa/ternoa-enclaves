@@ -15,7 +15,7 @@ pub const SENTRY_URL: &str = "https://089e5c79239442bfb6af6e5d7676644c@error.ter
 // ---------- SYNC
 pub const RETRY_COUNT: u8 = 5;
 pub const RETRY_DELAY: u8 = 6;
-pub const _MAX_STREAM_SIZE: usize = 1000 * 3 * 1024; // 3KB is the size of keyshare, 1000 is maximum number of extrinsics in block
+pub const _MAX_STREAM_SIZE: usize = 1000 * 4 * 1024; // 4KB is the size of keyshare, 1000 is maximum number of extrinsics in block
 
 // ---------- HTTP SERVER
 pub const SEALPATH: &str = "/nft";
@@ -30,7 +30,7 @@ pub const CONCURRENT_LIMIT: usize = 10;
 // ----------- VERIFY
 pub const MAX_VALIDATION_PERIOD: u32 = 20;
 pub const MAX_BLOCK_VARIATION: u32 = 2;
-pub const MAX_KEYSHARE_SIZE: u16 = 3000;
+pub const MAX_KEYSHARE_SIZE: u16 = 4000;
 pub const MIN_KEYSHARE_SIZE: u16 = 16;
 
 // ----------- CHAIN's GENESIS HASH
