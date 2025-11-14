@@ -1,0 +1,199 @@
+version: "3.9"
+
+services:
+  # Edge router: only does TCP SNI routing with TLS passthrough.
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik_sgx_edge
+    command:
+      - "--entrypoints.websecure.address=:443"
+      - "--providers.docker=true"
+      # IMPORTANT: no ACME here – TLS & ACME stay inside enclaves
+    ports:
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - sgx-machine
+
+  # =========================
+  # SGX ENCLAVE 1 (c3n1v3)
+  # =========================
+  ternoa-sgx-c3n1v3:
+    image: "capsulecorpternoa/ternoa-enclaves:v0.5.2-mainnet"
+    container_name: ternoa_sgx_c3n1v3
+    command:
+      - "--domain"
+      - "mainnet-c3n1v3.ternoa.network"
+      - "--port"
+      - "8301"
+      - "--verbose"
+      - "3"
+      - "--rpcnode"
+      - "wss://mainnet.ternoa.network"
+    # 443: internal ACME bootstrap
+    # 8301: actual SGX TLS server
+    expose:
+      - "443"
+    ports:
+      - "8301:8301"
+    volumes:
+      - /run/aesmd:/run/aesmd
+      # optional but recommended so certs survive container restart:
+      # - /opt/ternoa/c3n1v3/certificates:/certificates
+    devices:
+      - /dev/sgx_enclave
+    networks:
+      - sgx-machine
+    dns:
+      - 8.8.8.8
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.c3n1v3.rule=HostSNI(`mainnet-c3n1v3.ternoa.network`)"
+      - "traefik.tcp.routers.c3n1v3.entrypoints=websecure"
+      - "traefik.tcp.routers.c3n1v3.tls.passthrough=true"
+      - "traefik.tcp.services.c3n1v3.loadbalancer.server.port=443"
+
+  # =========================
+  # SGX ENCLAVE 2 (c3n2v3)
+  # =========================
+  ternoa-sgx-c3n2v3:
+    image: "capsulecorpternoa/ternoa-enclaves:v0.5.2-mainnet"
+    container_name: ternoa_sgx_c3n2v3
+    command:
+      - "--domain"
+      - "mainnet-c3n2v3.ternoa.network"
+      - "--port"
+      - "8302"
+      - "--verbose"
+      - "3"
+      - "--rpcnode"
+      - "wss://mainnet.ternoa.network"
+    expose:
+      - "443"
+    ports:
+      - "8302:8302"
+    volumes:
+      - /run/aesmd:/run/aesmd
+      # - /opt/ternoa/c3n2v3/certificates:/certificates
+    devices:
+      - /dev/sgx_enclave
+    networks:
+      - sgx-machine
+    dns:
+      - 8.8.8.8
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.c3n2v3.rule=HostSNI(`mainnet-c3n2v3.ternoa.network`)"
+      - "traefik.tcp.routers.c3n2v3.entrypoints=websecure"
+      - "traefik.tcp.routers.c3n2v3.tls.passthrough=true"
+      - "traefik.tcp.services.c3n2v3.loadbalancer.server.port=443"
+
+  # =========================
+  # SGX ENCLAVE 3 (c3n3v3)
+  # =========================
+  ternoa-sgx-c3n3v3:
+    image: "capsulecorpternoa/ternoa-enclaves:v0.5.2-mainnet"
+    container_name: ternoa_sgx_c3n3v3
+    command:
+      - "--domain"
+      - "mainnet-c3n3v3.ternoa.network"
+      - "--port"
+      - "8303"
+      - "--verbose"
+      - "3"
+      - "--rpcnode"
+      - "wss://mainnet.ternoa.network"
+    expose:
+      - "443"
+    ports:
+      - "8303:8303"
+    volumes:
+      - /run/aesmd:/run/aesmd
+      # - /opt/ternoa/c3n3v3/certificates:/certificates
+    devices:
+      - /dev/sgx_enclave
+    networks:
+      - sgx-machine
+    dns:
+      - 8.8.8.8
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.c3n3v3.rule=HostSNI(`mainnet-c3n3v3.ternoa.network`)"
+      - "traefik.tcp.routers.c3n3v3.entrypoints=websecure"
+      - "traefik.tcp.routers.c3n3v3.tls.passthrough=true"
+      - "traefik.tcp.services.c3n3v3.loadbalancer.server.port=443"
+
+  # =========================
+  # SGX ENCLAVE 4 (c3n4v3)
+  # =========================
+  ternoa-sgx-c3n4v3:
+    image: "capsulecorpternoa/ternoa-enclaves:v0.5.2-mainnet"
+    container_name: ternoa_sgx_c3n4v3
+    command:
+      - "--domain"
+      - "mainnet-c3n4v3.ternoa.network"
+      - "--port"
+      - "8304"
+      - "--verbose"
+      - "3"
+      - "--rpcnode"
+      - "wss://mainnet.ternoa.network"
+    expose:
+      - "443"
+    ports:
+      - "8304:8304"
+    volumes:
+      - /run/aesmd:/run/aesmd
+      # - /opt/ternoa/c3n4v3/certificates:/certificates
+    devices:
+      - /dev/sgx_enclave
+    networks:
+      - sgx-machine
+    dns:
+      - 8.8.8.8
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.c3n4v3.rule=HostSNI(`mainnet-c3n4v3.ternoa.network`)"
+      - "traefik.tcp.routers.c3n4v3.entrypoints=websecure"
+      - "traefik.tcp.routers.c3n4v3.tls.passthrough=true"
+      - "traefik.tcp.services.c3n4v3.loadbalancer.server.port=443"
+
+  # =========================
+  # SGX ENCLAVE 5 (c3n5v3)
+  # =========================
+  ternoa-sgx-c3n5v3:
+    image: "capsulecorpternoa/ternoa-enclaves:v0.5.2-mainnet"
+    container_name: ternoa_sgx_c3n5v3
+    command:
+      - "--domain"
+      - "mainnet-c3n5v3.ternoa.network"
+      - "--port"
+      - "8305"
+      - "--verbose"
+      - "3"
+      - "--rpcnode"
+      - "wss://mainnet.ternoa.network"
+    expose:
+      - "443"
+    ports:
+      - "8305:8305"
+    volumes:
+      - /run/aesmd:/run/aesmd
+      # - /opt/ternoa/c3n5v3/certificates:/certificates
+    devices:
+      - /dev/sgx_enclave
+    networks:
+      - sgx-machine
+    dns:
+      - 8.8.8.8
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.c3n5v3.rule=HostSNI(`mainnet-c3n5v3.ternoa.network`)"
+      - "traefik.tcp.routers.c3n5v3.entrypoints=websecure"
+      - "traefik.tcp.routers.c3n5v3.tls.passthrough=true"
+      - "traefik.tcp.services.c3n5v3.loadbalancer.server.port=443"
+
+networks:
+  sgx-machine:
+    driver: bridge
