@@ -15,7 +15,7 @@ RUN curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramine
 
 RUN apt-get update && apt-get install -y apt-utils curl ca-certificates git build-essential wget libssl-dev git unzip pkgconf
 RUN apt install -y pkg-config
-RUN apt install -y gramine
+RUN apt install -y gramine=1.8
 RUN gramine-sgx-gen-private-key
 
 RUN git clone https://github.com/capsule-corp-ternoa/ternoa-enclaves.git /opt/ternoa-enclaves
@@ -61,7 +61,7 @@ RUN curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramine
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends tzdata libsgx-epid libsgx-quote-ex libsgx-launch libsgx-urts && \
-    apt-get install -y gramine gramine-ratls-epid libprotobuf-c1
+    apt-get install -y gramine=1.8 gramine-ratls-epid=1.8 libprotobuf-c1
 
 RUN gramine-sgx-gen-private-key
 
