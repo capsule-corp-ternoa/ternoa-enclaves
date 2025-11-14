@@ -11,11 +11,11 @@ RUN rustup update
 SHELL ["/bin/bash", "-c"]
 
 RUN curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg && \
-    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ jammy main' > /etc/apt/sources.list.d/gramine.list
+    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ 1.8 main' > /etc/apt/sources.list.d/gramine.list
 
 RUN apt-get update && apt-get install -y apt-utils curl ca-certificates git build-essential wget libssl-dev git unzip pkgconf
 RUN apt install -y pkg-config
-RUN apt install -y gramine=1.8
+RUN apt install -y gramine
 RUN gramine-sgx-gen-private-key
 
 RUN git clone https://github.com/capsule-corp-ternoa/ternoa-enclaves.git /opt/ternoa-enclaves
@@ -54,14 +54,14 @@ ENV VERSION_TAG="${CODE_VERSION}-${CHAIN}"
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y curl tzdata apt-utils ca-certificates libssl-dev reprepro lsb-release
 
-RUN curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg && \
-    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ jammy main' > /etc/apt/sources.list.d/gramine.list && \
+    RUN curl -fsSLo /usr/share/keyrings/gramine-keyring.gpg https://packages.gramineproject.io/gramine-keyring.gpg && \
+    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https://packages.gramineproject.io/ 1.8 main' > /etc/apt/sources.list.d/gramine.list && \
     curl -fsSLo /usr/share/keyrings/intel-sgx-deb.key https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key && \
     echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-sgx-deb.key] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' > /etc/apt/sources.list.d/intel-sgx.list
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends tzdata libsgx-epid libsgx-quote-ex libsgx-launch libsgx-urts && \
-    apt-get install -y gramine=1.8 gramine-ratls-epid=1.8 libprotobuf-c1
+    apt-get install -y gramine gramine-ratls-epid libprotobuf-c1
 
 RUN gramine-sgx-gen-private-key
 
