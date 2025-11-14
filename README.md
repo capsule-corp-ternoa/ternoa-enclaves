@@ -116,10 +116,10 @@ To create a new image:
 
 ```shell
 docker build --rm --no-cache \
-    -t ternoa-sgx:v0.5.1-alphanet \
+    -t ternoa-sgx:v0.5.2 \
     -t ternoa-sgx:latest \
     --build-arg UBUNTU_VERSION=22.04 \
-    --build-arg ENCLAVE_CHAIN=alphanet \
+    --build-arg ENCLAVE_CHAIN=mainnet \
     --build-arg ENCLAVE_DOMAIN=enclave.your-domain.me \
     --build-arg ENCLAVE_PORT=8000 \
     --build-arg ENCLAVE_VERBOSITY=3 \
@@ -129,7 +129,7 @@ docker build --rm --no-cache \
 To start a container:
 
 ```shell
-ENCLAVE_VERSION=v0.5.1-dev0 \
+ENCLAVE_VERSION=v0.5.2 \
 ENCLAVE_DNS=8.8.8.8 \
 ENCLAVE_DOMAIN=enclave.your-domain.me \
 ENCLAVE_PORT=9000 \
