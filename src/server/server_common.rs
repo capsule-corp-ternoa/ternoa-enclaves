@@ -35,7 +35,7 @@ pub async fn serve(app: Router, domain: &str, port: &u16) -> Result<(), anyhow::
 				.iter()
 				.map(|err| format!("mailto:{}", err)),
 		)
-		.cache_option(Some(DirCache::new(PathBuf::from(r"/certificates/"))))
+		.cache_option(Some(DirCache::new(PathBuf::from(r"./certificates/"))))
 		.directory_lets_encrypt(cfg!(any(feature = "mainnet", feature = "alphanet")))
 		.state();
 
