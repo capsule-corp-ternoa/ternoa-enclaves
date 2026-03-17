@@ -1,9 +1,7 @@
-version: "3.9"
-
 services:
   # Edge router: only does TCP SNI routing with TLS passthrough.
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.6.10
     container_name: traefik_sgx_edge
     command:
       - "--entrypoints.websecure.address=:443"
