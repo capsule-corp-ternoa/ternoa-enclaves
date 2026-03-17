@@ -17,10 +17,10 @@ services:
       - sgx-machine
 
   # =========================
-  # SGX ENCLAVE 1 (c3n1v3)
+  # ENCLAVE 1 (c3n1v3)
   # =========================
   ternoa-sgx-c3n1v3:
-    image: "capsulecorpternoa/ternoa-enclaves:v0.5.2-mainnet"
+    image: "capsulecorpternoa/ternoa-sgx:v0.5.3-rc3-mainnet"
     container_name: ternoa_sgx_c3n1v3
     command:
       - "--domain"
@@ -32,17 +32,14 @@ services:
       - "--rpcnode"
       - "wss://mainnet.ternoa.network"
     # 443: internal ACME bootstrap
-    # 8301: actual SGX TLS server
+    # 8301: actual TLS server
     expose:
       - "443"
     ports:
       - "8301:8301"
     volumes:
-      - /run/aesmd:/run/aesmd
-      # optional but recommended so certs survive container restart:
-      # - /opt/ternoa/c3n1v3/certificates:/certificates
-    devices:
-      - /dev/sgx_enclave
+      - /opt/ternoa/c3n1v3/nft:/opt/ternoa-enclaves/nft
+      - /opt/ternoa/c3n1v3/certificates:/opt/ternoa-enclaves/certificates
     networks:
       - sgx-machine
     dns:
@@ -55,10 +52,10 @@ services:
       - "traefik.tcp.services.c3n1v3.loadbalancer.server.port=443"
 
   # =========================
-  # SGX ENCLAVE 2 (c3n2v3)
+  # ENCLAVE 2 (c3n2v3)
   # =========================
   ternoa-sgx-c3n2v3:
-    image: "capsulecorpternoa/ternoa-enclaves:v0.5.2-mainnet"
+    image: "capsulecorpternoa/ternoa-sgx:v0.5.3-rc3-mainnet"
     container_name: ternoa_sgx_c3n2v3
     command:
       - "--domain"
@@ -74,10 +71,8 @@ services:
     ports:
       - "8302:8302"
     volumes:
-      - /run/aesmd:/run/aesmd
-      # - /opt/ternoa/c3n2v3/certificates:/certificates
-    devices:
-      - /dev/sgx_enclave
+      - /opt/ternoa/c3n2v3/nft:/opt/ternoa-enclaves/nft
+      - /opt/ternoa/c3n2v3/certificates:/opt/ternoa-enclaves/certificates
     networks:
       - sgx-machine
     dns:
@@ -90,10 +85,10 @@ services:
       - "traefik.tcp.services.c3n2v3.loadbalancer.server.port=443"
 
   # =========================
-  # SGX ENCLAVE 3 (c3n3v3)
+  # ENCLAVE 3 (c3n3v3)
   # =========================
   ternoa-sgx-c3n3v3:
-    image: "capsulecorpternoa/ternoa-enclaves:v0.5.2-mainnet"
+    image: "capsulecorpternoa/ternoa-sgx:v0.5.3-rc3-mainnet"
     container_name: ternoa_sgx_c3n3v3
     command:
       - "--domain"
@@ -109,10 +104,8 @@ services:
     ports:
       - "8303:8303"
     volumes:
-      - /run/aesmd:/run/aesmd
-      # - /opt/ternoa/c3n3v3/certificates:/certificates
-    devices:
-      - /dev/sgx_enclave
+      - /opt/ternoa/c3n3v3/nft:/opt/ternoa-enclaves/nft
+      - /opt/ternoa/c3n3v3/certificates:/opt/ternoa-enclaves/certificates
     networks:
       - sgx-machine
     dns:
@@ -125,10 +118,10 @@ services:
       - "traefik.tcp.services.c3n3v3.loadbalancer.server.port=443"
 
   # =========================
-  # SGX ENCLAVE 4 (c3n4v3)
+  # ENCLAVE 4 (c3n4v3)
   # =========================
   ternoa-sgx-c3n4v3:
-    image: "capsulecorpternoa/ternoa-enclaves:v0.5.2-mainnet"
+    image: "capsulecorpternoa/ternoa-sgx:v0.5.3-rc3-mainnet"
     container_name: ternoa_sgx_c3n4v3
     command:
       - "--domain"
@@ -144,10 +137,8 @@ services:
     ports:
       - "8304:8304"
     volumes:
-      - /run/aesmd:/run/aesmd
-      # - /opt/ternoa/c3n4v3/certificates:/certificates
-    devices:
-      - /dev/sgx_enclave
+      - /opt/ternoa/c3n4v3/nft:/opt/ternoa-enclaves/nft
+      - /opt/ternoa/c3n4v3/certificates:/opt/ternoa-enclaves/certificates
     networks:
       - sgx-machine
     dns:
@@ -160,10 +151,10 @@ services:
       - "traefik.tcp.services.c3n4v3.loadbalancer.server.port=443"
 
   # =========================
-  # SGX ENCLAVE 5 (c3n5v3)
+  # ENCLAVE 5 (c3n5v3)
   # =========================
   ternoa-sgx-c3n5v3:
-    image: "capsulecorpternoa/ternoa-enclaves:v0.5.2-mainnet"
+    image: "capsulecorpternoa/ternoa-sgx:v0.5.3-rc3-mainnet"
     container_name: ternoa_sgx_c3n5v3
     command:
       - "--domain"
@@ -179,10 +170,8 @@ services:
     ports:
       - "8305:8305"
     volumes:
-      - /run/aesmd:/run/aesmd
-      # - /opt/ternoa/c3n5v3/certificates:/certificates
-    devices:
-      - /dev/sgx_enclave
+      - /opt/ternoa/c3n5v3/nft:/opt/ternoa-enclaves/nft
+      - /opt/ternoa/c3n5v3/certificates:/opt/ternoa-enclaves/certificates
     networks:
       - sgx-machine
     dns:
