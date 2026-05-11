@@ -2,10 +2,10 @@ docker system prune -f
 docker builder prune -f
 
 read -p "Building for which chain [mainnet, alphanet, dev0, dev1] : " chain
-read -p "Building which version [>= v0.5.3-rc3] : " codever
+read -p "Building which version [>= v0.5.3-rc4] : " codever
 
 CHAIN=${chain:-mainnet}
-CODEVER=${codever:-v0.5.3-rc3}
+CODEVER=${codever:-v0.5.3-rc4}
 
 docker build --rm --no-cache \
     -t ternoa-sgx:$CODEVER-$CHAIN \
