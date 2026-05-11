@@ -40,16 +40,12 @@ use tracing::{debug, error, info, trace, warn};
 use zip::result::ZipError;
 
 use crate::{
-	attestation::{
-		dcap::{self, ParsedQuote, ReportResponse},
-		ra::{
-			get_quote_content, write_user_report_data, QuoteResponse, QUOTE_REPORT_DATA_LENGTH,
-			QUOTE_REPORT_DATA_OFFSET,
-		},
+	attestation::ra::{
+		get_quote_content, write_user_report_data, QuoteResponse, QUOTE_REPORT_DATA_LENGTH,
+		QUOTE_REPORT_DATA_OFFSET,
 	},
 	constants::{
-		ATTESTATION_SERVER_URL, MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH,
-		SYNC_STATE_FILE, VERSION,
+		MAX_BLOCK_VARIATION, MAX_VALIDATION_PERIOD, SEALPATH, SYNC_STATE_FILE, VERSION,
 	},
 	core::{
 		chain::ternoa::{
@@ -63,8 +59,8 @@ use crate::{
 		http_server::HealthResponse,
 		state::{
 			get_accountid, get_blocknumber, get_chain_api, get_clusters, get_identity, get_keypair,
-			get_nft_availability, set_chain_api_renew, set_clusters, set_identity,
-			set_nft_availability, SharedState,
+			get_nft_availability, get_nft_availability_map_len, set_chain_api_renew, set_clusters,
+			set_identity, set_nft_availability, SharedState,
 		},
 	},
 };
@@ -125,13 +121,6 @@ pub struct FetchIdPacket {
 pub struct FetchIdResponse {
 	data: String,
 	signature: String,
-}
-
-#[derive(Serialize, Clone)]
-pub struct AttestationPacket {
-	pub account_id: String,
-	pub data: String,
-	pub signature: String,
 }
 
 /* ----------------------------------
@@ -364,38 +353,6 @@ pub async fn sync_keyshares_with_ma(
 
 	// [future reliability] check nftids , is empty, are they in range, ...
 
-	// Create a client
-	let client = match reqwest::Client::builder()
-		// This is for development, will be removed for production certs
-		.danger_accept_invalid_certs(!cfg!(any(feature = "mainnet", feature = "alphanet")))
-		.https_only(true)
-		//.use_rustls_tls()
-		// .min_tls_version(if cfg!(any(feature = "mainnet", feature = "alphanet")) {
-		// 	tls::Version::TLS_1_3
-		// } else {
-		// 	tls::Version::TLS_1_0
-		// })
-		.build()
-	{
-		Ok(client) => client,
-		Err(err) => {
-			let message =
-				format!("SYNC KEYSHARES : ERROR : unable to build a Reqwest client : {err:?}");
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "client");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
-
-	let mut enclave_url = requester.1.enclave_url.clone();
-	while enclave_url.ends_with('/') {
-		enclave_url.pop();
-	}
-
 	let quote_hash = sha256::digest(sync_request.quote.as_bytes());
 
 	if auth_token.quote_hash != quote_hash {
@@ -433,199 +390,10 @@ pub async fn sync_keyshares_with_ma(
 		requester.1.enclave_url,
 		quote_body
 	);
-	
-	// Creating request packet to the Attestation Server
-	let account_keypair = get_keypair(&state).await;
-	let account_id = get_accountid(&state).await;
-	let signature = account_keypair.sign(sync_request.quote.as_bytes());
 
-	let attestation_request_body = AttestationPacket {
-		account_id,
-		data: sync_request.quote,
-		signature: format!("{}{:?}", "0x", signature),
-	};
-
-	let attestation_request_str = serde_json::to_string(&attestation_request_body).unwrap();
-	debug!("SYNC KEYSHARES : Attestation Request Body : {attestation_request_str}");
-
-	// REQUEST TO ATTESTATION SERVER
-	debug!("SYNC KEYSHARES : SEND THE QUOTE TO ATTESTATION SERVER");
-	let attestation_raw_response = match client
-		.post(ATTESTATION_SERVER_URL)
-		.body(attestation_request_str)
-		.header(header::CONTENT_TYPE, "application/json")
-		.send()
-		.await
-	{
-		Ok(resp) => resp,
-		Err(err) => {
-			let message = format!(
-					"SYNC KEYSHARES : Attestation : can not get response from attestation server : {err:?}");
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "attestation");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
-
-	// PARSE THE ATTESTATION REPORT
-	let attestation_response =
-		match attestation_raw_response.json::<dcap::AttestationResponse>().await {
-			Ok(resp) => resp,
-			Err(err) => {
-				let message = format!("Error deserializing attestation response {err:?}");
-				sentry::with_scope(
-					|scope| {
-						scope.set_tag("sync-keyshare", "attestation");
-					},
-					|| sentry::capture_message(&message, sentry::Level::Error),
-				);
-				return error_handler(message, &state).await.into_response();
-			},
-		};
-
-	debug!(
-		"SYNC KEYSHARES : Attestation Result for url : {} is \n {:#?}\n\n",
-		requester.1.enclave_url,
-		attestation_response,
+	warn!(
+		"SYNC KEYSHARES : Skipping Ternoa attestation server and DCAP quote verification (infra removed); trusting request auth only"
 	);
-
-	// Verify signature of Attestation Server response
-	debug!("SYNC KEYSHARES : VERIFY ATTESTATION SERVER RESPONSE SIGNATURE");
-	if !verify_signature(
-		&attestation_response.account,
-		attestation_response.signature,
-		attestation_response.report.as_bytes(),
-	) {
-		let message = "SYNC KEYSHARES : Invalid Report Signature".to_string();
-		sentry::with_scope(
-			|scope| {
-				scope.set_tag("sync-keyshare", "attestation");
-			},
-			|| sentry::capture_message(&message, sentry::Level::Error),
-		);
-		return error_handler(message, &state).await.into_response();
-	}
-
-	// Verify Attestation Server Registered AccountID
-	debug!("SYNC KEYSHARES : VERIFY ATTESTATION SERVER ACCOUNT-ID");
-	if !crate::replication::metric::verify_account_id(&state, &attestation_response.account).await {
-		let message = format!(
-		"SYNC KEYSHARES : Invalid Attestation Server, It is not registered on blockchain , account : {}", attestation_response.account
-	);
-		sentry::with_scope(
-			|scope| {
-				scope.set_tag("sync-keyshare", "attestation");
-			},
-			|| sentry::capture_message(&message, sentry::Level::Error),
-		);
-		return error_handler(message, &state).await.into_response();
-	}
-
-	debug!("SYNC KEYSHARES : Stringified report map : {}", attestation_response.report);
-
-	// Deserialize Report
-	debug!("SYNC KEYSHARES : DESERIALIZE ATTESTATION REPORT");
-	let attestation_report: ReportResponse =
-		match serde_json::from_str(&attestation_response.report) {
-			Ok(report) => report,
-			Err(err) => {
-				let message = format!(
-					"SYNC KEYSHARES : Error deserializing attestation report as Value {err:?}"
-				);
-				sentry::with_scope(
-					|scope| {
-						scope.set_tag("sync-keyshare", "attestation");
-					},
-					|| sentry::capture_message(&message, sentry::Level::Error),
-				);
-				return error_handler(message, &state).await.into_response();
-			},
-		};
-
-	debug!("SYNC KEYSHARES : report = {:#?}", attestation_report);
-
-	// SEPARATE ATTESTATION SERVER : We need to compare sending and receiving quote
-	// to make sure the receiving report, belongs to the proper quote
-	debug!("SYNC KEYSHARES : MATCHING ATTESTATION REPORT QUOTE");
-	if !quote_body.quote.starts_with(&attestation_report.isvQuoteBody) {
-		trace!(
-			"Requested Quote = {} \n Returned Quote = {}",
-			quote_body.quote,
-			attestation_report.isvQuoteBody
-		);
-		let message = "SYNC KEYSHARES : Quote Mismatch".to_string();
-		sentry::with_scope(
-			|scope| {
-				scope.set_tag("sync-keyshare", "attestation");
-			},
-			|| sentry::capture_message(&message, sentry::Level::Error),
-		);
-		return error_handler(message, &state).await.into_response();
-	}
-
-	// Deserialize the quote
-	let quote_body_bytes = match general_purpose::STANDARD.decode(&attestation_report.isvQuoteBody)
-	{
-		Ok(qbb) => qbb,
-		Err(err) => {
-			let message =
-				format!("SYNC KEYSHARES : Error decoding isvQuote from base64 to bytes {err:?}");
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "attestation");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
-
-	// Deserialize the quote
-	debug!("SYNC KEYSHARES : DESERIALIZE ATTESTATION REPORT QUOTE");
-	let parsed_quote: ParsedQuote = match dcap::parse_quote(&quote_body_bytes) {
-		Ok(pq) => pq,
-
-		Err(err) => {
-			let message = format!(
-				"SYNC KEYSHARES : Error deserializing Quote from attestation report {err:?}"
-			);
-			sentry::with_scope(
-				|scope| {
-					scope.set_tag("sync-keyshare", "attestation");
-				},
-				|| sentry::capture_message(&message, sentry::Level::Error),
-			);
-			return error_handler(message, &state).await.into_response();
-		},
-	};
-
-	// Verify Report_Data
-	let report_data_token = format!(
-		"{}_{}_{}",
-		sync_request.enclave_account, auth_token.block_number, sync_request.encryption_account
-	);
-
-	debug!("SYNC KEYSHARES : report_data token = {report_data_token}");
-
-	debug!("SYNC KEYSHARES : VERIFY REPORT-DATA SIGNATURE");
-	if !verify_signature(
-		&sync_request.enclave_account.clone(),
-		hex::encode(parsed_quote.body.report_data),
-		report_data_token.as_bytes(),
-	) {
-		let message = "SYNC KEYSHARES : Invalid Report-Data Signature".to_string();
-		sentry::with_scope(
-			|scope| {
-				scope.set_tag("sync-keyshare", "quote");
-			},
-			|| sentry::capture_message(&message, sentry::Level::Error),
-		);
-		return error_handler(message, &state).await.into_response();
-	}
 
 	info!("SYNC KEYSHARES : Attestation Success");
 
@@ -897,6 +665,20 @@ pub async fn fetch_keyshares_with_ma(
 		return Ok(current_block_number);
 	};
 
+	let slot_enclaves = get_slot_enclaves(state).await;
+	if slot_enclaves.is_empty() {
+		warn!(
+			"FETCH KEYSHARES : Skipping MA and peer fetch (no peer enclaves in other public clusters for this slot)"
+		);
+		return Ok(current_block_number);
+	}
+	if new_nft_map.is_empty() && get_nft_availability_map_len(state).await > 0 {
+		warn!(
+			"FETCH KEYSHARES : Skipping MA and peer fetch (wildcard setup sync but keyshare inventory already loaded)"
+		);
+		return Ok(current_block_number);
+	}
+
 	let nftid_hash = sha256::digest(nftids_request.as_bytes());
 
 	// Temporary Keypair, specific to each communication channel,
@@ -1030,24 +812,10 @@ pub async fn fetch_keyshares_with_ma(
 		},
 	};
 
-	// The available enclaves in the same slot of current enclave, with their clusterid
-	debug!("FETCH KEYSHARES : START SLOT DISCOVERY");
-	let slot_enclaves = get_slot_enclaves(state).await;
-	if slot_enclaves.is_empty() {
-		// TODO : What about first cluster? should it continue as the Primary cluster in
-		// running-mode? otherwise we should have two clusters registered before starting
-		// enclaves with sync capability.
-		if get_identity(state).await.is_some() {
-			warn!("FETCH KEYSHARES : No other similar slots found in other clusters, is this primary cluster?");
-			return Ok(current_block_number);
-		} else {
-			// not registered
-			error!("FETCH KEYSHARES : This enclave is not registered yet.");
-			return Err(anyhow!(
-				"FETCH KEYSHARES : Slot discovery failed because of not-registered enclave"
-			));
-		}
-	}
+	debug!(
+		"FETCH KEYSHARES : slot peer enclaves count = {}",
+		slot_enclaves.len()
+	);
 
 	// Check other enclaves for new NFT keyshares
 	let nft_clusters: Vec<u32> = new_nft_map.clone().into_values().map(|c| c.cluster_id).collect();

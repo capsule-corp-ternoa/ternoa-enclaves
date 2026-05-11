@@ -7,13 +7,11 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use axum::{extract::State, http::StatusCode, Json};
-use base64::{engine::general_purpose, prelude::*};
 use cached::proc_macro::once;
 use serde::{Deserialize, Serialize};
-use subxt::ext::sp_core::Pair;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
-use crate::server::state::{get_accountid, get_blocknumber, get_keypair, SharedState};
+use crate::server::state::{get_blocknumber, SharedState};
 
 pub const QUOTE_REPORT_DATA_OFFSET: usize = 368;
 pub const QUOTE_REPORT_DATA_LENGTH: usize = 64;
@@ -27,39 +25,17 @@ pub struct QuoteResponse {
 // [performace] : Rate Limit or Cache the API
 #[once(time = 6, sync_writes = false)]
 pub async fn ra_get_quote(State(state): State<SharedState>) -> (StatusCode, Json<QuoteResponse>) {
-	// Make a dynamic user data
-	let enclave_id = get_accountid(&state).await;
 	let block_number = get_blocknumber(&state).await;
-	let sign_data = format!("{enclave_id}_{block_number}");
-
-	debug!("QUOTE : report_data token = {}", sign_data);
-
-	// Signer
-	let enclave_account = get_keypair(&state).await;
-
-	let signature = enclave_account.sign(sign_data.as_bytes());
-
-	match write_user_report_data(None, &signature.0) {
-		Ok(_) => debug!("QUOTE : Success writing user_data to the quote."),
-
-		Err(err) =>
-			return (
-				StatusCode::INTERNAL_SERVER_ERROR,
-				Json(QuoteResponse { block_number, quote: err.to_string() }),
-			),
-	};
-
-	match get_quote_content() {
-		Ok(quote_byte) => {
-			let quote_base64 = general_purpose::STANDARD.encode(quote_byte);
-			(StatusCode::OK, Json(QuoteResponse { block_number, quote: quote_base64 }))
-		},
-
-		Err(err) => (
-			StatusCode::INTERNAL_SERVER_ERROR,
-			Json(QuoteResponse { block_number, quote: err.to_string() }),
-		),
-	}
+	warn!(
+		"QUOTE : /api/quote is disabled (SGX /dev/attestation not required for this deployment)"
+	);
+	(
+		StatusCode::SERVICE_UNAVAILABLE,
+		Json(QuoteResponse {
+			block_number,
+			quote: "quote generation disabled".to_string(),
+		}),
+	)
 }
 
 /// Reads the quote or else returns an error
