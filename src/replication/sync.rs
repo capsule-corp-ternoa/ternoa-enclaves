@@ -6,7 +6,7 @@ use std::{
 };
 
 use axum::{
-	body::StreamBody,
+	body::Bytes,
 	extract::{ConnectInfo, State},
 	http::{header, StatusCode},
 	response::IntoResponse,
@@ -34,8 +34,6 @@ use subxt::{
 	OnlineClient, PolkadotConfig,
 };
 
-use tokio_util::io::ReaderStream;
-
 use tracing::{debug, error, info, trace, warn};
 use zip::result::ZipError;
 
@@ -54,7 +52,7 @@ use crate::{
 		},
 		helper::{Availability, NftType},
 	},
-	replication::zipdir::{add_list_zip, zip_extract},
+	replication::zipdir::{add_list_zip, temp_zip_file_path, zip_extract},
 	server::{
 		http_server::HealthResponse,
 		state::{
@@ -399,7 +397,7 @@ pub async fn sync_keyshares_with_ma(
 
 	// Packing up requested NFTIDs
 	let random_number = rand::rngs::OsRng.next_u32();
-	let backup_file = format!("/temporary/backup_{random_number}.zip");
+	let backup_file = temp_zip_file_path(&format!("sync_backup_{random_number}"));
 
 	debug!("SYNC KEYSHARES : Start zippping file");
 	add_list_zip(SEALPATH, nftidv, &backup_file.clone());
@@ -444,53 +442,15 @@ pub async fn sync_keyshares_with_ma(
 		},
 	}
 
-	// Writing to files is necessary to live enough for async stream
-	// ZIP-file Garbage Collection is needed
-	let encrypted_backup_file = format!("/temporary/encrypted_backup_{random_number}.zip");
-	match std::fs::write(encrypted_backup_file.clone(), encrypted_zip_data) {
-		Ok(_) => trace!("SYNC KEYSHARES : Successfully write encrypted zip data to streamfile"),
-		Err(err) =>
-			return Json(json!({
-				"error":
-					format!(
-						"SYNC KEYSHARES : Failed to write encrypted zip data to stream file : {}",
-						err
-					)
-			}))
-			.into_response(),
-	}
-
-	// `File` implements `AsyncRead`
-	debug!("SYNC KEYSHARES : Opening encrypted backup file");
-	let file = match tokio::fs::File::open(encrypted_backup_file).await {
-		Ok(file) => file,
-		Err(err) =>
-			return (
-				StatusCode::INTERNAL_SERVER_ERROR,
-				Json(json!({
-					"error": format!("SYNC KEYSHARES : Encrypted backup File not found: {}", err)
-				})),
-			)
-				.into_response(),
-	};
-
-	// convert the `AsyncRead` into a `Stream`
-	debug!("SYNC KEYSHARES : Create reader-stream");
-	let stream = ReaderStream::new(file);
-
-	// convert the `Stream` into an `axum::body::HttpBody`
-	debug!("SYNC KEYSHARES : Create body-stream");
-	let body = StreamBody::new(stream);
-
 	let headers = [
-		(header::CONTENT_TYPE, "text/toml; charset=utf-8"),
+		(header::CONTENT_TYPE, "application/octet-stream"),
 		(header::CONTENT_DISPOSITION, "attachment; filename=\"Backup.zip\""),
 	];
 
 	//update_health_status(&state, String::new()).await;
 
 	info!("SYNC KEYSHARES : Sending the backup data to the client ...");
-	(headers, body).into_response()
+	(headers, Bytes::from(encrypted_zip_data)).into_response()
 }
 
 /* --------------------------------

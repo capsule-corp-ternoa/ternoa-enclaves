@@ -2,6 +2,7 @@ use std::{
 	fs,
 	io::{self, prelude::*, Seek, Write},
 	iter::Iterator,
+	time::{SystemTime, UNIX_EPOCH},
 };
 use tracing::{debug, error, info, trace};
 use zip::{result::ZipError, write::FileOptions};
@@ -37,6 +38,15 @@ pub fn add_dir_zip(src_dir: &str, dst_file: &str) -> i32 {
 	}
 
 	0
+}
+
+pub fn temp_zip_file_path(prefix: &str) -> String {
+	let nanos = SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.map(|d| d.as_nanos())
+		.unwrap_or(0);
+	let filename = format!("{prefix}_{}_{}.zip", std::process::id(), nanos);
+	std::env::temp_dir().join(filename).to_string_lossy().into_owned()
 }
 
 fn zip_dir<T>(
@@ -165,6 +175,14 @@ fn doit(
 		return Err(ZipError::FileNotFound);
 	}
 	let path = Path::new(dst_file);
+
+	// Ensure destination directory exists before creating the zip file.
+	if let Some(parent) = path.parent() {
+		if !parent.as_os_str().is_empty() && !parent.exists() {
+			fs::create_dir_all(parent)?;
+		}
+	}
+
 	let file = File::create(path)?;
 
 	let walkdir = WalkDir::new(src_dir).max_depth(1);

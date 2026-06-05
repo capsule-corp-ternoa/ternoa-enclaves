@@ -3,7 +3,7 @@
 #![allow(unused_variables)]
 
 use axum::{
-	body::{Bytes, StreamBody},
+	body::Bytes,
 	extract::{FromRequest, Multipart, State},
 	http::{header, StatusCode},
 	response::IntoResponse,
@@ -19,8 +19,6 @@ use subxt::{
 	},
 	utils::AccountId32,
 };
-
-use tokio_util::io::ReaderStream;
 
 use hex::{FromHex, FromHexError};
 use serde_json::{json, Value};
@@ -47,7 +45,7 @@ use crate::{
 
 use super::{
 	sync::{set_sync_state, ClusterType},
-	zipdir::{add_dir_zip, zip_extract},
+	zipdir::{add_dir_zip, temp_zip_file_path, zip_extract},
 };
 
 /* *************************************
@@ -384,33 +382,14 @@ pub async fn admin_backup_fetch_bulk(
 		},
 	}
 
-	let mut backup_file = "/temporary/backup.zip".to_string();
-	let counter = 1;
-	// remove previously generated backup
-	while std::path::Path::new(&backup_file.clone()).exists() {
-		match std::fs::remove_file(backup_file.clone()) {
-			Ok(_) => {
-				debug!("ADMIN FETCH BULK : Successfully removed previous zip file")
-			},
-			Err(err) => {
-				let message = format!(
-					"ADMIN FETCH BULK : Error backup key shares : Can not remove previous backup file : {}",
-					err
-				);
-				warn!(message);
-				//return Json(json!({ "error": message })).into_response()
-				backup_file = format!("/temporary/backup-{counter}.zip");
-			},
-		}
-	}
+	let backup_file = temp_zip_file_path("backup_bulk");
 
 	debug!("ADMIN FETCH BULK : Start zippping file");
 	add_dir_zip(SEALPATH, &backup_file);
 
-	// `File` implements `AsyncRead`
-	debug!("ADMIN FETCH BULK : Opening backup file");
-	let file = match tokio::fs::File::open(backup_file).await {
-		Ok(file) => file,
+	debug!("ADMIN FETCH BULK : Reading backup file");
+	let zip_bytes = match tokio::fs::read(&backup_file).await {
+		Ok(bytes) => bytes,
 		Err(err) =>
 			return (
 				StatusCode::INTERNAL_SERVER_ERROR,
@@ -419,23 +398,19 @@ pub async fn admin_backup_fetch_bulk(
 				.into_response(),
 	};
 
-	// convert the `AsyncRead` into a `Stream`
-	debug!("ADMIN FETCH BULK : Create reader-stream");
-	let stream = ReaderStream::new(file);
-
-	// convert the `Stream` into an `axum::body::HttpBody`
-	debug!("ADMIN FETCH BULK : Create body-stream");
-	let body = StreamBody::new(stream);
+	if let Err(err) = tokio::fs::remove_file(&backup_file).await {
+		warn!("ADMIN FETCH BULK : Failed to remove temp backup file: {}", err);
+	}
 
 	let headers = [
-		(header::CONTENT_TYPE, "text/toml; charset=utf-8"),
+		(header::CONTENT_TYPE, "application/zip"),
 		(header::CONTENT_DISPOSITION, "attachment; filename=\"Backup.zip\""),
 	];
 
 	//update_health_status(&state, String::new()).await;
 
 	debug!("ADMIN FETCH BULK : Sending the backup data to the client ...");
-	(headers, body).into_response()
+	(headers, Bytes::from(zip_bytes)).into_response()
 }
 
 /// Returns Json Response
