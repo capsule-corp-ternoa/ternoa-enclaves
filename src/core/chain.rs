@@ -59,6 +59,7 @@ pub type ApiRpc = (OnlineClient<PolkadotConfig>, LegacyRpcMethods<PolkadotConfig
 
 const RETRY_COUNT: u8 = 3;
 const RETRY_DELAY: u64 = 3;
+const CHAIN_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
 #[derive(Serialize)]
 pub enum ReturnStatus {
@@ -73,6 +74,17 @@ pub enum ReturnStatus {
 /// # Returns
 /// * `DefaultApi` - The chain API
 pub async fn create_chain_api(rpc_endoint: String) -> Result<ApiRpc, Error> {
+	match tokio::time::timeout(CHAIN_API_TIMEOUT, connect_chain_api(rpc_endoint)).await {
+		Ok(result) => result,
+		Err(_) => {
+			error!("CHAIN : timed out creating chain api after {CHAIN_API_TIMEOUT:?}");
+			Err("CHAIN : timed out creating chain api".into())
+		},
+	}
+}
+
+/// Connect and fetch metadata. Bounded by `CHAIN_API_TIMEOUT` so a stalled websocket upgrade returns.
+async fn connect_chain_api(rpc_endoint: String) -> Result<ApiRpc, Error> {
 	debug!("CHAIN : get chain API");
 
 	let reconnectable_rpc = Client::builder()

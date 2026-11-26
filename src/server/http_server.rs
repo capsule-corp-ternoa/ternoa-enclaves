@@ -629,6 +629,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 					Ok(api) => api,
 					Err(err) => {
 						error!("-- Subscription Task : get online chain api, error : {err:?}");
+						tokio::time::sleep(Duration::from_secs(RETRY_DELAY.into())).await;
 						continue;
 					},
 				};
@@ -661,6 +662,7 @@ async fn subscribe_block_events(state_config: SharedState) {
 						Ok(ar) => ar,
 						Err(err) => {
 							error!("-- Subscription Task : get online chain api, error : {err:?}");
+							tokio::time::sleep(Duration::from_secs(RETRY_DELAY.into())).await;
 							continue;
 						},
 					};
