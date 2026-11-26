@@ -7,7 +7,7 @@ read -p "Building which version [>= v0.5.3-rc6] : " codever
 CHAIN=${chain:-mainnet}
 CODEVER=${codever:-v0.5.3-rc6}
 
-docker build --rm --no-cache \
+docker build --rm --no-cache --platform linux/amd64 \
     -t capsulecorpternoa/ternoa-sgx:$CODEVER-$CHAIN \
     -t capsulecorpternoa/ternoa-sgx:latest \
     --build-arg UBUNTU_VERSION=22.04 \
